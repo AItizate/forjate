@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Metabase — open-source BI and analytics platform
+#
+# Resources: Deployment, Service, Ingress, PVC
+#
+# Requires a PostgreSQL database. Tenant overlay must either:
+#   - Include the postgres component (../../databases/postgres)
+#   - Or provide an external DB connection via environment patches
+#
+# Tenant overlay must provide credentials via:
+#   - SealedSecret replacing metabase-db-secret, OR
+#   - secretGenerator in overlay
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - pvc.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: metabase

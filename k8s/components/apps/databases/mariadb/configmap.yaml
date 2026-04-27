@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mariadb-config
+
+data:
+  MYSQL_DATABASE: some_database
+  MYSQL_USER: some_user

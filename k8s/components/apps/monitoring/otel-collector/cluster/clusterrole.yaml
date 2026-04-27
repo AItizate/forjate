@@ -1,0 +1,28 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector-cluster
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/component: cluster
+rules:
+  - apiGroups: [""]
+    resources:
+      - events
+      - namespaces
+      - nodes
+      - pods
+      - services
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+      - replicasets
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch"]

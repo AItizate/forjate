@@ -1,0 +1,172 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gotrue-authz-config
+data:
+  # JSON: {"hostname": "app-name"} — patch this in overlay for per-app RBAC
+  # If empty {}, only validates that the user exists in Gotrue (no per-app RBAC)
+  # Example: {"appflowy.my-tenant.com": "appflowy", "affine.my-tenant.com": "affine"}
+  HOST_APP_MAP: "{}"
+
+  # Landing page served after OAuth callback — reads token from URL fragment,
+  # sets it as a cookie, and redirects to the original URL.
+  # Patch this in overlay to customize branding.
+  landing.html: |
+    <!DOCTYPE html>
+    <html><head><meta charset="utf-8"><title>Authenticating...</title></head>
+    <body><p>Authenticating...</p><script>
+    (function() {
+      var h = window.location.hash.substring(1);
+      if (!h) { document.body.innerHTML = '<p>No token received.</p>'; return; }
+      var params = new URLSearchParams(h);
+      var token = params.get('access_token');
+      if (!token) { document.body.innerHTML = '<p>No token received.</p>'; return; }
+      var domain = window.location.hostname.split('.').slice(-2).join('.');
+      document.cookie = 'access_token=' + token + '; path=/; domain=.' + domain + '; max-age=3600; Secure; SameSite=Lax';
+      var redirect = '/';
+      var cookies = document.cookie.split(';');
+      for (var i = 0; i < cookies.length; i++) {
+        var c = cookies[i].trim();
+        if (c.startsWith('gotrue_redirect_to=')) {
+          redirect = decodeURIComponent(c.substring('gotrue_redirect_to='.length));
+          document.cookie = 'gotrue_redirect_to=; path=/; domain=.' + domain + '; max-age=0';
+          break;
+        }
+      }
+      window.location.replace(redirect);
+    })();
+    </script></body></html>
+
+  # Error page shown when a user is authenticated but lacks access to the app.
+  # Patch this in overlay to customize branding.
+  error.html: |
+    <!DOCTYPE html>
+    <html><head><meta charset="utf-8"><title>Access Denied</title></head>
+    <body>
+      <h1>Access Denied</h1>
+      <p>You do not have permission to access this application.</p>
+    </body></html>
+
+  server.js: |
+    'use strict';
+    const http = require('http');
+    const fs = require('fs');
+
+    const PORT = parseInt(process.env.PORT || '8080');
+    const GOTRUE_URL = process.env.GOTRUE_URL || 'http://gotrue-auth:9999';
+    const GOTRUE_AUTHORIZE_URL = process.env.GOTRUE_AUTHORIZE_URL || GOTRUE_URL;
+    const HOST_APP_MAP = JSON.parse(process.env.HOST_APP_MAP || '{}');
+
+    const LANDING_PAGE = fs.readFileSync('/app/landing.html', 'utf8');
+    const ERROR_PAGE = fs.readFileSync('/app/error.html', 'utf8');
+
+    function buildLoginRedirect(req) {
+      const proto = req.headers['x-forwarded-proto'] || 'https';
+      const host = (req.headers['x-forwarded-host'] || '').split(':')[0];
+      const uri = req.headers['x-forwarded-uri'] || '/';
+      const originalUrl = `${proto}://${host}${uri}`;
+      return `${GOTRUE_AUTHORIZE_URL}/authorize?provider=google&redirect_to=${encodeURIComponent(originalUrl)}`;
+    }
+
+    function buildRedirectHeaders(req) {
+      const redirect = buildLoginRedirect(req);
+      const originalUrl = redirect.split('redirect_to=')[1];
+      const domain = (GOTRUE_AUTHORIZE_URL.split('//')[1] || '').split('/')[0].split('.').slice(-2).join('.');
+      return {
+        'Location': redirect,
+        'Set-Cookie': `gotrue_redirect_to=${originalUrl}; Path=/; Domain=.${domain}; Max-Age=600; Secure; SameSite=Lax`
+      };
+    }
+
+    function extractToken(headers) {
+      const auth = headers['authorization'] || '';
+      if (auth.startsWith('Bearer ')) return auth.slice(7);
+      const cookie = headers['cookie'] || '';
+      for (const part of cookie.split(';')) {
+        const trimmed = part.trim();
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx === -1) continue;
+        const key = trimmed.slice(0, eqIdx).trim();
+        const val = trimmed.slice(eqIdx + 1).trim();
+        if (key === 'access_token' || key === 'sb-access-token') return val;
+      }
+      return null;
+    }
+
+    function callGotrue(token, callback) {
+      const gotrueUrl = new URL(GOTRUE_URL);
+      const options = {
+        hostname: gotrueUrl.hostname,
+        port: parseInt(gotrueUrl.port) || 80,
+        path: '/user',
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+      };
+      const req = http.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          if (res.statusCode === 200) {
+            try { callback(null, JSON.parse(data)); }
+            catch (e) { callback(new Error('Invalid JSON from Gotrue')); }
+          } else {
+            callback(new Error(`Gotrue returned ${res.statusCode}`));
+          }
+        });
+      });
+      req.on('error', callback);
+      req.setTimeout(5000, () => req.destroy(new Error('Gotrue timeout')));
+      req.end();
+    }
+
+    const server = http.createServer((req, res) => {
+      // Serve landing page for token-to-cookie conversion
+      const urlPath = req.url.split('?')[0];
+      if (urlPath === '/landing') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(LANDING_PAGE);
+        return;
+      }
+
+      const forwardedHost = (req.headers['x-forwarded-host'] || '').split(':')[0];
+      const token = extractToken(req.headers);
+
+      if (!token) {
+        res.writeHead(302, buildRedirectHeaders(req));
+        res.end();
+        return;
+      }
+
+      callGotrue(token, (err, user) => {
+        if (err) {
+          res.writeHead(302, buildRedirectHeaders(req));
+          res.end();
+          return;
+        }
+
+        const responseHeaders = {
+          'X-Auth-Request-Email': user.email || '',
+          'X-Auth-Request-User': user.id || '',
+        };
+
+        const appName = HOST_APP_MAP[forwardedHost];
+        if (appName) {
+          const allowedApps = (user.app_metadata && user.app_metadata.apps) || [];
+          if (!allowedApps.includes(appName) && !allowedApps.includes('*')) {
+            res.writeHead(403, { 'Content-Type': 'text/html' });
+            res.end(ERROR_PAGE);
+            return;
+          }
+        }
+
+        res.writeHead(200, responseHeaders);
+        res.end();
+      });
+    });
+
+    server.listen(PORT, () => {
+      console.log(`gotrue-authz listening on :${PORT}`);
+      console.log(`Gotrue URL: ${GOTRUE_URL}`);
+      console.log(`Authorize URL: ${GOTRUE_AUTHORIZE_URL}`);
+      console.log(`HOST_APP_MAP: ${JSON.stringify(HOST_APP_MAP)}`);
+    });

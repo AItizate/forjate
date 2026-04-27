@@ -1,0 +1,75 @@
+apiVersion: minio.min.io/v2
+kind: Tenant
+metadata:
+  labels:
+    app: minio
+  name: base-minio
+spec:
+  certConfig: {}
+  configuration:
+    name: minio-storage-configuration
+  env:
+  - name: MINIO_SERVER_ADDRESS
+    value: ":9000"
+  - name: MINIO_CONSOLE_ADDRESS
+    value: ":9443"
+  externalCaCertSecret: []
+  externalCertSecret: []
+  externalClientCertSecrets: []
+  features:
+    bucketDNS: false
+    domains: {}
+  image: quay.io/minio/minio:latest
+  imagePullSecret: {}
+  mountPath: /export
+  podManagementPolicy: Parallel
+  pools:
+  - affinity:
+      nodeAffinity: {}
+      podAffinity: {}
+      podAntiAffinity: {}
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      runAsGroup: 1000
+      runAsNonRoot: true
+      runAsUser: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    name: pool-0
+    nodeSelector: {}
+    resources: {}
+    securityContext:
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+      runAsGroup: 1000
+      runAsNonRoot: true
+      runAsUser: 1000
+    servers: 1
+    tolerations: []
+    topologySpreadConstraints: []
+    volumeClaimTemplate:
+      apiVersion: v1
+      kind: persistentvolumeclaims
+      metadata: {}
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+      status: {}
+    volumesPerServer: 4
+  priorityClassName: ""
+  requestAutoCert: false
+  serviceAccountName: ""
+  serviceMetadata:
+    consoleServiceAnnotations: {}
+    consoleServiceLabels: {}
+    minioServiceAnnotations: {}
+    minioServiceLabels: {}
+  subPath: ""
+  users:
+  - name: minio-storage-user

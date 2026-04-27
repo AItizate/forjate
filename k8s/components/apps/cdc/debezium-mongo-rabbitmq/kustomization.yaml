@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Debezium Server — MongoDB Change Streams → RabbitMQ CDC
+#
+# Captures all writes to MongoDB collections and publishes them as
+# AMQP messages to RabbitMQ. No application code changes required.
+#
+# Event routing key: {topic.prefix}.{database}.{collection}
+#   e.g.: cdc.mydb.orders, cdc.mydb.users
+#
+# Dependencies (must be included in the tenant overlay):
+#   - k8s/components/apps/brokers/rabbitmq  (or external RabbitMQ)
+#
+# Requirement: MongoDB must run in replica set mode (even single-node).
+#   Initialization: mongosh --eval 'rs.initiate()'
+#
+# The tenant overlay must provide:
+#   1. Secret (debezium-mongo-rabbitmq-secret) with:
+#        MONGODB_URI=mongodb://user:pass@mongo-host:27017/?replicaSet=rs0&authSource=admin
+#        RABBITMQ_USER=<user>
+#        RABBITMQ_PASS=<password>
+#   2. Patch on ConfigMap for debezium.source.collection.include.list
+#        (e.g.: mydb.orders,mydb.users  or  mydb.* for the entire DB)
+#   3. Patch on ConfigMap if RabbitMQ is in a different namespace:
+#        debezium.sink.rabbitmq.connection.host
+#
+# Offsets: persisted on PVC (debezium-mongo-rabbitmq-data).
+#   If the PVC is deleted, Debezium re-snapshots from the beginning.
+#
+# Replicas: always 1. Multiple instances would produce duplicate events.
+
+resources:
+  - pvc.yaml
+  - configmap.yaml
+  - deployment.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: debezium-mongo-rabbitmq

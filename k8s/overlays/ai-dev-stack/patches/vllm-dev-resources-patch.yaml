@@ -1,0 +1,31 @@
+- op: replace
+  path: /spec/template/spec/containers/0/image
+  value: openeuler/vllm-cpu:0.14.0-oe2403sp3
+- op: replace
+  path: /spec/template/spec/containers/0/resources
+  value:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+- op: replace
+  path: /spec/template/spec/containers/0/args
+  value:
+    - "--model"
+    - "$(MODEL_NAME)"
+    - "--max-model-len"
+    - "$(MAX_MODEL_LEN)"
+    - "--dtype"
+    - "$(DTYPE)"
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: LD_PRELOAD
+    value: "/usr/lib64/libtcmalloc.so"
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: VLLM_TARGET_DEVICE
+    value: "cpu"

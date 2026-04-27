@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-worker
+  template:
+    metadata:
+      labels:
+        app: temporal-worker
+    spec:
+      containers:
+        - name: temporal-worker
+          # Each tenant replaces this with their own worker image containing
+          # custom workflows, activities, agents, and skills.
+          # Example: ghcr.io/my-org/my-temporal-worker:v1.0.0
+          image: registry.example.com/temporal-worker:latest
+          env:
+            - name: TEMPORAL_HOST
+              value: "temporal-server:7233"
+            - name: LLM_BASE_URL
+              value: "http://litellm.ai-tools.svc.cluster.local:4000"
+            - name: LLM_MODEL
+              value: "anthropic/claude-sonnet-4-5-20241022"
+            - name: POSTGRES_HOST
+              value: "postgres"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: MONGODB_HOST
+              value: "mongodb"
+            - name: MONGODB_PORT
+              value: "27017"
+          envFrom:
+            - secretRef:
+                name: worker-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+      restartPolicy: Always

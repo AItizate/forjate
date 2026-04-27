@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-red
+spec:
+  selector:
+    matchLabels:
+      app: node-red
+  template:
+    spec:
+      volumes:
+        - name: node-red-flows-file
+          configMap:
+            name: node-red-flows-file
+      containers:
+        - name: node-red
+          volumeMounts:
+            - name: node-red-flows-file
+              mountPath: /data/flows.json
+              subPath: flows.json

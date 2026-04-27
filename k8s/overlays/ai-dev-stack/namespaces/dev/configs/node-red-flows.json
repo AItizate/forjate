@@ -1,0 +1,123 @@
+[
+    {
+        "id": "ac0397e589b75478",
+        "type": "tab",
+        "label": "minio-test",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "5728ad03cd9fda52",
+        "type": "aws-config",
+        "endpoint": "https://minio.local",
+        "forcepathstyle": true,
+        "skiptlsverify": true
+    },
+    {
+        "id": "e4f448d0d60dd8b6",
+        "type": "debug",
+        "z": "ac0397e589b75478",
+        "name": "Test Minio Debug",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 540,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "5224299b0a616f24",
+        "type": "amazon s3",
+        "z": "ac0397e589b75478",
+        "aws": "5728ad03cd9fda52",
+        "bucket": "my-bucket",
+        "filename": "0 Example Manual - Custom.pdf",
+        "region": "us-east-1",
+        "name": "",
+        "x": 360,
+        "y": 100,
+        "wires": [
+            [
+                "e4f448d0d60dd8b6"
+            ]
+        ]
+    },
+    {
+        "id": "8a8b27e32a159d45",
+        "type": "inject",
+        "z": "ac0397e589b75478",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 200,
+        "y": 100,
+        "wires": [
+            [
+                "5224299b0a616f24"
+            ]
+        ]
+    },
+    {
+        "id": "f41ece2ef8ee7a98",
+        "type": "amazon s3 out",
+        "z": "ac0397e589b75478",
+        "aws": "5728ad03cd9fda52",
+        "bucket": "my-bucket",
+        "filename": "test.txt",
+        "localFilename": "",
+        "region": "us-east-1",
+        "name": "",
+        "x": 360,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "2d23d215f3602660",
+        "type": "inject",
+        "z": "ac0397e589b75478",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 200,
+        "y": 140,
+        "wires": [
+            [
+                "f41ece2ef8ee7a98"
+            ]
+        ]
+    }
+]

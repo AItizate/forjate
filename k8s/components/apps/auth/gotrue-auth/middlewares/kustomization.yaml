@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - middleware-auth.yaml
+  - middleware-errors-auth.yaml
+  - middleware-errors-authz.yaml
+  - middleware-chain.yaml

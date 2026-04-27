@@ -1,0 +1,37 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: appflowy-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web, websecure
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    # Gotrue auth — strip /gotrue prefix before forwarding
+    - match: "Host(`appflowy.example.com`) && PathPrefix(`/gotrue`)"
+      kind: Rule
+      middlewares:
+        - name: appflowy-gotrue-strip-prefix
+      services:
+        - name: appflowy-gotrue
+          port: 9999
+    # Admin Frontend — AI config, user management
+    - match: "Host(`appflowy.example.com`) && PathPrefix(`/console`)"
+      kind: Rule
+      services:
+        - name: appflowy-admin-frontend
+          port: 3000
+    # AppFlowy Web client — handles /app/* routes (invitations, web UI)
+    - match: "Host(`appflowy.example.com`) && PathPrefix(`/app`)"
+      kind: Rule
+      services:
+        - name: appflowy-web
+          port: 80
+    # AppFlowy Cloud API + WebSocket
+    - match: "Host(`appflowy.example.com`)"
+      kind: Rule
+      services:
+        - name: appflowy-cloud
+          port: 8000

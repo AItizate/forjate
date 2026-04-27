@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debezium-mongo-rabbitmq-config
+data:
+  application.properties: |
+    # --- Sink: RabbitMQ ---
+    debezium.sink.type=rabbitmq
+    debezium.sink.rabbitmq.connection.host=rabbitmq.event-sourcing.svc.cluster.local
+    debezium.sink.rabbitmq.connection.port=5672
+    debezium.sink.rabbitmq.connection.username=${RABBITMQ_USER}
+    debezium.sink.rabbitmq.connection.password=${RABBITMQ_PASS}
+    debezium.sink.rabbitmq.connection.virtualHost=/
+
+    # --- Source: MongoDB ---
+    debezium.source.connector.class=io.debezium.connector.mongodb.MongoDbConnector
+    debezium.source.topic.prefix=cdc
+    debezium.source.mongodb.connection.string=${MONGODB_URI}
+    debezium.source.collection.include.list=testdb.events
+    debezium.source.snapshot.mode=initial
+
+    # --- Offset storage ---
+    debezium.source.offset.storage=org.apache.kafka.connect.storage.FileOffsetBackingStore
+    debezium.source.offset.storage.file.filename=/debezium/data/offsets.dat
+    debezium.source.offset.flush.interval.ms=0

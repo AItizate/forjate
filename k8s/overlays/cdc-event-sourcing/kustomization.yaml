@@ -1,0 +1,86 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - selfsigned-issuer.yaml
+  - ./namespaces/event-sourcing
+
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/overlay: cdc-event-sourcing
+
+configMapGenerator:
+  - name: litellm-config-file
+    namespace: ai-tools
+    files:
+      - config.yaml=configs/litellm-config.yaml
+    behavior: replace
+
+secretGenerator:
+  - name: oauth2-proxy-secret
+    namespace: security
+    envs:
+      - secrets/oauth2-proxy.env
+    options:
+      disableNameSuffixHash: true
+  - name: litellm-secret
+    namespace: ai-tools
+    envs:
+      - secrets/litellm.env
+    options:
+      disableNameSuffixHash: true
+  - name: litellm-postgres-secret
+    namespace: ai-tools
+    envs:
+      - secrets/litellm-postgres.env
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  - path: patches/storageclass-patch.yaml
+    target:
+      kind: PersistentVolumeClaim
+  - path: patches/longhorn-replica-count-patch.yaml
+    target:
+      kind: Setting
+      name: default-replica-count
+      namespace: longhorn-system
+  - path: patches/oauth2-proxy-authz-patch.yaml
+    target:
+      kind: Middleware
+      name: oauth2-proxy-forward-authz
+      namespace: security
+  - path: patches/oauth2-proxy-errors-authz-patch.yaml
+    target:
+      kind: Middleware
+      name: oauth2-proxy-errors-authz
+      namespace: security
+  - path: patches/docker-registry-ingress-patch.yaml
+    target:
+      kind: Ingress
+      name: docker-registry-app
+  - path: patches/oauth2-proxy-ingress-patch.yaml
+    target:
+      kind: Ingress
+      name: oauth2-proxy
+  - path: patches/open-webui-ingress-patch.yaml
+    target:
+      kind: Ingress
+      name: open-webui-ingress
+  - path: patches/ai-tools-certificate-patch.yaml
+    target:
+      kind: Certificate
+      name: ai-tools-cert
+      namespace: ai-tools
+  - path: patches/security-certificate-patch.yaml
+    target:
+      kind: Certificate
+      name: security-cert
+      namespace: security
+  - path: patches/shared-certificate-patch.yaml
+    target:
+      kind: Certificate
+      name: shared-cert
+      namespace: shared

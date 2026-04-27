@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Snappymail — lightweight webmail client (IMAP/SMTP)
+# Docs: https://github.com/the-djmaze/snappymail
+#
+# Dependencies (must be included in tenant overlay alongside this component):
+#   - k8s/components/apps/communication/stalwart (or any IMAP/SMTP server)
+#
+# Tenant overlay must patch:
+#   - snappymail-ingress: real hostname
+#
+# Access: HTTP only — works via Traefik IngressRoute + Cloudflare Tunnel
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - pvc.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: snappymail

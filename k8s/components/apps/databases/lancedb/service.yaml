@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lancedb
+spec:
+  selector:
+    app: lancedb
+  ports:
+    - name: api
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+    - name: ui
+      protocol: TCP
+      port: 8501
+      targetPort: 8501
+    - name: mcp-sse
+      protocol: TCP
+      port: 8502
+      targetPort: 8502

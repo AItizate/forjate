@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: lancedb
+spec:
+  serviceName: "lancedb"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lancedb
+  template:
+    metadata:
+      labels:
+        app: lancedb
+    spec:
+      containers:
+        - name: lancedb
+          image: setchevest/lancedb-server:0.4.6
+          ports:
+            - containerPort: 8000
+              name: api
+            - containerPort: 8501
+              name: ui
+            - containerPort: 8502
+              name: mcp-sse
+          envFrom:
+            - configMapRef:
+                name: lancedb-config
+          env:
+            - name: LANCEDB_PATH
+              value: /data/lancedb
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          volumeMounts:
+            - name: lancedb-volume
+              mountPath: /data
+              subPath: apps/lancedb
+      volumes:
+        - name: lancedb-volume
+          persistentVolumeClaim:
+            claimName: pvc-lancedb

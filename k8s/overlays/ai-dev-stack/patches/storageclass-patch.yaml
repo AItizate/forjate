@@ -1,0 +1,6 @@
+# This patch sets the storageClassName for all PersistentVolumeClaims.
+# For this tenant, we are using 'local-path' as the storage provider,
+# which assumes a StorageClass of that name already exists in the cluster.
+- op: add
+  path: /spec/storageClassName
+  value: local-path

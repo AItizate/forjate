@@ -1,0 +1,71 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nats-stream-init
+spec:
+  # Auto-delete the Job 120s after completion
+  ttlSecondsAfterFinished: 120
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: stream-init
+          image: natsio/nats-box:0.19
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              NATS_URL="nats://${NATS_USER}:${NATS_PASS}@nats.${POD_NAMESPACE}.svc.cluster.local:4222"
+
+              echo "Waiting for NATS to become available..."
+              until nats req --server="$NATS_URL" '$JS.API.INFO' '' --timeout=2s >/dev/null 2>&1; do
+                echo "  NATS not ready, retrying..."
+                sleep 3
+              done
+
+              echo "NATS ready. Ensuring CDC stream exists..."
+              if nats stream info CDC --server="$NATS_URL" >/dev/null 2>&1; then
+                echo "Stream CDC already exists, skipping."
+              else
+                nats stream add CDC \
+                  --subjects="cdc.>" \
+                  --retention=limits \
+                  --max-age=7d \
+                  --storage=file \
+                  --replicas=1 \
+                  --discard=old \
+                  --max-msgs=-1 \
+                  --max-bytes=-1 \
+                  --max-msg-size=-1 \
+                  --dupe-window=2m \
+                  --no-allow-rollup \
+                  --deny-delete \
+                  --deny-purge \
+                  --defaults \
+                  --server="$NATS_URL"
+                echo "Stream CDC created successfully."
+              fi
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: NATS_USER
+            - name: NATS_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: NATS_PASS
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "50m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"

@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: security
+
+resources:
+  - namespace.yaml
+  - certificate.yaml
+  - ../../apps/oauth2-proxy/
+
+replacements:
+  - source:
+      kind: Namespace
+      name: security
+      fieldPath: metadata.name
+    targets:
+    - select:
+        kind: Middleware
+        name: oauth2-proxy-errors-auth
+      fieldPaths:
+        - spec.errors.service.namespace
+    - select:
+        kind: Middleware
+        name: oauth2-proxy-errors-authz
+      fieldPaths:
+        - spec.errors.service.namespace
+    - select:
+        kind: Middleware
+        name: oauth2-proxy-chain
+      fieldPaths:
+        - spec.chain.middlewares.*.namespace

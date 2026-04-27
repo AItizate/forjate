@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: snappymail-ingress
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: Host(`webmail.example.com`)
+      kind: Rule
+      services:
+        - name: snappymail
+          port: 8888

@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# AppFlowy Cloud - collaborative workspace (Notion alternative)
+# Docs: docs/apps/appflowy.md
+#
+# Dependencies (must be included in tenant overlay alongside this component):
+#   - k8s/components/apps/databases/postgres  (shared Postgres)
+#   - k8s/components/apps/databases/redis     (shared Redis)
+#   - MinIO (from k8s/base) for blob storage
+#
+# Tenant overlay must patch:
+#   - appflowy-ingress: real hostname
+#   - postgres image: pgvector/pgvector:pg16 (AppFlowy requires pgvector extension)
+#   - postgres-secret or SealedSecret: real DB credentials
+#   - appflowy-secret: real credentials (DATABASE_URL, JWT secret, S3 keys, SMTP, AI_OPENAI_API_KEY)
+
+resources:
+  - ./gotrue/
+  - ./appflowy-cloud/
+  - ./ai/
+  - ./web/
+  - ./search/
+  - ./worker/
+  - ./admin-frontend/
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: appflowy

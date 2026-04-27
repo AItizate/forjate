@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Gotrue Auth — Google OAuth authentication and authorization with per-app RBAC
+# Parallel alternative to oauth2-proxy. Both chains coexist in the same cluster.
+# Docs: docs/apps/gotrue-auth.md
+#
+# Dependencies (must be included in tenant overlay alongside this component):
+#   - k8s/components/apps/databases/postgres  (shared Postgres)
+#
+# Includes:
+#   - gotrue/      — Gotrue server (Google OAuth, JWT issuer, user DB)
+#   - authz/       — thin Node.js service for JWT validation + per-app RBAC
+#   - middlewares/ — Traefik: gotrue-chain, gotrue-auth, gotrue-errors-*
+#
+# Tenant overlay must patch:
+#   - gotrue-auth-ingress: real hostname (e.g. auth.my-tenant.com)
+#   - postgres-secret or SealedSecret: real DB credentials
+#   - gotrue-secret: Google OAuth client_id/secret, JWT secret, DB password
+#   - gotrue-authz-config HOST_APP_MAP: {"hostname": "app-name"} for granular RBAC
+#   - gotrue deployment: API_EXTERNAL_URL and GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI
+#   - gotrue-errors-authz: replace "override" with real error service
+#
+# To use in an Ingress:
+#   traefik.ingress.kubernetes.io/router.middlewares: <namespace>-gotrue-chain@kubernetescrd
+#
+# Granular RBAC via app_metadata:
+#   User with access to appflowy and affine:
+#   {"app_metadata": {"apps": ["appflowy", "affine"]}}
+#   User with access to everything: {"app_metadata": {"apps": ["*"]}}
+
+resources:
+  - ./gotrue/
+  - ./authz/
+  - ./middlewares/
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: gotrue-auth

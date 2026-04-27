@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+data:
+  nats-server.conf: |
+    # Required for JetStream meta-leader election in single-node mode
+    server_name: nats
+
+    port: 4222
+
+    # HTTP monitoring endpoint (cluster-internal)
+    http_port: 8222
+
+    # JetStream — disk persistence
+    jetstream {
+      store_dir: /data/jetstream
+      max_mem_store: 256MB
+      max_file_store: 5GB
+    }
+
+    # Simple username/password authentication
+    # Variables are resolved from env vars injected by nats-secret
+    authorization {
+      username: $NATS_USER
+      password: $NATS_PASS
+    }

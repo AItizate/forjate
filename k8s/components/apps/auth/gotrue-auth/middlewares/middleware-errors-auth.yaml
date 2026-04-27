@@ -1,0 +1,13 @@
+# gotrue-errors-auth: catches 401 → redirects to Google OAuth flow via Gotrue
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: gotrue-errors-auth
+spec:
+  errors:
+    status: ["401"]
+    service:
+      name: gotrue-auth
+      namespace: _NAMESPACE_
+      port: 9999
+    query: "/authorize?provider=google&redirect_to={url}"

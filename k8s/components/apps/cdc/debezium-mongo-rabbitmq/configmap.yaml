@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debezium-mongo-rabbitmq-config
+data:
+  application.properties: |
+    # ============================================================
+    # Debezium Server — MongoDB Change Streams → RabbitMQ
+    #
+    # Sensitive values (MONGODB_URI, RABBITMQ_USER, RABBITMQ_PASS)
+    # are injected as env vars from debezium-mongo-rabbitmq-secret.
+    #
+    # Tenant overlay must patch:
+    #   - debezium.source.collection.include.list
+    #   - debezium.sink.rabbitmq.connection.host  (if RabbitMQ is in a different namespace)
+    # ============================================================
+
+    # --- Sink: RabbitMQ (AMQP) ---
+    debezium.sink.type=rabbitmq
+    debezium.sink.rabbitmq.connection.host=rabbitmq.default.svc.cluster.local
+    debezium.sink.rabbitmq.connection.port=5672
+    debezium.sink.rabbitmq.connection.username=${RABBITMQ_USER}
+    debezium.sink.rabbitmq.connection.password=${RABBITMQ_PASS}
+    debezium.sink.rabbitmq.connection.virtualHost=/
+
+    # --- Source: MongoDB ---
+    debezium.source.connector.class=io.debezium.connector.mongodb.MongoDbConnector
+    debezium.source.topic.prefix=cdc
+    debezium.source.mongodb.connection.string=${MONGODB_URI}
+    # Tenant overlay must patch this value (e.g.: mydb.orders,mydb.users  or  mydb.*)
+    debezium.source.collection.include.list=mydb.*
+    # initial: snapshot of current state on first run, then stream changes
+    # never: only stream changes going forward
+    debezium.source.snapshot.mode=initial
+
+    # --- Offset storage (persisted in PVC) ---
+    debezium.source.offset.storage=org.apache.kafka.connect.storage.FileOffsetBackingStore
+    debezium.source.offset.storage.file.filename=/debezium/data/offsets.dat
+    debezium.source.offset.flush.interval.ms=0

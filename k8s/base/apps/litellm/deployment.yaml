@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: litellm
+  template:
+    metadata:
+      labels:
+        app: litellm
+    spec:
+      containers:
+        - name: litellm
+          image: ghcr.io/berriai/litellm:main-stable
+          # resources: # Uncomment and adjust resource requests and limits as needed. Every time I added a limit, the pod would not start.
+          #   requests:
+          #     cpu: "400m"
+          #     memory: "256Mi"
+          #   limits:
+          #     cpu: "800m"
+          #     memory: "1000Mi"
+          args:
+            - "--config"
+            - "/app/config/config.yaml"
+          ports:
+            - containerPort: 4000
+          env:
+            - name: STORE_MODEL_IN_DB
+              value: "True"
+            - name: PORT
+              value: "4000"
+          envFrom:
+            - secretRef:
+                name: litellm-postgres-secret
+            - secretRef:
+                name: litellm-secret
+          volumeMounts:
+            - name: external-volume
+              mountPath: /config
+              subPath: apps/litellm
+            - name: config-volume
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+          livenessProbe:
+            httpGet:
+              path: /health/liveliness
+              port: 4000
+            initialDelaySeconds: 40
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+      volumes:
+        - name: external-volume
+          persistentVolumeClaim:
+            claimName: pvc-litellm
+        - name: config-volume
+          configMap:
+            name: litellm-config-file
+      restartPolicy: Always

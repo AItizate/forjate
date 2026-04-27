@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: esphome
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: esphome
+  template:
+    metadata:
+      labels:
+        app: esphome
+    spec:
+      containers:
+        - name: esphome
+          image: esphome/esphome:latest
+          # resources:
+          #   requests:
+          #     cpu: "150m"
+          #     memory: "128Mi"
+          #   limits:
+          #     cpu: "300m"
+          #     memory: "256Mi"
+          volumeMounts:
+            - name: esphome-vol
+              mountPath: /config
+      volumes:
+        - name: esphome-vol
+          persistentVolumeClaim:
+            claimName: esphome-pvc

@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Temporal — workflow orchestration engine (server + UI)
+#
+# Resources: Deployment (temporal-server), Service (temporal-server),
+#            Deployment (temporal-ui), Service (temporal-ui),
+#            Ingress (temporal-ui-ingress)
+#
+# Requires a PostgreSQL database accessible within the cluster.
+# The auto-setup image creates its own databases on first start:
+#   - temporal (workflow data)
+#   - temporal_visibility (search/visibility)
+#
+# Reads credentials from postgres-secret (same secret as the postgres component):
+#   POSTGRES_USER=<user with CREATE DATABASE privileges>
+#   POSTGRES_PASSWORD=<password>
+#
+# POSTGRES_SEEDS defaults to "postgres" (matching the postgres component Service name).
+# Override via env patch if your PostgreSQL Service has a different name.
+
+resources:
+  - server-deployment.yaml
+  - server-service.yaml
+  - ui-deployment.yaml
+  - ui-service.yaml
+  - ui-ingress.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: temporal

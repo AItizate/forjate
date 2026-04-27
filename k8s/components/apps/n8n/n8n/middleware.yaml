@@ -1,0 +1,13 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: preserve-headers
+spec:
+  headers:
+    sslRedirect: true
+    stsSeconds: 315360000
+    browserXssFilter: true
+    contentTypeNosniff: true
+    forceSTSHeader: true
+    customRequestHeaders:
+      X-Forwarded-Proto: "https"

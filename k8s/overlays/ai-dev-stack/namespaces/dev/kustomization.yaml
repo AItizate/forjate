@@ -1,0 +1,33 @@
+namespace: dev
+
+resources:
+  - namespace.yaml
+  - ../../../../components/apps/minio/single-server
+  - ../../../../components/apps/node-red/
+  - ../../../../components/apps/databases/etcd
+  - ../../../../components/apps/databases/milvus
+
+secretGenerator:
+  - name: minio-storage-user
+    envs:
+      - secrets/minio.env
+    options:
+      disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: node-red-flows-file
+    files:
+      - flows.json=configs/node-red-flows.json
+    behavior: create
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  - path: patches/minio-storage-configuration-patch.yaml
+    target:
+      kind: Secret
+      name: minio-storage-configuration
+  - path: patches/node-red-flows-patch.yaml
+    target:
+      kind: Deployment
+      name: node-red

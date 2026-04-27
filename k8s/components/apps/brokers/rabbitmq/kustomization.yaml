@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# RabbitMQ 3.13 — AMQP broker with Streams support
+#
+# Resources: StatefulSet (rabbitmq), Service (rabbitmq), ConfigMap (rabbitmq-config)
+#
+# Plugins enabled: rabbitmq_management, rabbitmq_stream, rabbitmq_stream_management
+# Ports: 5672 (AMQP), 15672 (Management UI), 5552 (Stream protocol)
+#
+# Tenant overlay must provide credentials via secretGenerator or SealedSecret:
+#   rabbitmq-secret:
+#     RABBITMQ_DEFAULT_USER=<user>
+#     RABBITMQ_DEFAULT_PASS=<password>
+#
+# To expose the Management UI add an Ingress patch in the tenant overlay.
+#
+# Stream queues: after first deployment, create stream queues bound to the
+# routing keys produced by Debezium (format: cdc.<database>.<collection>).
+# This can be done via the Management UI or with rabbitmqadmin.
+
+resources:
+  - configmap.yaml
+  - service.yaml
+  - statefulset.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: rabbitmq

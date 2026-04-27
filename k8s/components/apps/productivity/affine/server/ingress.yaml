@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: affine-ingress
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: "Host(`affine.example.com`)"
+      kind: Rule
+      services:
+        - name: affine
+          port: 3010

@@ -1,0 +1,9 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: security-cert
+  namespace: security
+spec:
+  dnsNames:
+    - "*.security.cdc-event-sourcing.local"
+    - "security.cdc-event-sourcing.local"

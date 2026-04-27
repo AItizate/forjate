@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appflowy-gotrue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appflowy-gotrue
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: appflowy-gotrue
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "Waiting for postgres..."; sleep 2;
+              done
+        # Workaround: appflowyinc/gotrue has PG16 migration issues
+        # Pre-creates auth schema + enum types so later migrations find auth.factor_type
+        # Skips backfill migration 20221208132122 which has uuid=text comparison bug
+        - name: fix-gotrue-pg16-migrations
+          image: postgres:16
+          command:
+            - sh
+            - -c
+            - |
+              echo "Creating auth schema and enum types for Gotrue PG16 compat..."
+              psql "$DATABASE_URL" -c "CREATE SCHEMA IF NOT EXISTS auth;"
+              psql "$DATABASE_URL" -c "DO \$body\$ BEGIN CREATE TYPE auth.factor_type AS ENUM('totp', 'webauthn'); EXCEPTION WHEN duplicate_object THEN NULL; END \$body\$;"
+              psql "$DATABASE_URL" -c "DO \$body\$ BEGIN CREATE TYPE auth.factor_status AS ENUM('unverified', 'verified'); EXCEPTION WHEN duplicate_object THEN NULL; END \$body\$;"
+              psql "$DATABASE_URL" -c "DO \$body\$ BEGIN CREATE TYPE auth.aal_level AS ENUM('aal1', 'aal2', 'aal3'); EXCEPTION WHEN duplicate_object THEN NULL; END \$body\$;"
+              psql "$DATABASE_URL" -c "CREATE TABLE IF NOT EXISTS auth.schema_migrations (version varchar(255) NOT NULL, CONSTRAINT schema_migrations_pkey PRIMARY KEY (version));"
+              psql "$DATABASE_URL" -c "INSERT INTO auth.schema_migrations (version) VALUES ('20221208132122') ON CONFLICT DO NOTHING;"
+              echo "Done."
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: appflowy-secret
+                  key: GOTRUE_DATABASE_URL
+      containers:
+        - name: gotrue
+          image: appflowyinc/gotrue:0.13.3
+          ports:
+            - containerPort: 9999
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+          env:
+            - name: GOTRUE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: appflowy-secret
+                  key: GOTRUE_JWT_SECRET
+            - name: GOTRUE_JWT_EXP
+              value: "7200"
+            - name: GOTRUE_DB_DRIVER
+              value: postgres
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: appflowy-secret
+                  key: GOTRUE_DATABASE_URL
+            - name: PORT
+              value: "9999"
+            - name: API_EXTERNAL_URL
+              value: "http://appflowy-gotrue:9999"
+            - name: GOTRUE_SITE_URL
+              value: "appflowy-flutter://"
+            - name: GOTRUE_URI_ALLOW_LIST
+              value: "*"
+            - name: GOTRUE_DISABLE_SIGNUP
+              value: "false"
+            - name: GOTRUE_JWT_DEFAULT_GROUP_NAME
+              value: "USER"
+            - name: GOTRUE_MAILER_AUTOCONFIRM
+              value: "true"
+            - name: GOTRUE_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: appflowy-secret
+                  key: GOTRUE_SMTP_HOST
+            - name: GOTRUE_SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: appflowy-secret
+                  key: GOTRUE_SMTP_PORT
+            - name: GOTRUE_SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: appflowy-secret
+                  key: GOTRUE_SMTP_USER
+            - name: GOTRUE_SMTP_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: appflowy-secret
+                  key: GOTRUE_SMTP_PASS
+            - name: GOTRUE_SMTP_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: appflowy-secret
+                  key: GOTRUE_SMTP_ADMIN_EMAIL
+            - name: GOTRUE_MAILER_SUBJECTS_CONFIRMATION
+              value: "AppFlowy Confirmation"
+            # Admin user — created on first startup if not exists
+            - name: GOTRUE_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: appflowy-secret
+                  key: GOTRUE_ADMIN_EMAIL
+            - name: GOTRUE_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: appflowy-secret
+                  key: GOTRUE_ADMIN_PASSWORD
+            - name: GOTRUE_JWT_ADMIN_GROUP_NAME
+              value: "supabase_admin"
+      restartPolicy: Always

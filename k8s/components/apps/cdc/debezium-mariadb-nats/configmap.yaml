@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debezium-mariadb-nats-config
+data:
+  application.properties: |
+    # ============================================================
+    # Debezium Server — MariaDB Binlog → NATS JetStream
+    #
+    # Sensitive values (MARIADB_*, NATS_USER, NATS_PASS)
+    # are injected as env vars from debezium-mariadb-nats-secret.
+    #
+    # Tenant overlay must patch:
+    #   - debezium.source.database.include.list
+    #   - debezium.source.table.include.list
+    #   - debezium.sink.nats-jetstream.url  (if NATS is in a different namespace)
+    # ============================================================
+
+    # --- Sink: NATS JetStream ---
+    debezium.sink.type=nats-jetstream
+    debezium.sink.nats-jetstream.url=nats://nats.default.svc.cluster.local:4222
+    debezium.sink.nats-jetstream.username=${NATS_USER}
+    debezium.sink.nats-jetstream.password=${NATS_PASS}
+
+    # --- Source: MariaDB ---
+    debezium.source.connector.class=io.debezium.connector.mariadb.MariaDbConnector
+    debezium.source.topic.prefix=cdc
+    debezium.source.database.hostname=${MARIADB_HOST}
+    debezium.source.database.port=${MARIADB_PORT}
+    debezium.source.database.user=${MARIADB_USER}
+    debezium.source.database.password=${MARIADB_PASSWORD}
+    # A unique numeric ID for this Debezium instance (must be unique across all replicas reading the same binlog)
+    debezium.source.database.server.id=1
+    # Tenant overlay must patch these values
+    debezium.source.database.include.list=mydb
+    debezium.source.table.include.list=mydb.*
+    # initial: snapshot of current state on first run, then stream changes
+    # never: only stream changes going forward
+    debezium.source.snapshot.mode=initial
+
+    # --- Offset storage (persisted in PVC) ---
+    debezium.source.offset.storage=org.apache.kafka.connect.storage.FileOffsetBackingStore
+    debezium.source.offset.storage.file.filename=/debezium/data/offsets.dat
+    debezium.source.offset.flush.interval.ms=0
+
+    # --- Schema history (required for MySQL/MariaDB connectors) ---
+    debezium.source.schema.history.internal=io.debezium.storage.file.history.FileSchemaHistory
+    debezium.source.schema.history.internal.file.filename=/debezium/data/schema-history.dat

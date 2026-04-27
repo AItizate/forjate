@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Stalwart Mail Server - SMTP/IMAP/JMAP mail & collaboration server
+# Docs: https://stalw.art/docs/
+#
+# Dependencies (must be included in tenant overlay alongside this component):
+#   - k8s/components/apps/databases/postgres  (data store)
+#   - k8s/components/apps/databases/redis     (cache/sessions)
+#   - MinIO (from k8s/base) for blob storage  (email content/attachments)
+#
+# Tenant overlay must patch:
+#   - stalwart-ingress: real hostname
+#   - stalwart-secret or SealedSecret: real credentials
+#   - stalwart-config ConfigMap: real mail domain, server.hostname
+#
+# External access notes:
+#   - Web/JMAP: works via Traefik IngressRoute (HTTP) + Cloudflare Tunnel
+#   - SMTP/IMAP: TCP protocols, NOT HTTP — need IngressRouteTCP or LoadBalancer
+#   - SMTP outbound: pod sends directly, consider SMTP relay for deliverability
+#   - Cloudflare Email Routing can forward inbound mail via HTTP to Stalwart JMAP API
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - secret.yaml
+  - configmap.yaml
+  - pvc.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: stalwart

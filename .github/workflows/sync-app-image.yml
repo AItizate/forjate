@@ -1,0 +1,115 @@
+name: Sync App Image Tag
+
+on:
+  repository_dispatch:
+    types: [app-image-updated]
+
+jobs:
+  update-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate branch name
+        id: branch
+        run: |
+          APP_NAME="${{ github.event.client_payload.app_name }}"
+          RUN_ID="${{ github.run_id }}"
+          BRANCH_NAME="feat/update-${APP_NAME}-${RUN_ID}"
+          echo "name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+          echo "Branch: ${BRANCH_NAME}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: main
+          token: ${{ secrets.IAC_WRITE_BACK_TOKEN }}
+          fetch-depth: 0
+
+      - name: Update image tag
+        run: |
+          APP_NAME="${{ github.event.client_payload.app_name }}"
+          NEW_TAG="${{ github.event.client_payload.new_tag }}"
+          TENANT="${{ github.event.client_payload.tenant || 'my-tenant' }}"
+          NAMESPACE="${{ github.event.client_payload.namespace || 'default' }}"
+
+          KUSTOMIZE_PATH="k8s/overlays/${TENANT}"
+
+          echo "📦 Updating ${APP_NAME} to ${NEW_TAG}"
+          echo "📍 Tenant: ${TENANT}"
+          echo "🔧 Namespace: ${NAMESPACE}"
+
+          # Validate that the kustomization path exists
+          if [ ! -f "${KUSTOMIZE_PATH}/kustomization.yaml" ]; then
+            echo "❌ Error: Kustomization not found at ${KUSTOMIZE_PATH}/kustomization.yaml"
+            exit 1
+          fi
+
+          # Update the image tag in kustomization.yaml
+          # Pattern: finds lines with the app name and replaces the tag
+          sed -i "s|${APP_NAME}:.*|${APP_NAME}:${NEW_TAG}|g" "${KUSTOMIZE_PATH}/kustomization.yaml"
+
+          echo "✅ Updated ${KUSTOMIZE_PATH}/kustomization.yaml"
+
+      - name: Validate Kustomize build
+        run: |
+          TENANT="${{ github.event.client_payload.tenant || 'my-tenant' }}"
+
+          echo "🔍 Validating kustomize build for ${TENANT}..."
+
+          if ! kustomize build "k8s/overlays/${TENANT}" > /dev/null 2>&1; then
+            echo "❌ Kustomize validation failed!"
+            kustomize build "k8s/overlays/${TENANT}"
+            exit 1
+          fi
+
+          echo "✅ Kustomize validation passed"
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "⚠️  No changes detected"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "📝 Changes detected:"
+            git diff --name-only
+          fi
+
+      - name: Create feature branch and push
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          git config user.name "IaC Sync Bot"
+          git config user.email "iac-sync@bot.local"
+
+          APP_NAME="${{ github.event.client_payload.app_name }}"
+          NEW_TAG="${{ github.event.client_payload.new_tag }}"
+          TENANT="${{ github.event.client_payload.tenant || 'my-tenant' }}"
+          BRANCH_NAME="${{ steps.branch.outputs.name }}"
+
+          # Create and checkout new branch from main
+          git checkout -b "${BRANCH_NAME}"
+
+          git add k8s/overlays/*/kustomization.yaml
+
+          git commit -m "chore(${TENANT}): update ${APP_NAME} image to ${NEW_TAG}
+
+          Triggered by: ${{ github.event.client_payload.trigger_url || 'unknown' }}
+          App: ${APP_NAME}
+          Tag: ${NEW_TAG}"
+
+          git push origin "${BRANCH_NAME}" --force-with-lease
+          echo "✅ Changes pushed to ${BRANCH_NAME}"
+
+      - name: Output summary
+        run: |
+          echo "## 📊 Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **App**: ${{ github.event.client_payload.app_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New Tag**: ${{ github.event.client_payload.new_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tenant**: ${{ github.event.client_payload.tenant || 'my-tenant' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Namespace**: ${{ github.event.client_payload.namespace || 'default' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ steps.changes.outputs.has_changes == 'true' && '✅ Updated' || '⚠️ No changes' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Branch Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: [\`${{ steps.branch.outputs.name }}\`](${{ github.server_url }}/${{ github.repository }}/tree/${{ steps.branch.outputs.name }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repo**: [${{ github.repository }}](${{ github.server_url }}/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY

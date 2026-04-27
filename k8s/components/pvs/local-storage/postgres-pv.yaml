@@ -1,0 +1,17 @@
+# Generic Local Storage PersistentVolume for PostgreSQL
+# This is a template. The overlay is responsible for patching
+# the metadata.name and spec.hostPath.path with specific values.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-local-postgres # A generic, predictable name
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  hostPath:
+    path: /home/sebas/smart-home/postgres
+    type: DirectoryOrCreate

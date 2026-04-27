@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# NATS 2.10 with JetStream — lightweight message streaming with persistence
+#
+# Resources: StatefulSet (nats), Service (nats), ConfigMap (nats-config)
+#
+# Ports: 4222 (clients), 8222 (HTTP monitoring), 6222 (internal cluster)
+# JetStream: persistence on PVC with configurable retention
+#
+# Tenant overlay must provide credentials via secretGenerator or SealedSecret:
+#   nats-secret:
+#     NATS_USER=<user>
+#     NATS_PASS=<password>
+#
+# Initial stream: Debezium creates subjects automatically.
+# To create the stream manually with 7-day retention:
+#   nats stream add CDC_STREAM --subjects "cdc.>" --max-age 7d
+#
+# Monitoring: exposed at http://nats:8222 (internal access only by default).
+
+resources:
+  - configmap.yaml
+  - service.yaml
+  - statefulset.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: nats

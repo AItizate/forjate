@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# MongoDB replica set enabler — applied on top of databases/mongodb via components:
+#
+# Adds:
+#   - Flag --replSet rs0 + --keyFile to the mongodb StatefulSet
+#   - Init container that copies/chmods the keyFile from a Secret
+#   - Idempotent rs.initiate() Job (self-deletes after 120s)
+#
+# Single-node replica sets enable Change Streams, required by Debezium CDC.
+#
+# Prerequisites:
+#   - Create a Secret named mongodb-keyfile with a random 512-byte base64 keyFile:
+#       openssl rand -base64 512 | tr -d '\n' > keyfile
+#       kubectl create secret generic mongodb-keyfile --from-file=keyfile=keyfile -n <namespace>
+#   - If your secret has a different name, add a patch to override
+#     volumes[mongo-keyfile-src].secret.secretName.
+#
+# Usage in overlay kustomization.yaml:
+#   resources:
+#     - path/to/databases/mongodb
+#   components:
+#     - path/to/databases/mongodb/replica-set
+#
+# Connection string for the app after enabling:
+#   mongodb://<user>:<pass>@mongodb.<namespace>.svc.cluster.local:27017/?replicaSet=rs0&authSource=admin
+#
+# Safe to re-apply: if the RS is already initiated, the Job exits without error.
+
+resources:
+  - rs-init-job.yaml
+
+patches:
+  - path: rs-args-patch.yaml
+    target:
+      kind: StatefulSet
+      name: mongodb
+  - path: rs-keyfile-patch.yaml
+    target:
+      kind: StatefulSet
+      name: mongodb

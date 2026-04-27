@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debezium-postgres-nats-config
+data:
+  application.properties: |
+    # ============================================================
+    # Debezium Server — PostgreSQL Logical Replication → NATS JetStream
+    #
+    # Sensitive values (POSTGRES_*, NATS_USER, NATS_PASS)
+    # are injected as env vars from debezium-postgres-nats-secret.
+    #
+    # Tenant overlay must patch:
+    #   - debezium.source.table.include.list
+    #   - debezium.sink.nats-jetstream.url  (if NATS is in a different namespace)
+    # ============================================================
+
+    # --- Sink: NATS JetStream ---
+    debezium.sink.type=nats-jetstream
+    debezium.sink.nats-jetstream.url=nats://nats.default.svc.cluster.local:4222
+    debezium.sink.nats-jetstream.username=${NATS_USER}
+    debezium.sink.nats-jetstream.password=${NATS_PASS}
+
+    # --- Source: PostgreSQL ---
+    debezium.source.connector.class=io.debezium.connector.postgresql.PostgresConnector
+    debezium.source.topic.prefix=cdc
+    debezium.source.database.hostname=${POSTGRES_HOST}
+    debezium.source.database.port=${POSTGRES_PORT}
+    debezium.source.database.user=${POSTGRES_USER}
+    debezium.source.database.password=${POSTGRES_PASSWORD}
+    debezium.source.database.dbname=${POSTGRES_DB}
+    # pgoutput is the standard logical decoding plugin (built-in since PG 10)
+    debezium.source.plugin.name=pgoutput
+    # Tenant overlay must patch this value (e.g.: public.orders,public.users)
+    debezium.source.table.include.list=public.*
+    # initial: snapshot of current state on first run, then stream changes
+    # never: only stream changes going forward
+    debezium.source.snapshot.mode=initial
+
+    # --- Offset storage (persisted in PVC) ---
+    debezium.source.offset.storage=org.apache.kafka.connect.storage.FileOffsetBackingStore
+    debezium.source.offset.storage.file.filename=/debezium/data/offsets.dat
+    debezium.source.offset.flush.interval.ms=0

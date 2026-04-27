@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: debezium-mariadb-nats
+spec:
+  # IMPORTANT: always 1. Multiple pods would duplicate events.
+  replicas: 1
+  # Recreate required: RWO PVC cannot be attached to two pods simultaneously
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: debezium-mariadb-nats
+  template:
+    metadata:
+      labels:
+        app: debezium-mariadb-nats
+    spec:
+      # Debezium runs as UID 185 (jboss); fsGroup ensures PVC files are writable
+      securityContext:
+        fsGroup: 185
+      containers:
+        - name: debezium-server
+          image: quay.io/debezium/server:3.4
+          volumeMounts:
+            - name: config
+              mountPath: /debezium/config/application.properties
+              subPath: application.properties
+            - name: data
+              mountPath: /debezium/data
+          envFrom:
+            - secretRef:
+                name: debezium-mariadb-nats-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: config
+          configMap:
+            name: debezium-mariadb-nats-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: debezium-mariadb-nats-data

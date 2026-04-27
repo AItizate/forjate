@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debezium-postgres-rabbitmq-config
+data:
+  application.properties: |
+    # ============================================================
+    # Debezium Server — PostgreSQL Logical Replication → RabbitMQ
+    #
+    # Sensitive values (POSTGRES_*, RABBITMQ_USER, RABBITMQ_PASS)
+    # are injected as env vars from debezium-postgres-rabbitmq-secret.
+    #
+    # Tenant overlay must patch:
+    #   - debezium.source.table.include.list
+    #   - debezium.sink.rabbitmq.connection.host  (if RabbitMQ is in a different namespace)
+    # ============================================================
+
+    # --- Sink: RabbitMQ (AMQP) ---
+    debezium.sink.type=rabbitmq
+    debezium.sink.rabbitmq.connection.host=rabbitmq.default.svc.cluster.local
+    debezium.sink.rabbitmq.connection.port=5672
+    debezium.sink.rabbitmq.connection.username=${RABBITMQ_USER}
+    debezium.sink.rabbitmq.connection.password=${RABBITMQ_PASS}
+    debezium.sink.rabbitmq.connection.virtualHost=/
+
+    # --- Source: PostgreSQL ---
+    debezium.source.connector.class=io.debezium.connector.postgresql.PostgresConnector
+    debezium.source.topic.prefix=cdc
+    debezium.source.database.hostname=${POSTGRES_HOST}
+    debezium.source.database.port=${POSTGRES_PORT}
+    debezium.source.database.user=${POSTGRES_USER}
+    debezium.source.database.password=${POSTGRES_PASSWORD}
+    debezium.source.database.dbname=${POSTGRES_DB}
+    # pgoutput is the standard logical decoding plugin (built-in since PG 10)
+    debezium.source.plugin.name=pgoutput
+    # Tenant overlay must patch this value (e.g.: public.orders,public.users)
+    debezium.source.table.include.list=public.*
+    # initial: snapshot of current state on first run, then stream changes
+    # never: only stream changes going forward
+    debezium.source.snapshot.mode=initial
+
+    # --- Offset storage (persisted in PVC) ---
+    debezium.source.offset.storage=org.apache.kafka.connect.storage.FileOffsetBackingStore
+    debezium.source.offset.storage.file.filename=/debezium/data/offsets.dat
+    debezium.source.offset.flush.interval.ms=0

@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snappymail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snappymail
+  template:
+    metadata:
+      labels:
+        app: snappymail
+    spec:
+      containers:
+        - name: snappymail
+          image: djmaze/snappymail:v2.38.2
+          ports:
+            - name: http
+              containerPort: 8888
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8888
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8888
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          volumeMounts:
+            - name: snappymail-data
+              mountPath: /var/lib/snappymail
+      volumes:
+        - name: snappymail-data
+          persistentVolumeClaim:
+            claimName: snappymail-data

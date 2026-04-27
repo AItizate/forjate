@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-chain
+spec:
+  chain:
+    middlewares:
+      - name: oauth2-proxy-errors-authz
+        namespace: _NAMESPACE_
+      - name: oauth2-proxy-errors-auth
+        namespace: _NAMESPACE_
+      - name: oauth2-proxy-auth
+        namespace: _NAMESPACE_
+      - name: oauth2-proxy-forward-authz
+        namespace: _NAMESPACE_

@@ -1,0 +1,35 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tenant-readonly-binding
+subjects:
+  - kind: ServiceAccount
+    name: sa-readonly-user
+roleRef:
+  kind: ClusterRole
+  name: tenant-readonly
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tenant-developer-binding
+subjects:
+  - kind: ServiceAccount
+    name: sa-developer-user
+roleRef:
+  kind: ClusterRole
+  name: tenant-developer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tenant-agent-binding
+subjects:
+  - kind: ServiceAccount
+    name: sa-agent
+roleRef:
+  kind: ClusterRole
+  name: tenant-agent
+  apiGroup: rbac.authorization.k8s.io

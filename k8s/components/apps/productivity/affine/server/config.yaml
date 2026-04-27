@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: affine-config
+data:
+  config.json: |
+    {
+      "$schema": "https://github.com/toeverything/affine/releases/latest/download/config.schema.json",
+      "copilot": {
+        "enabled": true,
+        "providers.openai": {
+          "apiKey": "AFFINE_AI_API_KEY_PLACEHOLDER",
+          "baseUrl": "AFFINE_AI_BASE_URL_PLACEHOLDER"
+        },
+        "scenarios": {
+          "override_enabled": true,
+          "scenarios": {
+            "audio_transcribing": "qwen/qwen-audio-turbo",
+            "chat": "qwen/qwen-plus",
+            "embedding": "qwen/text-embedding-v3",
+            "image": "qwen/qwen-vl-max",
+            "rerank": "qwen/qwen-plus",
+            "coding": "qwen/qwen-coder-plus",
+            "complex_text_generation": "qwen/qwen-max",
+            "quick_decision_making": "qwen/qwen-turbo",
+            "quick_text_generation": "qwen/qwen-turbo",
+            "polish_and_summarize": "qwen/qwen-plus"
+          }
+        }
+      }
+    }

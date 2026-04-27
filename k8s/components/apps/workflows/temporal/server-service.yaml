@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-server
+spec:
+  selector:
+    app: temporal-server
+  ports:
+    - protocol: TCP
+      port: 7233
+      targetPort: 7233

@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+**/*.env
+!**/*.env.example
+
+implementation_plan.md
+**/sample_data/**
+
+k8s/**/charts/**

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-webui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open-webui
+  template:
+    metadata:
+      labels:
+        app: open-webui
+    spec:
+      containers:
+      - name: open-webui
+        image: ghcr.io/open-webui/open-webui:main
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "500Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+        env:
+        - name: OPENAI_API_BASE_URL
+          value: "http://litellm.ai-tools.svc.cluster.local:4000"
+        - name: OLLAMA_BASE_URL
+          value: "http://ollama-service:11434"
+        tty: true
+        volumeMounts:
+        - name: webui-volume
+          mountPath: /app/backend/data
+          subPath: apps/open-webui
+      volumes:
+      - name: webui-volume
+        persistentVolumeClaim:
+          claimName: pvc-open-webui

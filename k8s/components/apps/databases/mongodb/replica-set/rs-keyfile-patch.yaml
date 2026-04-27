@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: keyfile-setup
+          image: busybox
+          command: ["sh", "-c"]
+          args:
+            - |
+              cp /keyfile-src/keyfile /keyfile/keyfile
+              chmod 400 /keyfile/keyfile
+              chown 999:999 /keyfile/keyfile
+          volumeMounts:
+            - name: mongo-keyfile-src
+              mountPath: /keyfile-src
+              readOnly: true
+            - name: mongo-keyfile
+              mountPath: /keyfile
+      volumes:
+        - name: mongo-keyfile-src
+          secret:
+            # Default secret name — override via patch if yours differs:
+            #   volumes:
+            #     - name: mongo-keyfile-src
+            #       secret:
+            #         secretName: my-custom-keyfile-secret
+            secretName: mongodb-keyfile
+        - name: mongo-keyfile
+          emptyDir: {}
+      containers:
+        - name: mongodb
+          volumeMounts:
+            - name: mongo-keyfile
+              mountPath: /etc/mongo-keyfile
+              readOnly: true

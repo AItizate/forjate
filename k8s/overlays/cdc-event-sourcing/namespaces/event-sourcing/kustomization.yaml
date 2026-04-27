@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: event-sourcing
+
+resources:
+  - namespace.yaml
+  - ../../../../components/apps/databases/mongodb
+  - ../../../../components/apps/brokers/rabbitmq
+  - ../../../../components/apps/cdc/debezium-mongo-rabbitmq
+  - cdc-validate-job.yaml
+
+components:
+  - ../../../../components/apps/databases/mongodb/replica-set
+
+secretGenerator:
+  - name: mongodb-secret
+    envs:
+      - secrets/mongodb.env
+    options:
+      disableNameSuffixHash: true
+  - name: rabbitmq-secret
+    envs:
+      - secrets/rabbitmq.env
+    options:
+      disableNameSuffixHash: true
+  - name: debezium-mongo-rabbitmq-secret
+    envs:
+      - secrets/debezium.env
+    options:
+      disableNameSuffixHash: true
+  - name: mongodb-keyfile
+    files:
+      - keyfile=secrets/mongodb-keyfile
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  - path: patches/debezium-collections-patch.yaml
+    target:
+      kind: ConfigMap
+      name: debezium-mongo-rabbitmq-config

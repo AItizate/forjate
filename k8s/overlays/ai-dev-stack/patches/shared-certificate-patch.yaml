@@ -1,0 +1,9 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: shared-cert
+  namespace: shared
+spec:
+  dnsNames:
+    - "*.shared.example.com"
+    - "registry.example.com"

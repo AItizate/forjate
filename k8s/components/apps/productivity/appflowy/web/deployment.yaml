@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appflowy-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appflowy-web
+  template:
+    metadata:
+      labels:
+        app: appflowy-web
+    spec:
+      containers:
+        - name: appflowy-web
+          image: appflowyinc/appflowy_web:0.13.3
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          env:
+            # Public URL of the AppFlowy Cloud backend — patched by overlay
+            # All three required by appflowy_web startup — override in overlay
+            - name: APPFLOWY_BASE_URL
+              value: "https://appflowy.example.com"
+            - name: APPFLOWY_GOTRUE_BASE_URL
+              value: "https://appflowy.example.com/gotrue"
+            - name: APPFLOWY_WS_BASE_URL
+              value: "wss://appflowy.example.com/ws/v2"
+      restartPolicy: Always

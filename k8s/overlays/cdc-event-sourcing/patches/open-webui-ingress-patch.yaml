@@ -1,0 +1,14 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: open-webui-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web, websecure
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - open-webui.cdc-event-sourcing.local
+      secretName: tls-secret
+  rules:
+    - host: open-webui.cdc-event-sourcing.local

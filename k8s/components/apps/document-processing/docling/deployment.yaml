@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docling
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docling
+  template:
+    metadata:
+      labels:
+        app: docling
+    spec:
+      containers:
+        - name: docling
+          image: ghcr.io/docling-project/docling-serve-cpu:latest
+          ports:
+            - containerPort: 5001
+          env:
+            - name: DOCLING_SERVE_ENG_LOC_NUM_WORKERS
+              value: "2"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 5001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 5001
+            initialDelaySeconds: 60
+            periodSeconds: 30

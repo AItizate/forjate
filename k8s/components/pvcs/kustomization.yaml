@@ -1,0 +1,3 @@
+resources:
+  - pvc-downloads.yaml
+  - pvc-external-disk.yaml

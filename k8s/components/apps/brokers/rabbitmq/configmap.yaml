@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+data:
+  enabled_plugins: "[rabbitmq_management,rabbitmq_stream,rabbitmq_stream_management]."
+  rabbitmq.conf: |
+    ## Stream plugin TCP listener
+    stream.listeners.tcp.1 = 5552
+    ## Management plugin
+    management.tcp.port = 15672
+    ## Logging
+    log.console = true
+    log.console.level = info

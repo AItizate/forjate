@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: security
+
+resources:
+  - ../../../../components/apps/whoami # Example app
+
+patches:
+  - path: patches/whoami-ingress-patch.yaml
+    target:
+      kind: Ingress
+      name: whoami-ingress

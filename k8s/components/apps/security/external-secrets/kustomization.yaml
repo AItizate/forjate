@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# External Secrets Operator (ESO) — syncs secrets from external stores
+#
+# Syncs secrets from external providers (Vault, AWS SM, GCP SM, Azure KV, etc.)
+# into native Kubernetes Secrets.
+#
+# Installation uses Helm template via Kustomize helmCharts generator.
+# Requires: kustomize with --enable-helm flag or kubectl kustomize --enable-helm
+#
+# Usage:
+#   kubectl kustomize --enable-helm k8s/components/apps/security/external-secrets
+#
+# After deployment, create a SecretStore or ClusterSecretStore pointing
+# to your secrets provider (e.g., Vault), then create ExternalSecret
+# resources to sync individual secrets.
+#
+# Example ClusterSecretStore for Vault:
+#   apiVersion: external-secrets.io/v1beta1
+#   kind: ClusterSecretStore
+#   metadata:
+#     name: vault-backend
+#   spec:
+#     provider:
+#       vault:
+#         server: "http://vault.security:8200"
+#         path: "secret"
+#         auth:
+#           kubernetes:
+#             mountPath: "kubernetes"
+#             role: "external-secrets"
+
+resources:
+  - namespace.yaml
+
+helmCharts:
+  - name: external-secrets
+    repo: https://charts.external-secrets.io
+    version: 2.3.0
+    releaseName: external-secrets
+    namespace: external-secrets
+    valuesInline:
+      installCRDs: true
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: external-secrets

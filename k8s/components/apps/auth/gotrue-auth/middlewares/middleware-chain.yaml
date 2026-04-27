@@ -1,0 +1,17 @@
+# gotrue-chain: full auth + authz chain using Gotrue
+# Usage in Ingress: traefik.ingress.kubernetes.io/router.middlewares: <namespace>-gotrue-chain@kubernetescrd
+#
+# Coexists with oauth2-proxy-chain — apps choose which chain to use via annotation
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: gotrue-chain
+spec:
+  chain:
+    middlewares:
+      - name: gotrue-errors-authz
+        namespace: _NAMESPACE_
+      - name: gotrue-errors-auth
+        namespace: _NAMESPACE_
+      - name: gotrue-auth
+        namespace: _NAMESPACE_

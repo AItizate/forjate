@@ -1,0 +1,7 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-forward-authz
+spec:
+  forwardAuth:
+    address: "http://oauth2-proxy.security.svc.cluster.local/oauth2/auth"

@@ -1,0 +1,45 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Debezium Server — PostgreSQL Logical Replication → RabbitMQ CDC
+#
+# Captures all writes to PostgreSQL tables and publishes them as
+# AMQP messages to RabbitMQ. No application code changes required.
+#
+# Event routing key: {topic.prefix}.{schema}.{table}
+#   e.g.: cdc.public.orders, cdc.public.users
+#
+# Dependencies (must be included in the tenant overlay):
+#   - k8s/components/apps/brokers/rabbitmq  (or external RabbitMQ)
+#
+# Requirement: PostgreSQL must have wal_level=logical.
+#   ALTER SYSTEM SET wal_level = 'logical'; then restart.
+#   The connecting user needs REPLICATION privilege.
+#
+# The tenant overlay must provide:
+#   1. Secret (debezium-postgres-rabbitmq-secret) with:
+#        POSTGRES_HOST=postgres-host
+#        POSTGRES_PORT=5432
+#        POSTGRES_USER=<user>
+#        POSTGRES_PASSWORD=<password>
+#        POSTGRES_DB=<database>
+#        RABBITMQ_USER=<user>
+#        RABBITMQ_PASS=<password>
+#   2. Patch on ConfigMap for debezium.source.table.include.list
+#        (e.g.: public.orders,public.users  or  public.* for the entire schema)
+#   3. Patch on ConfigMap if RabbitMQ is in a different namespace:
+#        debezium.sink.rabbitmq.connection.host
+#
+# Offsets: persisted on PVC (debezium-postgres-rabbitmq-data).
+#   If the PVC is deleted, Debezium re-snapshots from the beginning.
+#
+# Replicas: always 1. Multiple instances would produce duplicate events.
+
+resources:
+  - pvc.yaml
+  - configmap.yaml
+  - deployment.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: debezium-postgres-rabbitmq

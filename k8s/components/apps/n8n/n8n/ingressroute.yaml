@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: n8n-ingressroute
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`dummy-n8n.example.com`) # This will be patched by the overlay
+      kind: Rule
+      services:
+        - name: n8n
+          port: 5678
+          serversTransport: n8n-servers-transport

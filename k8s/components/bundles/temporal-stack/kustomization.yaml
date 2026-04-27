@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# temporal-stack — Temporal + PostgreSQL in a single reference
+#
+# Bundles:
+#   - databases/postgres  (StatefulSet, Service)
+#   - workflows/temporal   (Server, UI, Ingress)
+#
+# Single SSH reference for remote consumers:
+#   ssh://git@github.com/AItizate/forjate.git//k8s/components/bundles/temporal-stack?ref=<ref>
+#
+# Instead of 2 separate SSH clones:
+#   ssh://...//k8s/components/apps/databases/postgres?ref=<ref>
+#   ssh://...//k8s/components/apps/workflows/temporal?ref=<ref>
+#
+# Tenant must provide:
+#   - Secret "postgres-secret" with: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+#   - Patch for temporal-ui-ingress hostname
+#
+# Optional additions (separate refs):
+#   - databases/mongodb — if agent outputs need a document store
+
+resources:
+  - ../../apps/databases/postgres
+  - ../../apps/workflows/temporal
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-bundle: temporal-stack

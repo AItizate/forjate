@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# AFFiNE — open-source Notion + Miro alternative with built-in AI
+# Docs: https://docs.affine.pro/self-host-affine
+#
+# Free self-hosted tier: 10 workspace seats, unlimited AI (with own API key)
+#
+# Dependencies (must be included in tenant overlay alongside this component):
+#   - k8s/components/apps/databases/postgres  (shared Postgres — patch image to pgvector if needed)
+#   - k8s/components/apps/databases/redis     (shared Redis)
+#
+# Tenant overlay must patch:
+#   - affine-ingress: real hostname
+#   - postgres-secret or SealedSecret: real DB credentials
+#   - affine-secret: DATABASE_URL pointing to postgres:5432
+#   - affine deployment: AFFINE_SERVER_HOST
+#   - postgres StatefulSet image: pgvector/pgvector:pg16 (if pgvector needed)
+
+resources:
+  - ./server/
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: affine

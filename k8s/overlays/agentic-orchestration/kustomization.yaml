@@ -1,0 +1,59 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Agentic Orchestration — multi-agent workflow pattern
+#
+# This overlay demonstrates the minimum infrastructure for an agentic
+# orchestration use case:
+#   - Temporal (workflow engine) + PostgreSQL (persistence) + MongoDB (document store)
+#   - Worker connects to LiteLLM from base (ai-tools namespace) for LLM calls
+#   - Worker connects to Temporal for workflow orchestration
+#
+# Architecture:
+#   Worker --> Temporal Server --> PostgreSQL (temporal DBs)
+#     |
+#     +------> LiteLLM (http://litellm.ai-tools.svc.cluster.local:4000)
+#     |
+#     +------> MongoDB (agent outputs, research, contacts)
+
+resources:
+  - ../../base
+  - ./namespaces/agentic
+
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/overlay: agentic-orchestration
+
+configMapGenerator:
+  - name: litellm-config-file
+    namespace: ai-tools
+    files:
+      - config.yaml=configs/litellm-config.yaml
+    behavior: replace
+
+secretGenerator:
+  - name: oauth2-proxy-secret
+    namespace: security
+    envs:
+      - secrets/oauth2-proxy.env
+    options:
+      disableNameSuffixHash: true
+  - name: litellm-secret
+    namespace: ai-tools
+    envs:
+      - secrets/litellm.env
+    options:
+      disableNameSuffixHash: true
+  - name: litellm-postgres-secret
+    namespace: ai-tools
+    envs:
+      - secrets/litellm-postgres.env
+    options:
+      disableNameSuffixHash: true
+  - name: cluster-issuer-api-token-secret
+    namespace: cert-manager
+    envs:
+      - secrets/letsencrypt.env
+    options:
+      disableNameSuffixHash: true

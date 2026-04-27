@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appflowy-admin-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appflowy-admin-frontend
+  template:
+    metadata:
+      labels:
+        app: appflowy-admin-frontend
+    spec:
+      initContainers:
+        - name: wait-for-appflowy-cloud
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z appflowy-cloud 8000; do
+                echo "Waiting for appflowy-cloud..."; sleep 3;
+              done
+      containers:
+        - name: admin-frontend
+          image: appflowyinc/admin_frontend:0.13.3
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "25m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          env:
+            - name: APPFLOWY_GOTRUE_BASE_URL
+              value: "http://appflowy-gotrue:9999"
+            - name: APPFLOWY_BASE_URL
+              value: "http://appflowy-cloud:8000"
+      restartPolicy: Always

@@ -1,0 +1,11 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-errors-authz
+spec:
+  errors:
+    service:
+      name: "oauth2-proxy"
+      namespace: "security"
+      port: 80
+    query: "/oauth2/sign_in?rd={url}"

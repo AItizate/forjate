@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config-file
+data:
+  config.yaml: |
+      model_list:
+        - model_name: "anthropic/*"
+          litellm_params:
+            model: "anthropic/*"
+            api_key: os.environ/ANTHROPIC_API_KEY
+        - model_name: "openai/*"
+          litellm_params:
+            model: openai/*
+            api_key: os.environ/OPENAI_API_KEY
+        - model_name: "deepseek/*"
+          litellm_params:
+            model: deepseek/*
+            api_key: os.environ/DEEPSEEK_API_KEY
+        - model_name: "gemini/*"
+          litellm_params:
+            model: gemini/*
+            api_key: os.environ/GEMINI_API_KEY
+        - model_name: "gpt-4.1-mini - Fast Everyday"
+          litellm_params:
+            model: "gpt-4.1-mini"
+            api_key: os.environ/OPENAI_API_KEY
+            use_in_pass_through: false
+            use_litellm_proxy: false
+            merge_reasoning_content_in_choices: false
+          model_info:
+            db_model: true
+            key: "gpt-4.1-mini"
+            max_tokens: 32768
+            max_input_tokens: 1047576
+            max_output_tokens: 32768
+          provider: "openai"
+          input_cost: "0.40"
+          output_cost: "1.60"
+          max_tokens: 32768
+          max_input_tokens: 1047576
+        - model_name: "gpt-4.1-nano"
+          litellm_params:
+            model: "gpt-4.1-nano"
+            api_key: os.environ/OPENAI_API_KEY
+            use_in_pass_through: false
+            use_litellm_proxy: false
+            merge_reasoning_content_in_choices: false
+          model_info:
+            db_model: true
+            key: "gpt-4.1-nano"
+            max_tokens: 32768
+            max_input_tokens: 1047576
+            max_output_tokens: 32768
+          provider: "openai"
+          input_cost: "0.10"
+          output_cost: "0.40"
+        - model_name: "gpt-4o"
+          litellm_params:
+            model: "gpt-4o"
+            api_key: os.environ/OPENAI_API_KEY
+            use_in_pass_through: false
+            use_litellm_proxy: false
+            merge_reasoning_content_in_choices: false
+          model_info:
+            db_model: true
+            key: "gpt-4o"
+            max_tokens: 16384
+            max_input_tokens: 128000
+            max_output_tokens: 16384
+          provider: "openai"
+          input_cost: "2.50"
+          output_cost: "10.00"
+        - model_name: "o3-mini"
+          litellm_params:
+            model: "o3-mini"
+            api_key: os.environ/OPENAI_API_KEY
+            use_in_pass_through: false
+            use_litellm_proxy: false
+            merge_reasoning_content_in_choices: false
+          model_info:
+            db_model: true
+            key: "o3-mini"
+            max_tokens: 100000
+            max_input_tokens: 200000
+            max_output_tokens: 100000
+          provider: "openai"
+          input_cost: "1.10"
+          output_cost: "4.40"
+        - model_name: "text-embedding-3-small"
+          litellm_params:
+            model: "text-embedding-3-small"
+            api_key: os.environ/OPENAI_API_KEY_FILES
+            use_in_pass_through: false
+            use_litellm_proxy: false
+            merge_reasoning_content_in_choices: false
+          model_info:
+            db_model: true
+            key: "text-embedding-3-small"
+            max_tokens: 8191
+            max_input_tokens: 8191
+            max_output_tokens: null
+          provider: "openai"
+          input_cost: "0.02"
+          output_cost: 0
+        - model_name: "gpt-4o-mini"
+          litellm_params:
+            model: "gpt-4o-mini"
+            api_key: os.environ/OPENAI_API_KEY
+            use_in_pass_through: false
+            use_litellm_proxy: false
+            merge_reasoning_content_in_choices: false
+          model_info:
+            db_model: true
+            key: "gpt-4o-mini"
+            max_tokens: 16384
+            max_input_tokens: 128000
+            max_output_tokens: 16384
+          provider: "openai"
+          input_cost: "0.15"
+          output_cost: "0.60"

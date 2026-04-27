@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector-cluster
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/component: cluster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+      app.kubernetes.io/component: cluster
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-collector
+        app.kubernetes.io/component: cluster
+    spec:
+      serviceAccountName: otel-collector-cluster
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.98.0
+          args:
+            - "--config=/etc/otelcol/config.yaml"
+          env:
+            - name: GRAFANA_CLOUD_OTLP_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: otel-collector-secret
+                  key: GRAFANA_CLOUD_OTLP_ENDPOINT
+            - name: GRAFANA_CLOUD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: otel-collector-secret
+                  key: GRAFANA_CLOUD_API_KEY
+            - name: CLUSTER_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: otel-collector-secret
+                  key: CLUSTER_NAME
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-cluster-config

@@ -1,0 +1,25 @@
+# k8s/overlays/ai-dev-stack/namespaces/security/patches/whoami-ingress-patch.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: whoami-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web, websecure
+    # traefik.ingress.kubernetes.io/router.middlewares: security-oauth2-proxy-chain@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: whoami.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: whoami-service
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - whoami.example.com
+      secretName: tls-secret

@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: formbricks
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: formbricks
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: formbricks
+    spec:
+      containers:
+        - name: formbricks
+          image: ghcr.io/formbricks/formbricks:latest
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          startupProbe:
+            httpGet:
+              path: /auth/login
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 80
+          livenessProbe:
+            httpGet:
+              path: /auth/login
+              port: 3000
+            periodSeconds: 30
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /auth/login
+              port: 3000
+            periodSeconds: 10
+            timeoutSeconds: 3
+          envFrom:
+            - configMapRef:
+                name: formbricks-config
+            - secretRef:
+                name: formbricks-secret
+          volumeMounts:
+            - name: formbricks-uploads
+              mountPath: /home/nextjs/apps/web/uploads
+      volumes:
+        - name: formbricks-uploads
+          persistentVolumeClaim:
+            claimName: formbricks-uploads-pvc

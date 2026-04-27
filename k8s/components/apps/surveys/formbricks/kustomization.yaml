@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - pvc.yaml
+  # Secret "formbricks-secret" must be provided by the tenant overlay via secretGenerator
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: formbricks

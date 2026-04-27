@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  serviceName: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      containers:
+        - name: nats
+          image: nats:2.10-alpine
+          args: ["-c", "/etc/nats/nats-server.conf"]
+          ports:
+            - containerPort: 4222
+              name: client
+            - containerPort: 8222
+              name: monitoring
+            - containerPort: 6222
+              name: cluster
+          env:
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: NATS_USER
+            - name: NATS_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: NATS_PASS
+          volumeMounts:
+            - name: nats-config
+              mountPath: /etc/nats/nats-server.conf
+              subPath: nats-server.conf
+            - name: nats-data
+              mountPath: /data/jetstream
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8222
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8222
+            initialDelaySeconds: 20
+            periodSeconds: 30
+      volumes:
+        - name: nats-config
+          configMap:
+            name: nats-config
+  volumeClaimTemplates:
+    - metadata:
+        name: nats-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

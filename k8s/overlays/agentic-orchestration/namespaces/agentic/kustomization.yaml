@@ -1,0 +1,30 @@
+namespace: agentic
+
+resources:
+  - namespace.yaml
+  - ../../../../components/bundles/temporal-stack
+  - ../../../../components/apps/databases/mongodb
+  - worker-deployment.yaml
+
+secretGenerator:
+  - name: postgres-secret
+    envs:
+      - secrets/postgres.env
+    options:
+      disableNameSuffixHash: true
+  - name: mongodb-secret
+    envs:
+      - secrets/mongodb.env
+    options:
+      disableNameSuffixHash: true
+  - name: worker-secret
+    envs:
+      - secrets/worker.env
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  - path: patches/temporal-ui-ingress-patch.yaml
+    target:
+      kind: Ingress
+      name: temporal-ui-ingress

@@ -1,0 +1,11 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-errors-authz
+spec:
+  errors:
+    service:
+      name: "node-red"
+      namespace: "security"
+      port: 1880
+    query: "/authz/error?rd={url}"  # ✅ {url} not {uri}

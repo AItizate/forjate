@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: appflowy-gotrue
+spec:
+  selector:
+    app: appflowy-gotrue
+  ports:
+    - protocol: TCP
+      port: 9999
+      targetPort: 9999

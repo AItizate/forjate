@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# HashiCorp Vault — centralized secret management
+#
+# Deploys Vault in standalone mode with file storage backend.
+# For production, tenants should patch to use raft or an external
+# storage backend (consul, postgres, etc.).
+#
+# After deployment, Vault must be initialized and unsealed:
+#   kubectl exec -it vault-0 -n security -- vault operator init
+#   kubectl exec -it vault-0 -n security -- vault operator unseal <key>
+#
+# Tenant overlay can patch:
+#   - Storage backend (raft, consul, postgres)
+#   - Resource limits
+#   - Replicas (HA mode with raft)
+#   - Ingress hostname
+#   - TLS configuration
+
+resources:
+  - serviceaccount.yaml
+  - configmap.yaml
+  - service.yaml
+  - statefulset.yaml
+  - ingress.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: vault

@@ -1,0 +1,131 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-agent-config
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/component: agent
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+      filelog:
+        include:
+          - /var/log/pods/*/*/*.log
+        exclude:
+          - /var/log/pods/*/otel-collector-agent/*.log
+        start_at: end
+        include_file_path: true
+        include_file_name: false
+        operators:
+          - type: router
+            id: get-format
+            routes:
+              - output: parser-docker
+                expr: 'body matches "^\\{"'
+              - output: parser-crio
+                expr: 'body matches "^[^ Z]+ "'
+              - output: parser-containerd
+                expr: 'body matches "^[^ Z]+Z"'
+          - type: json_parser
+            id: parser-docker
+            output: extract-metadata-from-filepath
+            timestamp:
+              parse_from: attributes.time
+              layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+          - type: regex_parser
+            id: parser-crio
+            regex: "^(?P<time>[^ Z]+) (?P<stream>stdout|stderr) (?P<logtag>[^ ]*) ?(?P<log>.*)$"
+            output: extract-metadata-from-filepath
+            timestamp:
+              parse_from: attributes.time
+              layout: "%Y-%m-%dT%H:%M:%S.%L%j"
+          - type: regex_parser
+            id: parser-containerd
+            regex: "^(?P<time>[^ ^Z]+Z) (?P<stream>stdout|stderr) (?P<logtag>[^ ]*) ?(?P<log>.*)$"
+            output: extract-metadata-from-filepath
+            timestamp:
+              parse_from: attributes.time
+              layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+          - type: regex_parser
+            id: extract-metadata-from-filepath
+            regex: '^.*\/(?P<namespace>[^_]+)_(?P<pod_name>[^_]+)_(?P<uid>[a-f0-9\-]{36})\/(?P<container_name>[^\._]+)\/(?P<restart_count>\d+)\.log$'
+            parse_from: attributes["log.file.path"]
+          - type: move
+            from: attributes.log
+            to: body
+          - type: move
+            from: attributes.stream
+            to: attributes["log.iostream"]
+
+      kubeletstats:
+        collection_interval: 30s
+        auth_type: serviceAccount
+        endpoint: "https://${env:NODE_NAME}:10250"
+        insecure_skip_verify: true
+        metric_groups:
+          - node
+          - pod
+          - container
+
+    processors:
+      k8sattributes:
+        auth_type: serviceAccount
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.node.name
+            - k8s.deployment.name
+            - k8s.container.name
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.ip
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.uid
+          - sources:
+              - from: connection
+
+      resource:
+        attributes:
+          - key: k8s.cluster.name
+            value: "${CLUSTER_NAME}"
+            action: upsert
+
+      batch:
+        send_batch_size: 1024
+        timeout: 5s
+
+    exporters:
+      otlphttp:
+        endpoint: "${GRAFANA_CLOUD_OTLP_ENDPOINT}"
+        headers:
+          Authorization: "Basic ${GRAFANA_CLOUD_API_KEY}"
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [k8sattributes, resource, batch]
+          exporters: [otlphttp]
+        metrics:
+          receivers: [otlp, kubeletstats]
+          processors: [k8sattributes, resource, batch]
+          exporters: [otlphttp]
+        logs:
+          receivers: [filelog]
+          processors: [k8sattributes, resource, batch]
+          exporters: [otlphttp]
+
+      telemetry:
+        logs:
+          level: info

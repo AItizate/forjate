@@ -1,0 +1,15 @@
+# Stakater Reloader — auto-restarts Deployments/StatefulSets on Secret/ConfigMap changes
+#
+# Cluster-scoped controller. Watches for annotation-tagged workloads:
+#   secret.reloader.stakater.com/reload: "my-secret"
+#   configmap.reloader.stakater.com/reload: "my-configmap"
+#
+# Use case: cert-manager renews a TLS cert → secret updates → Reloader
+# triggers a rolling restart so the pod picks up the new cert.
+#
+# Docs: https://github.com/stakater/Reloader
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - https://raw.githubusercontent.com/stakater/Reloader/v1.4.14/deployments/kubernetes/reloader.yaml

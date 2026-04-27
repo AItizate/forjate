@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# MongoDB 7 — base standalone (without replica set)
+#
+# Resources: StatefulSet (mongodb), Service (mongodb)
+#
+# Tenant overlay must provide credentials via secretGenerator or SealedSecret:
+#   mongodb-secret:
+#     MONGO_INITDB_ROOT_USERNAME=<user>
+#     MONGO_INITDB_ROOT_PASSWORD=<password>
+#
+# Connection string for the app:
+#   mongodb://<user>:<pass>@mongodb.<namespace>.svc.cluster.local:27017/?authSource=admin
+#
+# Init scripts: mount runs on first boot via optional ConfigMap "mongodb-init-scripts".
+# Populate it with configMapGenerator in the overlay to create databases/collections:
+#   configMapGenerator:
+#     - name: mongodb-init-scripts
+#       files:
+#         - init-mongo.js=configs/init-mongo.js
+#       options:
+#         disableNameSuffixHash: true
+#
+# To enable Change Streams (CDC with Debezium), add the replica-set Component:
+#   resources:
+#     - path/to/databases/mongodb
+#   components:
+#     - path/to/databases/mongodb/replica-set
+
+resources:
+  - service.yaml
+  - statefulset.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: mongodb

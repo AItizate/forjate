@@ -1,0 +1,11 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docker-registry-app
+spec:
+  tls:
+    - hosts:
+        - registry.cdc-event-sourcing.local
+      secretName: tls-secret
+  rules:
+    - host: registry.cdc-event-sourcing.local

@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: forjate-base
+      app.kubernetes.io/managed-by: kustomize
+
+resources:
+  # Namespaces
+  - ./namespaces/cert-manager
+  - ./namespaces/security
+  - ./namespaces/traefik
+  - ./namespaces/ai-tools
+
+  # Apps
+  - ./apps/longhorn
+  - ./apps/minio

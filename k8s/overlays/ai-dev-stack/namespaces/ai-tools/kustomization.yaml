@@ -1,0 +1,4 @@
+namespace: ai-tools
+
+resources:
+  - ../../../../components/apps/ai-models/vllm

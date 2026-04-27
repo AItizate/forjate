@@ -1,0 +1,7 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-forward-authz
+spec:
+  forwardAuth:
+    address: "http://node-red.security.svc.cluster.local:1880/authz/validate"

@@ -1,0 +1,14 @@
+# gotrue-errors-authz: catches 403 → error service, patched by overlay
+# The tenant defines which service renders the "access denied" page
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: gotrue-errors-authz
+spec:
+  errors:
+    status: ["403"]
+    service:
+      name: "override"       # patch in overlay with real error service
+      namespace: _NAMESPACE_
+      port: 80
+    query: "/authz/error?rd={url}"

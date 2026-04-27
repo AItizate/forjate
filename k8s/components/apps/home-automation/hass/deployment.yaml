@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hass
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hass
+  template:
+    metadata:
+      labels:
+        app: hass
+    spec:
+      containers:
+        - name: hass
+          image: homeassistant/raspberrypi4-homeassistant:latest
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: config-vol
+              mountPath: /config
+          ports:
+            - containerPort: 8123
+      volumes:
+        - name: config-vol
+          persistentVolumeClaim:
+            claimName: homeassistant-pvc

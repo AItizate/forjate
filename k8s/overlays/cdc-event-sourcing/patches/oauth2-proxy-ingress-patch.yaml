@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oauth2-proxy
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web, websecure
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - auth.cdc-event-sourcing.local
+      secretName: tls-secret
+  rules:
+    - host: auth.cdc-event-sourcing.local
+      http:
+        paths:
+          - path: /oauth2/
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 80

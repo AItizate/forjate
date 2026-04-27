@@ -1,0 +1,73 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongodb-rs-init
+spec:
+  # Auto-delete the Job 120s after completion to keep cluster state clean
+  ttlSecondsAfterFinished: 120
+  # Retries if MongoDB is not ready on first attempt
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: rs-init
+          image: mongo:7
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              # Use StatefulSet FQDN so the RS config survives pod restarts
+              RS_HOST="mongodb-0.mongodb.${POD_NAMESPACE}.svc.cluster.local:27017"
+
+              echo "Waiting for MongoDB to become available..."
+              until mongosh mongodb:27017 \
+                --eval "db.adminCommand('ping')" \
+                --quiet 2>/dev/null; do
+                sleep 2
+              done
+
+              echo "MongoDB ready. Initializing replica set rs0..."
+              mongosh mongodb:27017 \
+                -u "$MONGO_INITDB_ROOT_USERNAME" \
+                -p "$MONGO_INITDB_ROOT_PASSWORD" \
+                --authenticationDatabase admin \
+                --eval "
+                  try {
+                    rs.initiate({
+                      _id: 'rs0',
+                      members: [{ _id: 0, host: '$RS_HOST' }]
+                    });
+                    print('Replica set rs0 initialized successfully.');
+                  } catch(e) {
+                    if (e.code === 23) {
+                      print('Replica set already initialized, skipping.');
+                    } else {
+                      printjson(e);
+                      quit(1);
+                    }
+                  }
+                "
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: MONGO_INITDB_ROOT_USERNAME
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: MONGO_INITDB_ROOT_PASSWORD
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "384Mi"
+              cpu: "200m"

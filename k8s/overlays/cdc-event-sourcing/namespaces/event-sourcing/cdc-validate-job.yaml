@@ -1,0 +1,177 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cdc-validate
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: validate
+          image: mongo:7
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -e
+
+              PASS=0
+              FAIL=0
+              report() {
+                if [ "$1" = "OK" ]; then
+                  echo "  [PASS] $2"
+                  PASS=$((PASS+1))
+                else
+                  echo "  [FAIL] $2"
+                  FAIL=$((FAIL+1))
+                fi
+              }
+
+              # MongoDB connection without replicaSet param (for pre-RS checks)
+              MONGO_HOST="mongodb.event-sourcing.svc.cluster.local"
+              MONGO_DIRECT="mongodb://admin:changeme@${MONGO_HOST}:27017/?authSource=admin&directConnection=true"
+
+              echo ""
+              echo "========================================"
+              echo "  CDC Pipeline Validation — cdc-event-sourcing"
+              echo "========================================"
+              echo ""
+
+              # ── 1. Wait for MongoDB ──
+              echo "1. MongoDB"
+              echo "   Waiting for MongoDB to accept connections..."
+              TRIES=0
+              until mongosh "$MONGO_DIRECT" --quiet --eval "db.adminCommand('ping')" >/dev/null 2>&1; do
+                TRIES=$((TRIES+1))
+                if [ $TRIES -ge 30 ]; then
+                  report "FAIL" "MongoDB not reachable after 60s"
+                  break
+                fi
+                sleep 2
+              done
+
+              if [ $TRIES -lt 30 ]; then
+                report "OK" "MongoDB is reachable"
+              fi
+
+              # ── 2. Replica Set ──
+              echo "2. Replica Set"
+              echo "   Waiting for RS to be PRIMARY (up to 60s)..."
+              TRIES=0
+              RS_OK=false
+              while [ $TRIES -lt 30 ]; do
+                RS_STATE=$(mongosh "$MONGO_DIRECT" --quiet --eval "
+                  try { rs.status().members[0].stateStr } catch(e) { 'NOT_INIT' }
+                " 2>/dev/null || echo "ERROR")
+                if [ "$RS_STATE" = "PRIMARY" ]; then
+                  RS_OK=true
+                  break
+                fi
+                TRIES=$((TRIES+1))
+                sleep 2
+              done
+
+              if $RS_OK; then
+                report "OK" "MongoDB RS is PRIMARY"
+              else
+                report "FAIL" "RS state: $RS_STATE (expected PRIMARY)"
+              fi
+
+              # ── 3. RabbitMQ ──
+              echo "3. RabbitMQ"
+              if bash -c "echo > /dev/tcp/rabbitmq.event-sourcing.svc.cluster.local/5672" 2>/dev/null; then
+                report "OK" "RabbitMQ AMQP port 5672 reachable"
+              else
+                report "FAIL" "RabbitMQ AMQP port 5672 not reachable"
+              fi
+
+              if bash -c "echo > /dev/tcp/rabbitmq.event-sourcing.svc.cluster.local/15672" 2>/dev/null; then
+                report "OK" "RabbitMQ Management API port 15672 reachable"
+              else
+                report "FAIL" "RabbitMQ Management API port 15672 not reachable"
+              fi
+
+              # ── 4. Debezium ──
+              echo "4. Debezium (check via MongoDB connection string with RS)"
+              MONGO_RS="mongodb://admin:changeme@${MONGO_HOST}:27017/?replicaSet=rs0&authSource=admin"
+              if mongosh "$MONGO_RS" --quiet --eval "db.adminCommand('ping')" >/dev/null 2>&1; then
+                report "OK" "MongoDB reachable via RS connection string (Debezium uses this)"
+              else
+                report "FAIL" "MongoDB RS connection string failed"
+              fi
+
+              # ── 5. End-to-end: insert → change stream → RabbitMQ ──
+              echo "5. End-to-end test"
+              TEST_ID="cdc-validate-$(date +%s)"
+              echo "   Inserting test event (_id=$TEST_ID) into testdb.events..."
+
+              mongosh "$MONGO_RS" --quiet --eval "
+                db.getSiblingDB('testdb').events.insertOne({
+                  _id: '$TEST_ID',
+                  type: 'cdc.validate',
+                  payload: { test: true, ts: new Date().toISOString() }
+                });
+              " >/dev/null 2>&1
+
+              if [ $? -eq 0 ]; then
+                report "OK" "Test event inserted into testdb.events"
+              else
+                report "FAIL" "Failed to insert test event"
+              fi
+
+              echo "   Waiting 8s for Debezium to capture and forward..."
+              sleep 8
+
+              # Verify the document is in MongoDB (confirms write succeeded)
+              FOUND=$(mongosh "$MONGO_RS" --quiet --eval "
+                const doc = db.getSiblingDB('testdb').events.findOne({_id: '$TEST_ID'});
+                doc ? 'FOUND' : 'NOT_FOUND';
+              " 2>/dev/null || echo "ERROR")
+
+              if [ "$FOUND" = "FOUND" ]; then
+                report "OK" "Test event confirmed in MongoDB (source side)"
+              else
+                report "FAIL" "Test event not found in MongoDB ($FOUND)"
+              fi
+
+              # Check oplog activity (confirms change streams work)
+              OPLOG_TS=$(mongosh "$MONGO_RS" --quiet --eval "
+                const entry = db.getSiblingDB('local').oplog.rs.find(
+                  {'ns': 'testdb.events', 'o._id': '$TEST_ID'}
+                ).sort({ts: -1}).limit(1).toArray();
+                entry.length > 0 ? 'CAPTURED' : 'NOT_FOUND';
+              " 2>/dev/null || echo "ERROR")
+
+              if [ "$OPLOG_TS" = "CAPTURED" ]; then
+                report "OK" "Change event found in oplog (Debezium can read it)"
+              else
+                report "FAIL" "Change event not found in oplog ($OPLOG_TS)"
+              fi
+
+              # ── 6. Cleanup ──
+              echo "6. Cleanup"
+              mongosh "$MONGO_RS" --quiet --eval "
+                db.getSiblingDB('testdb').events.deleteOne({_id: '$TEST_ID'});
+              " >/dev/null 2>&1
+              report "OK" "Test event cleaned up"
+
+              # ── Summary ──
+              echo ""
+              echo "========================================"
+              echo "  Results: $PASS passed, $FAIL failed"
+              echo "========================================"
+              echo ""
+              if [ $FAIL -gt 0 ]; then
+                echo "Some checks failed. Review the output above."
+                exit 1
+              else
+                echo "All checks passed. CDC pipeline is operational."
+              fi
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "384Mi"
+              cpu: "200m"

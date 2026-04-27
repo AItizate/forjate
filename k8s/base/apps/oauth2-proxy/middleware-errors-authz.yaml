@@ -1,0 +1,13 @@
+# oauth-redirect: “I received a 401! Redirecting to login page”
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-errors-authz
+spec:
+  errors:
+    status: ["403"]
+    service:
+      name: "override"
+      namespace: _NAMESPACE_
+      port: 80
+    query: "/authz/error?rd={url}"

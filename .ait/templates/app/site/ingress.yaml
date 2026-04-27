@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: __APP_NAME__-ingress
+  annotations:
+    # Annotations will be managed by the overlay
+    example.com/placeholder: "true"
+spec:
+  rules:
+    - host: __HOSTNAME__ # e.g., my-app.tenant.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: __APP_NAME__
+                port:
+                  name: http

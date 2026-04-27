@@ -4,6 +4,9 @@
 # Usage: ./scripts/init-cluster.sh <path-to-env-file>
 # Example: ./scripts/init-cluster.sh scripts/init-cluster.im-u.com.env
 # =============================================================================
+# NOTE: Steps 5c and 6 are Cloudflare-specific (tunnel + DNS).
+# Skip or adapt these if you use a different DNS/tunnel provider.
+# =============================================================================
 
 set -euo pipefail
 

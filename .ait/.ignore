@@ -1,0 +1,15 @@
+# Factory development and temp files
+scripts/
+init-tenant.py
+.ait/
+.gitignore
+CONTRIBUTING.md
+README.md
+tenant.yaml.template
+
+# Python / Poetry files
+pyproject.toml
+poetry.lock
+.venv/
+__pycache__/
+*.pyc

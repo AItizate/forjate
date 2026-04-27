@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: __APP_NAME__
+  labels:
+    app.kubernetes.io/name: __APP_NAME__
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: __APP_NAME__
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: __APP_NAME__
+    spec:
+      containers:
+        - name: __APP_NAME__
+          image: __IMAGE_URL__ # e.g., nginx:latest
+          ports:
+            - name: http
+              containerPort: __PORT__
+              protocol: TCP

@@ -43,4 +43,21 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "1000m"
+          securityContext:
+            # Tenant images that need extra capabilities should override these
+            # in their own overlay patch — defaults are PSA-restricted compatible.
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile: { type: RuntimeDefault }
+          # Probes — uncomment when your worker image exposes a health endpoint.
+          # Temporal SDK workers commonly do not expose HTTP by default; consider
+          # adding a tiny health server alongside, or check Temporal's task-queue
+          # registration with a tcpSocket probe.
+          # readinessProbe:
+          #   httpGet: { path: /health/ready, port: 8080 }
+          # livenessProbe:
+          #   httpGet: { path: /health/live, port: 8080 }
       restartPolicy: Always

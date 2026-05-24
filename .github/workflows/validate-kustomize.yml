@@ -29,6 +29,21 @@ jobs:
           sudo mv kubeconform /usr/local/bin/
           kubeconform -v
 
+      - name: Stage placeholder secrets
+        # Some overlays consume real .env files at build time via Kustomize's
+        # secretGenerator (envs:). Those .env files are gitignored. We seed
+        # them from their .env.example siblings so kustomize build can run
+        # in CI. The values are placeholders — never deployed from CI.
+        run: |
+          set -euo pipefail
+          while IFS= read -r ex; do
+            real="${ex%.example}"
+            if [ ! -f "$real" ]; then
+              cp "$ex" "$real"
+              echo "Seeded $real from $ex"
+            fi
+          done < <(find k8s -type f -name '*.env.example')
+
       - name: Discover targets
         id: discover
         run: |

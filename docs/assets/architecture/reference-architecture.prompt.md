@@ -1,6 +1,6 @@
-# 01 — Reference Architecture
+# Reference Architecture
 
-**Output:** `docs/assets/architecture/reference-architecture.png`
+**Output:** `reference-architecture.png` (alongside this file)
 **Aspect:** 16:9
 **Approved version:** v0.4
 

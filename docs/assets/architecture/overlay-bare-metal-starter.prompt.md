@@ -1,6 +1,6 @@
-# 06 — Overlay: bare-metal-starter
+# Overlay: bare-metal-starter
 
-**Output:** `docs/assets/architecture/overlay-bare-metal-starter.png`
+**Output:** `overlay-bare-metal-starter.png` (alongside this file)
 **Aspect:** 16:9
 **Approved version:** v0.2
 

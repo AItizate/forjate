@@ -1,6 +1,6 @@
-# 07 — Overlay: multi-cloud-portable
+# Overlay: multi-cloud-portable
 
-**Output:** `docs/assets/architecture/overlay-multi-cloud-portable.png`
+**Output:** `overlay-multi-cloud-portable.png` (alongside this file)
 **Aspect:** 16:9
 **Approved version:** v0.1
 

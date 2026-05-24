@@ -1,6 +1,6 @@
-# 05 — Overlay: home-edge-lab
+# Overlay: home-edge-lab
 
-**Output:** `docs/assets/architecture/overlay-home-edge-lab.png`
+**Output:** `overlay-home-edge-lab.png` (alongside this file)
 **Aspect:** 16:9
 **Approved version:** v0.4
 

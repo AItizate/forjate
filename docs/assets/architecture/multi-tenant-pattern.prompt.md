@@ -1,6 +1,6 @@
-# 03 — Multi-Tenant Recursive Pattern
+# Multi-Tenant Recursive Pattern
 
-**Output:** `docs/assets/architecture/multi-tenant-pattern.png`
+**Output:** `multi-tenant-pattern.png` (alongside this file)
 **Aspect:** 16:9
 **Approved version:** v0.1
 

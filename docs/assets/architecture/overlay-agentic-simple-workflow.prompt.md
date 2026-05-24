@@ -1,6 +1,6 @@
-# 04 — Overlay: agentic-simple-workflow
+# Overlay: agentic-simple-workflow
 
-**Output:** `docs/assets/architecture/overlay-agentic-simple-workflow.png`
+**Output:** `overlay-agentic-simple-workflow.png` (alongside this file)
 **Aspect:** 16:9
 **Approved version:** v0.3
 

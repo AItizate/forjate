@@ -1,6 +1,6 @@
-# 02 — Scale Spectrum
+# Scale Spectrum
 
-**Output:** `docs/assets/architecture/scale-spectrum.png`
+**Output:** `scale-spectrum.png` (alongside this file)
 **Aspect:** 16:9
 **Approved version:** v0.2
 

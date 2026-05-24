@@ -57,6 +57,14 @@ Home automation, IoT devices, integrated cameras, an OpenClaw-controlled agent, 
 
 Same Forjate. Different overlays.
 
+## Path to production
+
+You don't have to leap. Start at **Lab** on a single node. Grow into **MVP** when real users show up. Tighten into **Production** when SLAs or compliance demand it. Same base, same components — just more of them.
+
+![Lab to Production](docs/assets/architecture/lab-to-production.png)
+
+Cost grows with capability, never with the platform. The full breakdown of what changes at each stage lives in [`docs/lab-to-production.md`](docs/lab-to-production.md).
+
 ## Component catalog
 
 | Category | Components |

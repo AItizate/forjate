@@ -22,6 +22,7 @@ resources:
   - ../../components/rbac
   - ./namespace.yaml
   - ./metallb-pool.yaml
+  - ./validate-job.yaml
 
 labels:
   - pairs:

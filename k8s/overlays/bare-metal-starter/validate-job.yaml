@@ -1,0 +1,119 @@
+# Post-deploy validation Job for bare-metal-starter.
+# Confirms the foundational platform pieces are reachable from inside the
+# cluster: kube-dns, Traefik, MetalLB, ArgoCD. Exits non-zero on any failure.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: bare-metal-starter-validate
+  namespace: default
+  labels:
+    app: bare-metal-starter-validate
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: validate
+          image: bitnami/kubectl:1.30
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -e
+              PASS=0
+              FAIL=0
+              check() {
+                local name="$1"; shift
+                if "$@" >/dev/null 2>&1; then
+                  echo "  [PASS] $name"
+                  PASS=$((PASS+1))
+                else
+                  echo "  [FAIL] $name"
+                  FAIL=$((FAIL+1))
+                fi
+              }
+
+              echo ""
+              echo "=========================================="
+              echo "  bare-metal-starter — platform validation"
+              echo "=========================================="
+              echo ""
+
+              echo "1. DNS"
+              check "kube-dns resolves cluster.local" \
+                getent hosts kubernetes.default.svc.cluster.local
+
+              echo ""
+              echo "2. Traefik ingress controller"
+              check "traefik Deployment available" \
+                kubectl -n traefik get deploy traefik -o jsonpath='{.status.availableReplicas}' \
+                  | grep -E '^[1-9]'
+
+              echo ""
+              echo "3. MetalLB"
+              check "metallb controller running" \
+                kubectl -n metallb-system get deploy controller -o jsonpath='{.status.availableReplicas}' \
+                  | grep -E '^[1-9]'
+              check "metallb IPAddressPool configured" \
+                kubectl -n metallb-system get ipaddresspool
+
+              echo ""
+              echo "4. ArgoCD"
+              check "argocd-server Deployment available" \
+                kubectl -n argocd get deploy argocd-server -o jsonpath='{.status.availableReplicas}' \
+                  | grep -E '^[1-9]'
+
+              echo ""
+              echo "5. Sealed Secrets"
+              check "sealed-secrets-controller running" \
+                kubectl -n kube-system get deploy sealed-secrets-controller -o jsonpath='{.status.availableReplicas}' \
+                  | grep -E '^[1-9]'
+
+              echo ""
+              echo "=========================================="
+              echo "  $PASS passed, $FAIL failed"
+              echo "=========================================="
+              [ "$FAIL" -eq 0 ]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 1001
+            seccompProfile: { type: RuntimeDefault }
+      serviceAccountName: bare-metal-starter-validate
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bare-metal-starter-validate
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: bare-metal-starter-validate
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["services", "pods", "namespaces"]
+    verbs: ["get", "list"]
+  - apiGroups: ["metallb.io"]
+    resources: ["ipaddresspools"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: bare-metal-starter-validate
+subjects:
+  - kind: ServiceAccount
+    name: bare-metal-starter-validate
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: bare-metal-starter-validate
+  apiGroup: rbac.authorization.k8s.io

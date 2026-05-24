@@ -175,3 +175,10 @@ spec:
             limits:
               memory: "384Mi"
               cpu: "200m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # mongosh writes to ~/.mongosh
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile: { type: RuntimeDefault }

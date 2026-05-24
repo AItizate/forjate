@@ -1,0 +1,86 @@
+# Post-deploy validation Job for home-edge-lab.
+# Confirms the home lab is reachable end-to-end: Home Assistant, the MQTT
+# broker, MinIO. Doesn't assert IoT devices (those depend on physical hw).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: home-edge-lab-validate
+  namespace: home
+  labels:
+    app: home-edge-lab-validate
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: validate
+          image: alpine:3.20
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              apk add --no-cache curl mosquitto-clients >/dev/null
+
+              PASS=0
+              FAIL=0
+              check() {
+                local name="$1"; shift
+                if "$@" >/dev/null 2>&1; then
+                  echo "  [PASS] $name"
+                  PASS=$((PASS+1))
+                else
+                  echo "  [FAIL] $name"
+                  FAIL=$((FAIL+1))
+                fi
+              }
+
+              echo ""
+              echo "============================="
+              echo "  home-edge-lab — smoke test"
+              echo "============================="
+              echo ""
+
+              echo "1. DNS"
+              check "kube-dns resolves cluster.local" \
+                getent hosts kubernetes.default.svc.cluster.local
+
+              echo ""
+              echo "2. Home Assistant HTTP"
+              check "home-assistant /api/ responds" \
+                curl -fsS --max-time 5 http://home-assistant.home.svc.cluster.local:8123/
+
+              echo ""
+              echo "3. Mosquitto MQTT"
+              # roundtrip: subscribe in background, publish, confirm we got it
+              TOPIC="forjate/validate/$(date +%s)"
+              PAYLOAD="ok"
+              mosquitto_sub -h mosquitto.home.svc.cluster.local -t "$TOPIC" -C 1 -W 5 > /tmp/got &
+              sleep 1
+              mosquitto_pub -h mosquitto.home.svc.cluster.local -t "$TOPIC" -m "$PAYLOAD"
+              wait
+              if grep -q "$PAYLOAD" /tmp/got 2>/dev/null; then
+                echo "  [PASS] mosquitto pub/sub roundtrip"
+                PASS=$((PASS+1))
+              else
+                echo "  [FAIL] mosquitto pub/sub roundtrip"
+                FAIL=$((FAIL+1))
+              fi
+
+              echo ""
+              echo "4. MinIO"
+              check "minio /minio/health/live responds" \
+                curl -fsS --max-time 5 http://minio.home.svc.cluster.local:9000/minio/health/live
+
+              echo ""
+              echo "============================="
+              echo "  $PASS passed, $FAIL failed"
+              echo "============================="
+              [ "$FAIL" -eq 0 ]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # apk add writes to /tmp
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: false   # apk add needs root
+            seccompProfile: { type: RuntimeDefault }

@@ -1,0 +1,22 @@
+# k8s/overlays/multi-tenant-pattern/org/kustomization.yaml
+#
+# The "org overlay" — your company's standard shape on top of Forjate's base.
+# Per-client overlays live under ../tenants/ and extend THIS overlay.
+# See docs/overlays/multi-tenant-pattern.md for the recursive pattern.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../../base
+  - ../../../components/apps/databases/postgres
+  - ../../../components/apps/minio/single-server
+  - ../../../components/apps/auth/gotrue-auth
+  - ../../../components/apps/sealed-secrets
+  - ../../../components/apps/monitoring/prometheus
+  - ../../../components/apps/continuous-delivery/argocd
+
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/overlay: multi-tenant-pattern
+      org: acme-saas

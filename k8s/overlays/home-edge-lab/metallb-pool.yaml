@@ -1,0 +1,19 @@
+# MetalLB pool tuned for a small home LAN.
+# Replace the range with a free block on your network outside DHCP scope.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: home-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.1.230-192.168.1.239
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: home-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - home-pool

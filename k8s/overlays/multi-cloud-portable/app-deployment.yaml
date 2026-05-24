@@ -1,0 +1,57 @@
+# Reference app Deployment. The exact same manifest is used across the
+# bare-metal, AWS, GCP and Azure flavors of this overlay — only DATABASE_URL
+# changes via a per-flavor patch.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: app
+  labels:
+    app: app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/example/app:latest
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-database
+                  key: url
+            - name: OBJECT_STORE_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: app-object-store
+                  key: endpoint
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: app
+spec:
+  selector:
+    app: app
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http

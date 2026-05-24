@@ -1,0 +1,16 @@
+# Example: a managed Cloud SQL Postgres instance provisioned by Crossplane.
+# Requires the GCP SQL provider (provider-gcp-sql) to be installed and
+# configured with credentials in the crossplane-system namespace.
+apiVersion: sql.gcp.upbound.io/v1beta2
+kind: DatabaseInstance
+metadata:
+  name: tenant-postgres
+spec:
+  forProvider:
+    databaseVersion: POSTGRES_15
+    region: us-central1
+    settings:
+      - tier: db-f1-micro
+        diskSize: 10
+  providerConfigRef:
+    name: default

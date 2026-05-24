@@ -1,0 +1,82 @@
+# Read-only RBAC for a cluster-introspection agent. The agent can observe
+# every common namespaced resource and audit RBAC + metrics, but cannot
+# mutate anything.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-introspector
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-introspector
+rules:
+  # Core
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - services
+      - endpoints
+      - events
+      - configmaps
+      - namespaces
+      - nodes
+      - persistentvolumeclaims
+      - persistentvolumes
+      - replicationcontrollers
+    verbs: ["get", "list", "watch"]
+  # Apps
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
+    verbs: ["get", "list", "watch"]
+  # Batch
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch"]
+  # Networking
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+      - networkpolicies
+    verbs: ["get", "list", "watch"]
+  # Storage
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - storageclasses
+    verbs: ["get", "list", "watch"]
+  # RBAC (audit only)
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources:
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs: ["get", "list"]
+  # Metrics
+  - apiGroups: ["metrics.k8s.io"]
+    resources:
+      - pods
+      - nodes
+    verbs: ["get", "list"]
+---
+# The ServiceAccount subject's namespace is patched by the consuming overlay
+# (subjects[0].namespace).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-introspector
+subjects:
+  - kind: ServiceAccount
+    name: cluster-introspector
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: cluster-introspector
+  apiGroup: rbac.authorization.k8s.io

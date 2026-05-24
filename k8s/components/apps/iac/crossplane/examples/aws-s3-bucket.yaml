@@ -1,0 +1,12 @@
+# Example: a managed S3 bucket provisioned by Crossplane.
+# Requires the AWS S3 provider (provider-aws-s3) to be installed and configured
+# with credentials in the crossplane-system namespace.
+apiVersion: s3.aws.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: tenant-uploads
+spec:
+  forProvider:
+    region: us-east-1
+  providerConfigRef:
+    name: default

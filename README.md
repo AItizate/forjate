@@ -2,34 +2,21 @@
 
 Your infra shouldn't be the thing stopping you from creating.
 
-## Why
+## The problem we kept hitting
 
-I went through hand-copied YAMLs. I went through Helm nightmares —
-too many values, too many tenants, too many unknowns.
-Every change was a leap of faith.
+For years, scaling a tech idea meant the same trap: **costs that nobody could predict**.
 
-Forjate was born from that. From wanting to actually learn
-infrastructure, and from needing to ship things fast without
-the YAML winning.
+The cloud made it easy to start. It also made it easy to wake up to a bill three times what you modeled — because traffic spiked, because a job ran longer, because storage grew quietly in the background. The same platforms that let us ship fast also pulled data sovereignty out from under us. Audits started asking where the data physically lived. The answer was rarely simple.
 
-It's opinionated. The tool selection reflects what I use,
-what taught me something, and what let me create. This isn't
-a neutral framework trying to please everyone — it's a toolbox
-that works.
+This is not a story against hyperscalers. They solved real problems. They also created new ones: **unpredictable spend and a slow drift away from data sovereignty**. Forjate is an answer to those two, without giving up the speed.
 
-With this I spun up a dev tenant in under 15 minutes.
-And a full company — website, DNS, backend, frontend, BFF,
-data pipeline, AI tools — in one week.
-With vibe coding, of course.
+## What Forjate is
 
-## What it is
+A Kustomize-driven Kubernetes factory. Three concepts, no magic:
 
-A Kustomize-driven Kubernetes infrastructure factory.
-Three concepts:
-
-- **Base** — the services every tenant needs (Traefik, cert-manager, Longhorn, MinIO)
-- **Components** — a catalog of 40+ optional pieces you activate per tenant
-- **Overlays** — your environment's specific config. Patches, secrets, configs. No duplication.
+- **Base** — the services every tenant needs (Traefik, cert-manager, Longhorn, MinIO). Configured once.
+- **Components** — a catalog of 40+ optional building blocks. Databases, brokers, AI models, observability, auth, IaC connectors. Activate what you use.
+- **Overlays** — your environment's config. Patches, secrets, hostnames. No duplication.
 
 ```
 k8s/
@@ -38,45 +25,61 @@ k8s/
 └── overlays/      # Your environment. Customize without breaking.
 ```
 
-## Built for real hardware
+![Forjate reference architecture](docs/assets/architecture/reference-architecture.png)
 
-The idea is simple: low-cost hardware should be enough to create
-serious things.
+## The "anywhere" promise
 
-My first cluster ran on Raspberry Pis, a 2009 Compaq Presario,
-and a 2015 MacBook Pro Retina. That's why Forjate starts with
-k3s — the smallest Kubernetes that still does everything.
+The same overlay runs on a Raspberry Pi, a rack of bare metal, AWS, GCP, Azure, or any mix of those. **The difference between a hyperscaler and a server in a closet is fifty lines of YAML, not a migration project.**
 
-Complex ZTNA applications can run on a few servers. You control
-your data. You own your infrastructure. You scale what's private
-on your terms.
+You move where the economics make sense. You keep the data where compliance requires it. You stop being held hostage by a single provider's pricing.
 
-This also means Forjate can live as parallel infrastructure
-inside an existing organization — a tech lab that grows alongside
-production, or community-maintained plugins that adapt to
-a reality of low cost and sustainability.
+![Scale spectrum](docs/assets/architecture/scale-spectrum.png)
 
-Not everyone starts with a cloud budget.
-Some of us start with what's in the drawer.
+## Multi-tenant by design
+
+Forjate is not just "shared base, separate overlays." The pattern recurses:
+
+1. The **base** runs the foundation.
+2. Your **org overlay** adds what your company always needs (your auth, your monitoring, your CDC).
+3. A **client overlay** extends the org overlay with what's tenant-specific (their domain, their secrets, their data isolation).
+
+Repeat as many times as you need clients, environments, or regions. The same recipe, composed.
+
+![Multi-tenant recursive pattern](docs/assets/architecture/multi-tenant-pattern.png)
+
+## Real-world examples
+
+**A B2B SaaS founder team running two production environments for ~USD 120/month.**
+Full stack: dev + prod, end-to-end TLS, Istio for in-transit security, encryption at rest, CDC for compliance-grade audit trails. Same architecture they would have paid five figures for on a managed platform.
+
+**A home lab on one Raspberry Pi and a household NAS.**
+Home automation, IoT devices, integrated cameras, an OpenClaw-controlled agent, RBAC, Google auth. Production-grade ergonomics on hardware that fits on a shelf.
+
+Same Forjate. Different overlays.
 
 ## Component catalog
 
 | Category | Components |
 |----------|------------|
-| AI & ML | Ollama, vLLM, LanceDB, Milvus, Docling |
+| AI & ML | Ollama, vLLM, LanceDB, Milvus, document processing |
 | Databases | PostgreSQL, MariaDB, MongoDB, Redis, etcd |
 | Brokers | RabbitMQ, NATS, Mosquitto |
-| CDC | Debezium (Postgres/Mongo/MariaDB → RabbitMQ/NATS) |
-| Monitoring | Prometheus, Grafana, OTEL Collector, Reloader |
-| Workflows | Temporal |
-| Auth & Security | GoTrue, OAuth2 Proxy, Vault, External Secrets, Sealed Secrets |
+| CDC | Debezium connectors (Postgres / Mongo / MariaDB → RabbitMQ / NATS) |
+| Data Ingestion | **Airbyte** _(planned — connector-based ELT for batch + incremental sync)_ |
+| Observability | Prometheus, Grafana, OTEL Collector, Reloader, Kubernetes Dashboard |
+| Workflows | Temporal, n8n, Node-RED |
+| Auth & Security | **Zitadel** _(SSO / IAM)_, GoTrue, OAuth2 Proxy, Vault, External Secrets, Sealed Secrets |
+| Agents | `cluster-introspector` _(OpenClaw-compatible, read-only cluster observer)_ |
 | Productivity | Affine, AppFlowy, Formbricks |
 | Networking | MetalLB, Cloudflare Tunnel |
-| CI/CD | ArgoCD |
-| And more... | n8n, Node-RED, MinIO, Home Assistant, ESPHome |
+| GitOps & IaC | ArgoCD, **Crossplane** _(plugs the hyperscalers in declaratively when you need them)_ |
+| Analytics & Surveys | analytics pipelines, surveys |
+| Communication | messaging integrations |
+| Home & Edge | Home Assistant, ESPHome |
+| Storage | MinIO, Longhorn |
+| Other | Docker registry, whoami |
 
-**Bundles** are pre-wired component combinations — ready-to-use
-stacks. One exists today (Temporal + Postgres). More are coming.
+**Bundles** are pre-wired component combinations. One exists today (Temporal + Postgres). More are coming.
 
 ## Quick start
 
@@ -93,21 +96,21 @@ cd k8s/overlays/ai-dev-stack
 ./02_deploy.sh
 ```
 
-15 minutes. A cluster with AI tools, auth, storage, ingress
-and monitoring — running.
+Fifteen minutes. A cluster with AI tools, auth, storage, ingress and monitoring — running.
 
 ## Example overlays
 
-| Overlay | What's inside |
-|---------|---------------|
-| `ai-dev-stack` | Base + OAuth2 + LiteLLM + vLLM + MinIO + Node-RED + Milvus |
-| `cdc-event-sourcing` | Base + MongoDB + RabbitMQ + Debezium CDC |
-| `agentic-orchestration` | Base + Temporal + MongoDB + Worker for multi-agent workflows |
+| Overlay | What's inside | Use case |
+|---------|---------------|----------|
+| `ai-dev-stack` | Base + OAuth2 + LiteLLM + vLLM + MinIO + Node-RED + Milvus | Local AI development cluster |
+| `cdc-event-sourcing` | Base + MongoDB + RabbitMQ + Debezium CDC | Event-driven services with audit-grade change data capture |
+| `agentic-orchestration` | Base + Temporal + MongoDB + worker | Multi-agent workflows, deterministic by Temporal |
+
+Five additional reference overlays live in [`k8s/overlays/`](k8s/overlays/) with matching designs in [`docs/overlays/`](docs/overlays/): `agentic-simple-workflow`, `bare-metal-starter`, `home-edge-lab`, `multi-cloud-portable`, `multi-tenant-pattern`.
 
 ## How it works
 
 Kustomize handles everything. No templates, no magic variables.
-Each overlay inherits the base and applies its patches on top.
 
 ```yaml
 # Your overlay just says what it wants
@@ -117,12 +120,9 @@ resources:
   - ../../components/apps/ai-models/ollama
 ```
 
-Want to change a hostname? A patch.
-Add a secret? An `.env` file.
-Enable a component? One line.
+Want a different hostname? A patch. A new secret? An `.env` file. A new component? One line.
 
-Remote tenants can consume the factory over SSH without living
-in this repo:
+Remote tenants can consume the factory over SSH without living in this repo:
 
 ```yaml
 resources:
@@ -130,25 +130,21 @@ resources:
   - ssh://git@github.com/AItizate/forjate.git//k8s/components/apps/databases/postgres?ref=v1.0.0
 ```
 
+Pin to a tag for stable rollouts. Move the tag forward when you're ready.
+
 ## Who this is for
 
 For anyone who'd rather create than fight infrastructure.
 
-Whether you're starting a side project, shipping an MVP,
-or building out an entire organization's platform —
-infra should be the enabler, not the bottleneck.
+Side-project starting on a Raspberry. MVP shipping on a single VPS. Enterprise platform running across three clouds and a private rack. The barrier is the same: you should not have to rebuild your stack to change where it runs.
 
 ## Community
 
-This is just another idea being shared. If it helps you create,
-great.
+This is one more idea being shared. If it helps you create, great.
 
-Organizations that spend all their time fighting infra are
-getting left behind. The ones that create, win.
-Forjate is an attempt to lower that barrier.
+Organizations that spend their time fighting infra get left behind. The ones that create, win. Forjate is an attempt to lower that barrier.
 
-Contributions welcome. Open an issue, send a PR,
-or just use it and tell me how it went.
+Contributions welcome. Open an issue, send a PR, or just use it and tell us how it went.
 
 ## License
 

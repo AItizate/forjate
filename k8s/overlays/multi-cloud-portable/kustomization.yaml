@@ -1,0 +1,27 @@
+# k8s/overlays/multi-cloud-portable/kustomization.yaml
+#
+# Bare-metal flavor of the multi-cloud-portable overlay.
+# See docs/overlays/multi-cloud-portable.md for the AWS / GCP / Azure flavors
+# (each goes in its own sibling directory once you need it).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - ../../components/apps/databases/postgres
+  - ../../components/apps/minio/single-server
+  - ../../components/apps/sealed-secrets
+  - ../../components/apps/monitoring/prometheus
+  - ./namespace.yaml
+  - ./app-deployment.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/overlay: multi-cloud-portable
+      app.kubernetes.io/flavor: bare-metal
+
+# When you spin up an AWS / GCP / Azure flavor, create a sibling overlay
+# (e.g. k8s/overlays/multi-cloud-portable-aws/) that pulls in the Crossplane
+# component and the matching provider package, then patches the StorageClass
+# and the DB connection string source. The app-deployment.yaml stays identical.

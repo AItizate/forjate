@@ -1,0 +1,50 @@
+# k8s/overlays/home-edge-lab/kustomization.yaml
+#
+# Home automation + IoT + cameras + an agent gateway on a Raspberry Pi and a NAS.
+# See docs/overlays/home-edge-lab.md for the full rationale.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - ../../components/apps/home-automation
+  - ../../components/apps/brokers/mosquitto
+  - ../../components/apps/node-red
+  - ../../components/apps/databases/postgres
+  - ../../components/apps/minio/single-server
+  - ../../components/apps/auth/gotrue-auth
+  - ../../components/apps/networking/metallb
+  - ../../components/apps/cloudflare-tunnel
+  - ../../components/apps/sealed-secrets
+  - ../../components/apps/monitoring/prometheus
+  - ../../components/apps/monitoring/grafana
+  - ../../components/apps/agents/cluster-introspector
+  - ../../components/rbac
+  - ./namespace.yaml
+  - ./metallb-pool.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/overlay: home-edge-lab
+
+patches:
+  # Point the cluster-introspector ClusterRoleBinding at the SA in the `home`
+  # namespace (where this overlay deploys it).
+  - target:
+      kind: ClusterRoleBinding
+      name: cluster-introspector
+    patch: |-
+      - op: replace
+        path: /subjects/0/namespace
+        value: home
+
+# secretGenerator:
+#   - name: google-oauth
+#     namespace: security
+#     envs:
+#       - secrets/google-oauth.env
+#   - name: cloudflare-tunnel-token
+#     namespace: cloudflare
+#     envs:
+#       - secrets/cloudflare.env

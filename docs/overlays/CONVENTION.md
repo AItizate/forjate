@@ -104,8 +104,8 @@ See [`docs/overlays/README.md`](./README.md) for the live table. As of this conv
 | Overlay | Current tier | Target tier | Gap |
 |---------|--------------|-------------|-----|
 | `agentic-simple-workflow` | Recommended | Recommended | — |
-| `bare-metal-starter` | Recommended | Advanced | bootstrap scripts, validation job |
-| `home-edge-lab` | Recommended | Advanced | bootstrap script for Pi+NAS, validation job (cluster + MQTT smoke) |
+| `bare-metal-starter` | Advanced | Advanced | — (promoted with bootstrap scripts + validation Job) |
+| `home-edge-lab` | Advanced | Advanced | — (promoted with bootstrap scripts + Mosquitto/HA/MinIO smoke validation Job) |
 | `multi-cloud-portable` | Recommended | Recommended | — |
 | `multi-tenant-pattern` | Recommended | Recommended | — |
 | `ai-dev-stack` | Advanced (legacy) | Advanced | doc + diagram (this PR) |

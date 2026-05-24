@@ -18,6 +18,7 @@ resources:
   - ../../components/apps/monitoring/grafana
   - ../../components/apps/continuous-delivery/argocd
   - ./metallb-pool.yaml
+  - ./validate-job.yaml
 
 labels:
   - pairs:

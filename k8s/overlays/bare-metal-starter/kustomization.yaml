@@ -1,0 +1,34 @@
+# k8s/overlays/bare-metal-starter/kustomization.yaml
+#
+# Starter overlay for a first serious bare-metal cluster.
+# See docs/overlays/bare-metal-starter.md for the full rationale.
+#
+# This overlay is reference-grade — it compiles cleanly with `kustomize build`
+# but expects you to fill in the placeholders below (metallb-pool, cloudflare
+# tunnel token, ACME email, hostnames) for your own environment.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - ../../components/apps/networking/metallb
+  - ../../components/apps/cloudflare-tunnel
+  - ../../components/apps/sealed-secrets
+  - ../../components/apps/monitoring/prometheus
+  - ../../components/apps/monitoring/grafana
+  - ../../components/apps/continuous-delivery/argocd
+  - ./metallb-pool.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/overlay: bare-metal-starter
+
+# Secrets — fill in your own values before deploying.
+# secretGenerator:
+#   - name: cloudflare-tunnel-token
+#     namespace: cloudflare
+#     envs:
+#       - secrets/cloudflare.env
+#     options:
+#       disableNameSuffixHash: true

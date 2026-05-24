@@ -1,0 +1,91 @@
+name: Validate Kustomize
+
+on:
+  pull_request:
+    paths:
+      - 'k8s/**'
+      - '.github/workflows/validate-kustomize.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'k8s/**'
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+          kustomize version
+
+      - name: Install kubeconform
+        run: |
+          curl -sSLO https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar xzf kubeconform-linux-amd64.tar.gz
+          sudo mv kubeconform /usr/local/bin/
+          kubeconform -v
+
+      - name: Stage placeholder secrets
+        # Some overlays consume real .env files at build time via Kustomize's
+        # secretGenerator (envs:). Those .env files are gitignored. We seed
+        # them from their .env.example siblings so kustomize build can run
+        # in CI. The values are placeholders — never deployed from CI.
+        run: |
+          set -euo pipefail
+          while IFS= read -r ex; do
+            real="${ex%.example}"
+            if [ ! -f "$real" ]; then
+              cp "$ex" "$real"
+              echo "Seeded $real from $ex"
+            fi
+          done < <(find k8s -type f -name '*.env.example')
+
+      - name: Discover targets
+        id: discover
+        run: |
+          {
+            # All overlays (recursively, but only dirs that contain a kustomization.yaml)
+            find k8s/overlays -type f -name 'kustomization.yaml' -exec dirname {} \;
+            # Component roots that have a top-level kustomization.yaml of their own
+            find k8s/components -maxdepth 4 -type f -name 'kustomization.yaml' -exec dirname {} \;
+          } | sort -u > /tmp/targets.txt
+          echo "Targets to build:"
+          cat /tmp/targets.txt
+          echo "count=$(wc -l < /tmp/targets.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Build + validate each target
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r target; do
+            echo "::group::Build $target"
+            if ! kustomize build --enable-helm "$target" > /tmp/manifest.yaml 2> /tmp/build.err; then
+              echo "::error file=$target/kustomization.yaml::kustomize build failed"
+              cat /tmp/build.err
+              fail=1
+              echo "::endgroup::"
+              continue
+            fi
+            echo "Manifest size: $(wc -l < /tmp/manifest.yaml) lines"
+            if ! kubeconform \
+                -strict \
+                -ignore-missing-schemas \
+                -schema-location default \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+                -summary \
+                /tmp/manifest.yaml; then
+              echo "::error file=$target/kustomization.yaml::kubeconform validation failed"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done < /tmp/targets.txt
+          exit "$fail"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "Validated ${{ steps.discover.outputs.count }} targets."

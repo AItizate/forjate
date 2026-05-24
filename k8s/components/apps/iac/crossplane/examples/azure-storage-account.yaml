@@ -1,0 +1,15 @@
+# Example: a managed Azure Storage Account provisioned by Crossplane.
+# Requires the Azure Storage provider (provider-azure-storage) to be installed
+# and configured with credentials in the crossplane-system namespace.
+apiVersion: storage.azure.upbound.io/v1beta1
+kind: Account
+metadata:
+  name: tenantstorage
+spec:
+  forProvider:
+    location: eastus
+    resourceGroupName: tenant-rg
+    accountTier: Standard
+    accountReplicationType: LRS
+  providerConfigRef:
+    name: default

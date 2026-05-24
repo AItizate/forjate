@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Crossplane: a Kubernetes-native control plane to declare cloud resources
+# (AWS, GCP, Azure, on-prem) as YAML, alongside your workloads.
+#
+# Forjate uses Crossplane as the integration point with hyperscalers, so the
+# same overlay pattern that runs on bare metal can provision and bind cloud
+# resources when an overlay calls for them.
+
+resources:
+  - namespace.yaml
+
+helmCharts:
+  - name: crossplane
+    repo: https://charts.crossplane.io/stable
+    version: 1.20.0
+    releaseName: crossplane
+    namespace: crossplane-system
+    # Override values per overlay using the `valuesInline` field or a values file.
+    # See: https://docs.crossplane.io/latest/software/install/

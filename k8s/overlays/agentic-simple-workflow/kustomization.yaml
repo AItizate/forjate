@@ -1,0 +1,28 @@
+# k8s/overlays/agentic-simple-workflow/kustomization.yaml
+#
+# Smallest production-shaped overlay for a single agentic workload.
+# See docs/overlays/agentic-simple-workflow.md for the full rationale.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - ../../components/apps/databases/postgres
+  - ../../components/apps/minio/single-server
+  - ../../components/apps/ai-models/ollama
+  - ../../components/apps/auth/gotrue-auth
+  - ../../components/apps/sealed-secrets
+  - ./namespace.yaml
+  - ./agent-deployment.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/overlay: agentic-simple-workflow
+
+# secretGenerator:
+#   - name: agent-secrets
+#     envs:
+#       - secrets/agent.env
+#     options:
+#       disableNameSuffixHash: true

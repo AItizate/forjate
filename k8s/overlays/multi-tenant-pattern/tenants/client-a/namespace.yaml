@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: client-a
+  labels:
+    name: client-a
+    tenant: client-a

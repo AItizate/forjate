@@ -1,0 +1,58 @@
+# Cluster-introspection agent. Defaults to a placeholder image — replace
+# `image:` from your overlay with your own OpenClaw-based (or other) agent
+# image that uses the in-cluster ServiceAccount token to read the API.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-introspector
+  labels:
+    app: cluster-introspector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cluster-introspector
+  template:
+    metadata:
+      labels:
+        app: cluster-introspector
+    spec:
+      serviceAccountName: cluster-introspector
+      initContainers:
+        - name: init-data-dir
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - mkdir -p /data/workspace && chown -R 1000:1000 /data
+          volumeMounts:
+            - name: agent-data
+              mountPath: /data
+      containers:
+        - name: agent
+          image: ghcr.io/example/cluster-introspector:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 18789
+              name: http
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          volumeMounts:
+            - name: agent-config
+              mountPath: /etc/agent
+              readOnly: true
+            - name: agent-data
+              mountPath: /home/node/.openclaw
+      volumes:
+        - name: agent-config
+          secret:
+            secretName: cluster-introspector-config
+            optional: true
+        - name: agent-data
+          persistentVolumeClaim:
+            claimName: cluster-introspector-data

@@ -99,10 +99,10 @@ cd forjate/k8s/overlays/quickstart
 # 2. Spin up a local cluster
 ./01_init_cluster.sh
 
-# 3. Deploy Ollama + Gemma 4 (E2B, quantized)
+# 3. Deploy base + LiteLLM + Ollama + Gemma 3 1B (default)
 ./02_deploy.sh
 
-# 4. Validate end-to-end (prompt round-trip)
+# 4. Validate end-to-end and open a chat REPL against the model
 ./03_validate.sh
 ```
 

@@ -57,7 +57,10 @@ case "$STATUS" in
   Complete)
     MODEL=$(kubectl -n "$NAMESPACE" get "job/${JOB_NAME}" \
               -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="LITELLM_MODEL")].value}' 2>/dev/null \
-              || echo "gemma")
+              || echo "gemma3")
+    MASTER_KEY=$(kubectl -n "$NAMESPACE" get "job/${JOB_NAME}" \
+              -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="LITELLM_MASTER_KEY")].value}' 2>/dev/null \
+              || echo "sk-quickstart-localdev-only")
     echo -e "${GREEN}═════════════════════════════════════════════${RESET}"
     echo -e "${GREEN}  Quickstart cluster validated ✅${RESET}"
     echo -e "${GREEN}═════════════════════════════════════════════${RESET}"
@@ -65,6 +68,7 @@ case "$STATUS" in
     echo "Talk to the model through LiteLLM (OpenAI-compatible API):"
     echo "  kubectl -n ${NAMESPACE} port-forward svc/litellm 4000:4000"
     echo "  curl http://localhost:4000/v1/chat/completions \\"
+    echo "    -H 'Authorization: Bearer ${MASTER_KEY}' \\"
     echo "    -H 'Content-Type: application/json' \\"
     echo "    -d '{\"model\":\"${MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}'"
     ;;

@@ -11,3 +11,9 @@ model_list:
 
 litellm_settings:
   drop_params: true
+
+# Demo key — k3d ClusterIP-only cluster, no external reach. Real tenants seal real secrets.
+# Must live HERE (general_settings.master_key) and not in LITELLM_MASTER_KEY env var,
+# otherwise LiteLLM falls back to DB virtual-key lookup and 401s every external request.
+general_settings:
+  master_key: "sk-quickstart-localdev-only"

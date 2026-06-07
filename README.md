@@ -14,7 +14,7 @@ This is not a story against hyperscalers. They solved real problems. They also c
 
 A Kustomize-driven Kubernetes factory. Three concepts, no magic:
 
-- **Base** — the services every tenant needs (Traefik, cert-manager, Longhorn, MinIO). Configured once.
+- **Base** — the services every tenant needs (Traefik, cert-manager, MinIO). Configured once. Longhorn is a recommended `components/apps/storage/` choice — most tenants want it, but a Pi cluster or a k3d laptop may not.
 - **Components** — a catalog of 40+ optional building blocks. Databases, brokers, AI models, observability, auth, IaC connectors. Activate what you use.
 - **Overlays** — your environment's config. Patches, secrets, hostnames. No duplication.
 

@@ -14,5 +14,4 @@ resources:
   - ./namespaces/ai-tools
 
   # Apps
-  - ./apps/longhorn
   - ./apps/minio

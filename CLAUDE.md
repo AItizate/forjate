@@ -189,9 +189,10 @@ Use placeholder values (e.g., `my-app.example.com` for hostnames) that tenants c
 
 - **Traefik**: Ingress controller and reverse proxy
 - **cert-manager**: TLS certificate management (Let's Encrypt integration)
-- **Longhorn**: Block storage provisioner
-- **MinIO**: S3-compatible object storage
-- Namespace definitions for: cert-manager, security, shared, traefik, ai-tools
+- **MinIO** (operator only): S3-compatible object storage controller; tenants instantiate Tenants on top
+- Namespace declarations for: `cert-manager`, `security`, `traefik`, `ai-tools` (the `ai-tools` namespace is declared empty — overlays mount their own AI components into it)
+
+LiteLLM, Open WebUI, and Longhorn are **not** part of the base — they live under `components/apps/ai-models/litellm`, `components/apps/ai-models/open-webui`, and `components/apps/storage/longhorn` respectively. An overlay that needs them references them explicitly. The base used to mount LiteLLM + Open WebUI through `namespaces/ai-tools` and ship Longhorn as a base app, which made the base mandatorily AI-flavored and impossible to use without secrets. Decoupling them keeps the base honest with the README.
 
 See `docs/apps/` for detailed documentation on each application.
 

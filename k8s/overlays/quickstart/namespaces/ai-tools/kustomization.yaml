@@ -1,0 +1,15 @@
+namespace: ai-tools
+
+resources:
+  - ../../../../components/apps/ai-models/ollama
+  - quickstart-validate-job.yaml
+
+patches:
+  - path: patches/ollama-pvc-size.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: pvc-ollama
+  - path: patches/ollama-resources.yaml
+    target:
+      kind: StatefulSet
+      name: ollama

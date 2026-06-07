@@ -18,6 +18,7 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - ./namespaces/ai-tools
   - ./namespaces/agentic
 
 labels:

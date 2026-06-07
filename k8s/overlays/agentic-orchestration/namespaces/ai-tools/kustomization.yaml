@@ -1,0 +1,6 @@
+namespace: ai-tools
+
+# Only LiteLLM — the agent + worker call it for inference.
+# Open WebUI is not used in this overlay (per docs/overlays/agentic-orchestration.md).
+resources:
+  - ../../../../components/apps/ai-models/litellm

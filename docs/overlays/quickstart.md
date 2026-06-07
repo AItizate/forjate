@@ -18,22 +18,28 @@ The other overlays in the catalog are designed for what comes after that questio
 
 | Component | Why |
 |-----------|-----|
+| `../../base` | Traefik, cert-manager, MinIO operator, namespaces. The minimal foundation every Forjate cluster ships. |
 | `apps/ai-models/ollama` | Single LLM runtime. CPU-friendly, GGUF models, one HTTP API. |
 | `quickstart-validate-job.yaml` | In-cluster smoke test — hits `/api/tags` + `/api/generate` end-to-end. |
 
-The overlay deliberately does **not** include the base. Forjate's `base/` mounts `namespaces/ai-tools` with LiteLLM + Open WebUI, both of which need secrets the quickstart avoids. The overlay declares its own minimal namespace and references only what it actually runs.
+The quickstart is the **first honest client** of the minimal base: base + one model + one Job. No secrets are required because the base was decoupled from LiteLLM / Open WebUI (which were previously mounted inside `namespaces/ai-tools` and forced every consumer to supply LLM secrets). Those are now opt-in components used by `ai-dev-stack` and `agentic-orchestration`.
 
 ## `kustomization.yaml`
 
 ```yaml
+# k8s/overlays/quickstart/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+resources:
+  - ../../base
+  - ./namespaces/ai-tools
+
+# k8s/overlays/quickstart/namespaces/ai-tools/kustomization.yaml
 namespace: ai-tools
 
 resources:
-  - namespace.yaml
-  - ../../components/apps/ai-models/ollama
+  - ../../../../components/apps/ai-models/ollama
   - quickstart-validate-job.yaml
 
 patches:

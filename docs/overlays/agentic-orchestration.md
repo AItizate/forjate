@@ -31,7 +31,7 @@ The AGENT is the **focal point** for human interaction. It decides whether a req
 | `components/bundles/temporal-stack` | Pre-wired Temporal server + Postgres bundle |
 | Custom `temporal-worker` Deployment (your container) | Polls Temporal and executes the registered workflows, activities, and skills |
 | `apps/databases/mongodb` | Shared document store — AGENT writes chat memory, WORKER dumps workflow outputs |
-| LiteLLM (from base, `ai-tools` namespace) | LLM gateway shared by AGENT and WORKER |
+| `apps/ai-models/litellm` (mounted into `ai-tools` namespace) | LLM gateway shared by AGENT and WORKER |
 | `apps/security/oauth2-proxy` + `apps/auth/gotrue-auth` (via base) | Auth in front of the Temporal UI |
 
 The overlay lives in the `agentic` namespace; LiteLLM is in the shared `ai-tools` namespace.

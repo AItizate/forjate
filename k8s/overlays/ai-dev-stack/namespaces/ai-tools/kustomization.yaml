@@ -1,4 +1,6 @@
 namespace: ai-tools
 
 resources:
+  - ../../../../components/apps/ai-models/litellm
+  - ../../../../components/apps/ai-models/open-webui
   - ../../../../components/apps/ai-models/vllm

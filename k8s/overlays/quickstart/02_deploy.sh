@@ -111,7 +111,7 @@ apply_validation_job() {
   # The YAML hardcodes gemma4:e2b-it-q4_K_M as the default (so `kubectl apply -k`
   # works standalone). When the user overrides OLLAMA_MODEL, patch the Job env
   # on the fly so validation tests the same model that was just pulled.
-  sed "s|gemma4:e2b-it-q4_K_M|${OLLAMA_MODEL}|g" "${OVERLAY_DIR}/quickstart-validate-job.yaml" \
+  sed "s|gemma4:e2b-it-q4_K_M|${OLLAMA_MODEL}|g" "${OVERLAY_DIR}/namespaces/ai-tools/quickstart-validate-job.yaml" \
     | kubectl -n "$NAMESPACE" apply -f - >/dev/null
   log "Validation Job submitted"
 }

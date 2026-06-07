@@ -1,24 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: ai-tools
-
+# The shortest path from `git clone` to a cluster with an LLM answering prompts.
+# Composes the base (Traefik, cert-manager, MinIO, namespaces) + one model
+# (Ollama) + an in-cluster validation Job. No secrets, no OAuth, no ingress.
 resources:
-  - namespace.yaml
-  - ../../components/apps/ai-models/ollama
-  - quickstart-validate-job.yaml
+  - ../../base
+  - ./namespaces/ai-tools
 
 labels:
   - pairs:
       app.kubernetes.io/managed-by: kustomize
       app.kubernetes.io/overlay: quickstart
-
-patches:
-  - path: patches/ollama-pvc-size.yaml
-    target:
-      kind: PersistentVolumeClaim
-      name: pvc-ollama
-  - path: patches/ollama-resources.yaml
-    target:
-      kind: StatefulSet
-      name: ollama

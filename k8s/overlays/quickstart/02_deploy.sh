@@ -10,7 +10,7 @@ set -euo pipefail
 
 OVERLAY_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAMESPACE="ai-tools"
-OLLAMA_MODEL="${OLLAMA_MODEL:-gemma4:e2b-it-q4_K_M}"
+OLLAMA_MODEL="${OLLAMA_MODEL:-gemma3:1b}"
 PULL_TIMEOUT_SECONDS="${PULL_TIMEOUT_SECONDS:-900}"  # 15 min
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'; RESET='\033[0m'
@@ -78,7 +78,7 @@ wait_for_ollama() {
 
 pull_model() {
   info "Pulling ${OLLAMA_MODEL} into the cluster (timeout: ${PULL_TIMEOUT_SECONDS}s)..."
-  info "First run downloads ~7 GB — be patient on slow links."
+  info "Default (gemma3:1b) is ~815 MB. Gemma 4 E2B is ~7 GB if you override OLLAMA_MODEL."
   # Override OLLAMA_HOST: the image sets it to 0.0.0.0 for `serve`, which the CLI then fails to dial.
   if kubectl -n "$NAMESPACE" exec ollama-0 -- \
        sh -c "OLLAMA_HOST=127.0.0.1:11434 timeout ${PULL_TIMEOUT_SECONDS} ollama pull ${OLLAMA_MODEL}"; then
@@ -110,7 +110,7 @@ apply_validation_job() {
   info "Applying validation Job (litellm alias: ${LITELLM_MODEL_ALIAS} → ${OLLAMA_MODEL})..."
   # Jobs are immutable — delete before re-apply.
   kubectl -n "$NAMESPACE" delete job quickstart-validate --ignore-not-found >/dev/null 2>&1 || true
-  sed "s|\(value: \"\)gemma\(\"\)|\1${LITELLM_MODEL_ALIAS}\2|g" \
+  sed "s|\(value: \"\)gemma3\(\"\)|\1${LITELLM_MODEL_ALIAS}\2|g" \
         "${OVERLAY_DIR}/namespaces/ai-tools/quickstart-validate-job.yaml" \
     | kubectl -n "$NAMESPACE" apply -f - >/dev/null
   log "Validation Job submitted"

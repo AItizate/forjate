@@ -6,6 +6,7 @@ namespace: ai-tools
 resources:
   - namespace.yaml
   - ../../components/apps/ai-models/ollama
+  - quickstart-validate-job.yaml
 
 labels:
   - pairs:

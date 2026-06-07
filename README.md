@@ -119,7 +119,7 @@ For a richer local AI stack (auth, ingress, TLS, LiteLLM, Open WebUI, vLLM), see
 | `cdc-event-sourcing` | Base + MongoDB + RabbitMQ + Debezium CDC | Event-driven services with audit-grade change data capture |
 | `agentic-orchestration` | Base + Temporal + MongoDB + worker | Multi-agent workflows, deterministic by Temporal |
 
-Five additional reference overlays live in [`k8s/overlays/`](k8s/overlays/) with matching designs in [`docs/overlays/`](docs/overlays/): `agentic-simple-workflow`, `bare-metal-starter`, `home-edge-lab`, `multi-cloud-portable`, `multi-tenant-pattern`.
+Five additional reference overlays live in [`k8s/overlays/`](k8s/overlays/) with matching designs in [`docs/overlays/`](docs/overlays/): `agentic-simple-workflow`, `bare-metal-starter`, `home-edge-lab`, `multi-cloud-portable`, `multi-tenant-pattern`. All of them — and the four above — follow the [overlay convention](docs/overlays/CONVENTION.md).
 
 ## How it works
 

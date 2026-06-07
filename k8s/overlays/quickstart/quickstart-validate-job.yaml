@@ -1,0 +1,106 @@
+# Post-deploy validation Job for the `quickstart` overlay.
+# Smoke-tests the LLM end-to-end from inside the cluster:
+#   1. ollama-service resolves and accepts HTTP.
+#   2. The configured model is present in /api/tags.
+#   3. /api/generate returns a non-empty `response` field for a known prompt.
+# Exits non-zero on any failure.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: quickstart-validate
+  namespace: ai-tools
+  labels:
+    app: quickstart-validate
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: quickstart-validate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: validate
+          # curl image ships curl + busybox. No jq — we parse responses with sh+sed.
+          image: curlimages/curl:8.10.1
+          env:
+            - name: OLLAMA_URL
+              value: "http://ollama-service.ai-tools.svc.cluster.local:11434"
+            - name: OLLAMA_MODEL
+              value: "gemma4:e2b-it-q4_K_M"
+            - name: PROMPT
+              value: "Reply with exactly: hello from forjate"
+            - name: GENERATE_TIMEOUT
+              value: "600"
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              PASS=0
+              FAIL=0
+              check() {
+                local name="$1"; shift
+                if "$@" >/dev/null 2>&1; then
+                  echo "  [PASS] $name"
+                  PASS=$((PASS+1))
+                else
+                  echo "  [FAIL] $name"
+                  FAIL=$((FAIL+1))
+                fi
+              }
+
+              echo ""
+              echo "==============================================="
+              echo "  quickstart — Ollama + ${OLLAMA_MODEL} validation"
+              echo "==============================================="
+              echo ""
+
+              echo "1. Service reachability"
+              check "ollama-service responds to /api/tags" \
+                curl -sf --max-time 10 "${OLLAMA_URL}/api/tags"
+
+              echo ""
+              echo "2. Model loaded"
+              TAGS=$(curl -sf --max-time 10 "${OLLAMA_URL}/api/tags" || echo "")
+              # match the model name appearing somewhere in the tags JSON
+              if echo "$TAGS" | grep -q "$(echo "$OLLAMA_MODEL" | cut -d: -f1)"; then
+                echo "  [PASS] ${OLLAMA_MODEL} present in /api/tags"
+                PASS=$((PASS+1))
+              else
+                echo "  [FAIL] ${OLLAMA_MODEL} NOT present in /api/tags"
+                echo "         /api/tags returned: $TAGS"
+                FAIL=$((FAIL+1))
+              fi
+
+              echo ""
+              echo "3. Prompt round-trip (timeout: ${GENERATE_TIMEOUT}s)"
+              PAYLOAD="{\"model\":\"${OLLAMA_MODEL}\",\"prompt\":\"${PROMPT}\",\"stream\":false}"
+              RESP=$(curl -sf --max-time "${GENERATE_TIMEOUT}" \
+                       -H "Content-Type: application/json" \
+                       -d "${PAYLOAD}" \
+                       "${OLLAMA_URL}/api/generate" || echo "")
+              # Extract the "response" field with sed (no jq in this image).
+              # The Ollama API returns JSON like: {"model":"...","response":"...","done":true,...}
+              REPLY=$(echo "$RESP" | sed -n 's/.*"response":"\([^"]*\)".*/\1/p')
+              if [ -n "$REPLY" ]; then
+                echo "  [PASS] model replied: $(echo "$REPLY" | head -c 120)"
+                PASS=$((PASS+1))
+              else
+                echo "  [FAIL] empty or missing response"
+                echo "         /api/generate returned: $(echo "$RESP" | head -c 400)"
+                FAIL=$((FAIL+1))
+              fi
+
+              echo ""
+              echo "==============================================="
+              echo "  $PASS passed, $FAIL failed"
+              echo "==============================================="
+              [ "$FAIL" -eq 0 ]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile: { type: RuntimeDefault }

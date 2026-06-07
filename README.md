@@ -94,22 +94,27 @@ Cost grows with capability, never with the platform. The full breakdown of what 
 ```bash
 # 1. Clone
 git clone https://github.com/AItizate/forjate.git
-cd forjate
+cd forjate/k8s/overlays/quickstart
 
 # 2. Spin up a local cluster
-cd k8s/overlays/ai-dev-stack
 ./01_init_cluster.sh
 
-# 3. Deploy
+# 3. Deploy Ollama + Gemma 4 (E2B, quantized)
 ./02_deploy.sh
+
+# 4. Validate end-to-end (prompt round-trip)
+./03_validate.sh
 ```
 
-Fifteen minutes. A cluster with AI tools, auth, storage, ingress and monitoring — running.
+Twenty to thirty minutes (most of it is the ~7 GB model download). A local k3d cluster with an LLM answering prompts — no secrets, no OAuth, no cloud accounts. Tear it down with `./destroy.sh`. For a lighter model, prepend `OLLAMA_MODEL=gemma3:1b` to steps 3 and 4.
+
+For a richer local AI stack (auth, ingress, TLS, LiteLLM, Open WebUI, vLLM), see the [`ai-dev-stack`](k8s/overlays/ai-dev-stack/) overlay. It requires credentials, by design.
 
 ## Example overlays
 
 | Overlay | What's inside | Use case |
 |---------|---------------|----------|
+| `quickstart` | Ollama + Gemma 4 E2B (quantized) | Fresh-clone smoke test — fastest path to a working cluster |
 | `ai-dev-stack` | Base + OAuth2 + LiteLLM + vLLM + MinIO + Node-RED + Milvus | Local AI development cluster |
 | `cdc-event-sourcing` | Base + MongoDB + RabbitMQ + Debezium CDC | Event-driven services with audit-grade change data capture |
 | `agentic-orchestration` | Base + Temporal + MongoDB + worker | Multi-agent workflows, deterministic by Temporal |

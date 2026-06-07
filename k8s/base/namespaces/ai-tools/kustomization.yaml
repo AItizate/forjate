@@ -5,6 +5,3 @@ namespace: ai-tools
 
 resources:
   - namespace.yaml
-  - certificate.yaml
-  - ../../apps/litellm
-  - ../../apps/open-webui

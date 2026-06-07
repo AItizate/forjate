@@ -8,6 +8,7 @@ Every overlay listed here meets at least Tier Mínimo of the [overlay convention
 
 | Overlay | Tier | Design doc | Implementation | Diagram | Best for |
 |---------|------|------------|----------------|---------|----------|
+| `quickstart` | Advanced | [doc](./quickstart.md) | [`k8s/overlays/quickstart/`](../../k8s/overlays/quickstart/) | [png](../assets/architecture/overlay-quickstart.png) | Fresh-clone smoke test — k3d + Ollama + Gemma 4 + in-cluster validation Job |
 | `ai-dev-stack` | Advanced | [doc](./ai-dev-stack.md) | [`k8s/overlays/ai-dev-stack/`](../../k8s/overlays/ai-dev-stack/) | [png](../assets/architecture/overlay-ai-dev-stack.png) | Local AI workbench on k3d — vLLM + Milvus + Node-RED + Open WebUI |
 | `agentic-orchestration` | Advanced | [doc](./agentic-orchestration.md) | [`k8s/overlays/agentic-orchestration/`](../../k8s/overlays/agentic-orchestration/) | [png](../assets/architecture/overlay-agentic-orchestration.png) | Conversational agent + durable Temporal workflows, chat channels in front |
 | `cdc-event-sourcing` | Advanced | [doc](./cdc-event-sourcing.md) | [`k8s/overlays/cdc-event-sourcing/`](../../k8s/overlays/cdc-event-sourcing/) | [png](../assets/architecture/overlay-cdc-event-sourcing.png) | MongoDB → Debezium → RabbitMQ CDC pipeline with end-to-end validation Job |
@@ -29,6 +30,7 @@ Full convention in [`CONVENTION.md`](./CONVENTION.md).
 
 If you are new to Forjate, read them in this order:
 
+0. **`quickstart`** — before anything else. The smoke test that answers "does this work on my laptop?" before you invest in any of the others.
 1. **`bare-metal-starter`** — the absolute minimum that still feels production-grade.
 2. **`agentic-simple-workflow`** — what a tiny SaaS-shaped overlay looks like on top of the base.
 3. **`agentic-orchestration`** — when the agent has to do durable, multi-step work and chat with humans through Telegram or WhatsApp.

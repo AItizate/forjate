@@ -19,6 +19,7 @@ The classic answer is dual-write — and the classic problem is that the two wri
 | `apps/databases/mongodb` + `apps/databases/mongodb/replica-set` | MongoDB with a replica set — required so Debezium can read the oplog |
 | `apps/brokers/rabbitmq` | Event broker; receives every change as a typed message |
 | `apps/cdc/debezium-mongo-rabbitmq` | The CDC connector — translates oplog entries into RabbitMQ messages |
+| `apps/storage/longhorn` | Replicated block storage for the StatefulSets in this overlay |
 | Validation Job (`cdc-validate-job.yaml`) | Post-deploy smoke test: writes to Mongo, asserts the message lands in RabbitMQ |
 | `apps/security/oauth2-proxy` + `apps/auth/gotrue-auth` (via base) | Auth in front of the RabbitMQ management UI |
 

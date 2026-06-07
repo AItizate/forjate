@@ -4,6 +4,7 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - ../../components/apps/storage/longhorn
   - selfsigned-issuer.yaml
   - ./namespaces/security
   - ./namespaces/dev

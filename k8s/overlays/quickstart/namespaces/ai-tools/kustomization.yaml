@@ -1,0 +1,28 @@
+namespace: ai-tools
+
+resources:
+  - ../../../../components/apps/ai-models/ollama
+  - ../../../../components/apps/ai-models/litellm
+  - quickstart-validate-job.yaml
+
+configMapGenerator:
+  - name: litellm-config-file
+    files:
+      - config.yaml=configs/litellm-config.yaml
+    behavior: replace
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  - path: patches/ollama-pvc-size.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: pvc-ollama
+  - path: patches/ollama-resources.yaml
+    target:
+      kind: StatefulSet
+      name: ollama
+  - path: patches/litellm-no-auth.yaml
+    target:
+      kind: Deployment
+      name: litellm

@@ -14,7 +14,7 @@ This is not a story against hyperscalers. They solved real problems. They also c
 
 A Kustomize-driven Kubernetes factory. Three concepts, no magic:
 
-- **Base** — the services every tenant needs (Traefik, cert-manager, Longhorn, MinIO). Configured once.
+- **Base** — the services every tenant needs (Traefik, cert-manager, MinIO). Configured once. Longhorn is a recommended `components/apps/storage/` choice — most tenants want it, but a Pi cluster or a k3d laptop may not.
 - **Components** — a catalog of 40+ optional building blocks. Databases, brokers, AI models, observability, auth, IaC connectors. Activate what you use.
 - **Overlays** — your environment's config. Patches, secrets, hostnames. No duplication.
 
@@ -94,27 +94,32 @@ Cost grows with capability, never with the platform. The full breakdown of what 
 ```bash
 # 1. Clone
 git clone https://github.com/AItizate/forjate.git
-cd forjate
+cd forjate/k8s/overlays/quickstart
 
 # 2. Spin up a local cluster
-cd k8s/overlays/ai-dev-stack
 ./01_init_cluster.sh
 
-# 3. Deploy
+# 3. Deploy base + LiteLLM + Ollama + Gemma 3 1B (default)
 ./02_deploy.sh
+
+# 4. Validate end-to-end and open a chat REPL against the model
+./03_validate.sh
 ```
 
-Fifteen minutes. A cluster with AI tools, auth, storage, ingress and monitoring — running.
+About five minutes end-to-end (default is Gemma 3 1B, ~815 MB). A local k3d cluster with LiteLLM in front of Ollama, answering OpenAI-compatible `/v1/chat/completions` calls — no external API keys, no OAuth, no cloud accounts. Tear it down with `./destroy.sh`. For a heavier multimodal model, prepend `OLLAMA_MODEL=gemma4:e2b-it-q4_K_M` to steps 3 and 4 (~20–30 min for the download).
+
+For a richer local AI stack (auth, ingress, TLS, LiteLLM, Open WebUI, vLLM), see the [`ai-dev-stack`](k8s/overlays/ai-dev-stack/) overlay. It requires credentials, by design.
 
 ## Example overlays
 
 | Overlay | What's inside | Use case |
 |---------|---------------|----------|
+| `quickstart` | LiteLLM (OpenAI-compatible gateway) → Ollama + Gemma 3 1B | Fresh-clone smoke test — base + the production gateway shape with one local backend, ~5 min end-to-end |
 | `ai-dev-stack` | Base + OAuth2 + LiteLLM + vLLM + MinIO + Node-RED + Milvus | Local AI development cluster |
 | `cdc-event-sourcing` | Base + MongoDB + RabbitMQ + Debezium CDC | Event-driven services with audit-grade change data capture |
 | `agentic-orchestration` | Base + Temporal + MongoDB + worker | Multi-agent workflows, deterministic by Temporal |
 
-Five additional reference overlays live in [`k8s/overlays/`](k8s/overlays/) with matching designs in [`docs/overlays/`](docs/overlays/): `agentic-simple-workflow`, `bare-metal-starter`, `home-edge-lab`, `multi-cloud-portable`, `multi-tenant-pattern`.
+Five additional reference overlays live in [`k8s/overlays/`](k8s/overlays/) with matching designs in [`docs/overlays/`](docs/overlays/): `agentic-simple-workflow`, `bare-metal-starter`, `home-edge-lab`, `multi-cloud-portable`, `multi-tenant-pattern`. All of them — and the four above — follow the [overlay convention](docs/overlays/CONVENTION.md).
 
 ## How it works
 

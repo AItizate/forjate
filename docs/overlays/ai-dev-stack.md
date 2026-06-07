@@ -17,12 +17,14 @@ This overlay gives you a k3d-based local cluster where you can stand up the whol
 | Component | Why it's here |
 |-----------|---------------|
 | `apps/ai-models/vllm` | High-throughput LLM inference, exposed under `ai-tools` namespace |
+| `apps/ai-models/litellm` | Single gateway routing to vLLM locally — same shape used by `agentic-orchestration` |
+| `apps/ai-models/open-webui` | Chat UI in front of LiteLLM |
+| `apps/storage/longhorn` | Replicated block storage for the StatefulSets in this overlay |
 | `apps/databases/milvus` + `apps/databases/etcd` | Vector store for embeddings + the metadata backend Milvus needs |
 | `apps/minio/single-server` | Object storage for model artifacts, run logs, RAG documents |
 | `apps/node-red` | Low-code flow runtime for stitching tools, agents, webhooks |
 | `apps/whoami` | Example app that proves the ingress + auth pipeline is alive |
 | `apps/security/oauth2-proxy` (via base) + `apps/auth/gotrue-auth` (via base) | One sign-in surface in front of every UI |
-| LiteLLM (via base) | Single gateway routing to vLLM locally — same shape used by `agentic-orchestration` |
 
 The overlay composes **three namespaces** (`ai-tools`, `dev`, `security`), each as its own sub-kustomization under `namespaces/`. The Advanced tier per-namespace pattern lives here in its purest form.
 

@@ -5,7 +5,7 @@ kind: Kustomization
 # Produces: litellm-postgres (StatefulSet, Service)
 # Tenant must provide litellm-postgres-secret (via SealedSecret, secretGenerator, etc.)
 resources:
-  - ../../../../components/apps/databases/postgres/
+  - ../../../databases/postgres/
 
 namePrefix: litellm-
 

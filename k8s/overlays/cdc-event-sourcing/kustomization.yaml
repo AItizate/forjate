@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - ../../components/apps/storage/longhorn
   - selfsigned-issuer.yaml
   - ./namespaces/event-sourcing
 
@@ -11,30 +12,11 @@ labels:
       app.kubernetes.io/managed-by: kustomize
       app.kubernetes.io/overlay: cdc-event-sourcing
 
-configMapGenerator:
-  - name: litellm-config-file
-    namespace: ai-tools
-    files:
-      - config.yaml=configs/litellm-config.yaml
-    behavior: replace
-
 secretGenerator:
   - name: oauth2-proxy-secret
     namespace: security
     envs:
       - secrets/oauth2-proxy.env
-    options:
-      disableNameSuffixHash: true
-  - name: litellm-secret
-    namespace: ai-tools
-    envs:
-      - secrets/litellm.env
-    options:
-      disableNameSuffixHash: true
-  - name: litellm-postgres-secret
-    namespace: ai-tools
-    envs:
-      - secrets/litellm-postgres.env
     options:
       disableNameSuffixHash: true
 
@@ -65,15 +47,6 @@ patches:
     target:
       kind: Ingress
       name: oauth2-proxy
-  - path: patches/open-webui-ingress-patch.yaml
-    target:
-      kind: Ingress
-      name: open-webui-ingress
-  - path: patches/ai-tools-certificate-patch.yaml
-    target:
-      kind: Certificate
-      name: ai-tools-cert
-      namespace: ai-tools
   - path: patches/security-certificate-patch.yaml
     target:
       kind: Certificate

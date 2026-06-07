@@ -6,5 +6,4 @@ resources:
   - deployment.yaml
   - pvc.yaml
   - service.yaml
-  - postgres/
-  # - secret.yaml # Should be in overlays/[tenant/env]/secrets/litellm.env
+  # Postgres is opt-in — overlays add ./postgres explicitly if they need it.

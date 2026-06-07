@@ -1,0 +1,103 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: quickstart-validate
+  namespace: ai-tools
+  labels:
+    app: quickstart-validate
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: quickstart-validate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: validate
+          image: curlimages/curl:8.10.1
+          env:
+            - name: LITELLM_URL
+              value: "http://litellm.ai-tools.svc.cluster.local:4000"
+            - name: LITELLM_MODEL
+              # 02_deploy.sh sed-patches this when OLLAMA_MODEL is overridden.
+              value: "gemma3"
+            - name: LITELLM_MASTER_KEY
+              # Mirrors general_settings.master_key in configs/litellm-config.yaml.
+              value: "sk-quickstart-localdev-only"
+            - name: PROMPT
+              value: "Reply with exactly: hello from forjate"
+            - name: GENERATE_TIMEOUT
+              value: "600"
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              PASS=0
+              FAIL=0
+              check() {
+                local name="$1"; shift
+                if "$@" >/dev/null 2>&1; then
+                  echo "  [PASS] $name"
+                  PASS=$((PASS+1))
+                else
+                  echo "  [FAIL] $name"
+                  FAIL=$((FAIL+1))
+                fi
+              }
+
+              echo ""
+              echo "===================================================="
+              echo "  quickstart — LiteLLM (${LITELLM_MODEL}) -> Ollama validation"
+              echo "===================================================="
+              echo ""
+
+              echo "1. LiteLLM health"
+              check "litellm /health/liveliness responds" \
+                curl -sf --max-time 10 "${LITELLM_URL}/health/liveliness"
+
+              echo ""
+              echo "2. Model registered"
+              MODELS=$(curl -sf --max-time 10 \
+                -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
+                "${LITELLM_URL}/v1/models" || echo "")
+              if echo "$MODELS" | grep -q "\"id\":\"${LITELLM_MODEL}\""; then
+                echo "  [PASS] ${LITELLM_MODEL} present in /v1/models"
+                PASS=$((PASS+1))
+              else
+                echo "  [FAIL] ${LITELLM_MODEL} NOT present in /v1/models"
+                echo "         /v1/models returned: $MODELS"
+                FAIL=$((FAIL+1))
+              fi
+
+              echo ""
+              echo "3. Chat completion round-trip (timeout: ${GENERATE_TIMEOUT}s)"
+              PAYLOAD="{\"model\":\"${LITELLM_MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"${PROMPT}\"}]}"
+              RESP=$(curl -sf --max-time "${GENERATE_TIMEOUT}" \
+                       -H "Content-Type: application/json" \
+                       -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
+                       -d "${PAYLOAD}" \
+                       "${LITELLM_URL}/v1/chat/completions" || echo "")
+              REPLY=$(echo "$RESP" | sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | head -1)
+              if [ -n "$REPLY" ]; then
+                echo "  [PASS] model replied: $(echo "$REPLY" | head -c 200)"
+                PASS=$((PASS+1))
+              else
+                echo "  [FAIL] empty or missing content"
+                echo "         /v1/chat/completions returned: $(echo "$RESP" | head -c 400)"
+                FAIL=$((FAIL+1))
+              fi
+
+              echo ""
+              echo "===================================================="
+              echo "  $PASS passed, $FAIL failed"
+              echo "===================================================="
+              [ "$FAIL" -eq 0 ]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile: { type: RuntimeDefault }

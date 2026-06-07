@@ -13,13 +13,6 @@ configMapGenerator:
     options:
       disableNameSuffixHash: true
 
-secretGenerator:
-  - name: litellm-secret
-    envs:
-      - secrets/litellm.env
-    options:
-      disableNameSuffixHash: true
-
 patches:
   - path: patches/ollama-pvc-size.yaml
     target:
@@ -29,7 +22,7 @@ patches:
     target:
       kind: StatefulSet
       name: ollama
-  - path: patches/litellm-no-postgres.yaml
+  - path: patches/litellm-no-auth.yaml
     target:
       kind: Deployment
       name: litellm

@@ -1,0 +1,9 @@
+# LITELLM_MASTER_KEY auth requires Postgres for /v1/* endpoints — without it
+# external requests get 401 even with the right key. The quickstart skips both.
+- op: replace
+  path: /spec/template/spec/containers/0/env/0
+  value:
+    name: STORE_MODEL_IN_DB
+    value: "False"
+- op: remove
+  path: /spec/template/spec/containers/0/envFrom

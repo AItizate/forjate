@@ -1,7 +1,0 @@
-- op: replace
-  path: /spec/template/spec/containers/0/env/0
-  value:
-    name: STORE_MODEL_IN_DB
-    value: "False"
-- op: remove
-  path: /spec/template/spec/containers/0/envFrom/0

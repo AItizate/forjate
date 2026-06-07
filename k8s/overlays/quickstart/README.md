@@ -50,13 +50,14 @@ Then in another terminal (LiteLLM speaks the OpenAI Chat Completions API):
 
 ```bash
 curl http://localhost:4000/v1/chat/completions \
-  -H 'Authorization: Bearer sk-quickstart-localdev-only' \
   -H 'Content-Type: application/json' \
   -d '{
     "model": "gemma",
     "messages": [{"role": "user", "content": "Explica forjate en una frase"}]
   }'
 ```
+
+No `Authorization` header — see "About auth" below.
 
 Available model aliases (defined in `namespaces/ai-tools/configs/litellm-config.yaml`):
 - `gemma` → `ollama/gemma4:e2b-it-q4_K_M`
@@ -78,15 +79,17 @@ curl http://localhost:11434/api/generate \
 
 Removes the k3d cluster and the kubeconfig file at `~/.kube/forjate-quickstart.yaml`. Volumes go with the cluster — the next `02_deploy.sh` re-downloads the model.
 
-## About the LiteLLM master key
+## About auth
 
-`secrets/litellm.env` ships a hardcoded master key `sk-quickstart-localdev-only`. **This is safe to commit** because the cluster runs on k3d with no external ingress, the LiteLLM Service is `ClusterIP` only, and the key only authenticates the in-cluster validation Job. Real environments use SealedSecrets / Vault / an external secret store — never a committed literal.
+The quickstart runs LiteLLM **without `LITELLM_MASTER_KEY`** — the proxy accepts requests with no `Authorization` header at all. That's a deliberate choice: LiteLLM's master-key auth requires Postgres for `/v1/*` endpoints (without a DB, external requests get 401 even with the correct key — only loopback inside the pod bypasses it). For a single-laptop, no-ingress, ClusterIP-only smoke test, "no auth" is the honest position.
+
+`ai-dev-stack` and `agentic-orchestration` are the overlays where auth happens — they opt in to `components/apps/ai-models/litellm/postgres` and put OAuth2 Proxy in front of the human-facing UIs.
 
 ## What's intentionally not here
 
 - **Ingress + TLS** — validation uses port-forward, Traefik is in the base but no Ingress objects.
-- **OAuth / authn for humans** — the validation Job uses the master key directly.
-- **Postgres for LiteLLM** — `STORE_MODEL_IN_DB=False`. You lose admin UI persistence, model store, request logs. The `ai-dev-stack` and `agentic-orchestration` overlays opt in to `litellm/postgres` if you want all that.
+- **OAuth / authn for humans** — no `oauth2-proxy`, no master key.
+- **Postgres for LiteLLM** — `STORE_MODEL_IN_DB=False`, no `envFrom`. You lose admin UI persistence, model store, request logs. `ai-dev-stack` and `agentic-orchestration` opt in to `litellm/postgres` if you want all that.
 - **Open WebUI, vLLM** — see `ai-dev-stack` for a richer local AI workbench.
 - **Longhorn** — k3d's `local-path` is enough. Longhorn is a `components/apps/storage/` choice.
 

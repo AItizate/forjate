@@ -49,16 +49,12 @@ configMapGenerator:
     files: [config.yaml=configs/litellm-config.yaml]
     behavior: replace
 
-secretGenerator:
-  - name: litellm-secret                       # demo master key, see secrets/litellm.env
-    envs: [secrets/litellm.env]
-
 patches:
   - path: patches/ollama-pvc-size.yaml         # 1Gi → 10Gi (model is 7 GB)
     target: { kind: PersistentVolumeClaim, name: pvc-ollama }
   - path: patches/ollama-resources.yaml        # 4Gi → 10Gi RAM limit (OOM at 6Gi)
     target: { kind: StatefulSet, name: ollama }
-  - path: patches/litellm-no-postgres.yaml     # strip STORE_MODEL_IN_DB + postgres envFrom
+  - path: patches/litellm-no-auth.yaml         # STORE_MODEL_IN_DB=False + drop envFrom (no master key, no DB)
     target: { kind: Deployment, name: litellm }
 ```
 
@@ -79,7 +75,7 @@ model_list:
 ## Notes
 
 - **The default model is `gemma4:e2b-it-q4_K_M`** — Gemma 4 E2B, 7.2 GB on disk, ~8 GB in RAM. Multimodal, so the "Q4" tag is still heavy. For a lighter run, prepend `OLLAMA_MODEL=gemma3:1b` to `02_deploy.sh` and `03_validate.sh` — ~700 MB, ~2 GB RAM, responds in seconds. `02_deploy.sh` maps `OLLAMA_MODEL` to the matching LiteLLM alias automatically.
-- **The LiteLLM master key is committed**: `secrets/litellm.env` ships `sk-quickstart-localdev-only`. Safe because the cluster runs on k3d with no external ingress and the Service is `ClusterIP`. Real tenants seal real keys.
+- **No `LITELLM_MASTER_KEY`** — the patch drops the deployment's `envFrom`. LiteLLM master-key auth requires Postgres for `/v1/*` endpoints (without a DB, external requests get 401 even with the correct key — only loopback inside the pod bypasses it). For a no-ingress smoke test, "no auth" is the honest position.
 - **First prompt is slow on CPU.** Loading a 7 GB model into RAM takes 1-3 min the first time. `02_deploy.sh` warms Ollama directly (not through LiteLLM) during deploy so the validation Job pays only "generate", not "load + generate".
 - **`OLLAMA_HOST=0.0.0.0` gotcha.** The Ollama image sets this so `ollama serve` listens on all interfaces. The CLI inherits it and then tries to dial `0.0.0.0` as a client address, which fails. Every `kubectl exec` in `02_deploy.sh` overrides it to `127.0.0.1:11434`.
 - **No ingress, no TLS, no human auth.** Validation runs entirely inside the cluster (the Job calls `litellm.ai-tools.svc.cluster.local:4000`). To talk to the model from your laptop, port-forward — instructions printed by `03_validate.sh`.

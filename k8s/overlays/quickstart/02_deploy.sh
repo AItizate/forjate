@@ -63,8 +63,7 @@ wait_for_ollama() {
     || error "ollama-0 did not become Ready. Try: kubectl -n ${NAMESPACE} describe pod ollama-0"
   log "ollama-0 Ready"
 
-  # Pod Ready == PID 1 running, but `ollama serve` may still be initializing.
-  # Poll the in-container API until it accepts requests before issuing the pull.
+  # Pod Ready fires before `ollama serve` is bound to 11434.
   info "Waiting for ollama serve to accept connections..."
   for _ in $(seq 1 60); do
     if kubectl -n "$NAMESPACE" exec ollama-0 -- \
@@ -80,8 +79,7 @@ wait_for_ollama() {
 pull_model() {
   info "Pulling ${OLLAMA_MODEL} into the cluster (timeout: ${PULL_TIMEOUT_SECONDS}s)..."
   info "First run downloads ~7 GB — be patient on slow links."
-  # The container's OLLAMA_HOST is 0.0.0.0 (for `ollama serve`). The CLI inherits
-  # it and tries to dial 0.0.0.0 — invalid as a client address. Override to localhost.
+  # Override OLLAMA_HOST: the image sets it to 0.0.0.0 for `serve`, which the CLI then fails to dial.
   if kubectl -n "$NAMESPACE" exec ollama-0 -- \
        sh -c "OLLAMA_HOST=127.0.0.1:11434 timeout ${PULL_TIMEOUT_SECONDS} ollama pull ${OLLAMA_MODEL}"; then
     log "Model ${OLLAMA_MODEL} pulled"
@@ -91,10 +89,7 @@ pull_model() {
 }
 
 warmup_model() {
-  # Load the model into RAM now so the first user request doesn't pay
-  # (load-from-disk + generate). On CPU-only nodes loading a 7 GB model can
-  # take 1-3 minutes; doing it here keeps the validation Job fast and predictable.
-  # We use `ollama run` (the CLI is the only HTTP client in the image — no curl/wget).
+  # Load model into RAM here so 03_validate.sh only pays "generate", not "load + generate".
   info "Warming up ${OLLAMA_MODEL} (loading into RAM, up to 5 min)..."
   if kubectl -n "$NAMESPACE" exec ollama-0 -- \
        sh -c "OLLAMA_HOST=127.0.0.1:11434 timeout 300 ollama run ${OLLAMA_MODEL} 'hi' >/dev/null 2>&1"; then
@@ -105,9 +100,7 @@ warmup_model() {
 }
 
 apply_validation_job() {
-  # Map the Ollama model name to the LiteLLM alias declared in
-  # namespaces/ai-tools/configs/litellm-config.yaml. Add new entries here if
-  # you add new model_name aliases to that config.
+  # Maps OLLAMA_MODEL → LiteLLM alias in configs/litellm-config.yaml.
   case "$OLLAMA_MODEL" in
     gemma3:1b)             LITELLM_MODEL_ALIAS="gemma3" ;;
     gemma4:e2b-it-q4_K_M)  LITELLM_MODEL_ALIAS="gemma" ;;
@@ -115,11 +108,8 @@ apply_validation_job() {
   esac
 
   info "Applying validation Job (litellm alias: ${LITELLM_MODEL_ALIAS} → ${OLLAMA_MODEL})..."
-  # Recreate the Job so re-runs don't trip over an existing one in "Complete" status.
+  # Jobs are immutable — delete before re-apply.
   kubectl -n "$NAMESPACE" delete job quickstart-validate --ignore-not-found >/dev/null 2>&1 || true
-  # The YAML hardcodes "gemma" as the default alias (so `kubectl apply -k` works
-  # standalone). When the user overrides OLLAMA_MODEL to a different model, patch
-  # the Job env to the corresponding LiteLLM alias.
   sed "s|\(value: \"\)gemma\(\"\)|\1${LITELLM_MODEL_ALIAS}\2|g" \
         "${OVERLAY_DIR}/namespaces/ai-tools/quickstart-validate-job.yaml" \
     | kubectl -n "$NAMESPACE" apply -f - >/dev/null

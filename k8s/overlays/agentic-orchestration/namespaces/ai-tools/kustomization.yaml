@@ -1,9 +1,5 @@
 namespace: ai-tools
 
-# Only LiteLLM — the agent + worker call it for inference.
-# Open WebUI is not used in this overlay (per docs/overlays/agentic-orchestration.md).
-# Postgres backs LiteLLM's model store and key management — agentic-orchestration
-# wants that, so it opts in explicitly.
 resources:
   - ../../../../components/apps/ai-models/litellm
   - ../../../../components/apps/ai-models/litellm/postgres

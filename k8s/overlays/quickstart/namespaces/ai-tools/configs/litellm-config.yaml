@@ -1,6 +1,3 @@
-# LiteLLM proxy config — quickstart overlay.
-# Single backend: Ollama in the same namespace. No external API keys, no provider routing.
-# Demonstrates the pattern "LiteLLM in front, model runtime behind" without secrets.
 model_list:
   - model_name: "gemma"
     litellm_params:

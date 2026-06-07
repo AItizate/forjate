@@ -5,8 +5,6 @@ resources:
   - ../../../../components/apps/ai-models/litellm
   - quickstart-validate-job.yaml
 
-# Override the upstream LiteLLM ConfigMap with a quickstart-specific config
-# (single Ollama backend, no provider routing, no API keys).
 configMapGenerator:
   - name: litellm-config-file
     files:
@@ -15,7 +13,6 @@ configMapGenerator:
     options:
       disableNameSuffixHash: true
 
-# Demo-only LiteLLM secret — see secrets/litellm.env for why this is safe to commit.
 secretGenerator:
   - name: litellm-secret
     envs:

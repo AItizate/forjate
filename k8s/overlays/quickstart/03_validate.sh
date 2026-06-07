@@ -30,9 +30,7 @@ fi
 info "Waiting for Job/${JOB_NAME} to finish (timeout: ${WAIT_TIMEOUT})..."
 info "First run includes model load + generate on CPU — can take 3-10 min."
 
-# Wait for "complete". If it times out, distinguish Failed from "still running".
-# (kubectl 1.36+ adds a second True condition "SuccessCriteriaMet" alongside
-# "Complete", so we filter by type rather than reading the .type list.)
+# Filter conditions by .type (kubectl 1.36+ adds SuccessCriteriaMet alongside Complete).
 set +e
 kubectl -n "$NAMESPACE" wait --for=condition=complete "job/${JOB_NAME}" \
   --timeout="$WAIT_TIMEOUT" >/dev/null 2>&1
@@ -57,11 +55,9 @@ echo ""
 
 case "$STATUS" in
   Complete)
-    # Read the actual model alias the Job tested.
     MODEL=$(kubectl -n "$NAMESPACE" get "job/${JOB_NAME}" \
               -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="LITELLM_MODEL")].value}' 2>/dev/null \
               || echo "gemma")
-    # Master key lives in the litellm-secret (committed demo key, see overlay README).
     MASTER_KEY=$(kubectl -n "$NAMESPACE" get secret litellm-secret \
                    -o jsonpath='{.data.LITELLM_MASTER_KEY}' 2>/dev/null | base64 -d 2>/dev/null \
                    || echo "sk-quickstart-localdev-only")

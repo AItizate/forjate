@@ -6,9 +6,4 @@ resources:
   - deployment.yaml
   - pvc.yaml
   - service.yaml
-  # Postgres is opt-in. Overlays that need DB-backed admin features (key
-  # management, model store, request logs) add it explicitly:
-  #   - ../../../components/apps/ai-models/litellm/postgres
-  # The quickstart runs without it (STORE_MODEL_IN_DB=False), keeping the
-  # deploy zero-DB and zero-secrets-from-the-user.
-  # - secret.yaml # Should be in overlays/[tenant/env]/secrets/litellm.env
+  # Postgres is opt-in — overlays add ./postgres explicitly if they need it.

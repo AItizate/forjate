@@ -1,9 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# The shortest path from `git clone` to a cluster with an LLM answering prompts.
-# Composes the base (Traefik, cert-manager, MinIO, namespaces) + one model
-# (Ollama) + an in-cluster validation Job. No secrets, no OAuth, no ingress.
 resources:
   - ../../base
   - ./namespaces/ai-tools

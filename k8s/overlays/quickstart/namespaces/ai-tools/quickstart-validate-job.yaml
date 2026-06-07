@@ -1,10 +1,3 @@
-# Post-deploy validation Job for the `quickstart` overlay.
-# Validates the LiteLLM → Ollama pipeline end-to-end from inside the cluster:
-#   1. litellm responds to /health/liveliness.
-#   2. /v1/models lists the expected model alias.
-#   3. /v1/chat/completions returns a non-empty assistant message for a known
-#      prompt (LiteLLM routes this to the Ollama backend behind the scenes).
-# Exits non-zero on any failure.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -23,14 +16,12 @@ spec:
       restartPolicy: Never
       containers:
         - name: validate
-          # curl image ships curl + busybox. No jq — responses are parsed with sed.
           image: curlimages/curl:8.10.1
           env:
             - name: LITELLM_URL
               value: "http://litellm.ai-tools.svc.cluster.local:4000"
             - name: LITELLM_MODEL
-              # Default matches the default OLLAMA_MODEL (gemma4:e2b-it-q4_K_M).
-              # 02_deploy.sh patches this on the fly when OLLAMA_MODEL is overridden.
+              # 02_deploy.sh sed-patches this when OLLAMA_MODEL is overridden.
               value: "gemma"
             - name: LITELLM_MASTER_KEY
               valueFrom:
@@ -90,8 +81,6 @@ spec:
                        -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
                        -d "${PAYLOAD}" \
                        "${LITELLM_URL}/v1/chat/completions" || echo "")
-              # Extract the first choice's message.content with sed (no jq).
-              # Response shape: {..."choices":[{"index":0,"message":{"role":"assistant","content":"..."}, ...}], ...}
               REPLY=$(echo "$RESP" | sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | head -1)
               if [ -n "$REPLY" ]; then
                 echo "  [PASS] model replied: $(echo "$REPLY" | head -c 200)"

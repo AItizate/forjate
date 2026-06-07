@@ -1,7 +1,3 @@
-# Quickstart strips LiteLLM's Postgres dependency to stay zero-DB.
-# - STORE_MODEL_IN_DB=False makes LiteLLM run from the ConfigMap alone.
-# - Removing the postgres-secret envFrom skips the secret lookup that would
-#   otherwise fail (the secret doesn't exist in this overlay).
 - op: replace
   path: /spec/template/spec/containers/0/env/0
   value:

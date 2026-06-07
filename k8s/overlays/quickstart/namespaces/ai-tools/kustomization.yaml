@@ -2,7 +2,26 @@ namespace: ai-tools
 
 resources:
   - ../../../../components/apps/ai-models/ollama
+  - ../../../../components/apps/ai-models/litellm
   - quickstart-validate-job.yaml
+
+# Override the upstream LiteLLM ConfigMap with a quickstart-specific config
+# (single Ollama backend, no provider routing, no API keys).
+configMapGenerator:
+  - name: litellm-config-file
+    files:
+      - config.yaml=configs/litellm-config.yaml
+    behavior: replace
+    options:
+      disableNameSuffixHash: true
+
+# Demo-only LiteLLM secret — see secrets/litellm.env for why this is safe to commit.
+secretGenerator:
+  - name: litellm-secret
+    envs:
+      - secrets/litellm.env
+    options:
+      disableNameSuffixHash: true
 
 patches:
   - path: patches/ollama-pvc-size.yaml
@@ -13,3 +32,7 @@ patches:
     target:
       kind: StatefulSet
       name: ollama
+  - path: patches/litellm-no-postgres.yaml
+    target:
+      kind: Deployment
+      name: litellm

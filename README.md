@@ -106,7 +106,7 @@ cd forjate/k8s/overlays/quickstart
 ./03_validate.sh
 ```
 
-Twenty to thirty minutes (most of it is the ~7 GB model download). A local k3d cluster with an LLM answering prompts — no secrets, no OAuth, no cloud accounts. Tear it down with `./destroy.sh`. For a lighter model, prepend `OLLAMA_MODEL=gemma3:1b` to steps 3 and 4.
+Twenty to thirty minutes (most of it is the ~7 GB model download). A local k3d cluster with LiteLLM in front of Ollama, answering OpenAI-compatible `/v1/chat/completions` calls — no external API keys, no OAuth, no cloud accounts. Tear it down with `./destroy.sh`. For a lighter model, prepend `OLLAMA_MODEL=gemma3:1b` to steps 3 and 4.
 
 For a richer local AI stack (auth, ingress, TLS, LiteLLM, Open WebUI, vLLM), see the [`ai-dev-stack`](k8s/overlays/ai-dev-stack/) overlay. It requires credentials, by design.
 
@@ -114,7 +114,7 @@ For a richer local AI stack (auth, ingress, TLS, LiteLLM, Open WebUI, vLLM), see
 
 | Overlay | What's inside | Use case |
 |---------|---------------|----------|
-| `quickstart` | Ollama + Gemma 4 E2B (quantized) | Fresh-clone smoke test — fastest path to a working cluster |
+| `quickstart` | LiteLLM (OpenAI-compatible gateway) → Ollama + Gemma 4 E2B | Fresh-clone smoke test — base + the production gateway shape with one local backend |
 | `ai-dev-stack` | Base + OAuth2 + LiteLLM + vLLM + MinIO + Node-RED + Milvus | Local AI development cluster |
 | `cdc-event-sourcing` | Base + MongoDB + RabbitMQ + Debezium CDC | Event-driven services with audit-grade change data capture |
 | `agentic-orchestration` | Base + Temporal + MongoDB + worker | Multi-agent workflows, deterministic by Temporal |

@@ -105,13 +105,23 @@ warmup_model() {
 }
 
 apply_validation_job() {
-  info "Applying validation Job (model: ${OLLAMA_MODEL})..."
+  # Map the Ollama model name to the LiteLLM alias declared in
+  # namespaces/ai-tools/configs/litellm-config.yaml. Add new entries here if
+  # you add new model_name aliases to that config.
+  case "$OLLAMA_MODEL" in
+    gemma3:1b)             LITELLM_MODEL_ALIAS="gemma3" ;;
+    gemma4:e2b-it-q4_K_M)  LITELLM_MODEL_ALIAS="gemma" ;;
+    *)                     LITELLM_MODEL_ALIAS="${LITELLM_MODEL_ALIAS:-gemma}" ;;
+  esac
+
+  info "Applying validation Job (litellm alias: ${LITELLM_MODEL_ALIAS} → ${OLLAMA_MODEL})..."
   # Recreate the Job so re-runs don't trip over an existing one in "Complete" status.
   kubectl -n "$NAMESPACE" delete job quickstart-validate --ignore-not-found >/dev/null 2>&1 || true
-  # The YAML hardcodes gemma4:e2b-it-q4_K_M as the default (so `kubectl apply -k`
-  # works standalone). When the user overrides OLLAMA_MODEL, patch the Job env
-  # on the fly so validation tests the same model that was just pulled.
-  sed "s|gemma4:e2b-it-q4_K_M|${OLLAMA_MODEL}|g" "${OVERLAY_DIR}/namespaces/ai-tools/quickstart-validate-job.yaml" \
+  # The YAML hardcodes "gemma" as the default alias (so `kubectl apply -k` works
+  # standalone). When the user overrides OLLAMA_MODEL to a different model, patch
+  # the Job env to the corresponding LiteLLM alias.
+  sed "s|\(value: \"\)gemma\(\"\)|\1${LITELLM_MODEL_ALIAS}\2|g" \
+        "${OVERLAY_DIR}/namespaces/ai-tools/quickstart-validate-job.yaml" \
     | kubectl -n "$NAMESPACE" apply -f - >/dev/null
   log "Validation Job submitted"
 }

@@ -1,0 +1,16 @@
+# LiteLLM proxy config — quickstart overlay.
+# Single backend: Ollama in the same namespace. No external API keys, no provider routing.
+# Demonstrates the pattern "LiteLLM in front, model runtime behind" without secrets.
+model_list:
+  - model_name: "gemma"
+    litellm_params:
+      model: "ollama/gemma4:e2b-it-q4_K_M"
+      api_base: "http://ollama-service.ai-tools.svc.cluster.local:11434"
+
+  - model_name: "gemma3"
+    litellm_params:
+      model: "ollama/gemma3:1b"
+      api_base: "http://ollama-service.ai-tools.svc.cluster.local:11434"
+
+litellm_settings:
+  drop_params: true

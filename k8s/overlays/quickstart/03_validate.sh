@@ -57,18 +57,24 @@ echo ""
 
 case "$STATUS" in
   Complete)
-    # Read the actual model the Job tested (the user may have overridden OLLAMA_MODEL).
+    # Read the actual model alias the Job tested.
     MODEL=$(kubectl -n "$NAMESPACE" get "job/${JOB_NAME}" \
-              -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="OLLAMA_MODEL")].value}' 2>/dev/null \
-              || echo "gemma4:e2b-it-q4_K_M")
+              -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="LITELLM_MODEL")].value}' 2>/dev/null \
+              || echo "gemma")
+    # Master key lives in the litellm-secret (committed demo key, see overlay README).
+    MASTER_KEY=$(kubectl -n "$NAMESPACE" get secret litellm-secret \
+                   -o jsonpath='{.data.LITELLM_MASTER_KEY}' 2>/dev/null | base64 -d 2>/dev/null \
+                   || echo "sk-quickstart-localdev-only")
     echo -e "${GREEN}═════════════════════════════════════════════${RESET}"
     echo -e "${GREEN}  Quickstart cluster validated ✅${RESET}"
     echo -e "${GREEN}═════════════════════════════════════════════${RESET}"
     echo ""
-    echo "Talk to the model from your laptop:"
-    echo "  kubectl -n ${NAMESPACE} port-forward svc/ollama-service 11434:11434"
-    echo "  curl http://localhost:11434/api/generate \\"
-    echo "    -d '{\"model\":\"${MODEL}\",\"prompt\":\"Hello\",\"stream\":false}'"
+    echo "Talk to the model through LiteLLM (OpenAI-compatible API):"
+    echo "  kubectl -n ${NAMESPACE} port-forward svc/litellm 4000:4000"
+    echo "  curl http://localhost:4000/v1/chat/completions \\"
+    echo "    -H 'Authorization: Bearer ${MASTER_KEY}' \\"
+    echo "    -H 'Content-Type: application/json' \\"
+    echo "    -d '{\"model\":\"${MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}'"
     ;;
   Failed)
     error "Validation Job FAILED. See logs above."

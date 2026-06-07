@@ -1,8 +1,9 @@
 # Post-deploy validation Job for the `quickstart` overlay.
-# Smoke-tests the LLM end-to-end from inside the cluster:
-#   1. ollama-service resolves and accepts HTTP.
-#   2. The configured model is present in /api/tags.
-#   3. /api/generate returns a non-empty `response` field for a known prompt.
+# Validates the LiteLLM → Ollama pipeline end-to-end from inside the cluster:
+#   1. litellm responds to /health/liveliness.
+#   2. /v1/models lists the expected model alias.
+#   3. /v1/chat/completions returns a non-empty assistant message for a known
+#      prompt (LiteLLM routes this to the Ollama backend behind the scenes).
 # Exits non-zero on any failure.
 apiVersion: batch/v1
 kind: Job
@@ -22,13 +23,20 @@ spec:
       restartPolicy: Never
       containers:
         - name: validate
-          # curl image ships curl + busybox. No jq — we parse responses with sh+sed.
+          # curl image ships curl + busybox. No jq — responses are parsed with sed.
           image: curlimages/curl:8.10.1
           env:
-            - name: OLLAMA_URL
-              value: "http://ollama-service.ai-tools.svc.cluster.local:11434"
-            - name: OLLAMA_MODEL
-              value: "gemma4:e2b-it-q4_K_M"
+            - name: LITELLM_URL
+              value: "http://litellm.ai-tools.svc.cluster.local:4000"
+            - name: LITELLM_MODEL
+              # Default matches the default OLLAMA_MODEL (gemma4:e2b-it-q4_K_M).
+              # 02_deploy.sh patches this on the fly when OLLAMA_MODEL is overridden.
+              value: "gemma"
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secret
+                  key: LITELLM_MASTER_KEY
             - name: PROMPT
               value: "Reply with exactly: hello from forjate"
             - name: GENERATE_TIMEOUT
@@ -51,51 +59,53 @@ spec:
               }
 
               echo ""
-              echo "==============================================="
-              echo "  quickstart — Ollama + ${OLLAMA_MODEL} validation"
-              echo "==============================================="
+              echo "===================================================="
+              echo "  quickstart — LiteLLM (${LITELLM_MODEL}) -> Ollama validation"
+              echo "===================================================="
               echo ""
 
-              echo "1. Service reachability"
-              check "ollama-service responds to /api/tags" \
-                curl -sf --max-time 10 "${OLLAMA_URL}/api/tags"
+              echo "1. LiteLLM health"
+              check "litellm /health/liveliness responds" \
+                curl -sf --max-time 10 "${LITELLM_URL}/health/liveliness"
 
               echo ""
-              echo "2. Model loaded"
-              TAGS=$(curl -sf --max-time 10 "${OLLAMA_URL}/api/tags" || echo "")
-              # match the model name appearing somewhere in the tags JSON
-              if echo "$TAGS" | grep -q "$(echo "$OLLAMA_MODEL" | cut -d: -f1)"; then
-                echo "  [PASS] ${OLLAMA_MODEL} present in /api/tags"
+              echo "2. Model registered"
+              MODELS=$(curl -sf --max-time 10 \
+                -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
+                "${LITELLM_URL}/v1/models" || echo "")
+              if echo "$MODELS" | grep -q "\"id\":\"${LITELLM_MODEL}\""; then
+                echo "  [PASS] ${LITELLM_MODEL} present in /v1/models"
                 PASS=$((PASS+1))
               else
-                echo "  [FAIL] ${OLLAMA_MODEL} NOT present in /api/tags"
-                echo "         /api/tags returned: $TAGS"
+                echo "  [FAIL] ${LITELLM_MODEL} NOT present in /v1/models"
+                echo "         /v1/models returned: $MODELS"
                 FAIL=$((FAIL+1))
               fi
 
               echo ""
-              echo "3. Prompt round-trip (timeout: ${GENERATE_TIMEOUT}s)"
-              PAYLOAD="{\"model\":\"${OLLAMA_MODEL}\",\"prompt\":\"${PROMPT}\",\"stream\":false}"
+              echo "3. Chat completion round-trip (timeout: ${GENERATE_TIMEOUT}s)"
+              PAYLOAD="{\"model\":\"${LITELLM_MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"${PROMPT}\"}]}"
               RESP=$(curl -sf --max-time "${GENERATE_TIMEOUT}" \
                        -H "Content-Type: application/json" \
+                       -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
                        -d "${PAYLOAD}" \
-                       "${OLLAMA_URL}/api/generate" || echo "")
-              # Extract the "response" field with sed (no jq in this image).
-              # The Ollama API returns JSON like: {"model":"...","response":"...","done":true,...}
-              REPLY=$(echo "$RESP" | sed -n 's/.*"response":"\([^"]*\)".*/\1/p')
+                       "${LITELLM_URL}/v1/chat/completions" || echo "")
+              # Extract the first choice's message.content with sed (no jq).
+              # Response shape: {..."choices":[{"index":0,"message":{"role":"assistant","content":"..."}, ...}], ...}
+              REPLY=$(echo "$RESP" | sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | head -1)
               if [ -n "$REPLY" ]; then
-                echo "  [PASS] model replied: $(echo "$REPLY" | head -c 120)"
+                echo "  [PASS] model replied: $(echo "$REPLY" | head -c 200)"
                 PASS=$((PASS+1))
               else
-                echo "  [FAIL] empty or missing response"
-                echo "         /api/generate returned: $(echo "$RESP" | head -c 400)"
+                echo "  [FAIL] empty or missing content"
+                echo "         /v1/chat/completions returned: $(echo "$RESP" | head -c 400)"
                 FAIL=$((FAIL+1))
               fi
 
               echo ""
-              echo "==============================================="
+              echo "===================================================="
               echo "  $PASS passed, $FAIL failed"
-              echo "==============================================="
+              echo "===================================================="
               [ "$FAIL" -eq 0 ]
           securityContext:
             allowPrivilegeEscalation: false

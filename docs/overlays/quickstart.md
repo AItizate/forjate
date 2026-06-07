@@ -1,6 +1,6 @@
 # Overlay: `quickstart`
 
-> The shortest path from `git clone` to a cluster with an LLM answering prompts. No secrets, no OAuth, no cloud accounts.
+> The shortest path from `git clone` to a cluster with an LLM answering prompts behind an OpenAI-compatible gateway. No external API keys, no OAuth, no cloud accounts.
 
 ## The situation
 
@@ -8,7 +8,7 @@ You've just cloned Forjate and you want to know one thing: **does this actually 
 
 The other overlays in the catalog are designed for what comes after that question. `ai-dev-stack` runs a full local AI workbench but expects a Google OAuth app, a Cloudflare DNS token, an LLM provider API key, and five `.env` files you copy from `.env.example`. `bare-metal-starter` assumes you own the metal. `agentic-orchestration` assumes you have a workflow to orchestrate.
 
-`quickstart` exists for the step before all of those: prove the factory composes into a working cluster on a fresh laptop in under half an hour, with zero credentials and one open question — _is the LLM responding?_ The post-deploy validation Job answers that question with a real `/api/generate` round-trip. If the Job exits 0, the quickstart is honest. If it exits non-zero, the failure is on us, not on your setup.
+`quickstart` exists for the step before all of those: prove the factory composes into a working cluster on a fresh laptop in under half an hour, with zero credentials and one open question — _is the LLM responding?_ The post-deploy validation Job answers that question with a real `POST /v1/chat/completions` round-trip through **LiteLLM in front of Ollama** — the same gateway shape every Forjate tenant uses in production, just with a single local backend instead of a panel of cloud providers. If the Job exits 0, the pipeline is honest.
 
 ## Architecture
 
@@ -19,10 +19,11 @@ The other overlays in the catalog are designed for what comes after that questio
 | Component | Why |
 |-----------|-----|
 | `../../base` | Traefik, cert-manager, MinIO operator, namespaces. The minimal foundation every Forjate cluster ships. |
-| `apps/ai-models/ollama` | Single LLM runtime. CPU-friendly, GGUF models, one HTTP API. |
-| `quickstart-validate-job.yaml` | In-cluster smoke test — hits `/api/tags` + `/api/generate` end-to-end. |
+| `apps/ai-models/ollama` | Local LLM runtime. CPU-friendly, GGUF models, one HTTP API on port 11434. |
+| `apps/ai-models/litellm` (no postgres) | OpenAI-compatible gateway in front of Ollama. Same component every production tenant uses — quickstart just configures one local backend instead of cloud providers. |
+| `quickstart-validate-job.yaml` | In-cluster smoke test — hits `/health/liveliness`, `/v1/models`, and `/v1/chat/completions` against LiteLLM. |
 
-The quickstart is the **first honest client** of the minimal base: base + one model + one Job. No secrets are required because the base was decoupled from LiteLLM / Open WebUI (which were previously mounted inside `namespaces/ai-tools` and forced every consumer to supply LLM secrets). Those are now opt-in components used by `ai-dev-stack` and `agentic-orchestration`.
+The quickstart is the **first honest client** of the minimal base. LiteLLM here runs without Postgres (`STORE_MODEL_IN_DB=False`, no `litellm-postgres-secret`) — overlays that want the admin UI persistence, model store, or request logs opt in to `litellm/postgres` separately (`ai-dev-stack` and `agentic-orchestration` do).
 
 ## `kustomization.yaml`
 
@@ -40,22 +41,49 @@ namespace: ai-tools
 
 resources:
   - ../../../../components/apps/ai-models/ollama
+  - ../../../../components/apps/ai-models/litellm
   - quickstart-validate-job.yaml
 
+configMapGenerator:
+  - name: litellm-config-file                  # override the upstream LiteLLM config
+    files: [config.yaml=configs/litellm-config.yaml]
+    behavior: replace
+
+secretGenerator:
+  - name: litellm-secret                       # demo master key, see secrets/litellm.env
+    envs: [secrets/litellm.env]
+
 patches:
-  - path: patches/ollama-pvc-size.yaml       # 1Gi → 10Gi (model is 7 GB)
+  - path: patches/ollama-pvc-size.yaml         # 1Gi → 10Gi (model is 7 GB)
     target: { kind: PersistentVolumeClaim, name: pvc-ollama }
-  - path: patches/ollama-resources.yaml      # 4Gi → 10Gi RAM limit (OOM at 6Gi)
+  - path: patches/ollama-resources.yaml        # 4Gi → 10Gi RAM limit (OOM at 6Gi)
     target: { kind: StatefulSet, name: ollama }
+  - path: patches/litellm-no-postgres.yaml     # strip STORE_MODEL_IN_DB + postgres envFrom
+    target: { kind: Deployment, name: litellm }
+```
+
+The LiteLLM config (`configs/litellm-config.yaml`) declares two aliases pointing to Ollama:
+
+```yaml
+model_list:
+  - model_name: "gemma"
+    litellm_params:
+      model: "ollama/gemma4:e2b-it-q4_K_M"
+      api_base: "http://ollama-service.ai-tools.svc.cluster.local:11434"
+  - model_name: "gemma3"
+    litellm_params:
+      model: "ollama/gemma3:1b"
+      api_base: "http://ollama-service.ai-tools.svc.cluster.local:11434"
 ```
 
 ## Notes
 
-- **The default model is `gemma4:e2b-it-q4_K_M`** — Gemma 4 E2B, 7.2 GB on disk, ~8 GB in RAM. Multimodal, so the "Q4" tag is still heavy. For a lighter run, prepend `OLLAMA_MODEL=gemma3:1b` to `02_deploy.sh` and `03_validate.sh` — ~700 MB, ~2 GB RAM, responds in seconds.
-- **First prompt is slow on CPU.** Loading a 7 GB model into RAM takes 1-3 min the first time. `02_deploy.sh` warms it during deploy so the validation Job pays only "generate", not "load + generate".
+- **The default model is `gemma4:e2b-it-q4_K_M`** — Gemma 4 E2B, 7.2 GB on disk, ~8 GB in RAM. Multimodal, so the "Q4" tag is still heavy. For a lighter run, prepend `OLLAMA_MODEL=gemma3:1b` to `02_deploy.sh` and `03_validate.sh` — ~700 MB, ~2 GB RAM, responds in seconds. `02_deploy.sh` maps `OLLAMA_MODEL` to the matching LiteLLM alias automatically.
+- **The LiteLLM master key is committed**: `secrets/litellm.env` ships `sk-quickstart-localdev-only`. Safe because the cluster runs on k3d with no external ingress and the Service is `ClusterIP`. Real tenants seal real keys.
+- **First prompt is slow on CPU.** Loading a 7 GB model into RAM takes 1-3 min the first time. `02_deploy.sh` warms Ollama directly (not through LiteLLM) during deploy so the validation Job pays only "generate", not "load + generate".
 - **`OLLAMA_HOST=0.0.0.0` gotcha.** The Ollama image sets this so `ollama serve` listens on all interfaces. The CLI inherits it and then tries to dial `0.0.0.0` as a client address, which fails. Every `kubectl exec` in `02_deploy.sh` overrides it to `127.0.0.1:11434`.
-- **No ingress, no TLS, no auth.** Validation runs entirely inside the cluster (the Job calls `ollama-service.ai-tools.svc.cluster.local`). To talk to the model from your laptop, port-forward — instructions printed by `03_validate.sh`.
-- **No persistent volume between runs of `destroy.sh`.** Tearing down deletes the k3d cluster and its volumes, so the next `02_deploy.sh` re-downloads the model. If you iterate often, stop the pod instead of destroying the cluster.
+- **No ingress, no TLS, no human auth.** Validation runs entirely inside the cluster (the Job calls `litellm.ai-tools.svc.cluster.local:4000`). To talk to the model from your laptop, port-forward — instructions printed by `03_validate.sh`.
+- **No persistent volume between runs of `destroy.sh`.** Tearing down deletes the k3d cluster and its volumes, so the next `02_deploy.sh` re-downloads the model.
 
 ## Reading the validation Job
 
@@ -63,7 +91,7 @@ patches:
 kubectl -n ai-tools logs job/quickstart-validate
 ```
 
-It runs three checks and prints `[PASS]` / `[FAIL]` per check, then a summary. Non-zero exit on any failure. `ttlSecondsAfterFinished: 600` cleans it up automatically.
+It runs three checks: LiteLLM health, the model alias is present in `/v1/models`, and a real chat completion round-trip via `/v1/chat/completions`. Prints `[PASS]` / `[FAIL]` per check, exits non-zero on any failure. `ttlSecondsAfterFinished: 600` cleans it up automatically.
 
 ## Migration path
 

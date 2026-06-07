@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 **/*.env
 !**/*.env.example
+# Demo-only LiteLLM key for the quickstart overlay. Safe to commit: see
+# k8s/overlays/quickstart/namespaces/ai-tools/secrets/litellm.env header.
+!k8s/overlays/quickstart/namespaces/ai-tools/secrets/litellm.env
 
 implementation_plan.md
 **/sample_data/**

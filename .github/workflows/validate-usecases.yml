@@ -1,0 +1,174 @@
+name: Validate Use Cases
+
+# Gates for the ephemeral use-case pattern (docs/ephemeral-use-cases.md).
+# The overlay manifests themselves are covered by validate-kustomize.yml,
+# which discovers k8s/overlays recursively. What is validated here is the
+# contract, the runner, and the lifecycle those two implement together.
+
+on:
+  pull_request:
+    paths:
+      - 'k8s/overlays/usecases/**'
+      - 'scripts/ephemeral/**'
+      - '.github/workflows/validate-usecases.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'k8s/overlays/usecases/**'
+      - 'scripts/ephemeral/**'
+
+jobs:
+  lint-contracts:
+    name: Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          pipx install check-jsonschema
+
+      - name: Stage placeholder secrets
+        # Overlays consume gitignored .env files through secretGenerator. Seed
+        # them from their committed examples so the manifests can be built,
+        # exactly as validate-kustomize.yml does.
+        run: |
+          set -euo pipefail
+          find k8s/overlays/usecases -type f -name '*.env.example' | while IFS= read -r ex; do
+            real="${ex%.example}"
+            [ -f "$real" ] || cp "$ex" "$real"
+          done
+
+      - name: Validate contracts against the schema
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          contracts=(k8s/overlays/usecases/*/usecase.yaml)
+          if [ ${#contracts[@]} -eq 0 ]; then
+            echo "No use cases found — nothing to validate."
+            exit 0
+          fi
+          echo "Validating ${#contracts[@]} contract(s) against usecase.schema.json"
+          check-jsonschema --schemafile scripts/ephemeral/usecase.schema.json "${contracts[@]}"
+
+      - name: Assert contract matches its overlay
+        # Two invariants the runner depends on and the schema cannot express:
+        # the contract's identity must match its directory, and every Job it
+        # names must actually exist in the built manifest.
+        run: |
+          set -euo pipefail
+          fail=0
+          for contract in k8s/overlays/usecases/*/usecase.yaml; do
+            dir="$(dirname "$contract")"
+            name="$(basename "$dir")"
+            echo "::group::$name"
+
+            declared="$(yq -r '.metadata.name' "$contract")"
+            if [ "$declared" != "$name" ]; then
+              echo "::error file=$contract::metadata.name is '$declared' but the directory is '$name'"
+              fail=1
+            fi
+
+            kustomize build --enable-helm "$dir" > /tmp/manifest.yaml
+
+            for phase in seed run verify; do
+              job="$(yq -r ".spec.jobs.${phase}.name // \"\"" "$contract")"
+              [ -n "$job" ] && [ "$job" != "null" ] || continue
+
+              if ! yq -e "select(.kind == \"Job\" and .metadata.name == \"$job\") | .metadata.name" \
+                     /tmp/manifest.yaml >/dev/null 2>&1; then
+                echo "::error file=$contract::spec.jobs.${phase}.name '$job' has no matching Job in the built manifest"
+                fail=1
+                continue
+              fi
+
+              # Lifecycle Jobs must ship suspended so that applying the overlay
+              # does not start all three at once, racing the runner's ordering.
+              suspended="$(yq -r "select(.kind == \"Job\" and .metadata.name == \"$job\") | .spec.suspend // false" \
+                             /tmp/manifest.yaml)"
+              if [ "$suspended" != "true" ]; then
+                echo "::error file=$contract::Job '$job' must set spec.suspend: true"
+                fail=1
+              else
+                echo "  $phase -> $job (suspended)"
+              fi
+            done
+            echo "::endgroup::"
+          done
+          exit "$fail"
+
+  shellcheck:
+    name: Runner scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck --external-sources \
+            scripts/ephemeral/ephemeral.sh \
+            scripts/ephemeral/create-usecase.sh \
+            scripts/ephemeral/lib/*.sh
+
+  e2e-smoke:
+    name: Lifecycle end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          k3d version && yq --version
+
+      - name: Scaffolder produces a buildable use case
+        # The generic path, independent of any committed example.
+        run: |
+          set -euo pipefail
+          ./scripts/ephemeral/create-usecase.sh --name ci-scaffold-probe --ttl 1h --prefix probe
+          kustomize build k8s/overlays/usecases/ci-scaffold-probe > /dev/null
+          rm -rf k8s/overlays/usecases/ci-scaffold-probe
+          echo "Scaffolded use case builds cleanly."
+
+      - name: Bring the example environment up
+        run: ./scripts/ephemeral/ephemeral.sh up db-migration-a-to-b
+
+      - name: List live environments
+        run: ./scripts/ephemeral/ephemeral.sh ls
+
+      - name: Re-running up is idempotent
+        run: ./scripts/ephemeral/ephemeral.sh up db-migration-a-to-b
+
+      - name: Expired environments are reclaimed
+        run: |
+          set -euo pipefail
+          export KUBECONFIG="${HOME}/.kube/forjate-uc-shared.yaml"
+          kubectl annotate ns uc-db-migration-a-to-b \
+            forjate.io/expires-at=2020-01-01T00:00:00Z --overwrite
+          ./scripts/ephemeral/ephemeral.sh gc --dry-run
+          ./scripts/ephemeral/ephemeral.sh gc
+          if kubectl get ns uc-db-migration-a-to-b >/dev/null 2>&1; then
+            echo "::error::gc did not reclaim the expired namespace"
+            exit 1
+          fi
+          echo "Expired namespace reclaimed."
+
+      - name: Tear down
+        if: always()
+        run: ./scripts/ephemeral/ephemeral.sh down db-migration-a-to-b || true
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          export KUBECONFIG="${HOME}/.kube/forjate-uc-shared.yaml"
+          kubectl get pods -A || true
+          kubectl -n uc-db-migration-a-to-b describe pods || true

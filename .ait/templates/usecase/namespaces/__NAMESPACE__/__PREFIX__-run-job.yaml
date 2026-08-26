@@ -1,0 +1,46 @@
+# Run phase — the use case's actual work. Optional: drop this file and the
+# spec.jobs.run entry from usecase.yaml if the use case has nothing to do
+# between seeding and verifying.
+#
+# This is the mechanism-agnostic slot. Whatever tool does the work lives here;
+# swapping it does not change the contract, the runner, or the CI gate.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: __PREFIX__-run
+  namespace: __NAMESPACE__
+  labels:
+    app: __PREFIX__-run
+    forjate.io/usecase: __NAME__
+    forjate.io/phase: run
+spec:
+  suspend: true
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: __PREFIX__-run
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: run
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "  Running __NAME__"
+              # TODO: the work this use case exists to demonstrate.
+              echo "  [TODO] no workload defined yet"
+              echo "  Run complete."
+          resources:
+            requests: { memory: "64Mi", cpu: "50m" }
+            limits:   { memory: "256Mi", cpu: "200m" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile: { type: RuntimeDefault }

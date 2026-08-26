@@ -1,0 +1,24 @@
+namespace: __NAMESPACE__
+
+resources:
+  - namespace.yaml
+  - __PREFIX__-seed-job.yaml
+  - __PREFIX__-run-job.yaml
+  - __PREFIX__-verify-job.yaml
+  # Catalog components this use case needs, e.g.:
+  # - ../../../../../components/apps/databases/postgres
+
+# Credentials for the components above. Each .env is gitignored and seeded
+# from its committed .env.example by the runner (and by CI).
+secretGenerator: []
+# - name: postgres-secret
+#   envs:
+#     - secrets/postgres.env
+#   options:
+#     disableNameSuffixHash: true
+
+patches: []
+# - path: patches/postgres-resources.yaml
+#   target:
+#     kind: StatefulSet
+#     name: postgres

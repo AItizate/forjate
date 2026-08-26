@@ -1,0 +1,41 @@
+# Contract for the __NAME__ ephemeral use-case environment.
+# Schema: scripts/ephemeral/usecase.schema.json
+# Design: docs/ephemeral-use-cases.md
+apiVersion: forjate.io/v0
+kind: UseCase
+metadata:
+  name: __NAME__
+  description: TODO — one line describing what this use case proves.
+spec:
+  # shared: a namespace on the reused forjate-uc-shared cluster.
+  # dedicated: its own k3d cluster — required when this use case installs
+  # CRDs, operators or StorageClasses.
+  isolation: __ISOLATION__
+
+  # Reclaimed by `ephemeral.sh gc` once this elapses.
+  ttl: __TTL__
+
+  # Catalog components pulled in by the namespace kustomization.
+  # Informational — reviewers and the catalog read it, the runner does not.
+  components: []
+  # - apps/databases/postgres
+
+  # The lifecycle. Executed in order; `up` blocks until verify exits 0.
+  jobs:
+    seed:
+      name: __PREFIX__-seed
+      timeout: 300
+    run:
+      name: __PREFIX__-run
+      timeout: 600
+    verify:
+      name: __PREFIX__-verify
+      timeout: 300
+
+  # What this environment exposes once it is up. An agent reads this instead
+  # of probing. In-cluster address: <service>.__NAMESPACE__.svc.cluster.local:<port>
+  outputs:
+    endpoints: []
+    # - { name: source, service: postgres, port: 5432, protocol: postgresql }
+    secrets: []
+    # - { name: source-credentials, secretRef: postgres-secret, keys: [POSTGRES_USER] }

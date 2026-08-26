@@ -1,0 +1,72 @@
+# Verify phase — proves the environment does what it claims.
+#
+# `ephemeral.sh up` blocks on this Job, so a zero exit status is the runner's
+# definition of "ready". Follows the repo's validation-Job convention: a check
+# helper, PASS/FAIL counters, and a trailing test as the exit status.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: __PREFIX__-verify
+  namespace: __NAMESPACE__
+  labels:
+    app: __PREFIX__-verify
+    forjate.io/usecase: __NAME__
+    forjate.io/phase: verify
+spec:
+  suspend: true
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: __PREFIX__-verify
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: verify
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - |
+              PASS=0
+              FAIL=0
+              check() {
+                name="$1"; shift
+                if "$@" >/dev/null 2>&1; then
+                  echo "  [PASS] $name"; PASS=$((PASS+1))
+                else
+                  echo "  [FAIL] $name"; FAIL=$((FAIL+1))
+                fi
+              }
+
+              # Dependencies become reachable at their own pace. Poll rather
+              # than asserting once, or the checks report a startup race as a
+              # broken environment.
+              retry() {
+                tries=0
+                until "$@"; do
+                  tries=$((tries+1))
+                  [ "$tries" -ge 30 ] && return 1
+                  sleep 2
+                done
+              }
+
+              echo "  Validating __NAME__"
+
+              # TODO: assert the capability this use case exists to prove.
+              # Wrap anything that talks to a dependency in retry, e.g.
+              #   check "database is reachable" retry pg_isready -h postgres -q
+              check "placeholder — replace with a real assertion" true
+
+              echo "  Results: $PASS passed, $FAIL failed"
+              [ "$FAIL" -eq 0 ]
+          resources:
+            requests: { memory: "64Mi", cpu: "50m" }
+            limits:   { memory: "256Mi", cpu: "200m" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile: { type: RuntimeDefault }

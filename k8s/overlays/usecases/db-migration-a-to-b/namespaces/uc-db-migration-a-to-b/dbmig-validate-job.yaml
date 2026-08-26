@@ -1,0 +1,108 @@
+# Verify phase — proves the environment is what the contract advertises.
+#
+# `ephemeral.sh up` blocks on this Job, so a zero exit status is the runner's
+# definition of "ready". While the seed and migrate Jobs are stubs, this
+# validates the environment rather than the migration: both databases exist,
+# both answer on the advertised endpoints, and the source accepts the
+# credentials from spec.outputs. Assertions about migrated data belong here
+# once those Jobs do real work.
+#
+# Follows the repo's validation-Job convention: a check helper, PASS/FAIL
+# counters, and a trailing test as the exit status.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dbmig-validate
+  namespace: uc-db-migration-a-to-b
+  labels:
+    app: dbmig-validate
+    forjate.io/usecase: db-migration-a-to-b
+    forjate.io/phase: verify
+spec:
+  suspend: true
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: dbmig-validate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: validate
+          image: postgres:16
+          command: ["bash", "-c"]
+          args:
+            - |
+              PASS=0
+              FAIL=0
+              check() {
+                name="$1"; shift
+                if "$@" >/dev/null 2>&1; then
+                  echo "  [PASS] $name"; PASS=$((PASS+1))
+                else
+                  echo "  [FAIL] $name"; FAIL=$((FAIL+1))
+                fi
+              }
+              tcp_open() {
+                timeout 5 bash -c "echo > /dev/tcp/$1/$2"
+              }
+              # Databases become reachable at their own pace — MongoDB's first
+              # boot runs initdb and creates the root user, so it lags Postgres
+              # by a wide margin. Poll instead of asserting once, or the checks
+              # report a startup race as a broken environment.
+              retry() {
+                tries=0
+                until "$@"; do
+                  tries=$((tries+1))
+                  [ "$tries" -ge "$RETRY_ATTEMPTS" ] && return 1
+                  sleep 2
+                done
+              }
+
+              echo "  Validating db-migration-a-to-b"
+
+              check "source (postgres) accepts connections" \
+                retry pg_isready -h "$SOURCE_HOST" -p "$SOURCE_PORT" -U "$POSTGRES_USER" -q
+              check "source credentials are valid" \
+                retry psql -h "$SOURCE_HOST" -p "$SOURCE_PORT" -U "$POSTGRES_USER" \
+                     -d "$POSTGRES_DB" -c 'SELECT 1'
+              check "target (mongodb) is listening" \
+                retry tcp_open "$TARGET_HOST" "$TARGET_PORT"
+
+              # TODO: once the seed and migrate Jobs do real work, assert that
+              # the data actually landed — row counts and a checksum comparison
+              # between source and target.
+
+              echo "  Results: $PASS passed, $FAIL failed"
+              [ "$FAIL" -eq 0 ]
+          env:
+            - name: RETRY_ATTEMPTS
+              value: "45"
+            - name: SOURCE_HOST
+              value: postgres
+            - name: SOURCE_PORT
+              value: "5432"
+            - name: TARGET_HOST
+              value: mongodb
+            - name: TARGET_PORT
+              value: "27017"
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: { name: postgres-secret, key: POSTGRES_DB }
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: { name: postgres-secret, key: POSTGRES_USER }
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef: { name: postgres-secret, key: POSTGRES_PASSWORD }
+          resources:
+            requests: { memory: "64Mi", cpu: "50m" }
+            limits:   { memory: "256Mi", cpu: "200m" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile: { type: RuntimeDefault }

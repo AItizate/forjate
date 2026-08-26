@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AItizate/forjate/scripts/ephemeral/usecase.schema.json",
+  "title": "Forjate UseCase contract",
+  "description": "Declarative contract for an ephemeral use-case environment. Consumed by scripts/ephemeral/ephemeral.sh and by AI agents that need to discover the environment without probing it. See docs/ephemeral-use-cases.md.",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "forjate.io/v0"
+    },
+    "kind": {
+      "const": "UseCase"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Identity of the use case. Must equal the directory name under k8s/overlays/usecases/ — CI asserts this.",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 50
+        },
+        "description": {
+          "type": "string",
+          "description": "One-line summary, used in the use-case catalog."
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["isolation", "ttl", "jobs"],
+      "additionalProperties": false,
+      "properties": {
+        "isolation": {
+          "enum": ["shared", "dedicated"],
+          "description": "shared: a namespace on the reused forjate-uc-shared cluster. dedicated: its own k3d cluster — mandatory when the use case installs CRDs, operators or StorageClasses."
+        },
+        "ttl": {
+          "type": "string",
+          "description": "How long before gc reclaims the environment.",
+          "pattern": "^[1-9][0-9]*[mhd]$"
+        },
+        "components": {
+          "type": "array",
+          "description": "Catalog components this use case pulls in, relative to k8s/components/. Informational: reviewers and the catalog read it, the runner does not.",
+          "items": {
+            "type": "string",
+            "pattern": "^apps/[a-z0-9-]+/[a-z0-9-]+$"
+          }
+        },
+        "jobs": {
+          "type": "object",
+          "description": "The lifecycle. Executed in order: seed, run, verify.",
+          "required": ["seed", "verify"],
+          "additionalProperties": false,
+          "properties": {
+            "seed": {
+              "$ref": "#/$defs/job",
+              "description": "Loads fixtures the use case needs to be meaningful."
+            },
+            "run": {
+              "$ref": "#/$defs/job",
+              "description": "Optional. The use case's actual work — the mechanism-agnostic slot."
+            },
+            "verify": {
+              "$ref": "#/$defs/job",
+              "description": "Proves the environment does what it claims. `up` blocks on this one."
+            }
+          }
+        },
+        "outputs": {
+          "type": "object",
+          "description": "The agent-facing contract: what this environment exposes once it is up.",
+          "additionalProperties": false,
+          "properties": {
+            "endpoints": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "service", "port"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Role of this endpoint within the use case, e.g. source or target."
+                  },
+                  "service": {
+                    "type": "string",
+                    "description": "Kubernetes Service name. The in-cluster address is <service>.uc-<usecase>.svc.cluster.local:<port>."
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  },
+                  "protocol": {
+                    "type": "string",
+                    "description": "Wire protocol hint for clients, e.g. postgresql, mongodb, amqp, http."
+                  }
+                }
+              }
+            },
+            "secrets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "secretRef"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Role of these credentials, e.g. source-credentials."
+                  },
+                  "secretRef": {
+                    "type": "string",
+                    "description": "Name of the Kubernetes Secret in the use-case namespace."
+                  },
+                  "keys": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Keys the consumer should expect inside that Secret."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "job": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of a Job in the built overlay manifest. CI asserts it exists.",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "Seconds to wait for completion before giving up.",
+          "minimum": 10,
+          "default": 300
+        }
+      }
+    }
+  }
+}

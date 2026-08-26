@@ -97,6 +97,31 @@ Operational gotchas, scaling notes, migration paths, when NOT to use this overla
 
 Two screens max. If a doc grows past that, it should be split into a follow-up doc that the overlay doc links to.
 
+## Use-case overlays (ephemeral)
+
+A **use case** is an overlay with a shorter life expectancy: it exists to give an agent or a demo a real environment to work against, and it is expected to be destroyed. Use cases live under `k8s/overlays/usecases/<name>/` and follow the tiers above with four changes.
+
+Full design: [`docs/ephemeral-use-cases.md`](../ephemeral-use-cases.md). Operator reference: [`scripts/ephemeral/README.md`](../../scripts/ephemeral/README.md).
+
+**1. A contract is mandatory.** Every use case ships a `usecase.yaml` at its root, validated in CI against [`scripts/ephemeral/usecase.schema.json`](../../scripts/ephemeral/usecase.schema.json). It declares isolation, TTL, the three lifecycle Jobs, and — the part that matters for agents — the endpoints and credential Secrets the environment exposes. `metadata.name` must equal the directory name.
+
+**2. Namespace naming is fixed.** A use case owns exactly one namespace, `uc-<name>`, declared in `namespaces/uc-<name>/namespace.yaml`. The runner stamps ownership labels and a `forjate.io/expires-at` annotation on it at deploy time; nothing else may.
+
+**3. Seed and verify Jobs are mandatory; `run` is optional.** All three ship `spec.suspend: true` so that applying the overlay creates them without starting them — the runner imposes the order. The verify Job is the tier-Advanced validation Job under a different name and follows the same convention (`<purpose>-validate`, `backoffLimit: 0`, `ttlSecondsAfterFinished`, a `check` helper with PASS/FAIL counters and a trailing test as the exit status).
+
+**4. No bootstrap scripts.** Advanced tier item #14 does not apply: use cases must **not** ship `01_init_cluster.sh`, `02_deploy.sh` or `destroy.sh`. The shared runner replaces them.
+
+```bash
+./scripts/ephemeral/create-usecase.sh --name my-use-case --ttl 2h
+./scripts/ephemeral/ephemeral.sh up my-use-case
+```
+
+### Choosing isolation
+
+`spec.isolation: shared` puts the use case in a namespace on a single reusable cluster. `spec.isolation: dedicated` gives it a cluster of its own.
+
+**Declare `dedicated` when the use case installs CRDs, operators or StorageClasses.** Those are cluster-scoped and survive namespace deletion, so on a shared cluster they accumulate as residue that the next use case inherits. Everything else stays `shared`.
+
 ## Tier matrix per overlay (current state)
 
 See [`docs/overlays/README.md`](./README.md) for the live table. As of this convention's introduction:
@@ -123,3 +148,5 @@ The `validate-kustomize` workflow already enforces tier Mínimo (#1). Future pas
 - Advanced #14-15 (presence of `01_init_cluster.sh`, `02_deploy.sh`, validation job — for overlays declared as Advanced in the index).
 
 Until those checks exist, the convention is enforced by review.
+
+Use-case overlays are the exception: the `validate-usecases` workflow already enforces their extra rules (contract schema, identity matching the directory, declared Jobs existing and shipping suspended), and proves the lifecycle end-to-end on a real k3d cluster.

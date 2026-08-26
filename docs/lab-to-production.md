@@ -21,7 +21,7 @@ This page explains what changes as you climb from Lab to MVP to Production, what
 | **GitOps** | Optional — `kubectl apply -k` works fine here |
 | **Security** | Default Kubernetes (`privileged` admission, no NetworkPolicies) |
 | **Backup** | None |
-| **Use case** | Learning, weekend projects, MVP demos, the `home-edge-lab` overlay |
+| **Use case** | Learning (see [the learning path](./learning-path.md)), weekend projects, MVP demos, the `home-edge-lab` overlay |
 
 This is where most of the `docs/overlays/` library lives today. Everything is shippable, but you're trusting the platform to not turn against you. **Don't put paying customers here.**
 

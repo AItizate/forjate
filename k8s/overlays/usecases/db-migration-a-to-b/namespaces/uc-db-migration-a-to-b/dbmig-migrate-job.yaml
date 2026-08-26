@@ -1,0 +1,59 @@
+# Run phase — moves the data from the source database to the target.
+#
+# Deliberately a stub. This is the mechanism-agnostic slot: a Python ETL Job
+# today, an Airbyte connector once that component lands in the catalog. What
+# goes in here does not change the contract, the runner, or the CI gate — which
+# is the property this scaffold exists to demonstrate.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dbmig-migrate
+  namespace: uc-db-migration-a-to-b
+  labels:
+    app: dbmig-migrate
+    forjate.io/usecase: db-migration-a-to-b
+    forjate.io/phase: run
+spec:
+  suspend: true
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: dbmig-migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "  Migrating postgres -> mongodb"
+              echo "  source: ${SOURCE_ENDPOINT}"
+              echo "  target: ${TARGET_ENDPOINT}"
+
+              # TODO: read the tables from the source and write them to the
+              # target. Keep it idempotent — the runner re-runs this Job on
+              # every `up`.
+              echo "  [TODO] no migration mechanism wired yet"
+
+              echo "  Migration complete."
+          env:
+            # The same addresses spec.outputs advertises, so the Job and any
+            # external consumer resolve the environment the same way.
+            - name: SOURCE_ENDPOINT
+              value: postgres.uc-db-migration-a-to-b.svc.cluster.local:5432
+            - name: TARGET_ENDPOINT
+              value: mongodb.uc-db-migration-a-to-b.svc.cluster.local:27017
+          resources:
+            requests: { memory: "64Mi", cpu: "50m" }
+            limits:   { memory: "256Mi", cpu: "200m" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile: { type: RuntimeDefault }

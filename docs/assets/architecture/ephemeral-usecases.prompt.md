@@ -51,4 +51,4 @@ A tiny terminal artifact in the bottom-left corner reads > forjate:ephemeral-use
 
 | Version | Notes |
 |---------|-------|
-| **v0.1** | **Initial version.** Covers the contract → runner → cluster → three-job lifecycle flow, the shared/dedicated isolation split, TTL-driven gc, and the agent consuming resolved endpoints. Not yet generated. |
+| **v0.1** | **Approved as generated.** Covers the contract → runner → cluster → three-job lifecycle flow, the shared/dedicated isolation split, TTL-driven gc, and the agent consuming resolved endpoints. One pass, no rework — none of the banned layout words leaked into the render. The isolation band came out inside the cluster box rather than beneath it; noted rather than regenerated, since the two strategies read clearly either way. |

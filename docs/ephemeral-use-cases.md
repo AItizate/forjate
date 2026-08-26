@@ -20,7 +20,7 @@ The overlay convention already solves most of this for tenants. A use case is ju
 
 **A use case is an overlay under `k8s/overlays/usecases/<name>/` that ships a contract (`usecase.yaml`), a seed Job, and a verify Job.** A generic runner reads the contract, brings up a k3d cluster (shared or dedicated), applies the overlay, runs seed → run → verify in order, and blocks until the verify Job exits 0. When it returns, the environment is provably ready and the contract tells you — or your agent — where everything is. A TTL stamped at creation time means forgetting to tear it down is not a leak.
 
-_Diagram pending — the prompt that generates it lives at [`assets/architecture/ephemeral-usecases.prompt.md`](./assets/architecture/ephemeral-usecases.prompt.md)._
+![Ephemeral use-case environments](./assets/architecture/ephemeral-usecases.png)
 
 ## The contract: `usecase.yaml`
 

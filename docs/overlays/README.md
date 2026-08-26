@@ -24,7 +24,7 @@ Overlays with a shorter life expectancy: brought up on demand, seeded, validated
 
 | Use case | Isolation | Implementation | Diagram | What it proves |
 |----------|-----------|----------------|---------|----------------|
-| `db-migration-a-to-b` | shared | [`k8s/overlays/usecases/db-migration-a-to-b/`](../../k8s/overlays/usecases/db-migration-a-to-b/) | [prompt](../assets/architecture/ephemeral-usecases.prompt.md) _(png pending)_ | Reference scaffold — Postgres + MongoDB side by side, full lifecycle, migration deliberately left as a stub |
+| `db-migration-a-to-b` | shared | [`k8s/overlays/usecases/db-migration-a-to-b/`](../../k8s/overlays/usecases/db-migration-a-to-b/) | [png](../assets/architecture/ephemeral-usecases.png) | Reference scaffold — Postgres + MongoDB side by side, full lifecycle, migration deliberately left as a stub |
 
 ```bash
 ./scripts/ephemeral/ephemeral.sh up db-migration-a-to-b

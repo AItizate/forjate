@@ -12,10 +12,13 @@
 # Design: see docs/ephemeral-use-cases.md
 # =============================================================================
 
+# shellcheck source-path=SCRIPTDIR
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# Read by lib/usecase.sh to resolve use-case directories.
 UC_ROOT="${REPO_ROOT}/k8s/overlays/usecases"
 
 # shellcheck source=lib/log.sh
@@ -111,9 +114,11 @@ cmd_up() {
   for phase in seed run verify; do
     job="$(uc_job_name "$name" "$phase")"
     if [ -z "$job" ]; then
-      [ "$phase" = "run" ] && info "No 'run' Job declared — skipping" || \
-        error "Missing required '${phase}' Job in the contract"
-      continue
+      if [ "$phase" = "run" ]; then
+        info "No 'run' Job declared — skipping"
+        continue
+      fi
+      error "Missing required '${phase}' Job in the contract"
     fi
     run_job "$ns" "$job" "$(uc_job_timeout "$name" "$phase")" "$manifest" \
       || error "Use case '${name}' failed at the '${phase}' phase"

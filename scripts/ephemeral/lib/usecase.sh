@@ -6,8 +6,12 @@
 # Expects UC_ROOT to point at k8s/overlays/usecases.
 # =============================================================================
 
+# Consumed by the runner; shellcheck cannot see across the source boundary.
+# shellcheck disable=SC2034
 UC_LABEL_MANAGED="app.kubernetes.io/managed-by=forjate-ephemeral"
+# shellcheck disable=SC2034
 UC_LABEL_NAME="forjate.io/usecase"
+# shellcheck disable=SC2034
 UC_ANNOTATION_EXPIRES="forjate.io/expires-at"
 
 # ── Paths ────────────────────────────────────────────────────────────────────
@@ -19,8 +23,8 @@ uc_namespace() { echo "uc-$1"; }
 # uc_list — every directory under UC_ROOT that carries a contract.
 uc_list() {
   [ -d "$UC_ROOT" ] || return 0
-  find "$UC_ROOT" -mindepth 2 -maxdepth 2 -name usecase.yaml -exec dirname {} \; \
-    | xargs -n1 basename 2>/dev/null | sort
+  find "$UC_ROOT" -mindepth 2 -maxdepth 2 -name usecase.yaml -exec dirname {} + \
+    | while IFS= read -r dir; do basename "$dir"; done | sort
 }
 
 # ── Contract access ──────────────────────────────────────────────────────────

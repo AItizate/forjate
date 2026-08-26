@@ -12,6 +12,8 @@
 # Design: docs/ephemeral-use-cases.md
 # =============================================================================
 
+# shellcheck source-path=SCRIPTDIR
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

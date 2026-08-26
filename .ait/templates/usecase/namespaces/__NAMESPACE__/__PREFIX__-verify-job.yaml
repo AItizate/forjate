@@ -39,9 +39,23 @@ spec:
                 fi
               }
 
+              # Dependencies become reachable at their own pace. Poll rather
+              # than asserting once, or the checks report a startup race as a
+              # broken environment.
+              retry() {
+                tries=0
+                until "$@"; do
+                  tries=$((tries+1))
+                  [ "$tries" -ge 30 ] && return 1
+                  sleep 2
+                done
+              }
+
               echo "  Validating __NAME__"
 
               # TODO: assert the capability this use case exists to prove.
+              # Wrap anything that talks to a dependency in retry, e.g.
+              #   check "database is reachable" retry pg_isready -h postgres -q
               check "placeholder — replace with a real assertion" true
 
               echo "  Results: $PASS passed, $FAIL failed"

@@ -96,8 +96,13 @@ garbage-collected — only the namespaces inside it expire.
 
 Lifecycle Jobs carry `spec.suspend: true`. Applying the overlay creates them
 without starting them, which is what lets the runner impose an order instead
-of having all three race each other. `run_job` un-suspends one at a time,
-deleting any previous run first because Jobs are immutable.
+of having all three race each other.
+
+Jobs are also immutable, so `up` deletes the ones named in the contract
+*before* applying the overlay — otherwise editing a Job and re-running would
+fail the entire apply. `run_job` then deletes and re-applies each Job again as
+it un-suspends it, which is what lets `seed` and `validate` run on their own
+against a live environment.
 
 The manifest each Job runs from is extracted out of the built overlay, not
 read from a file — what CI validates is exactly what executes.

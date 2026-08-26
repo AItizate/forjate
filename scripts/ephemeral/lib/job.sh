@@ -18,7 +18,7 @@
 # printed, whichever way it goes.
 run_job() {
   local ns="$1" job="$2" timeout="$3" manifest="$4"
-  local job_yaml status rc
+  local job_yaml status
 
   job_yaml="$(yq "select(.kind == \"Job\" and .metadata.name == \"${job}\") | .spec.suspend = false" \
                  "$manifest" 2>/dev/null)"
@@ -34,21 +34,20 @@ run_job() {
   kubectl -n "$ns" delete job "$job" --ignore-not-found --wait >/dev/null 2>&1 || true
   echo "$job_yaml" | kubectl -n "$ns" apply -f - >/dev/null
 
-  # Filter conditions by .type (kubectl 1.36+ adds SuccessCriteriaMet alongside
-  # Complete), matching the idiom already used by the overlay bootstrap scripts.
-  set +e
-  kubectl -n "$ns" wait --for=condition=complete "job/${job}" --timeout="${timeout}s" >/dev/null 2>&1
-  rc=$?
-  set -e
-
-  if [ $rc -eq 0 ]; then
-    status="Complete"
-  elif kubectl -n "$ns" get "job/${job}" \
-        -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null | grep -q "True"; then
-    status="Failed"
-  else
-    status="Timeout"
-  fi
+  # Poll for either terminal condition rather than `kubectl wait --for=complete`:
+  # that only unblocks on success, so a Job that fails immediately would still
+  # burn the entire timeout before being reported. Conditions are read by .type
+  # because kubectl 1.36+ adds SuccessCriteriaMet alongside Complete.
+  local deadline=$(( SECONDS + timeout )) conditions
+  status="Timeout"
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    conditions="$(kubectl -n "$ns" get "job/${job}" -o jsonpath='{range .status.conditions[*]}{.type}={.status} {end}' 2>/dev/null || echo "")"
+    case "$conditions" in
+      *"Complete=True"*) status="Complete"; break ;;
+      *"Failed=True"*)   status="Failed";   break ;;
+    esac
+    sleep 2
+  done
 
   echo ""
   echo "─── ${job} logs ────────────────────────────────────────────"

@@ -71,23 +71,30 @@ uc_job_timeout() { uc_get "$1" ".spec.jobs.$2.timeout" "300"; }
 
 # uc_print_outputs <name> — the agent-facing summary: resolved endpoints and
 # the Secrets holding their credentials.
+# Fields are joined on a delimiter rather than interpolated: yq's string
+# interpolation cannot nest double quotes, so an alternative like
+# (.protocol // "") inside \(...) is a parse error — and under pipefail that
+# would abort `up` after every phase had already succeeded.
 uc_print_outputs() {
-  local name="$1" ns
+  local name="$1" ns file
   ns="$(uc_namespace "$name")"
+  file="$(uc_file "$name")"
 
   echo ""
   echo "Endpoints (in-cluster):"
-  yq -r '.spec.outputs.endpoints[]? | "  \(.name): \(.service) \(.port) \(.protocol // "")"' \
-    "$(uc_file "$name")" 2>/dev/null \
-    | while read -r label svc port proto; do
-        printf '  %-10s %s.%s.svc.cluster.local:%s %s\n' \
-          "${label}" "${svc}" "${ns}" "${port}" "${proto}"
-      done
+  yq -r '(.spec.outputs.endpoints // [])[] | .name + "|" + .service + "|" + (.port | tostring) + "|" + (.protocol // "-")' \
+    "$file" 2>/dev/null \
+    | while IFS='|' read -r label svc port proto; do
+        printf '  %-8s %s.%s.svc.cluster.local:%s  (%s)\n' \
+          "$label" "$svc" "$ns" "$port" "$proto"
+      done || true
 
   echo ""
   echo "Credentials (Secrets in namespace ${ns}):"
-  yq -r '.spec.outputs.secrets[]? | "  \(.name) -> \(.secretRef)"' \
-    "$(uc_file "$name")" 2>/dev/null || true
+  yq -r '(.spec.outputs.secrets // [])[] | .name + "|" + .secretRef' "$file" 2>/dev/null \
+    | while IFS='|' read -r label ref; do
+        printf '  %-8s %s\n' "$label" "$ref"
+      done || true
 }
 
 # ── TTL arithmetic ───────────────────────────────────────────────────────────

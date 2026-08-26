@@ -90,6 +90,17 @@ cmd_up() {
   kustomize_build "$dir" > "$manifest"
   log "Built $(grep -c '^kind:' "$manifest") resources"
 
+  # Jobs are immutable. A previous run leaves them behind, so applying an
+  # overlay whose Job specs changed would fail on the whole manifest — clear
+  # them first. run_job deletes again before each phase, which is what makes
+  # the seed/validate subcommands work on their own.
+  local phase job
+  for phase in seed run verify; do
+    job="$(uc_job_name "$name" "$phase")"
+    [ -n "$job" ] || continue
+    kubectl -n "$ns" delete job "$job" --ignore-not-found --wait >/dev/null 2>&1 || true
+  done
+
   # Two passes: the first establishes CRDs and namespaces, the second
   # reconciles resources that depend on them.
   if ! kubectl apply -f "$manifest" >/dev/null 2>&1; then
@@ -110,7 +121,6 @@ cmd_up() {
   log "Expires at ${expires} (ttl ${ttl})"
 
   section "Lifecycle"
-  local phase job
   for phase in seed run verify; do
     job="$(uc_job_name "$name" "$phase")"
     if [ -z "$job" ]; then
@@ -183,7 +193,7 @@ cmd_down() {
 
 cmd_ls() {
   require_cmds k3d kubectl yq docker
-  printf '%-28s %-10s %-26s %-10s %s\n' "USE CASE" "ISOLATION" "CLUSTER" "STATUS" "EXPIRES IN"
+  printf '%-28s %-10s %-32s %-10s %s\n' "USE CASE" "ISOLATION" "CLUSTER" "STATUS" "EXPIRES IN"
 
   # Shared: one row per managed namespace on the shared cluster.
   if cluster_exists "$UC_SHARED_CLUSTER"; then
@@ -193,7 +203,7 @@ cmd_ls() {
       local epoch remaining
       epoch="$(epoch_from_rfc3339 "$expires")"
       remaining="${epoch:+$(humanize_remaining "$epoch")}"
-      printf '%-28s %-10s %-26s %-10s %s\n' \
+      printf '%-28s %-10s %-32s %-10s %s\n' \
         "$uc_name" "shared" "$UC_SHARED_CLUSTER" "running" "${remaining:-unknown}"
     done < <(managed_namespaces)
   fi
@@ -210,7 +220,7 @@ cmd_ls() {
       ttl="$(uc_get "$uc_name" '.spec.ttl' '4h')"
       remaining="$(humanize_remaining $(( epoch + $(ttl_to_seconds "$ttl") )))"
     fi
-    printf '%-28s %-10s %-26s %-10s %s\n' \
+    printf '%-28s %-10s %-32s %-10s %s\n' \
       "$uc_name" "dedicated" "$cluster" "running" "$remaining"
   done < <(list_uc_clusters)
 }

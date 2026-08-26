@@ -129,7 +129,10 @@ rfc3339_at() {
 epoch_from_rfc3339() {
   local ts="${1%%.*}"
   ts="${ts%Z}Z"
-  [ -n "$ts" ] && [ "$ts" != "Z" ] || { echo ""; return; }
+  if [ -z "$ts" ] || [ "$ts" = "Z" ]; then
+    echo ""
+    return
+  fi
 
   if date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ts" '+%s' >/dev/null 2>&1; then
     date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ts" '+%s'

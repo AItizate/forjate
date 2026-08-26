@@ -20,7 +20,12 @@ run_job() {
   local ns="$1" job="$2" timeout="$3" manifest="$4"
   local job_yaml status
 
-  job_yaml="$(yq "select(.kind == \"Job\" and .metadata.name == \"${job}\") | .spec.suspend = false" \
+  # `yq ea` collects every document into one stream before filtering, then the
+  # array wrapper picks the single match. A bare `select(...)` per document
+  # behaves differently across yq 4.x releases — older ones apply the trailing
+  # expression to non-matching documents too, which yields the whole manifest
+  # instead of one Job.
+  job_yaml="$(yq ea "[select(.kind == \"Job\" and .metadata.name == \"${job}\")] | .[0] | .spec.suspend = false" \
                  "$manifest" 2>/dev/null)"
 
   if [ -z "$(echo "$job_yaml" | tr -d '[:space:]-')" ]; then

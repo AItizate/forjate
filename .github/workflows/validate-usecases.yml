@@ -79,8 +79,14 @@ jobs:
               job="$(yq -r ".spec.jobs.${phase}.name // \"\"" "$contract")"
               [ -n "$job" ] && [ "$job" != "null" ] || continue
 
-              if ! yq -e "select(.kind == \"Job\" and .metadata.name == \"$job\") | .metadata.name" \
-                     /tmp/manifest.yaml >/dev/null 2>&1; then
+              # `yq ea` collects every document into one stream before filtering,
+              # then the array wrapper picks the single match. A bare
+              # `select(...) | .x // default` behaves differently across yq 4.x
+              # releases — older ones evaluate the alternative for non-matching
+              # documents too, so the result is one answer per document.
+              matches="$(yq ea -r "[select(.kind == \"Job\" and .metadata.name == \"$job\")] | length" \
+                           /tmp/manifest.yaml)"
+              if [ "$matches" -eq 0 ]; then
                 echo "::error file=$contract::spec.jobs.${phase}.name '$job' has no matching Job in the built manifest"
                 fail=1
                 continue
@@ -88,7 +94,7 @@ jobs:
 
               # Lifecycle Jobs must ship suspended so that applying the overlay
               # does not start all three at once, racing the runner's ordering.
-              suspended="$(yq -r "select(.kind == \"Job\" and .metadata.name == \"$job\") | .spec.suspend // false" \
+              suspended="$(yq ea -r "[select(.kind == \"Job\" and .metadata.name == \"$job\")] | .[0].spec.suspend // false" \
                              /tmp/manifest.yaml)"
               if [ "$suspended" != "true" ]; then
                 echo "::error file=$contract::Job '$job' must set spec.suspend: true"

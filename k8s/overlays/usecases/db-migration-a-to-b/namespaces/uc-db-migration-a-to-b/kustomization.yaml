@@ -1,0 +1,37 @@
+namespace: uc-db-migration-a-to-b
+
+resources:
+  - namespace.yaml
+  - ../../../../../components/apps/databases/postgres
+  - ../../../../../components/apps/databases/mongodb
+  - dbmig-seed-job.yaml
+  - dbmig-migrate-job.yaml
+  - dbmig-validate-job.yaml
+
+# Both database components leave their Secret out of resources by contract and
+# expect the consuming overlay to supply real credentials. These are dev-only
+# values for a throwaway local environment — the .env files are gitignored and
+# seeded from the committed examples by the runner and by CI.
+secretGenerator:
+  - name: postgres-secret
+    envs:
+      - secrets/postgres.env
+    options:
+      disableNameSuffixHash: true
+  - name: mongodb-secret
+    envs:
+      - secrets/mongodb.env
+    options:
+      disableNameSuffixHash: true
+
+# The catalog defaults are sized for a real tenant. An ephemeral environment on
+# a laptop wants less.
+patches:
+  - path: patches/postgres-resources.yaml
+    target:
+      kind: StatefulSet
+      name: postgres
+  - path: patches/mongodb-resources.yaml
+    target:
+      kind: StatefulSet
+      name: mongodb

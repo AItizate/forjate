@@ -1,0 +1,72 @@
+# Seed phase — waits for the source database, then loads its fixtures.
+#
+# The wait is real; the dataset is not yet. Filling this in is the first step
+# to turning this scaffold into a working reference use case.
+#
+# suspend: true is deliberate. Applying the overlay creates the Job without
+# starting it; the runner decides the order (seed -> migrate -> validate) and
+# un-suspends one at a time.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dbmig-seed
+  namespace: uc-db-migration-a-to-b
+  labels:
+    app: dbmig-seed
+    forjate.io/usecase: db-migration-a-to-b
+    forjate.io/phase: seed
+spec:
+  suspend: true
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: dbmig-seed
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed
+          image: postgres:16
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -e
+              echo "  Seeding source database (postgres)"
+
+              TRIES=0
+              until pg_isready -h "$PGHOST" -U "$POSTGRES_USER" -q; do
+                TRIES=$((TRIES+1))
+                if [ $TRIES -ge 60 ]; then
+                  echo "  postgres did not become ready after 120s"
+                  exit 1
+                fi
+                sleep 2
+              done
+              echo "  postgres is accepting connections"
+
+              # TODO: create the synthetic dataset the migration will move.
+              # Keep it idempotent (DROP TABLE IF EXISTS ... / CREATE) — the
+              # runner re-runs this Job on every `up`.
+              echo "  [TODO] no fixtures defined yet"
+
+              echo "  Seed complete."
+          env:
+            - name: PGHOST
+              value: postgres
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: { name: postgres-secret, key: POSTGRES_USER }
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef: { name: postgres-secret, key: POSTGRES_PASSWORD }
+          resources:
+            requests: { memory: "64Mi", cpu: "50m" }
+            limits:   { memory: "256Mi", cpu: "200m" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile: { type: RuntimeDefault }

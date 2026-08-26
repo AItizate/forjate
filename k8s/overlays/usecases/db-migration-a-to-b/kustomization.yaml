@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../../base
+  - ./namespaces/uc-db-migration-a-to-b
+
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/overlay: db-migration-a-to-b

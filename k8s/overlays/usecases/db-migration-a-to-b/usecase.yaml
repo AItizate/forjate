@@ -1,0 +1,55 @@
+# Contract for the db-migration-a-to-b ephemeral use-case environment.
+# Schema: scripts/ephemeral/usecase.schema.json
+# Design: docs/ephemeral-use-cases.md
+apiVersion: forjate.io/v0
+kind: UseCase
+metadata:
+  name: db-migration-a-to-b
+  description: A source and a target database, side by side, for agents that move data between them.
+spec:
+  # Two databases and three Jobs — nothing cluster-scoped, so a namespace on
+  # the shared cluster is enough.
+  isolation: shared
+  ttl: 4h
+
+  components:
+    - apps/databases/postgres
+    - apps/databases/mongodb
+
+  # Job names are free-form: the contract is what binds a lifecycle phase to a
+  # Job, so they can carry domain meaning instead of the scaffolder's defaults.
+  jobs:
+    seed:
+      name: dbmig-seed
+      timeout: 300
+    run:
+      name: dbmig-migrate
+      timeout: 600
+    verify:
+      name: dbmig-validate
+      timeout: 300
+
+  # In-cluster addresses follow the rule:
+  #   <service>.uc-db-migration-a-to-b.svc.cluster.local:<port>
+  outputs:
+    endpoints:
+      - name: source
+        service: postgres
+        port: 5432
+        protocol: postgresql
+      - name: target
+        service: mongodb
+        port: 27017
+        protocol: mongodb
+    secrets:
+      - name: source-credentials
+        secretRef: postgres-secret
+        keys:
+          - POSTGRES_DB
+          - POSTGRES_USER
+          - POSTGRES_PASSWORD
+      - name: target-credentials
+        secretRef: mongodb-secret
+        keys:
+          - MONGO_INITDB_ROOT_USERNAME
+          - MONGO_INITDB_ROOT_PASSWORD

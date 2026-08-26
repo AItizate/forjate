@@ -3,13 +3,18 @@
 **Output:** `ephemeral-usecases.png` (alongside this file)
 **Aspect:** 16:9
 **Approved version:** v0.1
+**CLI:** antigravity-cli (`agy`) v1.1.21 — `generate_image` tool
+**Model:** `gemini-3.1-pro-high` (Gemini 3.1 Pro, High)
 
 The lifecycle diagram for disposable per-use-case environments. A runner reads a contract, brings up a cluster, seeds it, proves it works, and reclaims it when the TTL expires — the question the diagram answers is _how does a use case become a running, agent-consumable environment and then disappear?_
+
+Generated through antigravity-cli rather than the `gemini` CLI the earlier diagrams used. `agy` drives image generation through its `generate_image` tool, so the prompt is handed to the model as an instruction rather than through a `/generate` slash command. Run it from this directory; `agy models` lists the alternatives if the chosen one drifts from the house style.
 
 ## Command (v0.1)
 
 ```bash
-gemini -y -p '/generate "Architecture and lifecycle diagram for ephemeral use-case environments in Forjate, a Kustomize-driven Kubernetes factory. A single generic runner script reads a declarative contract file per use case, brings up a local k3d cluster, applies the overlay, runs three jobs in sequence, and reclaims the environment when its time-to-live expires. Two isolation strategies exist side by side. Single 16:9 wide cinematic frame. Cyberpunk dystopian terminal aesthetic — dark deep-navy background #0A1428 with very subtle horizontal scanlines and faint grain noise. Cyan #5BB4FF primary accents, occasional magenta #FF5BBF and warm amber #FFB45B highlights on key labels. Monospace terminal-style font for chip labels, slightly bolder geometric sans for section titles. Slightly imperfect borders with subtle 1-2px chromatic drift on a few boxes. NO PHOTOS NO 3D NO LOGOS NO COMPANY NAMES NO WATERMARK.
+agy --model gemini-3.1-pro-high --print-timeout 10m --dangerously-skip-permissions \
+  -p 'Use the generate_image tool to create ONE 16:9 image and save it in the current directory as ephemeral-usecases.png. Use the following text verbatim as the image prompt, without summarizing or editing it: Architecture and lifecycle diagram for ephemeral use-case environments in Forjate, a Kustomize-driven Kubernetes factory. A single generic runner script reads a declarative contract file per use case, brings up a local k3d cluster, applies the overlay, runs three jobs in sequence, and reclaims the environment when its time-to-live expires. Two isolation strategies exist side by side. Single 16:9 wide cinematic frame. Cyberpunk dystopian terminal aesthetic — dark deep-navy background #0A1428 with very subtle horizontal scanlines and faint grain noise. Cyan #5BB4FF primary accents, occasional magenta #FF5BBF and warm amber #FFB45B highlights on key labels. Monospace terminal-style font for chip labels, slightly bolder geometric sans for section titles. Slightly imperfect borders with subtle 1-2px chromatic drift on a few boxes. NO PHOTOS NO 3D NO LOGOS NO COMPANY NAMES NO WATERMARK.
 
 CRITICAL: do NOT render any of these words anywhere in the image: LEFT, RIGHT, CENTER, COLUMN, SECTION, ROW, LAYOUT, AREA, UPPER, LOWER, TOP, BOTTOM, GROUP, PANEL, SIDE. Only render actual content labels.
 
@@ -37,8 +42,10 @@ Across the bottom of the image, a horizontal cyan callout band with text in cyan
 
 At the very bottom, a single horizontal amber bar in monospace reading UP. SEED. PROVE IT. THROW IT AWAY.
 
-A tiny terminal artifact in the bottom-left corner reads > forjate:ephemeral-usecases_v0.1 in cyan monospace. Generous whitespace. Polished but with a hint of late-night sysadmin gloom."'
+A tiny terminal artifact in the bottom-left corner reads > forjate:ephemeral-usecases_v0.1 in cyan monospace. Generous whitespace. Polished but with a hint of late-night sysadmin gloom.'
 ```
+
+`--dangerously-skip-permissions` is what lets the run write the file without an interactive prompt. To avoid the blanket flag, add a narrower `permissions.allow` rule for the `command` permission in antigravity's `settings.json` instead.
 
 ## Iteration log
 

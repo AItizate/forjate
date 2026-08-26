@@ -18,6 +18,19 @@ Every overlay listed here meets at least Tier Mínimo of the [overlay convention
 | `multi-cloud-portable` | Recommended | [doc](./multi-cloud-portable.md) | [`k8s/overlays/multi-cloud-portable/`](../../k8s/overlays/multi-cloud-portable/) | [png](../assets/architecture/overlay-multi-cloud-portable.png) | One overlay, three clouds — Crossplane + StorageClass as portability seams |
 | `multi-tenant-pattern` | Recommended | [doc](./multi-tenant-pattern.md) | [`k8s/overlays/multi-tenant-pattern/`](../../k8s/overlays/multi-tenant-pattern/) | [png](../assets/architecture/multi-tenant-pattern.png) | Recursive pattern: base → org overlay → per-client overlay |
 
+## Use-case catalog
+
+Overlays with a shorter life expectancy: brought up on demand, seeded, validated, thrown away. They live under `k8s/overlays/usecases/` and are driven by the [ephemeral runner](../../scripts/ephemeral/README.md) rather than by per-overlay bootstrap scripts. Design: [`docs/ephemeral-use-cases.md`](../ephemeral-use-cases.md).
+
+| Use case | Isolation | Implementation | Diagram | What it proves |
+|----------|-----------|----------------|---------|----------------|
+| `db-migration-a-to-b` | shared | [`k8s/overlays/usecases/db-migration-a-to-b/`](../../k8s/overlays/usecases/db-migration-a-to-b/) | [prompt](../assets/architecture/ephemeral-usecases.prompt.md) _(png pending)_ | Reference scaffold — Postgres + MongoDB side by side, full lifecycle, migration deliberately left as a stub |
+
+```bash
+./scripts/ephemeral/ephemeral.sh up db-migration-a-to-b
+./scripts/ephemeral/create-usecase.sh --name my-use-case
+```
+
 ### What the tiers mean
 
 - **Mínimo** — has the docs and diagram needed to understand it. Run it by hand.

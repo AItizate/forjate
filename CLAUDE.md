@@ -4,6 +4,29 @@ This is **Forjate**, a Kustomize-driven monorepo for managing multi-tenant / mul
 
 The factory supports two consumption patterns: **local overlays** (tenants inside this monorepo) and **remote references** (independent tenant repos that pull base/components via SSH git URLs).
 
+## Machine-readable wiki (read this first)
+
+`wiki/` is a compiled, searchable view of this factory, built for agents — an
+implementation of [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+adapted for mutating sources (see `wiki/SCHEMA.md`). Before
+grepping through `k8s/**` to answer a question, read **`wiki/index.md`** — it
+catalogs every component, overlay and base app with a one-line summary, and
+records which overlays consume which component.
+
+- `wiki/SCHEMA.md` — the rules. Read before editing anything under `wiki/`.
+- `wiki/concepts/` — synthesis that no single directory contains (secret
+  strategy, remote-reference pinning, multi-tenant recursion).
+- `poetry run python scripts/wiki-compile.py` — regenerate after any change to
+  `k8s/**`. Page prose is preserved; only generated zones are rewritten.
+- `poetry run python scripts/wiki-lint.py` — detects pages whose sources changed
+  after the page was compiled.
+- `qmd query "..." -c forjate-wiki` — hybrid local search over the wiki, set up
+  by `scripts/wiki-search-setup.sh`.
+
+The wiki is **derived from `k8s/**`** and never edits `docs/`. `docs/` is
+human-written prose explaining why and how; the wiki records what the tree
+actually declares.
+
 ## Project Structure
 
 ```

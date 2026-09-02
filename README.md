@@ -145,6 +145,12 @@ resources:
 
 Pin to a tag for stable rollouts. Move the tag forward when you're ready.
 
+## Machine-readable wiki
+
+Alongside `docs/` (prose for humans), the repo ships [`wiki/`](wiki/index.md) — a compiled, agent-maintained view of the whole factory: one page per component and overlay, with backlinks recording which overlays consume which component, plus hand-authored concept pages for the patterns no single directory shows.
+
+It is an implementation of [Andrej Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f), adapted for mutating sources: pages are compiled from `k8s/**` by `scripts/wiki-compile.py`, and `scripts/wiki-lint.py` fails CI when a page drifts behind the tree it describes. The rules live in [`wiki/SCHEMA.md`](wiki/SCHEMA.md).
+
 ## Who this is for
 
 For anyone who'd rather create than fight infrastructure.

@@ -1,0 +1,62 @@
+name: Validate Wiki
+
+on:
+  pull_request:
+    paths:
+      - 'k8s/**'
+      - 'wiki/**'
+      - 'scripts/wiki-*'
+      - 'scripts/wiki_compile_api.py'
+      - '.github/workflows/validate-wiki.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'k8s/**'
+      - 'wiki/**'
+      - 'scripts/wiki-*'
+
+jobs:
+  compile-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # wiki-lint.py compares each page's compiled_at against the last commit
+          # touching its sources, so it needs real history. A shallow clone makes
+          # every `git log` come back empty and the drift check silently passes.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pipx install poetry
+          poetry install --no-root
+
+      - name: Check the wiki is in sync with k8s/
+        # Fails when the Kustomize tree changed but the wiki was not recompiled.
+        # Fix locally with: poetry run python scripts/wiki-compile.py
+        run: |
+          if ! poetry run python scripts/wiki-compile.py --check; then
+            echo "::error::wiki/ is out of sync with k8s/. Run: poetry run python scripts/wiki-compile.py"
+            exit 1
+          fi
+
+      - name: Lint the wiki
+        run: |
+          poetry run python scripts/wiki-lint.py || {
+            echo "::error::wiki-lint found hard failures (drift, schema or dangling sources)"
+            exit 1
+          }
+
+      - name: No secret values in the wiki
+        # The wiki records generated Secret *names*. A value in wiki/ is a leak.
+        run: |
+          set -euo pipefail
+          if grep -rInE '(password|secret|token|api[_-]?key)[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9/+_-]{12,}' wiki/; then
+            echo "::error::what looks like a secret value was found in wiki/"
+            exit 1
+          fi
+          echo "No secret-looking values in wiki/."

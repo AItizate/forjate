@@ -1,0 +1,317 @@
+{
+  "skill_name": "architecture",
+  "evals": [
+    {
+      "name": "regulated-invoice-intake",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/invoice-intake/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the architecture expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area architecture, metadata.author forjate:architecture, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Batch Crawl with no broker/Temporal and no API surface, Odoo and IMAP integrations named, durable execution by Run, workloads listed, alternatives recorded.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "text": "architecture.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "not any('temporal' in c for c in choices('crawl'))",
+          "text": "no Temporal at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "setting('broker', 'crawl') in ('none', None)",
+          "text": "no broker at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "setting('api_surface', 'crawl') == 'none'",
+          "text": "no API surface at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "any(has('odoo', x) for s in stages for x in listed(setting('integrations', s)))",
+          "text": "Odoo integration named with a pattern"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "any(has('imap|mailbox|mail', x) for s in stages for x in listed(setting('integrations', s)))",
+          "text": "mailbox integration named with a pattern"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "setting('durable_execution', 'run') == 'temporal' or any('temporal' in c for c in choices('run'))",
+          "text": "durable execution by Run (posting must not run twice)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "len(listed(setting('workloads', 'crawl'))) >= 1",
+          "text": "workloads listed for the scaffolder"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "len(alts()) >= 1 and all(a.get('rejected_because') for a in alts())",
+          "text": "alternatives rejected with reasons"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "any(has('idempot|twice|double', st(s).get('rationale')) for s in stages) or any(has('idempot|twice|double', r.get('text')) for r in risks())",
+          "text": "names the write that must not run twice"
+        }
+      ]
+    },
+    {
+      "name": "chat-copilot-no-packs",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/support-copilot/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the architecture expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area architecture, metadata.author forjate:architecture, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Crawl polls Telegram with no Temporal; Walk is chat-durable with temporal-stack, an external surface for the webhook and auth in front of the Temporal UI.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "text": "architecture.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "setting('topology', 'walk') == 'chat-durable'",
+          "text": "walk topology is chat-durable"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "any('temporal' in c for c in choices('walk'))",
+          "text": "Temporal at Walk for escalations"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "not any('temporal' in c for c in choices('crawl'))",
+          "text": "no Temporal at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "any(has('telegram', x) and has('poll', x) for x in listed(setting('integrations', 'crawl')))",
+          "text": "Telegram is polled at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "setting('api_surface', 'walk') == 'external'",
+          "text": "walk exposes an external surface for the channel webhook"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "setting('auth_in_front', 'walk') not in (None, 'none')",
+          "text": "auth in front of the exposed surface at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "any(has('refund|idempot|twice|double', r.get('text')) for r in risks()) or any(has('refund|idempot', st(s).get('rationale')) for s in stages)",
+          "text": "refund double-execution named as the durability reason"
+        }
+      ]
+    },
+    {
+      "name": "migration-regulated",
+      "prompt": "Set up k8s/overlays/usecases/db-migration-a-to-b/.builder/ by copying plugins/forjate/evals/fixtures/briefs/db-migration-a-to-b.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/db-migration-a-to-b.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/db-migration-a-to-b/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the architecture expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/architecture.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area architecture, metadata.author forjate:architecture, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Batch topology at both stages, no broker, no CDC, no Temporal; CDC and Temporal rejected in alternatives; contract untouched.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/architecture.yaml",
+          "text": "architecture.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/architecture.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/architecture.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "text": "existing contract untouched"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/architecture.yaml",
+          "expr": "all(setting('topology', s) == 'batch' for s in stages)",
+          "text": "batch topology at every stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/architecture.yaml",
+          "expr": "all(setting('broker', s) in ('none', None) for s in stages)",
+          "text": "no broker"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/architecture.yaml",
+          "expr": "not any('debezium' in c or 'temporal' in c for c in choices())",
+          "text": "no CDC connector and no Temporal"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/architecture.yaml",
+          "expr": "any(has('cdc|debezium|temporal|broker', a.get('option')) for a in alts())",
+          "text": "CDC/Temporal considered and rejected in alternatives"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/architecture.yaml",
+          "expr": "all(setting('api_surface', s) == 'none' for s in stages)",
+          "text": "no API surface for a batch migration"
+        }
+      ]
+    },
+    {
+      "name": "adversarial-single-container",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/invoice-intake/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. The finance ops lead wants one container with a cron loop that polls the mailbox, parses, matches and posts to Odoo, with no broker and no Temporal, at every stage including Run; the record should reflect that. Then, as the architecture expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area architecture, metadata.author forjate:architecture, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Accepted at Crawl, rejected at Run in alternatives with the failure it causes (double posting, no backpressure, no audit), Run shows durable execution or a broker and more than one workload.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "text": "architecture.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "not any('temporal' in c or 'brokers/' in c for c in choices('crawl'))",
+          "text": "single container accepted at Crawl (no Temporal, no broker)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "setting('durable_execution', 'run') == 'temporal' or setting('broker', 'run') not in ('none', None)",
+          "text": "Run is durable or decoupled, not a cron loop"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "any(has('cron|single container|one container|monolith', a.get('option')) or has('cron|single container|one container|monolith', a.get('rejected_because')) for a in alts('run') + alts('walk'))",
+          "text": "the cron monolith is rejected for Run with a reason"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "len(listed(setting('workloads', 'run'))) > 1",
+          "text": "Run splits the work into more than one workload"
+        }
+      ]
+    },
+    {
+      "name": "pack-no-temporal",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/support-copilot/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at plugins/forjate/evals/fixtures/packs/no-temporal (name no-temporal) and set spec.context_packs to [no-temporal] in the brief. Then, as the architecture expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area architecture, metadata.author forjate:architecture, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No Temporal anywhere, ARCH-1 cited, an open question caused by ARCH-1 about durable escalation, polling preferred over webhooks (ARCH-2) or the deviation cited, a fallback for durability named.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "text": "architecture.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "not any('temporal' in c for c in choices())",
+          "text": "respects the pack: no Temporal component"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "pattern": "pack:no-temporal#ARCH-1",
+          "text": "ARCH-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "any(q.get('caused_by_rule') == 'pack:no-temporal#ARCH-1' for q in oq())",
+          "text": "open question raised with caused_by_rule pack:no-temporal#ARCH-1"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "all('webhook' not in listed(setting('integration_patterns', s)) for s in stages) or 'pack:no-temporal#ARCH-2' in rules()",
+          "text": "webhooks avoided (ARCH-2) or the deviation cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "any(has('outbox|idempot|postgres|queue', st(s).get('rationale')) for s in stages)",
+          "text": "a durability fallback is named instead of dropping the requirement"
+        }
+      ]
+    }
+  ]
+}

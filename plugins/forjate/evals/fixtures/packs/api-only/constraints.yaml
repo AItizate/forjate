@@ -1,0 +1,9 @@
+rules:
+  AI-1:
+    type: model_allowlist
+    value: ["gpt-*"]
+    reason: Procurement signed one vendor contract.
+  AI-2:
+    type: deny_components
+    value: [apps/ai-models/ollama, apps/ai-models/vllm]
+    reason: No GPU nodes and no capacity to operate inference servers.

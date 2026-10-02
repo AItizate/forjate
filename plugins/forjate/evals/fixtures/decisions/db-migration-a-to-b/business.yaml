@@ -1,0 +1,28 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: business, usecase: db-migration-a-to-b, author: "forjate:business", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        value_hypothesis: The legacy Postgres licence and host are being retired; the customer table must move with zero mismatches or the retirement slips a quarter.
+        kpi_metric: rows_migrated_and_verified
+        kpi_baseline: "0"
+        kpi_target: "100% of the seeded subset, 0 mismatches"
+        systems_of_record: [legacy-postgres]
+        approver: head of data
+        go_no_go: go
+      rationale: A seeded subset on an ephemeral cluster proves the migration Job and the verification before the real 2M rows.
+      estimated_cost_usd_month: 0
+      gate_to_next:
+        - { id: G-BIZ-1, text: verified row count on the seeded subset reviewed by the head of data, owner: business, check: { type: metric, ref: rows_verified } }
+    walk:
+      choice: []
+      settings:
+        kpi_metric: rows_migrated_and_verified
+        kpi_target: "100% of 2M rows, 0 mismatches on a 1% sample, under 30 minutes"
+        go_no_go: conditional
+      rationale: One-off run against a staging copy; nothing stays after Walk, so Run is out of scope.
+      estimated_cost_usd_month: 60
+  references: [docs/lab-to-production.md]

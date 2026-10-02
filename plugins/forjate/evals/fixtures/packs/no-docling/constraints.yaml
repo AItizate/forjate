@@ -1,0 +1,10 @@
+rules:
+  PIPE-1:
+    type: deny_components
+    value: [apps/document-processing/docling]
+    reason: Image failed the container security scan; no exception granted.
+  PIPE-2:
+    type: require_components
+    value: [apps/brokers/rabbitmq]
+    stages: [walk, run]
+    reason: The integration team operates RabbitMQ and supports nothing else.

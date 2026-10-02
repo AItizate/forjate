@@ -1,0 +1,24 @@
+apiVersion: forjate.io/v0
+kind: ContextPack
+metadata:
+  name: no-docling
+  version: 1.0.0
+  scope: org
+  precedence: 20
+  description: Eval fixture for forjate:data-pipeline. Forbids Docling and requires RabbitMQ from Walk.
+spec:
+  applies_to: [data-pipeline]
+  language: en
+  sources:
+    - id: PIPE-1
+      kind: constraint
+      path: constraints.yaml#/rules/PIPE-1
+      enforce: must
+      applies_to: [data-pipeline]
+      summary: Docling is not approved; its image failed the security scan.
+    - id: PIPE-2
+      kind: constraint
+      path: constraints.yaml#/rules/PIPE-2
+      enforce: must
+      applies_to: [data-pipeline]
+      summary: All asynchronous integration goes through the corporate RabbitMQ from Walk onwards.

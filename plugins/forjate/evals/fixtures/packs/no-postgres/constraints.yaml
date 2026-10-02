@@ -1,0 +1,9 @@
+rules:
+  DATA-1:
+    type: deny_components
+    value: [apps/databases/postgres]
+    reason: Postgres support contract ends this year; the DBA team only supports MariaDB.
+  RES-1:
+    type: data_residency
+    value: us
+    reason: The only approved data centre is in the US.

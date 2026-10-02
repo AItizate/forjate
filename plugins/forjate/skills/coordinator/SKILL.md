@@ -46,11 +46,15 @@ Delegate to the `stage-planner` agent of this plugin with the use-case directory
 
 ### 4. Experts
 
-Read `spec.experts` from the plan. For every role with `run: true`, check whether `${CLAUDE_PLUGIN_ROOT}/agents/<role>.md` exists. Run `business` first and alone; its record bounds the others. Then run the remaining available experts **in parallel**, one `Agent` call each, with the same prompt shape: the use-case directory, the instruction to write `.builder/decisions/<role>.yaml` per the `decision` schema, and nothing else. Experts return a short summary; the file is the record. Never paste an expert's transcript into your own context.
+Read `spec.experts` from the plan. For every role with `run: true`, check whether `${CLAUDE_PLUGIN_ROOT}/agents/<role>.md` exists. The core experts available today are `business`, `architecture`, `ai-engineering`, `data-store` and `data-pipeline`.
+
+**Wave 1, business alone.** Delegate to the `business` agent with the use-case directory. Wait for it. Its record (KPI, cost envelope, systems of record, exceptions) bounds every other expert; nothing else starts until `.builder/decisions/business.yaml` validates. Log: `- <date> experts: business done`.
+
+**Wave 2, the rest in parallel.** In one message, one `Agent` call per remaining available expert (`architecture`, `ai-engineering`, `data-store`, `data-pipeline`, and any later expert the plan runs), each with the same prompt shape: the use-case directory, "write `.builder/decisions/<role>.yaml` per the decision schema, read the business record first", and nothing else. Experts return a short summary; the file is the record. Never paste an expert's transcript into your own context, and never write a decision record yourself.
 
 Roles the plan wants but that have no agent yet are not an error: list them in the report under "Not yet available" so the gap is visible. The pipeline shape is complete even when parts of the team are not.
 
-After the fan-out, validate again and log which experts ran.
+**Consistency pass.** After wave 2, run `validate.py` again. It reports `cross-record conflict` lines when two records chose incompatible components for the same stage (NATS vs RabbitMQ, LanceDB vs Milvus, Ollama vs vLLM) or disagree on a shared setting (`broker`, `data_residency`, `psa_level`, `secrets_mechanism`, `data_egress`). A conflict is never yours to resolve: do not edit a record, do not pick a winner. If a record already acknowledges it with an open question naming both sides, the validator downgrades it to a warning and you carry that question into the report. If none does, re-delegate to **one** of the two experts with the conflict line verbatim and the instruction to add the open question (not to change its choice); then validate again. Every conflict ends up under "Open questions" in the report for the user to decide. Log: `- <date> experts: <roles> done, <n> conflict(s) open`.
 
 ### 5. Report
 

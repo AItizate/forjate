@@ -24,7 +24,8 @@ one block per decisions/*.yaml:
 - Constrained by: <pack refs>
 
 ## Open questions
-<every open_questions entry across records, with the area and the blocking stage>
+<every open_questions entry across records, with the area and the blocking stage; a question caused by a pack rule shows the rule ref>
+Conflicts between experts: <every `cross-record conflict` line validate.py reported, each with the open question that acknowledges it, or "none">
 
 ## Gates (consolidated)
 <from gates.yaml when present; otherwise "quality expert has not consolidated yet", followed by the gate_to_next lists found in the records>

@@ -1,6 +1,6 @@
 ---
 name: coordinator
-description: Runs the forjate use-case builder end to end for one use case (intake, brief, stage plan, expert fan-out, report). Delegate to it when a caller wants a whole use case planned without driving each step, e.g. from a batch job or another agent.
+description: Runs the forjate use-case builder end to end for one use case (intake, brief, stage plan, expert fan-out with business first and the core experts in parallel, consistency pass, report). Delegate to it when a caller wants a whole use case planned without driving each step, e.g. from a batch job or another agent.
 tools: Read, Grep, Glob, Write, Edit, Bash, Agent
 model: inherit
 skills:

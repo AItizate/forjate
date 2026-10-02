@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AItizate/forjate/plugins/forjate/scripts/builder/schemas/brief.schema.json",
+  "title": "UseCaseBrief",
+  "description": "Output of the coordinator's intake interview. Everything downstream reads this first.",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "forjate.io/v0" },
+    "kind": { "const": "UseCaseBrief" },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "created"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "_defs.schema.json#/$defs/name" },
+        "created": { "type": "string", "format": "date" },
+        "requested_by": { "type": "string" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["problem", "language", "actors", "data", "constraints", "success"],
+      "additionalProperties": false,
+      "properties": {
+        "problem": { "type": "string", "description": "The automation request in the user's own words, lightly cleaned." },
+        "language": { "$ref": "_defs.schema.json#/$defs/language" },
+        "context_packs": {
+          "type": "array",
+          "items": { "$ref": "_defs.schema.json#/$defs/name" },
+          "description": "Active packs, by name. Resolved from .builder/packs.yaml."
+        },
+        "actors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "role"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "role": { "enum": ["requester", "end-user", "operator", "approver", "system"] },
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "required": ["sources", "classification"],
+          "additionalProperties": false,
+          "properties": {
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "kind"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": { "type": "string" },
+                  "kind": { "enum": ["database", "files", "api", "stream", "email", "chat", "manual"] },
+                  "volume": { "type": "string", "description": "Order of magnitude, e.g. '200 docs/day'." },
+                  "system_of_record": { "type": "boolean" }
+                }
+              }
+            },
+            "classification": { "$ref": "_defs.schema.json#/$defs/dataClass" },
+            "residency": { "type": "string", "description": "Where the data must stay, if constrained (e.g. 'eu', 'on-prem')." }
+          }
+        },
+        "constraints": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "regulated": { "type": "boolean" },
+            "budget_per_month_usd": { "type": "number" },
+            "deadline": { "type": "string", "format": "date" },
+            "must_integrate_with": { "type": "array", "items": { "type": "string" } },
+            "llm_egress_allowed": { "type": "boolean", "description": "May data leave the cluster to an external model provider?" },
+            "notes": { "type": "string" }
+          }
+        },
+        "success": {
+          "type": "object",
+          "required": ["metric"],
+          "additionalProperties": false,
+          "properties": {
+            "metric": { "type": "string", "description": "The single number that tells the requester it worked." },
+            "baseline": { "type": "string" },
+            "target": { "type": "string" }
+          }
+        },
+        "stages_requested": {
+          "type": "array",
+          "items": { "$ref": "_defs.schema.json#/$defs/stage" },
+          "description": "Stages the requester wants. The planner may propose fewer."
+        }
+      }
+    }
+  }
+}

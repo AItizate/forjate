@@ -1,0 +1,33 @@
+rules:
+  DATA-1:
+    type: deny_components
+    value: [apps/databases/mongodb]
+    reason: No MongoDB licence for production workloads.
+  SEC-1:
+    type: min_psa_level
+    value: restricted
+    stages: [walk, run]
+    reason: Corporate baseline for anything beyond a PoC.
+  SEC-2:
+    type: secrets_mechanism
+    value: external-secrets
+    stages: [run]
+    reason: Production secrets are managed centrally.
+  AI-1:
+    type: model_allowlist
+    value: ["claude-*", "ollama/*"]
+    reason: Approved vendors after legal review.
+  AI-2:
+    type: data_egress
+    value: none
+    data_classes: [pii, financial, health]
+    reason: Regulated data never reaches an external model provider.
+  RES-1:
+    type: data_residency
+    value: eu
+    reason: GDPR; data must stay in the EU.
+  NAM-1:
+    type: naming_pattern
+    target: namespace
+    value: "^corp-[a-z0-9-]+$"
+    reason: Namespaces are inventoried by prefix.

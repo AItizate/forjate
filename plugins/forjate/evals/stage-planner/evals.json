@@ -6,19 +6,90 @@
       "prompt": "Set up the use case directory k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml there, and write a packs.yaml in the same directory activating the pack at context-packs/examples/regulated-corp. Then produce the Crawl/Walk/Run stage plan for this use case as .builder/stage-plan.yaml following the Forjate use-case builder contracts (plugins/forjate/scripts/builder/schemas/stage-plan.schema.json), and validate it with plugins/forjate/scripts/builder/validate.py.",
       "expected_output": "A valid stage-plan.yaml with three stages in scope, observable gates incl. a verify-job gate at Crawl, PSA restricted at Run citing the pack, compliance and security experts running, ai-engineering running.",
       "assertions": [
-        { "type": "file_exists", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "text": "stage-plan.yaml written" },
-        { "type": "schema_valid", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "schema": "stage-plan", "text": "stage plan validates against the schema" },
-        { "type": "usecase_valid", "path": "k8s/overlays/usecases/invoice-intake", "text": "validate.py passes on the use case" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "query": ".spec.stages.crawl.in_scope", "equals": "true", "text": "crawl in scope" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "query": ".spec.stages.run.in_scope", "equals": "true", "text": "run in scope (requested, regulated)" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "query": "[.spec.stages.crawl.exit_criteria[] | select(.check.type == \"verify-job\")] | length > 0", "equals": "true", "text": "crawl has a verify-job gate" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "query": "[.spec.stages[] | select(.in_scope) | .exit_criteria[] | select(.check.type == \"manual\")] | length < ([.spec.stages[] | select(.in_scope) | .exit_criteria[]] | length)", "equals": "true", "text": "not every gate is manual" },
-        { "type": "grep", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "pattern": "restricted", "text": "run stage mentions PSA restricted" },
-        { "type": "grep", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "pattern": "pack:regulated-corp#", "text": "a pack rule is cited" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "query": "[.spec.experts[] | select(.role == \"compliance\")] | .[0].run", "equals": "true", "text": "compliance expert runs" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "query": "[.spec.experts[] | select(.role == \"ai-engineering\")] | .[0].run", "equals": "true", "text": "ai-engineering expert runs" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "query": "[.spec.experts[] | select(.role == \"business\")] | .[0].run", "equals": "true", "text": "business expert runs" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "query": ".spec.experts | length", "equals": "10", "text": "all ten expert roles are listed" }
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "text": "stage-plan.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "schema": "stage-plan",
+          "text": "stage plan validates against the schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "query": ".spec.stages.crawl.in_scope",
+          "equals": "true",
+          "text": "crawl in scope"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "query": ".spec.stages.run.in_scope",
+          "equals": "true",
+          "text": "run in scope (requested, regulated)"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "query": "[.spec.stages.crawl.exit_criteria[] | select(.check.type == \"verify-job\")] | length > 0",
+          "equals": "true",
+          "text": "crawl has a verify-job gate"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "query": "([.spec.stages[] | select(.in_scope) | .exit_criteria[] | select(.check.type == \"manual\")] | length) < ([.spec.stages[] | select(.in_scope) | .exit_criteria[]] | length)",
+          "equals": "true",
+          "text": "not every gate is manual"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "pattern": "restricted",
+          "text": "run stage mentions PSA restricted"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "pattern": "pack:regulated-corp#",
+          "text": "a pack rule is cited"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "query": "[.spec.experts[] | select(.role == \"compliance\")] | .[0].run",
+          "equals": "true",
+          "text": "compliance expert runs"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "query": "[.spec.experts[] | select(.role == \"ai-engineering\")] | .[0].run",
+          "equals": "true",
+          "text": "ai-engineering expert runs"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "query": "[.spec.experts[] | select(.role == \"business\")] | .[0].run",
+          "equals": "true",
+          "text": "business expert runs"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "query": ".spec.experts | length",
+          "equals": "10",
+          "text": "all ten expert roles are listed"
+        }
       ]
     },
     {
@@ -26,14 +97,59 @@
       "prompt": "Create k8s/overlays/usecases/support-copilot/.builder/brief.yaml from plugins/forjate/evals/fixtures/briefs/support-copilot.yaml (no context packs). Produce the stage plan for this use case as .builder/stage-plan.yaml following plugins/forjate/scripts/builder/schemas/stage-plan.schema.json and validate it with plugins/forjate/scripts/builder/validate.py.",
       "expected_output": "Crawl and Walk in scope, Run out of scope with a reason, ux and ai-engineering run, Walk has a metric gate tied to resolution rate.",
       "assertions": [
-        { "type": "schema_valid", "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml", "schema": "stage-plan", "text": "stage plan validates" },
-        { "type": "usecase_valid", "path": "k8s/overlays/usecases/support-copilot", "text": "validate.py passes" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml", "query": ".spec.stages.walk.in_scope", "equals": "true", "text": "walk in scope" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml", "query": ".spec.stages.run.in_scope // false", "equals": "false", "text": "run out of scope (not requested)" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml", "query": "(.spec.stages.run.skip_reason // \"\") | length > 0", "equals": "true", "text": "run skip has a reason" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml", "query": "[.spec.stages.walk.exit_criteria[] | select(.check.type == \"metric\")] | length > 0", "equals": "true", "text": "walk has a metric gate" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml", "query": "[.spec.experts[] | select(.role == \"ux\")] | .[0].run", "equals": "true", "text": "ux expert runs (chat surface)" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml", "query": "[.spec.experts[] | select(.role == \"ai-engineering\")] | .[0].run", "equals": "true", "text": "ai-engineering runs" }
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml",
+          "schema": "stage-plan",
+          "text": "stage plan validates"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml",
+          "query": ".spec.stages.walk.in_scope",
+          "equals": "true",
+          "text": "walk in scope"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml",
+          "query": ".spec.stages.run.in_scope // false",
+          "equals": "false",
+          "text": "run out of scope (not requested)"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml",
+          "query": "(.spec.stages.run.skip_reason // \"\") | length > 0",
+          "equals": "true",
+          "text": "run skip has a reason"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml",
+          "query": "[.spec.stages.walk.exit_criteria[] | select(.check.type == \"metric\")] | length > 0",
+          "equals": "true",
+          "text": "walk has a metric gate"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml",
+          "query": "[.spec.experts[] | select(.role == \"ux\")] | .[0].run",
+          "equals": "true",
+          "text": "ux expert runs (chat surface)"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml",
+          "query": "[.spec.experts[] | select(.role == \"ai-engineering\")] | .[0].run",
+          "equals": "true",
+          "text": "ai-engineering runs"
+        }
       ]
     },
     {
@@ -41,13 +157,49 @@
       "prompt": "Copy plugins/forjate/scripts/builder/tests/fixtures/db-migration-a-to-b/.builder/brief.yaml and packs.yaml into k8s/overlays/usecases/db-migration-a-to-b/.builder/ (create the directory; do not copy stage-plan.yaml or decisions). Produce the stage plan for this use case as .builder/stage-plan.yaml following plugins/forjate/scripts/builder/schemas/stage-plan.schema.json and validate with plugins/forjate/scripts/builder/validate.py.",
       "expected_output": "Crawl and Walk in scope, Run skipped (one-off), ai-engineering and ux skipped with reasons, crawl verify-job gate references the existing dbmig-validate Job.",
       "assertions": [
-        { "type": "schema_valid", "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml", "schema": "stage-plan", "text": "stage plan validates" },
-        { "type": "usecase_valid", "path": "k8s/overlays/usecases/db-migration-a-to-b", "text": "validate.py passes" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml", "query": "[.spec.experts[] | select(.role == \"ai-engineering\")] | .[0].run", "equals": "false", "text": "ai-engineering skipped (no model)" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml", "query": "[.spec.experts[] | select(.role == \"ux\")] | .[0].run", "equals": "false", "text": "ux skipped (operator only)" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml", "query": ".spec.stages.run.in_scope // false", "equals": "false", "text": "run out of scope (one-off)" },
-        { "type": "grep", "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml", "pattern": "dbmig-validate", "text": "crawl gate references the existing verify Job" },
-        { "type": "git_unchanged", "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml", "text": "existing contract untouched" }
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml",
+          "schema": "stage-plan",
+          "text": "stage plan validates"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "validate.py passes"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml",
+          "query": "[.spec.experts[] | select(.role == \"ai-engineering\")] | .[0].run",
+          "equals": "false",
+          "text": "ai-engineering skipped (no model)"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml",
+          "query": "[.spec.experts[] | select(.role == \"ux\")] | .[0].run",
+          "equals": "false",
+          "text": "ux skipped (operator only)"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml",
+          "query": ".spec.stages.run.in_scope // false",
+          "equals": "false",
+          "text": "run out of scope (one-off)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml",
+          "pattern": "dbmig-validate",
+          "text": "crawl gate references the existing verify Job"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "text": "existing contract untouched"
+        }
       ]
     }
   ]

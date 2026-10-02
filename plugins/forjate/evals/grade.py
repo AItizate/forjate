@@ -19,6 +19,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PLUGIN = HERE.parent
 BUILDER = PLUGIN / "scripts" / "builder"
+REPO = PLUGIN.parent.parent
+# Worktrees have no installed environment; the main checkout's venv does.
+PY = str(REPO / ".venv" / "bin" / "python") if (REPO / ".venv" / "bin" / "python").exists() else "python3"
 
 
 def sh(cmd: list[str], cwd: Path) -> tuple[int, str]:
@@ -47,10 +50,10 @@ def check(a: dict, repo: Path) -> tuple[bool, str]:
         rc, out = sh(["bash", "-c", f"kubectl kustomize --enable-helm {a['path']} | kubeconform -strict -ignore-missing-schemas -summary -"], repo)
         return rc == 0, out[-400:]
     if t == "usecase_valid":
-        rc, out = sh(["poetry", "run", "python", str(BUILDER / "validate.py"), a["path"]], repo)
+        rc, out = sh([PY, str(BUILDER / "validate.py"), a["path"]], repo)
         return rc == 0, out[-400:]
     if t == "pack_lint":
-        rc, out = sh(["poetry", "run", "python", str(BUILDER / "packs.py"), "lint", a["path"]], repo)
+        rc, out = sh([PY, str(BUILDER / "packs.py"), "lint", a["path"]], repo)
         return rc == 0, out[-400:]
     if t == "yaml_path":
         rc, out = sh(["yq", "-r", a["query"], a["path"]], repo)
@@ -65,7 +68,7 @@ def check(a: dict, repo: Path) -> tuple[bool, str]:
         code = (f"import sys; sys.path.insert(0, {str(BUILDER)!r}); from common import load_yaml, schema_errors; "
                 f"from pathlib import Path; e = schema_errors({a['schema']!r}, load_yaml(Path({str(path)!r})), {a['path']!r}); "
                 f"print('\\n'.join(e)); sys.exit(1 if e else 0)")
-        rc, out = sh(["poetry", "run", "python", "-c", code], repo)
+        rc, out = sh([PY, "-c", code], repo)
         return rc == 0, "valid" if rc == 0 else out[-400:]
     if t == "yaml_count":
         rc, out = sh(["yq", "-r", a["query"], a["path"]], repo)

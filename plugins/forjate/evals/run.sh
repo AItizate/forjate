@@ -35,6 +35,9 @@ run_one() {  # <eval-name> <prompt> <with|without>
   mkdir -p "$dir"
   git -C "$REPO" worktree remove --force "$wt" 2>/dev/null || true
   git -C "$REPO" worktree add --quiet --detach "$wt" HEAD
+  # The worktree has no virtualenv; share the main checkout's so `poetry run`
+  # and the skills' validate/packs commands work inside it.
+  [[ -d "$REPO/.venv" ]] && { rm -rf "$wt/.venv"; ln -s "$REPO/.venv" "$wt/.venv"; }
   # Seed gitignored .env files so overlays build, as CI does.
   find "$wt/k8s/overlays" -name '*.env.example' | while read -r ex; do [[ -f "${ex%.example}" ]] || cp "$ex" "${ex%.example}"; done
   # Evals run in a throwaway worktree, so the build/validate commands the skills

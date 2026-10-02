@@ -1,0 +1,20 @@
+# A 3B model quantised to 4 bits needs roughly 2.5Gi resident, and inference on
+# CPU wants every core it can get. The catalog's 4Gi ceiling is fine; the request
+# is raised so the scheduler does not overcommit the node into swapping during a
+# decision.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ollama
+spec:
+  template:
+    spec:
+      containers:
+        - name: ollama
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "3Gi"
+            limits:
+              cpu: "6000m"
+              memory: "6Gi"

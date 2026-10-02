@@ -1,0 +1,63 @@
+# Run phase — replay every scenario through the decision engine and write each
+# verdict back into Home Assistant as sensor.hadg_<id>.
+#
+# This is the mechanism-agnostic slot from the architecture: the phase is "make
+# the decisions", and what makes them is whatever the decision service is wired
+# to. Replacing the engine does not change this Job.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hadg-run
+  labels:
+    app: hadg-run
+    forjate.io/usecase: ha-decision-gate
+    forjate.io/phase: run
+spec:
+  suspend: true
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: hadg-run
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: run
+          image: python:3.12-slim
+          command: ["python", "-u", "/app/run.py"]
+          env:
+            - name: HA_BASE_URL
+              value: http://hass:8123
+            - name: HA_USERNAME
+              valueFrom:
+                secretKeyRef: { name: hass-secret, key: HA_USERNAME }
+            - name: HA_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: hass-secret, key: HA_PASSWORD }
+            - name: DECIDE_URL
+              value: http://decision-service:8080
+            - name: PYTHONPATH
+              value: /app
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: HOME
+              value: /tmp
+          volumeMounts:
+            - { name: scripts, mountPath: /app }
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { memory: "64Mi", cpu: "50m" }
+            limits:   { memory: "256Mi", cpu: "500m" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile: { type: RuntimeDefault }
+      volumes:
+        - { name: scripts, configMap: { name: hadg-scripts } }
+        - { name: data, configMap: { name: hadg-data } }
+        - { name: tmp, emptyDir: {} }

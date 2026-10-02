@@ -1,0 +1,108 @@
+# Home Assistant integration — the automation that consumes the decision.
+#
+# Copy into a real instance alongside rest_command.yaml. It watches the entities
+# the scenarios use, asks the decision service what to do, and acts only on the
+# answer. All the judgement lives in the engine; this file is wiring.
+#
+# Two things worth keeping when adapting it to a real house:
+#
+#   - The alert branch is gated on confidence as well as choice. An engine that
+#     reports calibrated probabilities makes that threshold meaningful; the
+#     current baseline does not, which is exactly why it reports calibrated=false
+#     and why a threshold here is close to decorative until a real decision model
+#     is behind the endpoint.
+#
+#   - mode is not acted on at all. It is far more useful as a sensor other
+#     automations read than as a trigger for anything by itself.
+
+automation:
+  - id: hadg_decide_on_change
+    alias: "Decision gate — ask the engine on state change"
+    mode: queued
+    max: 5
+    triggers:
+      - trigger: state
+        entity_id:
+          - person.sebas
+          - person.guest
+          - binary_sensor.front_door
+          - binary_sensor.window_bedroom
+          - binary_sensor.living_motion
+          - binary_sensor.bedroom_motion
+          - binary_sensor.stove
+          - lock.front_door
+          - sun.sun
+          - media_player.living_tv
+    variables:
+      watched:
+        - person.sebas
+        - person.guest
+        - binary_sensor.front_door
+        - binary_sensor.window_bedroom
+        - binary_sensor.living_motion
+        - binary_sensor.bedroom_motion
+        - binary_sensor.stove
+        - lock.front_door
+        - sun.sun
+        - media_player.living_tv
+        - sensor.indoor_temp
+        - sensor.outdoor_temp
+      entities: >-
+        {%- set ns = namespace(d={}) -%}
+        {%- for e in watched -%}
+          {%- set ns.d = dict(ns.d, **{e: states(e)}) -%}
+        {%- endfor -%}
+        {{ ns.d }}
+    actions:
+      - action: rest_command.hadg_decide
+        data:
+          trigger_entity: "{{ trigger.entity_id }}"
+          trigger_to: "{{ trigger.to_state.state }}"
+          entities: "{{ entities }}"
+        response_variable: decision
+
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >-
+                  {{ decision.content.answers.action.choice == 'alert'
+                     and (decision.content.answers.urgency.choice | int(0)) >= 3 }}
+            sequence:
+              - action: notify.persistent_notification
+                data:
+                  title: "Decision gate: alert"
+                  message: >-
+                    {{ trigger.entity_id }} -> {{ trigger.to_state.state }}.
+                    urgency {{ decision.content.answers.urgency.choice }},
+                    confidence {{ decision.content.answers.action.confidence }}.
+
+          - conditions:
+              - condition: template
+                value_template: "{{ decision.content.answers.action.choice == 'notify' }}"
+            sequence:
+              - action: notify.persistent_notification
+                data:
+                  title: "Decision gate: notify"
+                  message: "{{ trigger.entity_id }} -> {{ trigger.to_state.state }}."
+
+          - conditions:
+              - condition: template
+                value_template: "{{ decision.content.answers.action.choice == 'lights_on' }}"
+            sequence:
+              # Replace with the real target. Left as a notification so copying
+              # this file into a live instance cannot surprise anyone by moving
+              # actual hardware on the first state change.
+              - action: notify.persistent_notification
+                data:
+                  title: "Decision gate: would turn lights on"
+                  message: "{{ trigger.entity_id }} -> {{ trigger.to_state.state }}."
+
+          - conditions:
+              - condition: template
+                value_template: "{{ decision.content.answers.action.choice == 'climate_adjust' }}"
+            sequence:
+              - action: notify.persistent_notification
+                data:
+                  title: "Decision gate: would adjust climate"
+                  message: "indoor {{ states('sensor.indoor_temp') }}C."
+        default: []

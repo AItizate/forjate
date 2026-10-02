@@ -3,7 +3,7 @@ title: base
 kind: base
 sources:
 - k8s/base
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-02'
 consumed_by:
 - overlays/agentic-orchestration
 - overlays/agentic-simple-workflow
@@ -15,6 +15,7 @@ consumed_by:
 - overlays/multi-tenant-pattern-org
 - overlays/quickstart
 - overlays/usecases-db-migration-a-to-b
+- overlays/usecases-ha-decision-gate
 source_last_commit: '2026-06-07'
 summary: deploys `docker.io/traefik:v3.5.2`
 summary_source: derived
@@ -67,6 +68,7 @@ summary_source: derived
 - [overlays/multi-tenant-pattern-org](../overlays/multi-tenant-pattern-org.md)
 - [overlays/quickstart](../overlays/quickstart.md)
 - [overlays/usecases-db-migration-a-to-b](../overlays/usecases-db-migration-a-to-b.md)
+- [overlays/usecases-ha-decision-gate](../overlays/usecases-ha-decision-gate.md)
 
 <!-- END DECLARED -->
 

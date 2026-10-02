@@ -1,0 +1,66 @@
+# Contract for the ha-decision-gate ephemeral use-case environment.
+# Schema: scripts/ephemeral/usecase.schema.json
+# Design: docs/ephemeral-use-cases.md
+apiVersion: forjate.io/v0
+kind: UseCase
+metadata:
+  name: ha-decision-gate
+  description: A real Home Assistant plus a swappable decision engine, graded against labelled scenarios.
+spec:
+  # A real HA instance, Ollama and a small HTTP service. Nothing cluster-scoped,
+  # so a namespace on the shared cluster is enough.
+  isolation: shared
+  ttl: 4h
+
+  components:
+    - apps/home-automation/hass
+    - apps/ai-models/ollama
+
+  jobs:
+    # Onboards HA, pulls the model, and pushes the scenario entities. The long
+    # timeout is the cold path: HA's first boot installs its requirements and the
+    # model has to be downloaded. Both are cached afterwards.
+    seed:
+      name: hadg-seed
+      timeout: 1800
+    # Replays every scenario through the decision engine and writes each verdict
+    # back into HA as a sensor entity. Sized for CPU inference — there is no GPU
+    # on a laptop k3d node, so each decision is seconds, not milliseconds.
+    run:
+      name: hadg-run
+      timeout: 1800
+    # The gate: per-question accuracy against a labelled set, a false-alarm
+    # ceiling on ordinary evenings, and a latency budget.
+    verify:
+      name: hadg-verify
+      timeout: 600
+
+  # In-cluster addresses follow the rule:
+  #   <service>.uc-ha-decision-gate.svc.cluster.local:<port>
+  outputs:
+    endpoints:
+      # The decision engine. POST /v1/decide with {state, questions} and get
+      # one answer per question back. This is the slot: whichever engine is
+      # wired behind it, the request and response shape do not change.
+      - name: decide
+        service: decision-service
+        port: 8080
+        protocol: http
+      # Home Assistant itself — the source of entity state and, after `run`,
+      # the store holding every verdict as sensor.hadg_<scenario>.
+      - name: home-assistant
+        service: hass
+        port: 8123
+        protocol: http
+      # The model backend the decision service talks to. Exposed so an engine
+      # comparison can hit it directly without going through the adapter.
+      - name: model
+        service: ollama-service
+        port: 11434
+        protocol: http
+    secrets:
+      - name: home-assistant-credentials
+        secretRef: hass-secret
+        keys:
+          - HA_USERNAME
+          - HA_PASSWORD

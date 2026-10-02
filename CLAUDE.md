@@ -27,6 +27,10 @@ The wiki is **derived from `k8s/**`** and never edits `docs/`. `docs/` is
 human-written prose explaining why and how; the wiki records what the tree
 actually declares.
 
+## Use-case builder plugin
+
+`plugins/forjate/` is a Claude Code plugin (listed in `.claude-plugin/marketplace.json`) that turns a business problem into a staged use-case overlay through a coordinator, a stage planner and expert skills. Plan and contracts: `docs/use-case-builder/`. Validate with `poetry run pytest plugins/forjate/scripts/builder/tests` and `claude plugin validate ./plugins/forjate`. Context packs under `context-packs/` carry organisation rules that override catalog defaults; see `forjate:context-pack`.
+
 ## Project Structure
 
 ```

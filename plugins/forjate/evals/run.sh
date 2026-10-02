@@ -37,10 +37,13 @@ run_one() {  # <eval-name> <prompt> <with|without>
   git -C "$REPO" worktree add --quiet --detach "$wt" HEAD
   # Seed gitignored .env files so overlays build, as CI does.
   find "$wt/k8s/overlays" -name '*.env.example' | while read -r ex; do [[ -f "${ex%.example}" ]] || cp "$ex" "${ex%.example}"; done
-  local args=(-p "$prompt" --output-format json --permission-mode acceptEdits --max-turns "$max_turns")
+  # Evals run in a throwaway worktree, so the build/validate commands the skills
+  # rely on are pre-approved; everything else still goes through the default policy.
+  local allowed="Read Edit Write Glob Grep Bash(kubectl kustomize *) Bash(kustomize *) Bash(kubeconform *) Bash(poetry run *) Bash(python3 *) Bash(yq *) Bash(./scripts/ephemeral/create-usecase.sh *) Bash(cp *) Bash(mkdir *) Bash(ls *) Bash(cat *) Bash(git diff *) Bash(git status *)"
+  local args=(-p "$prompt" --output-format json --permission-mode acceptEdits --max-turns "$max_turns" --allowedTools "$allowed")
   [[ "$cfg" == "with" ]] && args+=(--plugin-dir "$PLUGIN_DIR")
   echo "  [$cfg] $name"
-  ( cd "$wt" && claude "${args[@]}" > "$dir/result.json" 2> "$dir/stderr.log" ) || echo "    claude exited $? (see stderr.log)"
+  ( cd "$wt" && claude "${args[@]}" < /dev/null > "$dir/result.json" 2> "$dir/stderr.log" ) || echo "    claude exited $? (see stderr.log)"
   python3 - "$dir" <<'PY'
 import json, sys, pathlib
 d = pathlib.Path(sys.argv[1]); r = d / "result.json"

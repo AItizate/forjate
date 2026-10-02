@@ -1,0 +1,67 @@
+apiVersion: forjate.io/v0
+kind: ContextPack
+metadata:
+  name: regulated-corp
+  version: 1.0.0
+  scope: org
+  precedence: 20
+  description: Example org pack for a regulated company. Copy and adapt.
+  owner: platform-team
+spec:
+  applies_to: ["*"]
+  language: en
+  sources:
+    - id: DATA-1
+      kind: constraint
+      path: constraints.yaml#/rules/DATA-1
+      enforce: must
+      applies_to: [data-store, data-pipeline, architecture]
+      summary: MongoDB is not licensed for production use.
+    - id: SEC-1
+      kind: constraint
+      path: constraints.yaml#/rules/SEC-1
+      enforce: must
+      applies_to: [security, devops]
+      summary: Pod Security Admission restricted from Walk onwards.
+    - id: SEC-2
+      kind: constraint
+      path: constraints.yaml#/rules/SEC-2
+      enforce: must
+      applies_to: [security, devops]
+      summary: Secrets come from External Secrets in Run.
+    - id: AI-1
+      kind: constraint
+      path: constraints.yaml#/rules/AI-1
+      enforce: must
+      applies_to: [ai-engineering, compliance]
+      summary: Only approved model families.
+    - id: AI-2
+      kind: constraint
+      path: constraints.yaml#/rules/AI-2
+      enforce: must
+      applies_to: [ai-engineering, security, compliance]
+      summary: PII and financial data never leave the cluster.
+    - id: RES-1
+      kind: constraint
+      path: constraints.yaml#/rules/RES-1
+      enforce: must
+      applies_to: [compliance, data-store, devops]
+      summary: Data stays in the EU.
+    - id: NAM-1
+      kind: constraint
+      path: constraints.yaml#/rules/NAM-1
+      enforce: should
+      applies_to: [kustomize, devops]
+      summary: Namespaces are prefixed with the org slug.
+    - id: TOOLS
+      kind: guideline
+      path: guidelines/tool-development.md
+      enforce: should
+      applies_to: [ai-engineering, app-scaffold]
+      summary: How agent tools are written here (typing, idempotency, logging, timeouts).
+    - id: SECBASE
+      kind: guideline
+      path: guidelines/security-baseline.md
+      enforce: must
+      applies_to: [security, compliance, quality]
+      summary: Corporate security baseline a reviewer will check against.

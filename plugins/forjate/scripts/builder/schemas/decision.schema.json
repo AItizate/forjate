@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AItizate/forjate/plugins/forjate/scripts/builder/schemas/decision.schema.json",
+  "title": "Decision",
+  "description": "One expert's decision record, per stage. The only thing an expert subagent returns to the coordinator.",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "forjate.io/v0" },
+    "kind": { "const": "Decision" },
+    "metadata": {
+      "type": "object",
+      "required": ["area", "usecase", "author", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "area": { "$ref": "_defs.schema.json#/$defs/role" },
+        "usecase": { "$ref": "_defs.schema.json#/$defs/name" },
+        "author": { "type": "string", "pattern": "^forjate:[a-z-]+$" },
+        "version": { "type": "integer", "minimum": 1 },
+        "language": { "$ref": "_defs.schema.json#/$defs/language" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["stages"],
+      "additionalProperties": false,
+      "properties": {
+        "stages": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(crawl|walk|run)$": { "$ref": "#/$defs/stageDecision" }
+          }
+        },
+        "open_questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "question"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^Q[0-9]+$" },
+              "question": { "type": "string" },
+              "blocks_stage": { "$ref": "_defs.schema.json#/$defs/stage" },
+              "caused_by_rule": { "$ref": "_defs.schema.json#/$defs/ruleRef" }
+            }
+          }
+        },
+        "references": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Repo-relative paths or URLs the expert relied on."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stageDecision": {
+      "type": "object",
+      "required": ["choice", "rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "choice": {
+          "description": "Catalog components selected for this stage. Empty list is valid when the area needs nothing from the catalog (e.g. a business decision).",
+          "type": "array",
+          "items": { "$ref": "_defs.schema.json#/$defs/component" }
+        },
+        "settings": {
+          "description": "Area-specific structured values (e.g. psa_level, retention, model). Free-form but must be scalars or lists of scalars so validate.py can match pack rules against them.",
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": ["string", "number", "boolean"] },
+              { "type": "array", "items": { "type": ["string", "number", "boolean"] } }
+            ]
+          }
+        },
+        "rationale": { "type": "string" },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["option", "rejected_because"],
+            "additionalProperties": false,
+            "properties": {
+              "option": { "type": "string" },
+              "rejected_because": { "type": "string" }
+            }
+          }
+        },
+        "risks": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/risk" } },
+        "gate_to_next": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/gate" } },
+        "constrained_by": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/ruleRef" } },
+        "estimated_cost_usd_month": { "type": "number" }
+      }
+    }
+  }
+}

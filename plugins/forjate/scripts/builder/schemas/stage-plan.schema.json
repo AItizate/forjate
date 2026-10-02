@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AItizate/forjate/plugins/forjate/scripts/builder/schemas/stage-plan.schema.json",
+  "title": "StagePlan",
+  "description": "Output of forjate:stage-planner. Which stages are in scope, what each proves, and which experts run.",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "forjate.io/v0" },
+    "kind": { "const": "StagePlan" },
+    "metadata": {
+      "type": "object",
+      "required": ["usecase", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "usecase": { "$ref": "_defs.schema.json#/$defs/name" },
+        "version": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["stages", "experts"],
+      "additionalProperties": false,
+      "properties": {
+        "stages": {
+          "type": "object",
+          "required": ["crawl"],
+          "additionalProperties": false,
+          "propertyNames": { "$ref": "_defs.schema.json#/$defs/stage" },
+          "patternProperties": {
+            "^(crawl|walk|run)$": {
+              "type": "object",
+              "required": ["in_scope", "goal"],
+              "additionalProperties": false,
+              "properties": {
+                "in_scope": { "type": "boolean" },
+                "skip_reason": { "type": "string" },
+                "goal": { "type": "string" },
+                "forjate_tier": { "enum": ["lab", "mvp", "production"] },
+                "exit_criteria": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/gate" } },
+                "out_of_scope": { "type": "array", "items": { "type": "string" } },
+                "estimated_cost_usd_month": { "type": "number" }
+              }
+            }
+          }
+        },
+        "experts": {
+          "description": "Which expert roles run for this use case, and why any is skipped.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["role", "run"],
+            "additionalProperties": false,
+            "properties": {
+              "role": { "$ref": "_defs.schema.json#/$defs/role" },
+              "run": { "type": "boolean" },
+              "skip_reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

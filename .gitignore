@@ -8,3 +8,5 @@ implementation_plan.md
 **/sample_data/**
 
 k8s/**/charts/**
+# use-case builder
+.pytest_cache/

@@ -1,0 +1,28 @@
+apiVersion: forjate.io/v0
+kind: UseCaseBrief
+metadata:
+  name: db-migration-a-to-b
+  created: 2026-10-02
+  requested_by: platform-team
+spec:
+  problem: Migrate the customer table from the legacy Postgres into the new document store, validating row counts and a sample of records.
+  language: en
+  context_packs: [regulated-corp]
+  actors:
+    - { name: data engineer, role: requester }
+    - { name: platform operator, role: operator }
+    - { name: head of data, role: approver }
+  data:
+    sources:
+      - { name: legacy-postgres, kind: database, volume: "2M rows", system_of_record: true }
+    classification: pii
+    residency: eu
+  constraints:
+    regulated: true
+    budget_per_month_usd: 150
+    llm_egress_allowed: false
+  success:
+    metric: rows migrated and verified
+    baseline: "0"
+    target: "100% with 0 mismatches on a 1% sample"
+  stages_requested: [crawl, walk]

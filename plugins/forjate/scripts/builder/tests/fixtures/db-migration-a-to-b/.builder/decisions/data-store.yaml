@@ -1,0 +1,24 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: data-store, usecase: db-migration-a-to-b, author: "forjate:data-store", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: [apps/databases/postgres]
+      settings: { data_residency: eu, retention: 4h }
+      rationale: Source is Postgres; the target document store is a stand-in for the seed. MongoDB is denied by the org pack, so the target is modelled as a Postgres JSONB table for the PoC.
+      alternatives:
+        - { option: apps/databases/mongodb, rejected_because: denied by pack:regulated-corp#DATA-1 }
+      constrained_by: ["pack:regulated-corp#DATA-1", "pack:regulated-corp#RES-1"]
+      gate_to_next:
+        - { id: G-DS-1, text: retention of the staging copy agreed with the approver, owner: data-store }
+    walk:
+      choice: [apps/databases/postgres]
+      settings: { data_residency: eu, retention: 30d }
+      rationale: Same shape, real volume, Longhorn-backed PVC.
+  open_questions:
+    - id: Q1
+      question: "Which document store is licensed for production, given MongoDB is denied?"
+      blocks_stage: walk
+      caused_by_rule: "pack:regulated-corp#DATA-1"
+  references: [wiki/components/databases-postgres.md, docs/storage-strategy.md]

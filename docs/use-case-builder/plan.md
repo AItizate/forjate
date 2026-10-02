@@ -2,7 +2,7 @@
 
 > An agentic team that takes a one-paragraph business problem and turns it into a Forjate overlay, staged Crawl → Walk → Run, with structured, reviewable artifacts at every step.
 
-Status: **Phase 0 done (tag `builder-p0`, 2026-10-02)** · Owner: Sebas · Created: 2026-10-02
+Status: **Phase 1 done (tag `builder-p1`, 2026-10-02)** · Owner: Sebas · Created: 2026-10-02
 
 ---
 
@@ -202,6 +202,13 @@ Three levels, all automated, all runnable locally and in CI.
 | **L3 — end-to-end** | Coordinator run on a golden use case produces an overlay that `kustomize build`s, passes `kubeconform`, and `ephemeral.sh up` returns 0 | existing CI + k3d job | verify Job exit 0 |
 | **L4 — trigger evals** (Phase 5) | 20 should/should-not-trigger queries per skill | skill-creator `run_loop.py` | ≥ 90 % trigger accuracy on held-out set |
 
+Lessons from Phase 0 and 1, binding for every later eval:
+
+- **The baseline must be a real control.** The plugin lives in this repo, so a baseline worktree carries the skills on disk; `run.sh` strips `plugins/forjate/skills`, `agents` and `docs/use-case-builder` for the without-plugin configuration. Before that fix both configurations scored the same for the wrong reason.
+- **Form assertions stop discriminating fast.** With the schema path in the prompt, a frontier model produces a valid artifact with or without the skill. Each eval needs at least two assertions on *judgement* (a pack rule cited, an `OPEN:` question raised, a stage skipped with a reason, a gate expressed as `ci`/`metric` rather than `manual`) next to the form checks, or the pass rate says nothing.
+- **Run evals on Opus, record the model.** `run.sh` defaults to `--model opus` and the benchmark lists the models used; a session-limit hit is recorded as `is_error` and re-run, never counted as a failure.
+- **Quality metrics travel with the benchmark.** Gate counts by check type, pack references and `OPEN:` lines are computed per run; they are where the skill's value showed when pass rates tied.
+
 Assertion style for L1: objective and named, e.g. `recommends-postgres-for-crawl-state`, `declares-retention-per-stage`, `no-component-outside-catalog`, `gate-to-walk-has-backup-check`, `answers-in-schema`. Every expert additionally gets one **pack eval**: the same golden prompt with a pack that forbids its default choice, asserting `respects-pack-must`, `cites-pack-rule`, `raises-open-question-on-unsatisfiable-rule`. Subjective quality (tone, clarity) is reviewed by the human in the eval viewer, never forced into assertions.
 
 ### Golden use cases (fixtures for L2/L3, reused across phases)
@@ -247,7 +254,9 @@ Tests:
 - Coordinator L1: "automate invoice intake" cold start; "resume G2"; a vague prompt that should trigger clarifying questions. Assertions: `asks-at-most-6-questions`, `brief-validates`, `does-not-invent-components`.
 - L2 on all emitted artifacts.
 
-Exit: a user can run `/usecase` and get a reviewed brief + stage plan committed under `.builder/`.
+Exit: a user can run `/forjate:coordinator` and get a reviewed brief + stage plan committed under `.builder/`.
+
+**Done 2026-10-02 (tag `builder-p1`).** Planner: 3 evals × 2 configs on Opus, 100 % both, skill cites pack rules 3–6× more and raises `OPEN:` questions the baseline omits. Coordinator: 3 evals × 2 configs, 100 % both; with the plugin it delegates to `forjate:stage-planner` (confirmed in `subagent_stats`), writes the report in the brief's language, and fabricates no expert record. Baselines re-run after the control fix; see `evals-workspace/*/benchmark.md`.
 
 ### Phase 2 — Core experts: business, architecture, AI engineering, data store, data pipeline (≈ 2.5 weeks)
 

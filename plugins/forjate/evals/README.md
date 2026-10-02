@@ -4,7 +4,7 @@ Level-1 tests from `docs/use-case-builder/plan.md` §3: every skill has a few re
 
 ```
 evals/
-├── run.sh            # run.sh <skill> [--iteration N] [--eval <id>] [--only with|without]
+├── run.sh            # run.sh <skill> [--iteration N] [--eval <id>] [--only with|without] [--model m] [--timeout s]
 ├── grade.py          # grade.py <run-dir>  → grading.json  (also: --all <iteration-dir> → benchmark.md)
 └── <skill>/evals.json
 ```
@@ -40,4 +40,4 @@ python3 plugins/forjate/evals/grade.py --all evals-workspace/kustomize/iteration
 
 Needs `claude` on PATH, `kubectl`, `kubeconform`, `yq`, and the repo's poetry env.
 
-Runs use **Opus** by default (`--model` or `FORJATE_EVAL_MODEL` to change). A run that hits the account's session limit is recorded with `is_error: true` in `timing.json` and must be re-run; the benchmark is not meaningful until every row has a real duration.
+Runs use **Opus** by default (`--model` or `FORJATE_EVAL_MODEL` to change). Every run has a timeout (`--timeout`, `FORJATE_EVAL_TIMEOUT`, default 1800 s): a hung `claude -p` is killed, not waited on. A run that hits the timeout or the account's session limit is recorded with `is_error: true` in `timing.json` and must be re-run; the benchmark is not meaningful until every row has a real duration. Run batches in series and never re-run an eval while another run of it is alive: each run owns one worktree.

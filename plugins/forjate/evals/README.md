@@ -39,3 +39,5 @@ python3 plugins/forjate/evals/grade.py --all evals-workspace/kustomize/iteration
 ```
 
 Needs `claude` on PATH, `kubectl`, `kubeconform`, `yq`, and the repo's poetry env.
+
+Runs use **Opus** by default (`--model` or `FORJATE_EVAL_MODEL` to change). A run that hits the account's session limit is recorded with `is_error: true` in `timing.json` and must be re-run; the benchmark is not meaningful until every row has a real duration.

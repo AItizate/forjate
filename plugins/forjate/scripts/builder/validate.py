@@ -11,6 +11,11 @@ Checks, per use case:
      to its stage and to the brief's data classification
   5. consistency between stage-plan and decisions: experts the plan marks as
      run=true have a record, decisions do not cover stages the plan skipped
+  6. cross-record consistency: two records that choose incompatible components for the
+     same stage (NATS vs RabbitMQ, LanceDB vs Milvus, Ollama vs vLLM, ...) or disagree on
+     a shared setting (broker, psa_level, secrets_mechanism, data_residency, data_egress)
+     are a conflict. A conflict is an error unless a record acknowledges it with an open
+     question that names both sides; the validator never picks a winner.
 
 Exit 1 on any error. Warnings never fail the run.
 """
@@ -26,6 +31,24 @@ from packs import active_packs, load_pack, RULE_REF_RE
 
 RULE_REF = re.compile(r"^pack:(?P<pack>[a-z0-9-]+)#(?P<id>[A-Z][A-Z0-9]*-[0-9]+)$")
 PSA_RANK = {"privileged": 0, "baseline": 1, "restricted": 2}
+
+# Cross-record consistency (check 6). Components in one group are mutually exclusive
+# within a use case; a setting in SHARED_SETTINGS must have one value per stage across
+# every record that states it. Settings that name a component map onto the group so
+# "broker: nats" in one record and apps/brokers/rabbitmq in another is one conflict.
+EXCLUSIVE_GROUPS = {
+    "broker": {"apps/brokers/nats", "apps/brokers/rabbitmq"},
+    "vector store": {"apps/databases/lancedb", "apps/databases/milvus"},
+    "inference server": {"apps/ai-models/ollama", "apps/ai-models/vllm"},
+    "object storage": {"apps/minio/dev", "apps/minio/single-server"},
+    "secrets mechanism": {"apps/sealed-secrets", "apps/security/external-secrets", "apps/security/vault"},
+}
+SETTING_TO_GROUP = {
+    "broker": ("broker", {"nats": "apps/brokers/nats", "rabbitmq": "apps/brokers/rabbitmq"}),
+    "inference": ("inference server", {"ollama": "apps/ai-models/ollama", "vllm": "apps/ai-models/vllm"}),
+}
+SHARED_SETTINGS = ("psa_level", "secrets_mechanism", "data_residency", "data_egress")
+CDC_BROKER = {"-nats": "apps/brokers/nats", "-rabbitmq": "apps/brokers/rabbitmq"}
 SECRETS_RANK = {"secret-generator": 0, "sealed-secrets": 1, "external-secrets": 2, "vault": 2}
 
 
@@ -126,6 +149,91 @@ def check_rule(ref: str, entry: dict, area: str, stage: str, sd: dict, data_clas
     return None
 
 
+def _acknowledged(decisions: dict[str, dict], values: list[str]) -> str | None:
+    """Return 'area/Qn' if some record raises an open question naming every conflicting value."""
+    needles = []
+    for v in values:
+        v = str(v)
+        needles.append([v.lower()] + ([v.rsplit("/", 1)[-1].lower()] if "/" in v else []))
+    for area, d in decisions.items():
+        for q in d["spec"].get("open_questions", []):
+            text = str(q.get("question", "")).lower()
+            if all(any(re.search(r"(?<![a-z0-9])" + re.escape(n) + r"(?![a-z0-9])", text) for n in alts) for alts in needles):
+                return f"{area}/{q.get('id', '?')}"
+    return None
+
+
+def cross_record_conflicts(decisions: dict[str, dict]) -> tuple[list[str], list[str]]:
+    """Check 6. Returns (errors, warnings). Never mutates a record."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    if len(decisions) < 2:
+        return errors, warnings
+    for stage in STAGES:
+        # group -> value -> [areas]
+        claims: dict[str, dict[str, list[str]]] = {}
+        shared: dict[str, dict[str, list[str]]] = {}
+
+        def claim(group: str, value: str, area: str) -> None:
+            claims.setdefault(group, {}).setdefault(value, [])
+            if area not in claims[group][value]:
+                claims[group][value].append(area)
+
+        for area, d in decisions.items():
+            sd = d["spec"]["stages"].get(stage)
+            if not sd:
+                continue
+            for c in sd.get("choice") or []:
+                for group, members in EXCLUSIVE_GROUPS.items():
+                    if c in members:
+                        claim(group, c, area)
+                if c.startswith("apps/cdc/"):
+                    for suffix, broker in CDC_BROKER.items():
+                        if c.endswith(suffix):
+                            claim("broker", broker, f"{area} (via {c})")
+            settings = sd.get("settings") or {}
+            for key, (group, mapping) in SETTING_TO_GROUP.items():
+                v = str(settings.get(key, "")).lower()
+                if v in mapping:
+                    claim(group, mapping[v], area)
+            for key in SHARED_SETTINGS:
+                if key in settings and settings[key] not in (None, ""):
+                    shared.setdefault(key, {}).setdefault(str(settings[key]), [])
+                    if area not in shared[key][str(settings[key])]:
+                        shared[key][str(settings[key])].append(area)
+
+        for group, by_value in claims.items():
+            if len(by_value) < 2:
+                continue
+            sides = "; ".join(f"{', '.join(areas)} → {v}" for v, areas in by_value.items())
+            msg = f"cross-record conflict ({stage}, {group}): {sides}"
+            ack = _acknowledged(decisions, list(by_value))
+            if ack:
+                warnings.append(f"{msg}; acknowledged by open question {ack}, resolve with the user")
+            else:
+                errors.append(f"{msg}; raise an open question naming both in one of the records, do not resolve it silently")
+        for key, by_value in shared.items():
+            if len(by_value) < 2:
+                continue
+            sides = "; ".join(f"{', '.join(areas)} → {v}" for v, areas in by_value.items())
+            msg = f"cross-record conflict ({stage}, setting {key}): {sides}"
+            ack = _acknowledged(decisions, list(by_value))
+            if ack:
+                warnings.append(f"{msg}; acknowledged by open question {ack}, resolve with the user")
+            else:
+                errors.append(f"{msg}; raise an open question naming both values in one of the records, do not resolve it silently")
+        # A CDC connector without its broker anywhere is a gap, not a conflict.
+        for area, d in decisions.items():
+            sd = d["spec"]["stages"].get(stage) or {}
+            for c in sd.get("choice") or []:
+                if c.startswith("apps/cdc/"):
+                    needed = next((b for suf, b in CDC_BROKER.items() if c.endswith(suf)), None)
+                    present = any(needed in (dd["spec"]["stages"].get(stage) or {}).get("choice", []) for dd in decisions.values())
+                    if needed and not present:
+                        warnings.append(f"{area}: {stage}: {c} needs {needed} in some record's choice for the same stage")
+    return errors, warnings
+
+
 def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -169,6 +277,7 @@ def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
         planned_experts = {e["role"]: e["run"] for e in plan["spec"]["experts"]}
 
     found_areas = set()
+    decisions: dict[str, dict] = {}
     for dpath in sorted((b / "decisions").glob("*.yaml")) if (b / "decisions").is_dir() else []:
         d = load_yaml(dpath)
         errs = schema_errors("decision", d, str(dpath))
@@ -177,6 +286,7 @@ def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
             continue
         area = d["metadata"]["area"]
         found_areas.add(area)
+        decisions[area] = d
         if dpath.stem != area:
             errors.append(f"{dpath}: file name should be {area}.yaml")
         if d["metadata"]["usecase"] != uc_name:
@@ -199,6 +309,10 @@ def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
                 msg = check_rule(ref, entry, area, stage, sd, data_class)
                 if msg:
                     errors.append(f"{dpath}: {stage}: {msg}")
+
+    c_errs, c_warns = cross_record_conflicts(decisions)
+    errors += [f"{uc}: {e}" for e in c_errs]
+    warnings += [f"{uc}: {w}" for w in c_warns]
 
     for role, run in planned_experts.items():
         if run and role not in found_areas:

@@ -7,7 +7,7 @@ Everything the builder team produces is YAML validated against a JSON Schema in 
 | `.builder/brief.yaml` | `brief.schema.json` | `forjate:coordinator` (intake), enriched by `forjate:business` | everyone |
 | `.builder/packs.yaml` | `packs-active.schema.json` | `forjate:coordinator` | `packs.py resolve` |
 | `.builder/stage-plan.yaml` | `stage-plan.schema.json` | `forjate:stage-planner` | coordinator, every expert |
-| `.builder/decisions/<area>.yaml` | `decision.schema.json` | the expert for that area | coordinator, `forjate:kustomize`, `forjate:quality`, reviewers |
+| `.builder/decisions/<area>.yaml` | `decision.schema.json` | the expert for that area | coordinator, `forjate:kustomize`, `forjate:quality`, reviewers; `business.yaml` is read by every other expert |
 | `.builder/gates.yaml` | `gates.schema.json` | `forjate:quality` | coordinator, approvers |
 | `usecase.yaml` | `scripts/ephemeral/usecase.schema.json` | `forjate:kustomize` | `ephemeral.sh`, agents |
 | `context-packs/<name>/pack.yaml` | `pack.schema.json` | pack authors | `packs.py` |
@@ -29,7 +29,11 @@ The one shape every expert returns. Per stage: what was chosen (`choice`, catalo
 | `data_egress` | ai-engineering, security, compliance | `data_egress` |
 | `data_residency` | data-store, compliance, devops | `data_residency` |
 | `namespace` | kustomize, devops | `naming_pattern` (target `namespace`) |
+| `broker` | architecture, data-pipeline | cross-record consistency (check 6) |
+| `inference` | ai-engineering | cross-record consistency (check 6) |
 | any key | any | `require_setting`, `deny_setting_value` (with `target`) |
+
+The full key set each expert emits is documented in `experts.md`.
 
 Plus `estimated_cost_usd_month` at stage level, matched by `max_cost_usd_month`.
 
@@ -40,8 +44,9 @@ Plus `estimated_cost_usd_month` at stage level, matched by `max_cost_usd_month`.
 3. Every `pack:<name>#<ID>` cited exists in an active pack.
 4. No stage decision violates a `must` of a structured type that applies to its area, its stage and the brief's data classification.
 5. Plan/decision consistency: experts the plan runs have a record (warning), decisions do not cover skipped stages (warning).
+6. Cross-record consistency: for each stage, two records that choose components from one exclusive group (brokers `nats`/`rabbitmq`, vector stores `lancedb`/`milvus`, inference `ollama`/`vllm`, object storage `minio/dev`/`minio/single-server`, secrets `sealed-secrets`/`external-secrets`/`vault`), that imply one through a setting (`broker`, `inference`) or a CDC connector's suffix, or that disagree on a shared setting (`psa_level`, `secrets_mechanism`, `data_residency`, `data_egress`) are a **conflict**. A conflict is an error unless some record carries an open question naming both sides, in which case it is a warning the coordinator reports to the user. The validator never resolves a conflict and the coordinator never edits a record to make one disappear.
 
-Warnings never fail CI; errors do. Cross-record consistency between experts (pipeline says NATS, architecture says RabbitMQ) is a Phase 2 addition.
+Warnings never fail CI; errors do.
 
 ## Lifecycle of the artifacts
 

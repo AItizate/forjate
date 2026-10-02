@@ -2,7 +2,7 @@
 
 > An agentic team that takes a one-paragraph business problem and turns it into a Forjate overlay, staged Crawl → Walk → Run, with structured, reviewable artifacts at every step.
 
-Status: **proposal** · Owner: Sebas · Created: 2026-10-02
+Status: **Phase 0 done (tag `builder-p0`, 2026-10-02)** · Owner: Sebas · Created: 2026-10-02
 
 ---
 

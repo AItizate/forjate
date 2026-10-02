@@ -1,0 +1,259 @@
+# Curated facts about catalog components that cannot be derived from k8s/**.
+# Merged into wiki/catalog.json by scripts/wiki-compile.py. Keys are component
+# paths relative to k8s/components/. Anything not listed here appears in the
+# catalog with `curated: false` and conservative defaults.
+#
+# Fields:
+#   stages        which Crawl/Walk/Run stages the component is a sensible fit for
+#   roles         what it is for, in use-case builder vocabulary (see docs/use-case-builder/plan.md)
+#   psa_restricted true when the shipped manifests run under Pod Security Admission `restricted`
+#   secrets       how it takes credentials: none | env | sealed (ships a sealed-secret example)
+#   maturity      lab | mvp | production — how battle-tested the component is in this factory
+#   licence       upstream licence, for forjate:compliance. Verify before relying on it.
+#   notes         one line for the experts
+defaults:
+  stages: [crawl, walk, run]
+  roles: []
+  psa_restricted: unknown
+  secrets: unknown
+  maturity: lab
+
+components:
+  apps/databases/postgres:
+    stages: [crawl, walk, run]
+    roles: [relational, long-term-memory, working-memory]
+    psa_restricted: unknown
+    secrets: env
+    maturity: mvp
+    licence: PostgreSQL
+    notes: Default system of record. Single StatefulSet; move to an operator (CNPG) at Run for HA/PITR.
+  apps/databases/redis:
+    stages: [crawl, walk, run]
+    roles: [session-memory, cache, queue]
+    maturity: mvp
+    licence: BSD-3 (7.2) / RSALv2+SSPL (7.4+)
+    notes: Short-term memory and rate limiting. Check the image tag against the licence change.
+  apps/databases/mongodb:
+    stages: [crawl, walk]
+    roles: [document, chat-memory]
+    maturity: lab
+    licence: SSPL
+    notes: Convenient for chat transcripts; SSPL is often disallowed in corporate packs.
+  apps/databases/mariadb:
+    stages: [crawl, walk, run]
+    roles: [relational]
+    maturity: lab
+    licence: GPL-2.0
+  apps/databases/lancedb:
+    stages: [crawl, walk]
+    roles: [vector, semantic-memory]
+    maturity: lab
+    licence: Apache-2.0
+    notes: Embedded-style vector store served over HTTP; cheapest semantic memory for Crawl.
+  apps/databases/milvus:
+    stages: [walk, run]
+    roles: [vector, semantic-memory]
+    maturity: lab
+    licence: Apache-2.0
+    notes: Heavier; needs etcd + MinIO. Reach for it when LanceDB's single-writer model is the bottleneck.
+  apps/databases/etcd:
+    stages: [walk, run]
+    roles: [coordination]
+    licence: Apache-2.0
+  apps/minio/single-server:
+    stages: [crawl, walk]
+    roles: [artifacts, object-storage]
+    maturity: mvp
+    licence: AGPL-3.0
+    notes: Prompts, run logs, documents. Single server has no redundancy; use a Tenant via the operator at Run.
+  apps/minio/dev:
+    stages: [crawl]
+    roles: [artifacts, object-storage]
+    licence: AGPL-3.0
+  apps/ai-models/ollama:
+    stages: [crawl, walk]
+    roles: [inference, local-model]
+    maturity: mvp
+    licence: MIT
+    notes: Zero-egress inference. CPU is fine for Crawl; needs a GPU node for Walk latency.
+  apps/ai-models/vllm:
+    stages: [walk, run]
+    roles: [inference, local-model]
+    licence: Apache-2.0
+    notes: GPU required. The production-shaped local inference server.
+  apps/ai-models/litellm:
+    stages: [crawl, walk, run]
+    roles: [llm-gateway, model-routing, cost-tracking]
+    secrets: env
+    maturity: mvp
+    licence: MIT
+    notes: One OpenAI-compatible endpoint in front of local and external models; where egress policy is enforced.
+  apps/ai-models/open-webui:
+    stages: [crawl, walk]
+    roles: [chat-ui]
+    licence: BSD-3 (with branding clause)
+    notes: Fastest human-facing surface for a Crawl demo.
+  apps/brokers/nats:
+    stages: [crawl, walk, run]
+    roles: [messaging, events]
+    maturity: mvp
+    licence: Apache-2.0
+    notes: Lightweight; JetStream gives persistence. Default broker for event-driven use cases.
+  apps/brokers/rabbitmq:
+    stages: [walk, run]
+    roles: [messaging, work-queues]
+    licence: MPL-2.0
+    notes: Choose when you need classic work-queue semantics or AMQP clients already exist.
+  apps/brokers/mosquitto:
+    stages: [crawl, walk, run]
+    roles: [messaging, iot]
+    licence: EPL-2.0
+  apps/workflows/temporal:
+    stages: [walk, run]
+    roles: [durable-workflows, orchestration]
+    maturity: mvp
+    licence: MIT
+    notes: auto-setup image; use bundles/temporal-stack for the Postgres wiring.
+  bundles/temporal-stack:
+    stages: [walk, run]
+    roles: [durable-workflows, orchestration]
+    maturity: mvp
+    licence: MIT
+  apps/document-processing/docling:
+    stages: [crawl, walk, run]
+    roles: [document-parsing, ingestion]
+    licence: MIT
+    notes: PDF/Office to structured text. CPU image; slow but dependable for Crawl.
+  apps/cdc/debezium-postgres-nats:
+    stages: [walk, run]
+    roles: [cdc, audit-trail]
+    licence: Apache-2.0
+  apps/cdc/debezium-postgres-rabbitmq:
+    stages: [walk, run]
+    roles: [cdc, audit-trail]
+    licence: Apache-2.0
+  apps/cdc/debezium-mongo-nats:
+    stages: [walk, run]
+    roles: [cdc]
+    licence: Apache-2.0
+  apps/cdc/debezium-mongo-rabbitmq:
+    stages: [walk, run]
+    roles: [cdc]
+    licence: Apache-2.0
+  apps/cdc/debezium-mariadb-nats:
+    stages: [walk, run]
+    roles: [cdc]
+    licence: Apache-2.0
+  apps/cdc/debezium-mariadb-rabbitmq:
+    stages: [walk, run]
+    roles: [cdc]
+    licence: Apache-2.0
+  apps/sealed-secrets:
+    stages: [walk, run]
+    roles: [secrets]
+    maturity: mvp
+    licence: Apache-2.0
+    notes: The floor for secrets in git from Walk onwards.
+  apps/security/external-secrets:
+    stages: [run]
+    roles: [secrets]
+    licence: Apache-2.0
+    notes: Pulls from a corporate secret store; the Run-stage mechanism in regulated packs.
+  apps/security/vault:
+    stages: [run]
+    roles: [secrets, pki]
+    licence: BUSL-1.1
+    notes: Licence is BUSL; compliance should confirm it is acceptable.
+  apps/auth/gotrue-auth:
+    stages: [walk, run]
+    roles: [auth, identity]
+    maturity: mvp
+    licence: MIT
+    notes: Pair with base oauth2-proxy for one login in front of any HTTP surface.
+  apps/continuous-delivery/argocd:
+    stages: [walk, run]
+    roles: [gitops]
+    maturity: mvp
+    licence: Apache-2.0
+  apps/monitoring/prometheus:
+    stages: [walk, run]
+    roles: [metrics]
+    maturity: mvp
+    licence: Apache-2.0
+  apps/monitoring/grafana:
+    stages: [walk, run]
+    roles: [dashboards]
+    maturity: mvp
+    licence: AGPL-3.0
+  apps/monitoring/otel-collector:
+    stages: [walk, run]
+    roles: [telemetry, traces, logs]
+    licence: Apache-2.0
+    notes: The step from metrics-only to metrics+logs+traces; needed for LLM call tracing.
+  apps/monitoring/reloader:
+    stages: [walk, run]
+    roles: [operations]
+    licence: Apache-2.0
+  apps/monitoring/kubernetes-dashboard:
+    stages: [crawl, walk]
+    roles: [operations]
+    licence: Apache-2.0
+  apps/storage/longhorn:
+    stages: [walk, run]
+    roles: [block-storage]
+    maturity: mvp
+    licence: Apache-2.0
+    notes: Not for k3d; single replica on a Pi, three replicas from Walk.
+  apps/networking/metallb:
+    stages: [walk, run]
+    roles: [load-balancer]
+    maturity: mvp
+    licence: Apache-2.0
+  apps/cloudflare-tunnel:
+    stages: [walk, run]
+    roles: [ingress, zero-trust]
+    maturity: mvp
+    licence: Apache-2.0
+    notes: Public ingress without open ports.
+  apps/iac/crossplane:
+    stages: [run]
+    roles: [managed-services]
+    licence: Apache-2.0
+  apps/analytics/metabase:
+    stages: [walk, run]
+    roles: [bi, dashboards]
+    licence: AGPL-3.0
+  apps/surveys/formbricks:
+    stages: [walk, run]
+    roles: [feedback, surveys]
+    licence: AGPL-3.0
+    notes: In-product feedback capture for forjate:ux.
+  apps/n8n:
+    stages: [crawl, walk]
+    roles: [low-code-automation]
+    licence: Sustainable Use License
+    notes: Not OSI-approved; corporate packs often restrict it.
+  apps/node-red:
+    stages: [crawl, walk]
+    roles: [low-code-automation, iot]
+    licence: Apache-2.0
+  apps/docker-registry:
+    stages: [crawl, walk]
+    roles: [images]
+    licence: Apache-2.0
+  apps/whoami:
+    stages: [crawl]
+    roles: [smoke-test]
+    licence: MIT
+  rbac:
+    stages: [walk, run]
+    roles: [access-control]
+  pvcs:
+    stages: [crawl]
+    roles: [storage]
+  pvs/local-storage:
+    stages: [crawl]
+    roles: [storage]
+  pvs/nfs-storage:
+    stages: [crawl, walk]
+    roles: [storage]

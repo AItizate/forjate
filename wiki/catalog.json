@@ -1,0 +1,2463 @@
+{
+  "apiVersion": "forjate.io/v0",
+  "kind": "Catalog",
+  "compiled_at": "2026-10-02",
+  "stages": [
+    "crawl",
+    "walk",
+    "run"
+  ],
+  "components": [
+    {
+      "path": "apps/agents/cluster-introspector",
+      "name": "agents-cluster-introspector",
+      "category": "agents",
+      "wiki": "wiki/components/agents-cluster-introspector.md",
+      "summary": "deploys `busybox:1.37`",
+      "images": [
+        "busybox:1.37",
+        "ghcr.io/example/cluster-introspector:latest"
+      ],
+      "kinds": [
+        "ClusterRole",
+        "ClusterRoleBinding",
+        "Deployment",
+        "PersistentVolumeClaim",
+        "Service",
+        "ServiceAccount"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "overlays/home-edge-lab"
+      ],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/ai-models/litellm",
+      "name": "ai-models-litellm",
+      "category": "ai-models",
+      "wiki": "wiki/components/ai-models-litellm.md",
+      "summary": "deploys `ghcr.io/berriai/litellm:main-stable`",
+      "images": [
+        "ghcr.io/berriai/litellm:main-stable"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "PersistentVolumeClaim",
+        "Secret",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "llm-gateway",
+        "model-routing",
+        "cost-tracking"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "env",
+      "maturity": "mvp",
+      "licence": "MIT",
+      "notes": "One OpenAI-compatible endpoint in front of local and external models; where egress policy is enforced.",
+      "curated": true
+    },
+    {
+      "path": "apps/ai-models/litellm/postgres",
+      "name": "ai-models-litellm-postgres",
+      "category": "ai-models",
+      "wiki": "wiki/components/ai-models-litellm-postgres.md",
+      "summary": "composes `postgres`",
+      "images": [],
+      "kinds": [],
+      "composes": [
+        "k8s/components/apps/databases/postgres"
+      ],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": "components/ai-models-litellm",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/ai-models/ollama",
+      "name": "ai-models-ollama",
+      "category": "ai-models",
+      "wiki": "wiki/components/ai-models-ollama.md",
+      "summary": "deploys `ollama/ollama:latest`",
+      "images": [
+        "ollama/ollama:latest"
+      ],
+      "kinds": [
+        "PersistentVolumeClaim",
+        "Service",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "overlays/agentic-simple-workflow"
+      ],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk"
+      ],
+      "roles": [
+        "inference",
+        "local-model"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "MIT",
+      "notes": "Zero-egress inference. CPU is fine for Crawl; needs a GPU node for Walk latency.",
+      "curated": true
+    },
+    {
+      "path": "apps/ai-models/open-webui",
+      "name": "ai-models-open-webui",
+      "category": "ai-models",
+      "wiki": "wiki/components/ai-models-open-webui.md",
+      "summary": "deploys `ghcr.io/open-webui/open-webui:main`",
+      "images": [
+        "ghcr.io/open-webui/open-webui:main"
+      ],
+      "kinds": [
+        "Certificate",
+        "Deployment",
+        "Ingress",
+        "PersistentVolumeClaim",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk"
+      ],
+      "roles": [
+        "chat-ui"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "BSD-3 (with branding clause)",
+      "notes": "Fastest human-facing surface for a Crawl demo.",
+      "curated": true
+    },
+    {
+      "path": "apps/ai-models/vllm",
+      "name": "ai-models-vllm",
+      "category": "ai-models",
+      "wiki": "wiki/components/ai-models-vllm.md",
+      "summary": "deploys `vllm/vllm-openai:latest`",
+      "images": [
+        "vllm/vllm-openai:latest"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "PersistentVolumeClaim",
+        "Service",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "inference",
+        "local-model"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "notes": "GPU required. The production-shaped local inference server.",
+      "curated": true
+    },
+    {
+      "path": "apps/analytics/metabase",
+      "name": "analytics-metabase",
+      "category": "analytics",
+      "wiki": "wiki/components/analytics-metabase.md",
+      "summary": "deploys `metabase/metabase:v0.59.6`",
+      "images": [
+        "metabase/metabase:v0.59.6"
+      ],
+      "kinds": [
+        "Deployment",
+        "Ingress",
+        "PersistentVolumeClaim",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "bi",
+        "dashboards"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "AGPL-3.0",
+      "curated": true
+    },
+    {
+      "path": "apps/auth/gotrue-auth/authz",
+      "name": "auth-gotrue-auth-authz",
+      "category": "auth",
+      "wiki": "wiki/components/auth-gotrue-auth-authz.md",
+      "summary": "deploys `node:20.18-alpine`",
+      "images": [
+        "node:20.18-alpine"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/auth-gotrue-auth"
+      ],
+      "parent": "components/auth-gotrue-auth",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/auth/gotrue-auth/gotrue",
+      "name": "auth-gotrue-auth-gotrue",
+      "category": "auth",
+      "wiki": "wiki/components/auth-gotrue-auth-gotrue.md",
+      "summary": "deploys `busybox:1.36`",
+      "images": [
+        "busybox:1.36",
+        "postgres:16",
+        "supabase/gotrue:v2.188.1"
+      ],
+      "kinds": [
+        "Deployment",
+        "Ingress",
+        "Secret",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/auth-gotrue-auth"
+      ],
+      "parent": "components/auth-gotrue-auth",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/auth/gotrue-auth",
+      "name": "auth-gotrue-auth",
+      "category": "auth",
+      "wiki": "wiki/components/auth-gotrue-auth.md",
+      "summary": "deploys `busybox:1.36`",
+      "images": [
+        "busybox:1.36",
+        "node:20.18-alpine",
+        "postgres:16",
+        "supabase/gotrue:v2.188.1"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "Ingress",
+        "Middleware",
+        "Secret",
+        "Service"
+      ],
+      "composes": [
+        "k8s/components/apps/auth/gotrue-auth/gotrue",
+        "k8s/components/apps/auth/gotrue-auth/authz",
+        "k8s/components/apps/auth/gotrue-auth/middlewares"
+      ],
+      "remote_refs": [],
+      "consumed_by": [
+        "overlays/agentic-simple-workflow",
+        "overlays/home-edge-lab",
+        "overlays/multi-tenant-pattern-org"
+      ],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "auth",
+        "identity"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "MIT",
+      "notes": "Pair with base oauth2-proxy for one login in front of any HTTP surface.",
+      "curated": true
+    },
+    {
+      "path": "apps/auth/gotrue-auth/middlewares",
+      "name": "auth-gotrue-auth-middlewares",
+      "category": "auth",
+      "wiki": "wiki/components/auth-gotrue-auth-middlewares.md",
+      "summary": "declares `Middleware`",
+      "images": [],
+      "kinds": [
+        "Middleware"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/auth-gotrue-auth"
+      ],
+      "parent": "components/auth-gotrue-auth",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/brokers/mosquitto",
+      "name": "brokers-mosquitto",
+      "category": "brokers",
+      "wiki": "wiki/components/brokers-mosquitto.md",
+      "summary": "deploys `eclipse-mosquitto`",
+      "images": [
+        "eclipse-mosquitto"
+      ],
+      "kinds": [
+        "Deployment",
+        "PersistentVolumeClaim",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "overlays/home-edge-lab"
+      ],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "messaging",
+        "iot"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "EPL-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/brokers/nats",
+      "name": "brokers-nats",
+      "category": "brokers",
+      "wiki": "wiki/components/brokers-nats.md",
+      "summary": "deploys `nats:2.10-alpine`",
+      "images": [
+        "nats:2.10-alpine"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Service",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "messaging",
+        "events"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "Apache-2.0",
+      "notes": "Lightweight; JetStream gives persistence. Default broker for event-driven use cases.",
+      "curated": true
+    },
+    {
+      "path": "apps/brokers/rabbitmq",
+      "name": "brokers-rabbitmq",
+      "category": "brokers",
+      "wiki": "wiki/components/brokers-rabbitmq.md",
+      "summary": "deploys `rabbitmq:3.13-management`",
+      "images": [
+        "rabbitmq:3.13-management"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Service",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "messaging",
+        "work-queues"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "MPL-2.0",
+      "notes": "Choose when you need classic work-queue semantics or AMQP clients already exist.",
+      "curated": true
+    },
+    {
+      "path": "apps/cdc/debezium-mariadb-nats",
+      "name": "cdc-debezium-mariadb-nats",
+      "category": "cdc",
+      "wiki": "wiki/components/cdc-debezium-mariadb-nats.md",
+      "summary": "deploys `natsio/nats-box:0.19`",
+      "images": [
+        "natsio/nats-box:0.19",
+        "quay.io/debezium/server:3.4"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "Job",
+        "PersistentVolumeClaim"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "cdc"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/cdc/debezium-mariadb-rabbitmq",
+      "name": "cdc-debezium-mariadb-rabbitmq",
+      "category": "cdc",
+      "wiki": "wiki/components/cdc-debezium-mariadb-rabbitmq.md",
+      "summary": "deploys `quay.io/debezium/server:3.4`",
+      "images": [
+        "quay.io/debezium/server:3.4"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "PersistentVolumeClaim"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "cdc"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/cdc/debezium-mongo-nats",
+      "name": "cdc-debezium-mongo-nats",
+      "category": "cdc",
+      "wiki": "wiki/components/cdc-debezium-mongo-nats.md",
+      "summary": "deploys `natsio/nats-box:0.19`",
+      "images": [
+        "natsio/nats-box:0.19",
+        "quay.io/debezium/server:3.4"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "Job",
+        "PersistentVolumeClaim"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "cdc"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/cdc/debezium-mongo-rabbitmq",
+      "name": "cdc-debezium-mongo-rabbitmq",
+      "category": "cdc",
+      "wiki": "wiki/components/cdc-debezium-mongo-rabbitmq.md",
+      "summary": "deploys `quay.io/debezium/server:3.4`",
+      "images": [
+        "quay.io/debezium/server:3.4"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "PersistentVolumeClaim"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "cdc"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/cdc/debezium-postgres-nats",
+      "name": "cdc-debezium-postgres-nats",
+      "category": "cdc",
+      "wiki": "wiki/components/cdc-debezium-postgres-nats.md",
+      "summary": "deploys `natsio/nats-box:0.19`",
+      "images": [
+        "natsio/nats-box:0.19",
+        "quay.io/debezium/server:3.4"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "Job",
+        "PersistentVolumeClaim"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "cdc",
+        "audit-trail"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/cdc/debezium-postgres-rabbitmq",
+      "name": "cdc-debezium-postgres-rabbitmq",
+      "category": "cdc",
+      "wiki": "wiki/components/cdc-debezium-postgres-rabbitmq.md",
+      "summary": "deploys `quay.io/debezium/server:3.4`",
+      "images": [
+        "quay.io/debezium/server:3.4"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "PersistentVolumeClaim"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "cdc",
+        "audit-trail"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/cloudflare-tunnel",
+      "name": "cloudflare-tunnel",
+      "category": "standalone",
+      "wiki": "wiki/components/cloudflare-tunnel.md",
+      "summary": "deploys `cloudflare/cloudflared:latest`",
+      "images": [
+        "cloudflare/cloudflared:latest"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "Namespace"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "overlays/bare-metal-starter",
+        "overlays/home-edge-lab"
+      ],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "ingress",
+        "zero-trust"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "Apache-2.0",
+      "notes": "Public ingress without open ports.",
+      "curated": true
+    },
+    {
+      "path": "apps/communication/snappymail",
+      "name": "communication-snappymail",
+      "category": "communication",
+      "wiki": "wiki/components/communication-snappymail.md",
+      "summary": "deploys `djmaze/snappymail:v2.38.2`",
+      "images": [
+        "djmaze/snappymail:v2.38.2"
+      ],
+      "kinds": [
+        "Deployment",
+        "IngressRoute",
+        "PersistentVolumeClaim",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/communication/stalwart",
+      "name": "communication-stalwart",
+      "category": "communication",
+      "wiki": "wiki/components/communication-stalwart.md",
+      "summary": "deploys `busybox:1.36`",
+      "images": [
+        "busybox:1.36",
+        "stalwartlabs/stalwart:v0.15.5"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "IngressRoute",
+        "PersistentVolumeClaim",
+        "Secret",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/continuous-delivery/argocd",
+      "name": "continuous-delivery-argocd",
+      "category": "continuous-delivery",
+      "wiki": "wiki/components/continuous-delivery-argocd.md",
+      "summary": "vendors `install.yaml`",
+      "images": [],
+      "kinds": [
+        "Certificate",
+        "Ingress",
+        "Namespace"
+      ],
+      "composes": [],
+      "remote_refs": [
+        "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"
+      ],
+      "consumed_by": [
+        "overlays/bare-metal-starter",
+        "overlays/multi-tenant-pattern-org"
+      ],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "gitops"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/databases/etcd",
+      "name": "databases-etcd",
+      "category": "databases",
+      "wiki": "wiki/components/databases-etcd.md",
+      "summary": "deploys `quay.io/coreos/etcd:v3.5.16`",
+      "images": [
+        "quay.io/coreos/etcd:v3.5.16"
+      ],
+      "kinds": [
+        "Service",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "coordination"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/databases/lancedb",
+      "name": "databases-lancedb",
+      "category": "databases",
+      "wiki": "wiki/components/databases-lancedb.md",
+      "summary": "deploys `setchevest/lancedb-server:0.4.6`",
+      "images": [
+        "setchevest/lancedb-server:0.4.6"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "PersistentVolumeClaim",
+        "Service",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk"
+      ],
+      "roles": [
+        "vector",
+        "semantic-memory"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "notes": "Embedded-style vector store served over HTTP; cheapest semantic memory for Crawl.",
+      "curated": true
+    },
+    {
+      "path": "apps/databases/mariadb",
+      "name": "databases-mariadb",
+      "category": "databases",
+      "wiki": "wiki/components/databases-mariadb.md",
+      "summary": "deploys `linuxserver/mariadb`",
+      "images": [
+        "linuxserver/mariadb"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "PersistentVolumeClaim",
+        "Secret",
+        "Service",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "relational"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "GPL-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/databases/milvus",
+      "name": "databases-milvus",
+      "category": "databases",
+      "wiki": "wiki/components/databases-milvus.md",
+      "summary": "deploys `milvusdb/milvus:v2.5.4`",
+      "images": [
+        "milvusdb/milvus:v2.5.4"
+      ],
+      "kinds": [
+        "Service",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "vector",
+        "semantic-memory"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "notes": "Heavier; needs etcd + MinIO. Reach for it when LanceDB's single-writer model is the bottleneck.",
+      "curated": true
+    },
+    {
+      "path": "apps/databases/mongodb",
+      "name": "databases-mongodb",
+      "category": "databases",
+      "wiki": "wiki/components/databases-mongodb.md",
+      "summary": "deploys `busybox`",
+      "images": [
+        "busybox",
+        "mongo:7"
+      ],
+      "kinds": [
+        "Job",
+        "Service",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk"
+      ],
+      "roles": [
+        "document",
+        "chat-memory"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "SSPL",
+      "notes": "Convenient for chat transcripts; SSPL is often disallowed in corporate packs.",
+      "curated": true
+    },
+    {
+      "path": "apps/databases/mongodb/replica-set",
+      "name": "databases-mongodb-replica-set",
+      "category": "databases",
+      "wiki": "wiki/components/databases-mongodb-replica-set.md",
+      "summary": "deploys `busybox`",
+      "images": [
+        "busybox",
+        "mongo:7"
+      ],
+      "kinds": [
+        "Job",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": "components/databases-mongodb",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/databases/postgres",
+      "name": "databases-postgres",
+      "category": "databases",
+      "wiki": "wiki/components/databases-postgres.md",
+      "summary": "deploys `postgres:16`",
+      "images": [
+        "postgres:16"
+      ],
+      "kinds": [
+        "Secret",
+        "Service",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/ai-models-litellm-postgres",
+        "components/bundles-temporal-stack",
+        "overlays/agentic-simple-workflow",
+        "overlays/home-edge-lab",
+        "overlays/multi-cloud-portable",
+        "overlays/multi-tenant-pattern-org"
+      ],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "relational",
+        "long-term-memory",
+        "working-memory"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "env",
+      "maturity": "mvp",
+      "licence": "PostgreSQL",
+      "notes": "Default system of record. Single StatefulSet; move to an operator (CNPG) at Run for HA/PITR.",
+      "curated": true
+    },
+    {
+      "path": "apps/databases/redis",
+      "name": "databases-redis",
+      "category": "databases",
+      "wiki": "wiki/components/databases-redis.md",
+      "summary": "deploys `redis:7-alpine`",
+      "images": [
+        "redis:7-alpine"
+      ],
+      "kinds": [
+        "Deployment",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "session-memory",
+        "cache",
+        "queue"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "BSD-3 (7.2) / RSALv2+SSPL (7.4+)",
+      "notes": "Short-term memory and rate limiting. Check the image tag against the licence change.",
+      "curated": true
+    },
+    {
+      "path": "apps/docker-registry",
+      "name": "docker-registry",
+      "category": "standalone",
+      "wiki": "wiki/components/docker-registry.md",
+      "summary": "deploys `registry:2`",
+      "images": [
+        "registry:2"
+      ],
+      "kinds": [
+        "Deployment",
+        "Ingress",
+        "PersistentVolumeClaim",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk"
+      ],
+      "roles": [
+        "images"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/document-processing/docling",
+      "name": "document-processing-docling",
+      "category": "document-processing",
+      "wiki": "wiki/components/document-processing-docling.md",
+      "summary": "deploys `ghcr.io/docling-project/docling-serve-cpu:latest`",
+      "images": [
+        "ghcr.io/docling-project/docling-serve-cpu:latest"
+      ],
+      "kinds": [
+        "Deployment",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "document-parsing",
+        "ingestion"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "MIT",
+      "notes": "PDF/Office to structured text. CPU image; slow but dependable for Crawl.",
+      "curated": true
+    },
+    {
+      "path": "apps/home-automation/esphome",
+      "name": "home-automation-esphome",
+      "category": "home-automation",
+      "wiki": "wiki/components/home-automation-esphome.md",
+      "summary": "deploys `esphome/esphome:latest`",
+      "images": [
+        "esphome/esphome:latest"
+      ],
+      "kinds": [
+        "Deployment",
+        "Ingress",
+        "PersistentVolumeClaim",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/home-automation"
+      ],
+      "parent": "components/home-automation",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/home-automation/hass",
+      "name": "home-automation-hass",
+      "category": "home-automation",
+      "wiki": "wiki/components/home-automation-hass.md",
+      "summary": "deploys `homeassistant/raspberrypi4-homeassistant:latest`",
+      "images": [
+        "homeassistant/raspberrypi4-homeassistant:latest"
+      ],
+      "kinds": [
+        "Deployment",
+        "Ingress",
+        "PersistentVolumeClaim",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/home-automation"
+      ],
+      "parent": "components/home-automation",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/home-automation",
+      "name": "home-automation",
+      "category": "standalone",
+      "wiki": "wiki/components/home-automation.md",
+      "summary": "deploys `esphome/esphome:latest`",
+      "images": [
+        "esphome/esphome:latest",
+        "homeassistant/raspberrypi4-homeassistant:latest"
+      ],
+      "kinds": [
+        "Deployment",
+        "Ingress",
+        "PersistentVolumeClaim",
+        "Service"
+      ],
+      "composes": [
+        "k8s/components/apps/home-automation/esphome",
+        "k8s/components/apps/home-automation/hass"
+      ],
+      "remote_refs": [],
+      "consumed_by": [
+        "overlays/home-edge-lab"
+      ],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/iac/crossplane",
+      "name": "iac-crossplane",
+      "category": "iac",
+      "wiki": "wiki/components/iac-crossplane.md",
+      "summary": "declares `Account`, `Bucket`, `DatabaseInstance`",
+      "images": [],
+      "kinds": [
+        "Account",
+        "Bucket",
+        "DatabaseInstance",
+        "Namespace"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "run"
+      ],
+      "roles": [
+        "managed-services"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/minio/dev",
+      "name": "minio-dev",
+      "category": "minio",
+      "wiki": "wiki/components/minio-dev.md",
+      "summary": "deploys `quay.io/minio/minio:latest`",
+      "images": [
+        "quay.io/minio/minio:latest"
+      ],
+      "kinds": [
+        "Pod"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl"
+      ],
+      "roles": [
+        "artifacts",
+        "object-storage"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "AGPL-3.0",
+      "curated": true
+    },
+    {
+      "path": "apps/minio/single-server",
+      "name": "minio-single-server",
+      "category": "minio",
+      "wiki": "wiki/components/minio-single-server.md",
+      "summary": "deploys `quay.io/minio/minio:latest`",
+      "images": [
+        "quay.io/minio/minio:latest"
+      ],
+      "kinds": [
+        "Secret",
+        "Tenant"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "overlays/agentic-simple-workflow",
+        "overlays/home-edge-lab",
+        "overlays/multi-cloud-portable",
+        "overlays/multi-tenant-pattern-org"
+      ],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk"
+      ],
+      "roles": [
+        "artifacts",
+        "object-storage"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "AGPL-3.0",
+      "notes": "Prompts, run logs, documents. Single server has no redundancy; use a Tenant via the operator at Run.",
+      "curated": true
+    },
+    {
+      "path": "apps/monitoring/grafana",
+      "name": "monitoring-grafana",
+      "category": "monitoring",
+      "wiki": "wiki/components/monitoring-grafana.md",
+      "summary": "deploys `grafana/grafana:11.6.0`",
+      "images": [
+        "grafana/grafana:11.6.0"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "Ingress",
+        "PersistentVolumeClaim",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "overlays/bare-metal-starter",
+        "overlays/home-edge-lab"
+      ],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "dashboards"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "AGPL-3.0",
+      "curated": true
+    },
+    {
+      "path": "apps/monitoring/kubernetes-dashboard",
+      "name": "monitoring-kubernetes-dashboard",
+      "category": "monitoring",
+      "wiki": "wiki/components/monitoring-kubernetes-dashboard.md",
+      "summary": "declares `ClusterRoleBinding`, `Ingress`, `Secret`",
+      "images": [],
+      "kinds": [
+        "ClusterRoleBinding",
+        "Ingress",
+        "Secret",
+        "ServiceAccount"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk"
+      ],
+      "roles": [
+        "operations"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/monitoring/otel-collector/agent",
+      "name": "monitoring-otel-collector-agent",
+      "category": "monitoring",
+      "wiki": "wiki/components/monitoring-otel-collector-agent.md",
+      "summary": "deploys `otel/opentelemetry-collector-contrib:0.98.0`",
+      "images": [
+        "otel/opentelemetry-collector-contrib:0.98.0"
+      ],
+      "kinds": [
+        "ClusterRole",
+        "ClusterRoleBinding",
+        "ConfigMap",
+        "DaemonSet",
+        "Secret",
+        "Service",
+        "ServiceAccount"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/monitoring-otel-collector"
+      ],
+      "parent": "components/monitoring-otel-collector",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/monitoring/otel-collector/cluster",
+      "name": "monitoring-otel-collector-cluster",
+      "category": "monitoring",
+      "wiki": "wiki/components/monitoring-otel-collector-cluster.md",
+      "summary": "deploys `otel/opentelemetry-collector-contrib:0.98.0`",
+      "images": [
+        "otel/opentelemetry-collector-contrib:0.98.0"
+      ],
+      "kinds": [
+        "ClusterRole",
+        "ClusterRoleBinding",
+        "ConfigMap",
+        "Deployment",
+        "Service",
+        "ServiceAccount"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/monitoring-otel-collector"
+      ],
+      "parent": "components/monitoring-otel-collector",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/monitoring/otel-collector",
+      "name": "monitoring-otel-collector",
+      "category": "monitoring",
+      "wiki": "wiki/components/monitoring-otel-collector.md",
+      "summary": "deploys `otel/opentelemetry-collector-contrib:0.98.0`",
+      "images": [
+        "otel/opentelemetry-collector-contrib:0.98.0"
+      ],
+      "kinds": [
+        "ClusterRole",
+        "ClusterRoleBinding",
+        "ConfigMap",
+        "DaemonSet",
+        "Deployment",
+        "Secret",
+        "Service",
+        "ServiceAccount"
+      ],
+      "composes": [
+        "k8s/components/apps/monitoring/otel-collector/agent",
+        "k8s/components/apps/monitoring/otel-collector/cluster"
+      ],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "telemetry",
+        "traces",
+        "logs"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "notes": "The step from metrics-only to metrics+logs+traces; needed for LLM call tracing.",
+      "curated": true
+    },
+    {
+      "path": "apps/monitoring/prometheus",
+      "name": "monitoring-prometheus",
+      "category": "monitoring",
+      "wiki": "wiki/components/monitoring-prometheus.md",
+      "summary": "deploys `prom/prometheus:v3.2.1`",
+      "images": [
+        "prom/prometheus:v3.2.1"
+      ],
+      "kinds": [
+        "ClusterRole",
+        "ClusterRoleBinding",
+        "ConfigMap",
+        "Deployment",
+        "Ingress",
+        "Namespace",
+        "PersistentVolumeClaim",
+        "Service",
+        "ServiceAccount"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "overlays/bare-metal-starter",
+        "overlays/home-edge-lab",
+        "overlays/multi-cloud-portable",
+        "overlays/multi-tenant-pattern-org"
+      ],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "metrics"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/monitoring/reloader",
+      "name": "monitoring-reloader",
+      "category": "monitoring",
+      "wiki": "wiki/components/monitoring-reloader.md",
+      "summary": "Stakater Reloader — auto-restarts Deployments/StatefulSets on Secret/ConfigMap changes",
+      "images": [],
+      "kinds": [],
+      "composes": [],
+      "remote_refs": [
+        "https://raw.githubusercontent.com/stakater/Reloader/v1.4.14/deployments/kubernetes/reloader.yaml"
+      ],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "operations"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/n8n",
+      "name": "n8n",
+      "category": "standalone",
+      "wiki": "wiki/components/n8n.md",
+      "summary": "deploys `busybox:1.36`",
+      "images": [
+        "busybox:1.36",
+        "n8nio/n8n",
+        "postgres:15"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "Ingress",
+        "IngressRoute",
+        "Middleware",
+        "PersistentVolumeClaim",
+        "Secret",
+        "ServersTransport",
+        "Service"
+      ],
+      "composes": [
+        "k8s/components/apps/n8n/postgres",
+        "k8s/components/apps/n8n/n8n"
+      ],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk"
+      ],
+      "roles": [
+        "low-code-automation"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Sustainable Use License",
+      "notes": "Not OSI-approved; corporate packs often restrict it.",
+      "curated": true
+    },
+    {
+      "path": "apps/n8n/n8n",
+      "name": "n8n-n8n",
+      "category": "n8n",
+      "wiki": "wiki/components/n8n-n8n.md",
+      "summary": "deploys `busybox:1.36`",
+      "images": [
+        "busybox:1.36",
+        "n8nio/n8n"
+      ],
+      "kinds": [
+        "Deployment",
+        "Ingress",
+        "IngressRoute",
+        "Middleware",
+        "PersistentVolumeClaim",
+        "ServersTransport",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/n8n"
+      ],
+      "parent": "components/n8n",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/n8n/postgres",
+      "name": "n8n-postgres",
+      "category": "n8n",
+      "wiki": "wiki/components/n8n-postgres.md",
+      "summary": "deploys `postgres:15`",
+      "images": [
+        "postgres:15"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "PersistentVolumeClaim",
+        "Secret",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/n8n"
+      ],
+      "parent": "components/n8n",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/networking/metallb",
+      "name": "networking-metallb",
+      "category": "networking",
+      "wiki": "wiki/components/networking-metallb.md",
+      "summary": "vendors `native?ref=v0.15.2`",
+      "images": [],
+      "kinds": [],
+      "composes": [],
+      "remote_refs": [
+        "github.com/metallb/metallb/config/native?ref=v0.15.2"
+      ],
+      "consumed_by": [
+        "overlays/bare-metal-starter",
+        "overlays/home-edge-lab"
+      ],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "load-balancer"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/node-red",
+      "name": "node-red",
+      "category": "standalone",
+      "wiki": "wiki/components/node-red.md",
+      "summary": "deploys `busybox:1.36`",
+      "images": [
+        "busybox:1.36",
+        "nodered/node-red:latest"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "Ingress",
+        "PersistentVolumeClaim",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "overlays/home-edge-lab"
+      ],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk"
+      ],
+      "roles": [
+        "low-code-automation",
+        "iot"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "curated": true
+    },
+    {
+      "path": "apps/productivity/affine",
+      "name": "productivity-affine",
+      "category": "productivity",
+      "wiki": "wiki/components/productivity-affine.md",
+      "summary": "deploys `busybox:1.36`",
+      "images": [
+        "busybox:1.36",
+        "ghcr.io/toeverything/affine:0.26.3"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "IngressRoute",
+        "Service"
+      ],
+      "composes": [
+        "k8s/components/apps/productivity/affine/server"
+      ],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/productivity/affine/server",
+      "name": "productivity-affine-server",
+      "category": "productivity",
+      "wiki": "wiki/components/productivity-affine-server.md",
+      "summary": "deploys `busybox:1.36`",
+      "images": [
+        "busybox:1.36",
+        "ghcr.io/toeverything/affine:0.26.3"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Deployment",
+        "IngressRoute",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/productivity-affine"
+      ],
+      "parent": "components/productivity-affine",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/productivity/appflowy/admin-frontend",
+      "name": "productivity-appflowy-admin-frontend",
+      "category": "productivity",
+      "wiki": "wiki/components/productivity-appflowy-admin-frontend.md",
+      "summary": "deploys `appflowyinc/admin_frontend:0.13.3`",
+      "images": [
+        "appflowyinc/admin_frontend:0.13.3",
+        "busybox:1.36"
+      ],
+      "kinds": [
+        "Deployment",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/productivity-appflowy"
+      ],
+      "parent": "components/productivity-appflowy",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/productivity/appflowy/ai",
+      "name": "productivity-appflowy-ai",
+      "category": "productivity",
+      "wiki": "wiki/components/productivity-appflowy-ai.md",
+      "summary": "deploys `appflowyinc/appflowy_ai:0.13.3`",
+      "images": [
+        "appflowyinc/appflowy_ai:0.13.3",
+        "busybox:1.36"
+      ],
+      "kinds": [
+        "Deployment",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/productivity-appflowy"
+      ],
+      "parent": "components/productivity-appflowy",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/productivity/appflowy/appflowy-cloud",
+      "name": "productivity-appflowy-appflowy-cloud",
+      "category": "productivity",
+      "wiki": "wiki/components/productivity-appflowy-appflowy-cloud.md",
+      "summary": "deploys `appflowyinc/appflowy_cloud:0.13.3`",
+      "images": [
+        "appflowyinc/appflowy_cloud:0.13.3",
+        "busybox:1.36",
+        "postgres:16"
+      ],
+      "kinds": [
+        "Deployment",
+        "IngressRoute",
+        "Middleware",
+        "Secret",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/productivity-appflowy"
+      ],
+      "parent": "components/productivity-appflowy",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/productivity/appflowy/gotrue",
+      "name": "productivity-appflowy-gotrue",
+      "category": "productivity",
+      "wiki": "wiki/components/productivity-appflowy-gotrue.md",
+      "summary": "deploys `appflowyinc/gotrue:0.13.3`",
+      "images": [
+        "appflowyinc/gotrue:0.13.3",
+        "busybox:1.36",
+        "postgres:16"
+      ],
+      "kinds": [
+        "Deployment",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/productivity-appflowy"
+      ],
+      "parent": "components/productivity-appflowy",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/productivity/appflowy",
+      "name": "productivity-appflowy",
+      "category": "productivity",
+      "wiki": "wiki/components/productivity-appflowy.md",
+      "summary": "deploys `appflowyinc/admin_frontend:0.13.3`",
+      "images": [
+        "appflowyinc/admin_frontend:0.13.3",
+        "appflowyinc/appflowy_ai:0.13.3",
+        "appflowyinc/appflowy_cloud:0.13.3",
+        "appflowyinc/appflowy_search:0.13.3",
+        "appflowyinc/appflowy_web:0.13.3",
+        "appflowyinc/appflowy_worker:0.13.3",
+        "appflowyinc/gotrue:0.13.3",
+        "busybox:1.36",
+        "postgres:16"
+      ],
+      "kinds": [
+        "Deployment",
+        "IngressRoute",
+        "Middleware",
+        "Secret",
+        "Service"
+      ],
+      "composes": [
+        "k8s/components/apps/productivity/appflowy/gotrue",
+        "k8s/components/apps/productivity/appflowy/appflowy-cloud",
+        "k8s/components/apps/productivity/appflowy/ai",
+        "k8s/components/apps/productivity/appflowy/web",
+        "k8s/components/apps/productivity/appflowy/search",
+        "k8s/components/apps/productivity/appflowy/worker",
+        "k8s/components/apps/productivity/appflowy/admin-frontend"
+      ],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/productivity/appflowy/search",
+      "name": "productivity-appflowy-search",
+      "category": "productivity",
+      "wiki": "wiki/components/productivity-appflowy-search.md",
+      "summary": "deploys `appflowyinc/appflowy_search:0.13.3`",
+      "images": [
+        "appflowyinc/appflowy_search:0.13.3",
+        "busybox:1.36"
+      ],
+      "kinds": [
+        "Deployment",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/productivity-appflowy"
+      ],
+      "parent": "components/productivity-appflowy",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/productivity/appflowy/web",
+      "name": "productivity-appflowy-web",
+      "category": "productivity",
+      "wiki": "wiki/components/productivity-appflowy-web.md",
+      "summary": "deploys `appflowyinc/appflowy_web:0.13.3`",
+      "images": [
+        "appflowyinc/appflowy_web:0.13.3"
+      ],
+      "kinds": [
+        "Deployment",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/productivity-appflowy"
+      ],
+      "parent": "components/productivity-appflowy",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/productivity/appflowy/worker",
+      "name": "productivity-appflowy-worker",
+      "category": "productivity",
+      "wiki": "wiki/components/productivity-appflowy-worker.md",
+      "summary": "deploys `appflowyinc/appflowy_worker:0.13.3`",
+      "images": [
+        "appflowyinc/appflowy_worker:0.13.3",
+        "busybox:1.36"
+      ],
+      "kinds": [
+        "Deployment"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/productivity-appflowy"
+      ],
+      "parent": "components/productivity-appflowy",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "roles": [],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": false
+    },
+    {
+      "path": "apps/sealed-secrets",
+      "name": "sealed-secrets",
+      "category": "standalone",
+      "wiki": "wiki/components/sealed-secrets.md",
+      "summary": "vendors `controller.yaml`",
+      "images": [],
+      "kinds": [],
+      "composes": [],
+      "remote_refs": [
+        "https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.31.0/controller.yaml"
+      ],
+      "consumed_by": [
+        "overlays/agentic-simple-workflow",
+        "overlays/bare-metal-starter",
+        "overlays/home-edge-lab",
+        "overlays/multi-cloud-portable",
+        "overlays/multi-tenant-pattern-org"
+      ],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "secrets"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "Apache-2.0",
+      "notes": "The floor for secrets in git from Walk onwards.",
+      "curated": true
+    },
+    {
+      "path": "apps/security/external-secrets",
+      "name": "security-external-secrets",
+      "category": "security",
+      "wiki": "wiki/components/security-external-secrets.md",
+      "summary": "declares `Namespace`",
+      "images": [],
+      "kinds": [
+        "Namespace"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "run"
+      ],
+      "roles": [
+        "secrets"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "Apache-2.0",
+      "notes": "Pulls from a corporate secret store; the Run-stage mechanism in regulated packs.",
+      "curated": true
+    },
+    {
+      "path": "apps/security/vault",
+      "name": "security-vault",
+      "category": "security",
+      "wiki": "wiki/components/security-vault.md",
+      "summary": "deploys `hashicorp/vault:1.19`",
+      "images": [
+        "hashicorp/vault:1.19"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Ingress",
+        "Service",
+        "ServiceAccount",
+        "StatefulSet"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "run"
+      ],
+      "roles": [
+        "secrets",
+        "pki"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "BUSL-1.1",
+      "notes": "Licence is BUSL; compliance should confirm it is acceptable.",
+      "curated": true
+    },
+    {
+      "path": "apps/storage/longhorn",
+      "name": "storage-longhorn",
+      "category": "storage",
+      "wiki": "wiki/components/storage-longhorn.md",
+      "summary": "vendors `longhorn.yaml`",
+      "images": [],
+      "kinds": [],
+      "composes": [],
+      "remote_refs": [
+        "https://raw.githubusercontent.com/longhorn/longhorn/v1.9.2/deploy/longhorn.yaml"
+      ],
+      "consumed_by": [
+        "overlays/ai-dev-stack",
+        "overlays/cdc-event-sourcing"
+      ],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "block-storage"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "Apache-2.0",
+      "notes": "Not for k3d; single replica on a Pi, three replicas from Walk.",
+      "curated": true
+    },
+    {
+      "path": "apps/surveys/formbricks",
+      "name": "surveys-formbricks",
+      "category": "surveys",
+      "wiki": "wiki/components/surveys-formbricks.md",
+      "summary": "deploys `ghcr.io/formbricks/formbricks:latest`",
+      "images": [
+        "ghcr.io/formbricks/formbricks:latest"
+      ],
+      "kinds": [
+        "Deployment",
+        "Ingress",
+        "PersistentVolumeClaim",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "feedback",
+        "surveys"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "AGPL-3.0",
+      "notes": "In-product feedback capture for forjate:ux.",
+      "curated": true
+    },
+    {
+      "path": "apps/whoami",
+      "name": "whoami",
+      "category": "standalone",
+      "wiki": "wiki/components/whoami.md",
+      "summary": "deploys `traefik/whoami`",
+      "images": [
+        "traefik/whoami"
+      ],
+      "kinds": [
+        "Deployment",
+        "Ingress",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl"
+      ],
+      "roles": [
+        "smoke-test"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "licence": "MIT",
+      "curated": true
+    },
+    {
+      "path": "apps/workflows/temporal",
+      "name": "workflows-temporal",
+      "category": "workflows",
+      "wiki": "wiki/components/workflows-temporal.md",
+      "summary": "deploys `temporalio/auto-setup:latest`",
+      "images": [
+        "temporalio/auto-setup:latest",
+        "temporalio/ui:latest"
+      ],
+      "kinds": [
+        "Deployment",
+        "Ingress",
+        "Service"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/bundles-temporal-stack"
+      ],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "durable-workflows",
+        "orchestration"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "MIT",
+      "notes": "auto-setup image; use bundles/temporal-stack for the Postgres wiring.",
+      "curated": true
+    },
+    {
+      "path": "bundles/temporal-stack",
+      "name": "bundles-temporal-stack",
+      "category": "bundles",
+      "wiki": "wiki/components/bundles-temporal-stack.md",
+      "summary": "composes `postgres`, `temporal`",
+      "images": [],
+      "kinds": [],
+      "composes": [
+        "k8s/components/apps/databases/postgres",
+        "k8s/components/apps/workflows/temporal"
+      ],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "durable-workflows",
+        "orchestration"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "mvp",
+      "licence": "MIT",
+      "curated": true
+    },
+    {
+      "path": "pvcs",
+      "name": "pvcs",
+      "category": "pvcs",
+      "wiki": "wiki/components/pvcs.md",
+      "summary": "declares `PersistentVolumeClaim`",
+      "images": [],
+      "kinds": [
+        "PersistentVolumeClaim"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl"
+      ],
+      "roles": [
+        "storage"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": true
+    },
+    {
+      "path": "pvs/local-storage",
+      "name": "pvs-local-storage",
+      "category": "pvs",
+      "wiki": "wiki/components/pvs-local-storage.md",
+      "summary": "declares `PersistentVolume`",
+      "images": [],
+      "kinds": [
+        "PersistentVolume"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl"
+      ],
+      "roles": [
+        "storage"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": true
+    },
+    {
+      "path": "pvs/nfs-storage",
+      "name": "pvs-nfs-storage",
+      "category": "pvs",
+      "wiki": "wiki/components/pvs-nfs-storage.md",
+      "summary": "declares `PersistentVolume`",
+      "images": [],
+      "kinds": [
+        "PersistentVolume"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk"
+      ],
+      "roles": [
+        "storage"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": true
+    },
+    {
+      "path": "rbac",
+      "name": "rbac",
+      "category": "rbac",
+      "wiki": "wiki/components/rbac.md",
+      "summary": "declares `ClusterRole`, `ClusterRoleBinding`, `ServiceAccount`",
+      "images": [],
+      "kinds": [
+        "ClusterRole",
+        "ClusterRoleBinding",
+        "ServiceAccount"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "overlays/home-edge-lab"
+      ],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "roles": [
+        "access-control"
+      ],
+      "psa_restricted": "unknown",
+      "secrets": "unknown",
+      "maturity": "lab",
+      "curated": true
+    }
+  ],
+  "overrides_without_component": []
+}

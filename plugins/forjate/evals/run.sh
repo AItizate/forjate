@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Run a skill's evals with and without the plugin, each in a fresh git worktree.
-# Usage: run.sh <skill> [--iteration N] [--eval <name>] [--only with|without] [--max-turns N] [--model <alias>]
-# Default model for eval runs is opus; pass --model to compare.
+# Usage: run.sh <skill> [--iteration N] [--eval <name>] [--only with|without] [--max-turns N] [--model <alias>] [--timeout SECONDS]
+# Default model for eval runs is opus; pass --model to compare. A run that exceeds
+# the timeout (default 1800 s, FORJATE_EVAL_TIMEOUT) is killed and recorded as is_error.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO="$(git -C "$PLUGIN_DIR" rev-parse --show-toplevel)"
 
 skill="${1:?usage: run.sh <skill> [--iteration N] [--eval name] [--only with|without]}"; shift
-iteration=""; only_eval=""; only_cfg=""; max_turns=40; model="${FORJATE_EVAL_MODEL:-opus}"
+iteration=""; only_eval=""; only_cfg=""; max_turns=40; model="${FORJATE_EVAL_MODEL:-opus}"; timeout_s="${FORJATE_EVAL_TIMEOUT:-1800}"
 while [[ $# -gt 0 ]]; do
   case $1 in
     --iteration) iteration="$2"; shift ;;
@@ -16,6 +17,7 @@ while [[ $# -gt 0 ]]; do
     --only) only_cfg="$2"; shift ;;
     --max-turns) max_turns="$2"; shift ;;
     --model) model="$2"; shift ;;
+    --timeout) timeout_s="$2"; shift ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac; shift
 done
@@ -28,7 +30,7 @@ if [[ -z "$iteration" ]]; then
 fi
 out_root="${ws}/iteration-${iteration}"
 mkdir -p "$out_root"
-echo "skill=$skill iteration=$iteration model=$model → $out_root"
+echo "skill=$skill iteration=$iteration model=$model timeout=${timeout_s}s → $out_root"
 
 run_one() {  # <eval-name> <prompt> <with|without>
   local name="$1" prompt="$2" cfg="$3"
@@ -54,12 +56,29 @@ run_one() {  # <eval-name> <prompt> <with|without>
   local args=(-p "$prompt" --output-format json --permission-mode acceptEdits --max-turns "$max_turns" --model "$model" --allowedTools "$allowed")
   [[ "$cfg" == "with" ]] && args+=(--plugin-dir "$PLUGIN_DIR")
   echo "  [$cfg] $name"
-  ( cd "$wt" && claude "${args[@]}" < /dev/null > "$dir/result.json" 2> "$dir/stderr.log" ) || echo "    claude exited $? (see stderr.log)"
-  python3 - "$dir" <<'PY'
+  # A hung `claude -p` must not block the batch: kill it after the timeout and
+  # record the run as an error so the grader and the benchmark show it as such.
+  local rc=0
+  ( cd "$wt" && exec claude "${args[@]}" < /dev/null > "$dir/result.json" 2> "$dir/stderr.log" ) &
+  local pid=$!
+  ( sleep "$timeout_s"; kill -0 "$pid" 2>/dev/null && { echo "    TIMEOUT after ${timeout_s}s, killing $pid"; kill -TERM "$pid" 2>/dev/null; sleep 5; kill -KILL "$pid" 2>/dev/null; } ) &
+  local watchdog=$!
+  wait "$pid" || rc=$?
+  kill "$watchdog" 2>/dev/null; wait "$watchdog" 2>/dev/null || true
+  [[ $rc -ne 0 ]] && echo "    claude exited $rc (see stderr.log)"
+  python3 - "$dir" "$rc" "$timeout_s" <<'PY'
 import json, sys, pathlib
-d = pathlib.Path(sys.argv[1]); r = d / "result.json"
+d = pathlib.Path(sys.argv[1]); r = d / "result.json"; rc = int(sys.argv[2]); timeout_s = int(sys.argv[3])
 try:
-    j = json.loads(r.read_text())
+    raw = r.read_text()
+    if rc in (124, 137, 143) or (rc != 0 and not raw.strip()):
+        (d / "timing.json").write_text(json.dumps({
+            "duration_ms": None, "total_duration_seconds": None, "num_turns": None, "total_cost_usd": None,
+            "total_tokens": 0, "models": [], "is_error": True,
+            "error": f"killed after {timeout_s}s timeout" if rc in (124, 137, 143) else f"claude exited {rc} with no output",
+        }, indent=2))
+        raise SystemExit(0)
+    j = json.loads(raw)
     (d / "timing.json").write_text(json.dumps({
         "duration_ms": j.get("duration_ms"), "total_duration_seconds": (j.get("duration_ms") or 0)/1000,
         "num_turns": j.get("num_turns"), "total_cost_usd": j.get("total_cost_usd"),

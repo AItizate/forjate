@@ -39,7 +39,7 @@ run_one() {  # <eval-name> <prompt> <with|without>
   find "$wt/k8s/overlays" -name '*.env.example' | while read -r ex; do [[ -f "${ex%.example}" ]] || cp "$ex" "${ex%.example}"; done
   # Evals run in a throwaway worktree, so the build/validate commands the skills
   # rely on are pre-approved; everything else still goes through the default policy.
-  local allowed="Read Edit Write Glob Grep Bash(kubectl kustomize *) Bash(kustomize *) Bash(kubeconform *) Bash(poetry run *) Bash(python3 *) Bash(yq *) Bash(./scripts/ephemeral/create-usecase.sh *) Bash(cp *) Bash(mkdir *) Bash(ls *) Bash(cat *) Bash(git diff *) Bash(git status *)"
+  local allowed="Read Edit Write Glob Grep Agent Bash(kubectl kustomize *) Bash(kustomize *) Bash(kubeconform *) Bash(poetry run *) Bash(python3 *) Bash(yq *) Bash(./scripts/ephemeral/create-usecase.sh *) Bash(cp *) Bash(mkdir *) Bash(ls *) Bash(cat *) Bash(git diff *) Bash(git status *)"
   local args=(-p "$prompt" --output-format json --permission-mode acceptEdits --max-turns "$max_turns" --allowedTools "$allowed")
   [[ "$cfg" == "with" ]] && args+=(--plugin-dir "$PLUGIN_DIR")
   echo "  [$cfg] $name"

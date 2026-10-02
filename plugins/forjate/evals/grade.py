@@ -61,6 +61,15 @@ def check(a: dict, repo: Path) -> tuple[bool, str]:
             return False, out[-200:]
         missing = [c for c in out.splitlines() if c and not (repo / "k8s/components" / c / "kustomization.yaml").exists()]
         return not missing, f"missing: {missing}" if missing else f"all {len(out.splitlines())} in catalog"
+    if t == "schema_valid":
+        code = (f"import sys; sys.path.insert(0, {str(BUILDER)!r}); from common import load_yaml, schema_errors; "
+                f"from pathlib import Path; e = schema_errors({a['schema']!r}, load_yaml(Path({str(path)!r})), {a['path']!r}); "
+                f"print('\\n'.join(e)); sys.exit(1 if e else 0)")
+        rc, out = sh(["poetry", "run", "python", "-c", code], repo)
+        return rc == 0, "valid" if rc == 0 else out[-400:]
+    if t == "yaml_count":
+        rc, out = sh(["yq", "-r", a["query"], a["path"]], repo)
+        return rc == 0 and out == str(a["equals"]), f"{a['query']} = {out!r}"
     if t == "git_unchanged":
         rc, out = sh(["git", "diff", "--quiet", "HEAD", "--", a["path"]], repo)
         return rc == 0, "unchanged" if rc == 0 else "modified"

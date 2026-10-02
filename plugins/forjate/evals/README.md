@@ -26,6 +26,7 @@ Results land in `evals-workspace/<skill>/iteration-N/<eval-name>/{with_skill,wit
 | `yaml_path` | `path`, `query`, `equals` | `yq` query result equals the value |
 | `components_in_catalog` | `path` | every component listed in that `usecase.yaml` exists |
 | `git_unchanged` | `path` | the file is identical to HEAD (the skill must not touch it) |
+| `schema_valid` | `path`, `schema` | the YAML validates against `scripts/builder/schemas/<schema>.schema.json` |
 
 Assertions check outputs, not transcripts. Tone and clarity are reviewed by a human reading `result.json`.
 

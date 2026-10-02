@@ -104,3 +104,11 @@ def test_cli_validate_exit_codes(usecase: Path):
     bad = run(str(BUILDER / "validate.py"), str(usecase))
     assert bad.returncode == 1
     assert "DATA-1" in bad.stdout
+
+
+def test_golden_briefs_validate():
+    from common import load_yaml, schema_errors
+    briefs = sorted((BUILDER.parent.parent / "evals" / "fixtures" / "briefs").glob("*.yaml"))
+    assert len(briefs) >= 3
+    for b in briefs:
+        assert schema_errors("brief", load_yaml(b), str(b)) == []

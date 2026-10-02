@@ -20,7 +20,7 @@
     "component": {
       "description": "Catalog component path relative to k8s/components/.",
       "type": "string",
-      "pattern": "^apps/[a-z0-9-]+(/[a-z0-9-]+)*$"
+      "pattern": "^[a-z0-9-]+(/[a-z0-9-]+)*$"
     },
     "ruleRef": {
       "description": "Reference to a context-pack rule: pack:<pack-name>#<RULE-ID>.",

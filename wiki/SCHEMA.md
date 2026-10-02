@@ -63,11 +63,19 @@ wiki/
 ├── SCHEMA.md          # this file — governs the agent
 ├── index.md           # content-oriented catalog; agents read this FIRST
 ├── log.md             # chronological, append-only, grep-parseable
+├── catalog.json       # machine-readable component catalog (compiler-owned)
+├── catalog-overrides.yaml  # curated facts merged into catalog.json (human/agent-authored)
 ├── base/              # the foundation every tenant inherits
 ├── components/        # one page per component under k8s/components/apps/**
 ├── overlays/          # one page per overlay under k8s/overlays/**
 └── concepts/          # cross-cutting pages: patterns, not directories
 ```
+
+`catalog.json` is compiler-owned too: one JSON record per component with the
+declared facts (images, kinds, composition, backlinks) merged with the curated
+facts in `catalog-overrides.yaml` (stage fitness, roles, licence, maturity).
+It exists for tooling, the use-case builder plugin in particular, that needs to
+query the catalog without parsing markdown. Edit the overrides, never the JSON.
 
 `base/`, `components/` and `overlays/` mirror the tree and are **compiler-owned**.
 `concepts/` has no counterpart in `k8s/` and is **agent-authored**: the recursive

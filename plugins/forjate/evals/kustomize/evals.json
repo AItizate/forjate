@@ -3,18 +3,59 @@
   "evals": [
     {
       "name": "add-redis-to-usecase",
-      "prompt": "In this repo, extend the ephemeral use case k8s/overlays/usecases/db-migration-a-to-b so the migrate Job can use Redis as a progress checkpoint store. Add the catalog Redis component to the use case, expose it in the use case contract as an endpoint named 'checkpoint', size it for a laptop, and make sure the overlay still builds and the contract still validates. Do not change the existing Jobs' logic.",
+      "prompt": "In this repo, extend the ephemeral use case k8s/overlays/usecases/db-migration-a-to-b so the migrate Job can use Redis as a progress checkpoint store. Add the catalog Redis component to the use case, expose it in the use case contract as an endpoint named 'checkpoint', size it for a laptop, and make sure the overlay still builds and the contract still validates. Do not modify the existing Job manifests at all; wiring the checkpoint into the migrate Job is a later task.",
       "expected_output": "Redis component wired into namespaces/uc-db-migration-a-to-b/kustomization.yaml, listed in usecase.yaml spec.components and spec.outputs.endpoints, a resources patch, overlay builds, validate-usecases invariants hold.",
       "assertions": [
-        { "type": "grep", "path": "k8s/overlays/usecases/db-migration-a-to-b/namespaces/uc-db-migration-a-to-b/kustomization.yaml", "pattern": "components/apps/databases/redis", "text": "redis component referenced from the namespace sub-overlay" },
-        { "type": "grep", "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml", "pattern": "apps/databases/redis", "text": "contract lists apps/databases/redis in spec.components" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml", "query": "[.spec.outputs.endpoints[] | select(.name == \"checkpoint\")] | .[0].port", "equals": "6379", "text": "contract exposes endpoint 'checkpoint' on port 6379" },
-        { "type": "components_in_catalog", "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml", "text": "every component in the contract exists in the catalog" },
-        { "type": "kustomize_builds", "path": "k8s/overlays/usecases/db-migration-a-to-b", "text": "overlay builds with kubectl kustomize" },
-        { "type": "kubeconform", "path": "k8s/overlays/usecases/db-migration-a-to-b", "text": "built manifest passes kubeconform" },
-        { "type": "grep", "path": "k8s/overlays/usecases/db-migration-a-to-b/namespaces/uc-db-migration-a-to-b/kustomization.yaml", "pattern": "redis-resources|patches/redis", "text": "a Redis resources patch is registered (laptop sizing)" },
-        { "type": "git_unchanged", "path": "k8s/overlays/usecases/db-migration-a-to-b/namespaces/uc-db-migration-a-to-b/dbmig-migrate-job.yaml", "text": "migrate Job left untouched" },
-        { "type": "git_unchanged", "path": "k8s/components/apps/databases/redis", "text": "catalog component not modified" }
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/namespaces/uc-db-migration-a-to-b/kustomization.yaml",
+          "pattern": "components/apps/databases/redis",
+          "text": "redis component referenced from the namespace sub-overlay"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "pattern": "apps/databases/redis",
+          "text": "contract lists apps/databases/redis in spec.components"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "query": "[.spec.outputs.endpoints[] | select(.name == \"checkpoint\")] | .[0].port",
+          "equals": "6379",
+          "text": "contract exposes endpoint 'checkpoint' on port 6379"
+        },
+        {
+          "type": "components_in_catalog",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "text": "every component in the contract exists in the catalog"
+        },
+        {
+          "type": "kustomize_builds",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "overlay builds with kubectl kustomize"
+        },
+        {
+          "type": "kubeconform",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "built manifest passes kubeconform"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/namespaces/uc-db-migration-a-to-b/kustomization.yaml",
+          "pattern": "redis-resources|patches/redis",
+          "text": "a Redis resources patch is registered (laptop sizing)"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/namespaces/uc-db-migration-a-to-b/dbmig-migrate-job.yaml",
+          "text": "migrate Job manifest untouched"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/components/apps/databases/redis",
+          "text": "catalog component not modified"
+        }
       ]
     },
     {
@@ -22,20 +63,91 @@
       "prompt": "Create a new ephemeral use case named doc-qa under k8s/overlays/usecases/ for a Crawl-stage PoC: documents are parsed with Docling, embeddings stored in LanceDB, and Ollama serves the model. Use the catalog components, follow the use-case convention (contract, suspended seed/verify Jobs, .env.example for any secret, laptop sizing), set ttl 2h, isolation shared, Job prefix docqa. The seed Job can just create a bucket/table placeholder and the verify Job can check the three services answer; keep them minimal but real.",
       "expected_output": "A buildable k8s/overlays/usecases/doc-qa with usecase.yaml naming docqa-seed and docqa-validate, three catalog components, endpoints for docling, lancedb and ollama.",
       "assertions": [
-        { "type": "file_exists", "path": "k8s/overlays/usecases/doc-qa/usecase.yaml", "text": "contract file created" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/doc-qa/usecase.yaml", "query": ".metadata.name", "equals": "doc-qa", "text": "contract name matches directory" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/doc-qa/usecase.yaml", "query": ".spec.ttl", "equals": "2h", "text": "ttl is 2h" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/doc-qa/usecase.yaml", "query": ".spec.jobs.seed.name", "equals": "docqa-seed", "text": "seed Job named docqa-seed" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/doc-qa/usecase.yaml", "query": ".spec.jobs.verify.name", "equals": "docqa-validate", "text": "verify Job named docqa-validate" },
-        { "type": "components_in_catalog", "path": "k8s/overlays/usecases/doc-qa/usecase.yaml", "text": "every component in the contract exists in the catalog" },
-        { "type": "grep", "path": "k8s/overlays/usecases/doc-qa/usecase.yaml", "pattern": "document-processing/docling", "text": "docling listed" },
-        { "type": "grep", "path": "k8s/overlays/usecases/doc-qa/usecase.yaml", "pattern": "databases/lancedb", "text": "lancedb listed" },
-        { "type": "grep", "path": "k8s/overlays/usecases/doc-qa/usecase.yaml", "pattern": "ai-models/ollama", "text": "ollama listed" },
-        { "type": "kustomize_builds", "path": "k8s/overlays/usecases/doc-qa", "text": "overlay builds" },
-        { "type": "kubeconform", "path": "k8s/overlays/usecases/doc-qa", "text": "built manifest passes kubeconform" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/doc-qa/namespaces/uc-doc-qa/docqa-seed-job.yaml", "query": ".spec.suspend", "equals": "true", "text": "seed Job ships suspended" },
-        { "type": "yaml_path", "path": "k8s/overlays/usecases/doc-qa/namespaces/uc-doc-qa/docqa-validate-job.yaml", "query": ".spec.suspend", "equals": "true", "text": "verify Job ships suspended" },
-        { "type": "file_exists", "path": "k8s/overlays/usecases/doc-qa/.gitignore", "text": ".gitignore present" }
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/doc-qa/usecase.yaml",
+          "text": "contract file created"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/doc-qa/usecase.yaml",
+          "query": ".metadata.name",
+          "equals": "doc-qa",
+          "text": "contract name matches directory"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/doc-qa/usecase.yaml",
+          "query": ".spec.ttl",
+          "equals": "2h",
+          "text": "ttl is 2h"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/doc-qa/usecase.yaml",
+          "query": ".spec.jobs.seed.name",
+          "equals": "docqa-seed",
+          "text": "seed Job named docqa-seed"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/doc-qa/usecase.yaml",
+          "query": ".spec.jobs.verify.name",
+          "equals": "docqa-validate",
+          "text": "verify Job named docqa-validate"
+        },
+        {
+          "type": "components_in_catalog",
+          "path": "k8s/overlays/usecases/doc-qa/usecase.yaml",
+          "text": "every component in the contract exists in the catalog"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/doc-qa/usecase.yaml",
+          "pattern": "document-processing/docling",
+          "text": "docling listed"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/doc-qa/usecase.yaml",
+          "pattern": "databases/lancedb",
+          "text": "lancedb listed"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/doc-qa/usecase.yaml",
+          "pattern": "ai-models/ollama",
+          "text": "ollama listed"
+        },
+        {
+          "type": "kustomize_builds",
+          "path": "k8s/overlays/usecases/doc-qa",
+          "text": "overlay builds"
+        },
+        {
+          "type": "kubeconform",
+          "path": "k8s/overlays/usecases/doc-qa",
+          "text": "built manifest passes kubeconform"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/doc-qa/namespaces/uc-doc-qa/docqa-seed-job.yaml",
+          "query": ".spec.suspend",
+          "equals": "true",
+          "text": "seed Job ships suspended"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/doc-qa/namespaces/uc-doc-qa/docqa-validate-job.yaml",
+          "query": ".spec.suspend",
+          "equals": "true",
+          "text": "verify Job ships suspended"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/doc-qa/.gitignore",
+          "text": ".gitignore present"
+        }
       ]
     },
     {
@@ -43,13 +155,45 @@
       "prompt": "The use case k8s/overlays/usecases/db-migration-a-to-b has context packs declared in plugins/forjate/scripts/builder/tests/fixtures/db-migration-a-to-b/.builder/packs.yaml (copy that .builder directory into the use case first). Add a Walk stage overlay at stages/walk/ that extends the Crawl overlay with Sealed Secrets and ArgoCD from the catalog and labels the namespace for the Pod Security Admission level the active packs require for Walk. Make sure the stage overlay builds on its own.",
       "expected_output": "stages/walk/kustomization.yaml referencing ../.. plus sealed-secrets and argocd components, a Namespace patch with pod-security.kubernetes.io/enforce: restricted (required by regulated-corp SEC-1), builds.",
       "assertions": [
-        { "type": "file_exists", "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk/kustomization.yaml", "text": "Walk stage overlay created" },
-        { "type": "grep", "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk/kustomization.yaml", "pattern": "sealed-secrets", "text": "sealed-secrets added" },
-        { "type": "grep", "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk/kustomization.yaml", "pattern": "continuous-delivery/argocd", "text": "argocd added" },
-        { "type": "grep", "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk/kustomization.yaml", "pattern": "^\\s*-\\s*\\.\\./\\.\\.\\s*$", "text": "extends the Crawl overlay (../..)" },
-        { "type": "kustomize_builds", "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk", "text": "stage overlay builds on its own" },
-        { "type": "grep", "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk", "pattern": "pod-security.kubernetes.io/enforce:\\s*restricted", "text": "PSA restricted required by pack SEC-1 is applied" },
-        { "type": "kustomize_builds", "path": "k8s/overlays/usecases/db-migration-a-to-b", "text": "Crawl overlay still builds" }
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk/kustomization.yaml",
+          "text": "Walk stage overlay created"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk/kustomization.yaml",
+          "pattern": "sealed-secrets",
+          "text": "sealed-secrets added"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk/kustomization.yaml",
+          "pattern": "continuous-delivery/argocd",
+          "text": "argocd added"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk/kustomization.yaml",
+          "pattern": "^\\s*-\\s*\\.\\./\\.\\.\\s*$",
+          "text": "extends the Crawl overlay (../..)"
+        },
+        {
+          "type": "kustomize_builds",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk",
+          "text": "stage overlay builds on its own"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk",
+          "pattern": "pod-security.kubernetes.io/enforce:\\s*restricted",
+          "text": "PSA restricted required by pack SEC-1 is applied"
+        },
+        {
+          "type": "kustomize_builds",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "Crawl overlay still builds"
+        }
       ]
     }
   ]

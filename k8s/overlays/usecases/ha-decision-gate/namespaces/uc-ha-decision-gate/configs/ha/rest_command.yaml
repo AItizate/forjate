@@ -1,0 +1,32 @@
+# Home Assistant integration — copy into a real instance's configuration.yaml.
+#
+# This is the production shape of what the run Job does: HA builds the state
+# snapshot, posts it to the decision service, and acts on the answer. The service
+# never reaches into HA, so it needs no credentials and no access beyond this one
+# port. The question schema lives server-side, which is why the payload is only
+# the state — there is no second copy of the schema here to drift out of sync.
+#
+# NOTE: shipped as an artefact, not exercised by the verify Job. Verify asserts
+# that the endpoint accepts exactly this payload shape, which is the part that
+# breaks when the contract drifts — but a real automation firing end to end is not
+# covered. Doing that means writing configuration.yaml into the HA volume before
+# first boot, which is the obvious next increment.
+#
+# Replace the host when the service is not a neighbour in the same namespace:
+#   decision-service.uc-ha-decision-gate.svc.cluster.local:8080
+
+rest_command:
+  hadg_decide:
+    url: "http://decision-service:8080/v1/decide"
+    method: POST
+    content_type: "application/json"
+    # CPU inference is seconds per decision. On a box with a GPU this drops to
+    # well under a second and the timeout can come down with it.
+    timeout: 120
+    payload: >-
+      {
+        "state": {
+          "event": {"entity_id": "{{ trigger_entity }}", "to": "{{ trigger_to }}"},
+          "entities": {{ entities | tojson }}
+        }
+      }

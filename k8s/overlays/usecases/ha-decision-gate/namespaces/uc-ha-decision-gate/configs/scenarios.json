@@ -1,0 +1,360 @@
+{
+  "comment": [
+    "Labelled ground truth. Every scenario is a full entity snapshot plus the",
+    "event that triggered the decision, and the answers a competent human would",
+    "give. These labels are the oracle: verify grades the engine against them,",
+    "so a wrong label is worse than a missing scenario.",
+    "",
+    "The set is synthetic but shaped like a real house. Entity ids and state",
+    "values follow Home Assistant conventions, so porting a scenario to the real",
+    "instance is a copy, not a translation.",
+    "",
+    "Two properties worth preserving when editing:",
+    "  - Every option in questions.json must appear often enough to be gradeable.",
+    "    An option with one scenario tells you nothing about accuracy on it.",
+    "  - Keep the deliberate negative cases. s14, s17 and s23 are normal life that",
+    "    an eager engine misreads as an emergency, and they are what the",
+    "    false-alarm ceiling in verify actually measures.",
+    "",
+    "entities is the full snapshot pushed into HA. event names the entity that",
+    "changed, which is what an HA automation would pass as its trigger."
+  ],
+  "scenarios": [
+    {
+      "id": "s01",
+      "description": "Weekday afternoon, nobody home, everything shut.",
+      "event": { "entity_id": "person.sebas", "to": "not_home" },
+      "entities": {
+        "person.sebas": "not_home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "above_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "21", "sensor.outdoor_temp": "18", "sensor.local_time": "14:20"
+      },
+      "expected": { "mode": "away", "action": "none", "urgency": 0 }
+    },
+    {
+      "id": "s02",
+      "description": "Nobody home and the living room motion sensor fires.",
+      "event": { "entity_id": "binary_sensor.living_motion", "to": "on" },
+      "entities": {
+        "person.sebas": "not_home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "on", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "above_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "21", "sensor.outdoor_temp": "17", "sensor.local_time": "11:05"
+      },
+      "expected": { "mode": "away", "action": "alert", "urgency": 3 }
+    },
+    {
+      "id": "s03",
+      "description": "Nobody home, the front door opens and the lock reads unlocked.",
+      "event": { "entity_id": "binary_sensor.front_door", "to": "on" },
+      "entities": {
+        "person.sebas": "not_home", "person.guest": "not_home",
+        "binary_sensor.front_door": "on", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "unlocked",
+        "sun.sun": "above_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "20", "sensor.outdoor_temp": "16", "sensor.local_time": "10:40"
+      },
+      "expected": { "mode": "away", "action": "alert", "urgency": 3 }
+    },
+    {
+      "id": "s04",
+      "description": "Sebas is home after sunset and moves through the living room in the dark.",
+      "event": { "entity_id": "binary_sensor.living_motion", "to": "on" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "on", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "22", "sensor.outdoor_temp": "12", "sensor.local_time": "19:45"
+      },
+      "expected": { "mode": "home", "action": "lights_on", "urgency": 0 }
+    },
+    {
+      "id": "s05",
+      "description": "Sebas is home and the house has drifted cold on a cold day.",
+      "event": { "entity_id": "sensor.indoor_temp", "to": "16" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "on", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "above_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "16", "sensor.outdoor_temp": "4", "sensor.local_time": "16:10"
+      },
+      "expected": { "mode": "home", "action": "climate_adjust", "urgency": 1 }
+    },
+    {
+      "id": "s06",
+      "description": "Middle of the night, bedroom motion — somebody going to the bathroom.",
+      "event": { "entity_id": "binary_sensor.bedroom_motion", "to": "on" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "on",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "20", "sensor.outdoor_temp": "9", "sensor.local_time": "02:30"
+      },
+      "expected": { "mode": "asleep", "action": "none", "urgency": 0 }
+    },
+    {
+      "id": "s07",
+      "description": "Everyone asleep and the front door opens at three in the morning.",
+      "event": { "entity_id": "binary_sensor.front_door", "to": "on" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "on", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "unlocked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "20", "sensor.outdoor_temp": "8", "sensor.local_time": "03:10"
+      },
+      "expected": { "mode": "asleep", "action": "alert", "urgency": 3 }
+    },
+    {
+      "id": "s08",
+      "description": "Everyone asleep and the stove is reading on.",
+      "event": { "entity_id": "binary_sensor.stove", "to": "on" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "on", "lock.front_door": "locked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "21", "sensor.outdoor_temp": "7", "sensor.local_time": "01:00"
+      },
+      "expected": { "mode": "asleep", "action": "alert", "urgency": 3 }
+    },
+    {
+      "id": "s09",
+      "description": "Evening in, television on, lights deliberately off.",
+      "event": { "entity_id": "media_player.living_tv", "to": "playing" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "playing",
+        "sensor.indoor_temp": "22", "sensor.outdoor_temp": "11", "sensor.local_time": "21:30"
+      },
+      "expected": { "mode": "home", "action": "none", "urgency": 0 }
+    },
+    {
+      "id": "s10",
+      "description": "House empty with the bedroom window left open.",
+      "event": { "entity_id": "person.sebas", "to": "not_home" },
+      "entities": {
+        "person.sebas": "not_home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "on",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "above_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "19", "sensor.outdoor_temp": "6", "sensor.local_time": "09:15"
+      },
+      "expected": { "mode": "away", "action": "notify", "urgency": 2 }
+    },
+    {
+      "id": "s11",
+      "description": "A visitor is over after dark and there is movement in the living room.",
+      "event": { "entity_id": "person.guest", "to": "home" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "on", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "22", "sensor.outdoor_temp": "13", "sensor.local_time": "20:05"
+      },
+      "expected": { "mode": "guest", "action": "lights_on", "urgency": 0 }
+    },
+    {
+      "id": "s12",
+      "description": "A visitor is in the house while Sebas is out.",
+      "event": { "entity_id": "person.guest", "to": "home" },
+      "entities": {
+        "person.sebas": "not_home", "person.guest": "home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "on", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "above_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "21", "sensor.outdoor_temp": "19", "sensor.local_time": "15:40"
+      },
+      "expected": { "mode": "guest", "action": "notify", "urgency": 1 }
+    },
+    {
+      "id": "s13",
+      "description": "Hot summer night, bedroom well above a comfortable sleeping temperature.",
+      "event": { "entity_id": "sensor.indoor_temp", "to": "27" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "on",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "27", "sensor.outdoor_temp": "24", "sensor.local_time": "00:40"
+      },
+      "expected": { "mode": "asleep", "action": "climate_adjust", "urgency": 1 }
+    },
+    {
+      "id": "s14",
+      "description": "Sebas gets home: door opens, phone shows present, broad daylight.",
+      "event": { "entity_id": "binary_sensor.front_door", "to": "on" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "on", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "on", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "unlocked",
+        "sun.sun": "above_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "21", "sensor.outdoor_temp": "17", "sensor.local_time": "18:20"
+      },
+      "expected": { "mode": "home", "action": "none", "urgency": 0 }
+    },
+    {
+      "id": "s15",
+      "description": "House empty and the stove was left on.",
+      "event": { "entity_id": "binary_sensor.stove", "to": "on" },
+      "entities": {
+        "person.sebas": "not_home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "on", "lock.front_door": "locked",
+        "sun.sun": "above_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "23", "sensor.outdoor_temp": "15", "sensor.local_time": "13:05"
+      },
+      "expected": { "mode": "away", "action": "alert", "urgency": 3 }
+    },
+    {
+      "id": "s16",
+      "description": "Empty house in a hard frost, indoor temperature approaching pipe-freezing range.",
+      "event": { "entity_id": "sensor.indoor_temp", "to": "11" },
+      "entities": {
+        "person.sebas": "not_home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "11", "sensor.outdoor_temp": "-2", "sensor.local_time": "05:50"
+      },
+      "expected": { "mode": "away", "action": "climate_adjust", "urgency": 2 }
+    },
+    {
+      "id": "s17",
+      "description": "Home in the evening, lights already on, sitting still — no sensor is firing.",
+      "event": { "entity_id": "sensor.local_time", "to": "19:00" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "22", "sensor.outdoor_temp": "10", "sensor.local_time": "19:00"
+      },
+      "expected": { "mode": "home", "action": "none", "urgency": 0 }
+    },
+    {
+      "id": "s18",
+      "description": "Everyone asleep and the living room sensor fires downstairs at four.",
+      "event": { "entity_id": "binary_sensor.living_motion", "to": "on" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "on", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "20", "sensor.outdoor_temp": "6", "sensor.local_time": "04:05"
+      },
+      "expected": { "mode": "asleep", "action": "alert", "urgency": 3 }
+    },
+    {
+      "id": "s19",
+      "description": "Home at dusk, moving between rooms with no lights on yet.",
+      "event": { "entity_id": "sun.sun", "to": "below_horizon" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "on", "binary_sensor.bedroom_motion": "on",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "22", "sensor.outdoor_temp": "14", "sensor.local_time": "18:55"
+      },
+      "expected": { "mode": "home", "action": "lights_on", "urgency": 0 }
+    },
+    {
+      "id": "s20",
+      "description": "House empty and the front door is closed but unlocked.",
+      "event": { "entity_id": "lock.front_door", "to": "unlocked" },
+      "entities": {
+        "person.sebas": "not_home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "unlocked",
+        "sun.sun": "above_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "21", "sensor.outdoor_temp": "20", "sensor.local_time": "12:30"
+      },
+      "expected": { "mode": "away", "action": "notify", "urgency": 2 }
+    },
+    {
+      "id": "s21",
+      "description": "Visitor still up late in the living room, residents around.",
+      "event": { "entity_id": "binary_sensor.living_motion", "to": "on" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "on", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "playing",
+        "sensor.indoor_temp": "22", "sensor.outdoor_temp": "12", "sensor.local_time": "23:30"
+      },
+      "expected": { "mode": "guest", "action": "none", "urgency": 0 }
+    },
+    {
+      "id": "s22",
+      "description": "Early weekday morning, house cold, residents up and about.",
+      "event": { "entity_id": "binary_sensor.bedroom_motion", "to": "on" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "off", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "off", "binary_sensor.bedroom_motion": "on",
+        "binary_sensor.stove": "off", "lock.front_door": "locked",
+        "sun.sun": "above_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "15", "sensor.outdoor_temp": "3", "sensor.local_time": "07:30"
+      },
+      "expected": { "mode": "home", "action": "climate_adjust", "urgency": 1 }
+    },
+    {
+      "id": "s23",
+      "description": "Door opens and motion fires, but the phone already shows Sebas arriving — an ordinary homecoming, not a break-in.",
+      "event": { "entity_id": "binary_sensor.living_motion", "to": "on" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "on", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "on", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "unlocked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "20", "sensor.outdoor_temp": "9", "sensor.local_time": "20:50"
+      },
+      "expected": { "mode": "home", "action": "lights_on", "urgency": 0 }
+    },
+    {
+      "id": "s24",
+      "description": "Visitor leaves in the small hours; the door opens with a resident still home.",
+      "event": { "entity_id": "person.guest", "to": "not_home" },
+      "entities": {
+        "person.sebas": "home", "person.guest": "not_home",
+        "binary_sensor.front_door": "on", "binary_sensor.window_bedroom": "off",
+        "binary_sensor.living_motion": "on", "binary_sensor.bedroom_motion": "off",
+        "binary_sensor.stove": "off", "lock.front_door": "unlocked",
+        "sun.sun": "below_horizon", "media_player.living_tv": "off",
+        "sensor.indoor_temp": "21", "sensor.outdoor_temp": "10", "sensor.local_time": "02:00"
+      },
+      "expected": { "mode": "home", "action": "notify", "urgency": 2 }
+    }
+  ]
+}

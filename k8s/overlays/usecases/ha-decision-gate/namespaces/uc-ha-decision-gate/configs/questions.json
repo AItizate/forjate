@@ -1,0 +1,35 @@
+{
+  "comment": [
+    "The typed question schema. One state in, several independent answers out —",
+    "the shape a decision model is built for, and the reason this is not a chat",
+    "prompt. `choice` enumerates the only answers the engine is allowed to give;",
+    "`score` is an ordered scale. An engine may never answer outside `options`.",
+    "",
+    "Keep the option sets small and mutually exclusive. Every option added here",
+    "has to appear in scenarios.json often enough to be gradeable, otherwise",
+    "accuracy says nothing about it."
+  ],
+  "questions": [
+    {
+      "name": "mode",
+      "type": "choice",
+      "prompt": "What is the household's current occupancy mode?",
+      "criteria": "home: someone is present and awake. away: nobody is in the house. asleep: residents are present but in bed for the night. guest: someone who is not a resident is present.",
+      "options": ["home", "away", "asleep", "guest"]
+    },
+    {
+      "name": "action",
+      "type": "choice",
+      "prompt": "What should the home do right now?",
+      "criteria": "none: take no action, this is normal and expected. lights_on: turn on lighting because people are present and it is dark. climate_adjust: heat or cool because the indoor temperature is wrong for the current mode. notify: send a non-urgent message someone can read later. alert: wake someone up now, because this may be an intrusion, a safety issue, or an appliance left in a dangerous state.",
+      "options": ["none", "lights_on", "climate_adjust", "notify", "alert"]
+    },
+    {
+      "name": "urgency",
+      "type": "score",
+      "prompt": "How urgently does a human need to be involved?",
+      "criteria": "0: nothing to tell anyone. 1: worth logging, nobody needs to read it today. 2: someone should look at this within the hour. 3: wake someone up now.",
+      "scale": [0, 1, 2, 3]
+    }
+  ]
+}

@@ -27,8 +27,11 @@ Results land in `evals-workspace/<skill>/iteration-N/<eval-name>/{with_skill,wit
 | `components_in_catalog` | `path` | every component listed in that `usecase.yaml` exists |
 | `git_unchanged` | `path` | the file is identical to HEAD (the skill must not touch it) |
 | `schema_valid` | `path`, `schema` | the YAML validates against `scripts/builder/schemas/<schema>.schema.json` |
+| `yaml_expr` | `path`, `expr` | a Python expression over the loaded YAML is truthy; helpers: `d`, `stages`, `setting(key[, stage])`, `choices([stage])`, `alts()`, `risks()`, `gates()`, `rules()`, `oq()`, `has(regex, x)`, `txt(x)`, `listed(x)` |
 
-Assertions check outputs, not transcripts. Tone and clarity are reviewed by a human reading `result.json`.
+Assertions check outputs, not transcripts. Tone and clarity are reviewed by a human reading `result.json`. Every expert eval mixes form checks (schema, validator) with judgement checks (a pack rule cited, an open question raised with `caused_by_rule`, an alternative rejected with a reason, a default refused); the form checks stop discriminating against a frontier baseline fast.
+
+`grade.py --all` also computes **quality metrics** per run from the decision records it finds (open questions, questions caused by a pack rule, pack refs, alternatives, risks, gates and automated gates) and appends them to `benchmark.md`; they are where a skill's value shows when pass rates tie.
 
 ## Run
 

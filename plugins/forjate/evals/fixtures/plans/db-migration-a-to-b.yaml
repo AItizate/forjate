@@ -1,0 +1,33 @@
+apiVersion: forjate.io/v0
+kind: StagePlan
+metadata: { usecase: db-migration-a-to-b, version: 1 }
+spec:
+  stages:
+    crawl:
+      in_scope: true
+      goal: Prove the migration Job moves and verifies a seeded dataset on an ephemeral cluster.
+      forjate_tier: lab
+      exit_criteria:
+        - { id: G-Q-1, text: verify Job exits 0 on the seeded dataset, owner: quality, check: { type: verify-job, ref: dbmig-validate } }
+      estimated_cost_usd_month: 0
+    walk:
+      in_scope: true
+      goal: Run the migration against a staging copy with real volume under GitOps.
+      forjate_tier: mvp
+      exit_criteria:
+        - { id: G-Q-2, text: full-volume run completes under 30 minutes, owner: quality, check: { type: metric, ref: job_duration_seconds } }
+    run:
+      in_scope: false
+      skip_reason: One-off migration; nothing stays in production after Walk.
+      goal: n/a
+  experts:
+    - { role: business, run: true }
+    - { role: architecture, run: true }
+    - { role: data-store, run: true }
+    - { role: data-pipeline, run: true }
+    - { role: security, run: true }
+    - { role: compliance, run: true }
+    - { role: quality, run: true }
+    - { role: devops, run: true }
+    - { role: ai-engineering, run: false, skip_reason: "No model in the loop; deterministic ETL." }
+    - { role: ux, run: false, skip_reason: "Operator-only, CLI is enough." }

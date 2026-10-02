@@ -1,0 +1,24 @@
+apiVersion: forjate.io/v0
+kind: ContextPack
+metadata:
+  name: api-only
+  version: 1.0.0
+  scope: org
+  precedence: 20
+  description: Eval fixture for forjate:ai-engineering. Forbids local inference and only allows one external model family.
+spec:
+  applies_to: [ai-engineering]
+  language: en
+  sources:
+    - id: AI-1
+      kind: constraint
+      path: constraints.yaml#/rules/AI-1
+      enforce: must
+      applies_to: [ai-engineering]
+      summary: Only the gpt family is approved by procurement.
+    - id: AI-2
+      kind: constraint
+      path: constraints.yaml#/rules/AI-2
+      enforce: must
+      applies_to: [ai-engineering]
+      summary: No self-hosted inference; the platform team does not run GPUs.

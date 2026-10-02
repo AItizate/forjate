@@ -1,0 +1,41 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: business, usecase: invoice-intake, author: "forjate:business", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        value_hypothesis: 300 invoices/month at ~6 minutes of typing each is ~30 hours/month of AP clerk time plus the cost of wrong amounts; automation returns that time and removes typing errors.
+        kpi_metric: straight_through_rate
+        kpi_baseline: "0%"
+        kpi_target: "50% on the seeded sample, 0 wrong amounts"
+        systems_of_record: [Odoo]
+        approver: CFO
+        go_no_go: go
+      rationale: Low cost PoC on seeded PDFs proves extraction and PO matching before anyone touches the real mailbox or Odoo.
+      estimated_cost_usd_month: 5
+      gate_to_next:
+        - { id: G-BIZ-1, text: straight-through rate measured on the sample and the CFO has seen the number, owner: business, check: { type: metric, ref: straight_through_rate } }
+    walk:
+      choice: []
+      settings:
+        kpi_metric: straight_through_rate
+        kpi_target: "80% over 30 days, 0 wrong amounts"
+        exception_sla_hours: 24
+        go_no_go: conditional
+      rationale: Real invoices with the clerk approving exceptions; the budget of 300 USD/month covers a 3-node cluster.
+      estimated_cost_usd_month: 120
+      gate_to_next:
+        - { id: G-BIZ-2, text: CFO signs the Walk report with the 30-day number, owner: business, check: { type: manual } }
+    run:
+      choice: []
+      settings:
+        kpi_metric: straight_through_rate
+        kpi_target: "85% sustained, 0 wrong amounts, audit evidence per invoice"
+        go_no_go: conditional
+      rationale: Only worth it if Walk sustains 80%; the audit evidence requirement is what makes Run cost more than Walk.
+      estimated_cost_usd_month: 300
+  open_questions:
+    - { id: Q1, question: "What does a wrong amount cost today (rework, late payment fees)? Needed to price the 0-wrong-amounts target.", blocks_stage: walk }
+  references: [docs/lab-to-production.md]

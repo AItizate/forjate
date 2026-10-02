@@ -1,0 +1,40 @@
+apiVersion: forjate.io/v0
+kind: StagePlan
+metadata: { usecase: support-copilot, version: 1 }
+spec:
+  stages:
+    crawl:
+      in_scope: true
+      goal: Prove the bot answers the ten most common order and subscription questions from a seeded orders dataset and escalates refund requests with the full conversation attached.
+      forjate_tier: lab
+      exit_criteria:
+        - { id: G-Q-1, text: verify Job exits 0 on the seeded conversation set, owner: quality, check: { type: verify-job, ref: copilot-validate } }
+        - { id: G-BIZ-1, text: resolution rate measured once on the seeded set and shown to the head of CS, owner: business, check: { type: metric, ref: resolved_without_human_rate } }
+      out_of_scope:
+        - the real Telegram group; a replay Job feeds recorded conversations
+        - "OPEN: which fields of the orders API may be shown to a customer in chat"
+      estimated_cost_usd_month: 5
+    walk:
+      in_scope: true
+      goal: The bot handles the real Telegram group for the two support agents, with escalations landing in their queue.
+      forjate_tier: mvp
+      exit_criteria:
+        - { id: G-Q-2, text: 60% of conversations resolved without a human over 90 days, owner: quality, check: { type: metric, ref: resolved_without_human_rate } }
+        - { id: G-UX-1, text: every escalation carries the full transcript and the order id, owner: ux, check: { type: verify-job, ref: copilot-validate } }
+        - { id: G-BIZ-2, text: head of CS signs the Walk report, owner: business, check: { type: manual } }
+      estimated_cost_usd_month: 100
+    run:
+      in_scope: false
+      skip_reason: Not requested; internal pilot for two agents, revisit after Walk.
+      goal: n/a
+  experts:
+    - { role: business, run: true }
+    - { role: architecture, run: true }
+    - { role: ai-engineering, run: true }
+    - { role: data-store, run: true }
+    - { role: data-pipeline, run: true }
+    - { role: security, run: true }
+    - { role: compliance, run: false, skip_reason: "Not regulated; pii handled by security at Walk." }
+    - { role: quality, run: true }
+    - { role: devops, run: true }
+    - { role: ux, run: true }

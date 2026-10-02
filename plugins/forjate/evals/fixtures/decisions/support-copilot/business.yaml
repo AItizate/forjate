@@ -1,0 +1,32 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: business, usecase: support-copilot, author: "forjate:business", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        value_hypothesis: 200 messages/day handled by two agents; if 60% resolve without a human, one agent is freed for escalations and response time drops.
+        kpi_metric: resolved_without_human_rate
+        kpi_baseline: "0%"
+        kpi_target: "40% on the seeded conversation set"
+        systems_of_record: [orders API]
+        approver: head of CS
+        go_no_go: go
+      rationale: Replayed conversations against a seeded orders dataset prove intent coverage and escalation quality without touching customers.
+      estimated_cost_usd_month: 5
+      gate_to_next:
+        - { id: G-BIZ-1, text: resolution rate measured on the seeded set and shown to the head of CS, owner: business, check: { type: metric, ref: resolved_without_human_rate } }
+    walk:
+      choice: []
+      settings:
+        kpi_metric: resolved_without_human_rate
+        kpi_target: "60% within 3 months, escalations carry full context"
+        go_no_go: conditional
+      rationale: Real group with two agents watching; the 150 USD/month budget covers a small cluster plus API inference.
+      estimated_cost_usd_month: 100
+      gate_to_next:
+        - { id: G-BIZ-2, text: head of CS signs the Walk report, owner: business, check: { type: manual } }
+  open_questions:
+    - { id: Q1, question: "Is a wrong answer about a subscription worse than no answer? Needed to set the escalation threshold.", blocks_stage: walk }
+  references: [docs/lab-to-production.md]

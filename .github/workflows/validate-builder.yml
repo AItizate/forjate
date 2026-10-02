@@ -1,0 +1,95 @@
+name: Validate Use-Case Builder
+
+# Gates for the forjate plugin (plugins/forjate) and the context packs it
+# consumes. Design: docs/use-case-builder/plan.md. The overlays a use case
+# ships are covered by validate-kustomize.yml and validate-usecases.yml; what
+# is validated here is the builder's own contracts: schemas, packs, decision
+# records and the tooling tests.
+
+on:
+  pull_request:
+    paths:
+      - 'plugins/forjate/**'
+      - 'context-packs/**'
+      - 'k8s/overlays/usecases/**/.builder/**'
+      - 'wiki/catalog*.json'
+      - 'wiki/catalog-overrides.yaml'
+      - '.claude-plugin/**'
+      - '.github/workflows/validate-builder.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/forjate/**'
+      - 'context-packs/**'
+      - 'k8s/overlays/usecases/**/.builder/**'
+
+jobs:
+  builder:
+    name: Schemas, packs, decisions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install poetry and dependencies
+        run: |
+          pipx install poetry
+          poetry install --no-root
+
+      - name: Plugin and marketplace manifests are valid JSON
+        run: |
+          python3 -m json.tool plugins/forjate/.claude-plugin/plugin.json > /dev/null
+          python3 -m json.tool .claude-plugin/marketplace.json > /dev/null
+          python3 - <<'PY'
+          import json
+          m = json.load(open('.claude-plugin/marketplace.json'))
+          p = json.load(open('plugins/forjate/.claude-plugin/plugin.json'))
+          entry = next(e for e in m['plugins'] if e['name'] == 'forjate')
+          assert entry['version'] == p['version'], f"marketplace {entry['version']} != plugin {p['version']}"
+          print(f"forjate plugin {p['version']}")
+          PY
+
+      - name: Every skill has frontmatter with name and description
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in plugins/forjate/skills/*/SKILL.md; do
+            head -1 "$f" | grep -q '^---$' || { echo "::error file=$f::missing frontmatter"; fail=1; }
+            grep -q '^name: ' "$f" || { echo "::error file=$f::missing name"; fail=1; }
+            grep -q '^description: ' "$f" || { echo "::error file=$f::missing description"; fail=1; }
+            lines=$(wc -l < "$f")
+            [ "$lines" -le 500 ] || { echo "::error file=$f::SKILL.md is $lines lines (>500); split into references/"; fail=1; }
+          done
+          exit $fail
+
+      - name: Tooling tests
+        run: poetry run pytest -q plugins/forjate/scripts/builder/tests
+
+      - name: Lint context packs
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packs=(context-packs/*/ context-packs/examples/*/)
+          dirs=()
+          for p in "${packs[@]}"; do [ -f "$p/pack.yaml" ] && dirs+=("$p"); done
+          [ ${#dirs[@]} -gt 0 ] || { echo "no packs"; exit 0; }
+          poetry run python plugins/forjate/scripts/builder/packs.py lint "${dirs[@]}"
+
+      - name: Validate .builder artifacts of every use case
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dirs=()
+          for b in k8s/overlays/usecases/*/.builder; do dirs+=("$(dirname "$b")"); done
+          [ ${#dirs[@]} -gt 0 ] || { echo "no use case ships .builder/ yet"; exit 0; }
+          poetry run python plugins/forjate/scripts/builder/validate.py "${dirs[@]}"
+
+      - name: catalog.json is in sync with the tree and the overrides
+        run: |
+          poetry run python scripts/wiki-compile.py --check || {
+            echo "::error::wiki/ (incl. catalog.json) is out of sync. Run: poetry run python scripts/wiki-compile.py"
+            exit 1
+          }

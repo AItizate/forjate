@@ -14,7 +14,7 @@ Schema: `${CLAUDE_PLUGIN_ROOT}/scripts/builder/schemas/stage-plan.schema.json`. 
 
 ## Procedure
 
-1. Read `brief.yaml`. Note `data.classification`, `constraints.regulated`, `constraints.budget_per_month_usd`, `stages_requested`, `success.metric` and `language`. Write the plan in that language.
+1. Read `brief.yaml`. Note `data.classification`, `constraints.regulated`, `constraints.budget_per_month_usd`, `stages_requested`, `success.metric` and `language`. Write the plan in that language. If the use case already ships a `usecase.yaml`, read `spec.jobs`: the Crawl `verify-job` gate must name that verify Job, not a hypothetical one.
 2. Resolve context packs for your role (section below). Packs can forbid a stage's defaults or cap cost; they shape the plan before you write it.
 3. Decide the stages. Crawl is always in scope: nothing is planned that has not been proven on a disposable cluster first. Walk and Run are in scope only when the brief says real users or production are wanted, or when `stages_requested` includes them. Mark everything else `in_scope: false` with a `skip_reason` in one sentence. A one-off migration stops at Walk; a nightly internal report may stop at Crawl.
 4. For each stage in scope write a `goal` (one sentence, what it proves), the `forjate_tier`, `exit_criteria` and `estimated_cost_usd_month` from the defaults.
@@ -31,6 +31,8 @@ Schema: `${CLAUDE_PLUGIN_ROOT}/scripts/builder/schemas/stage-plan.schema.json`. 
 ## Exit criteria that an agent can check
 
 An exit criterion is a gate: `{ id, text, owner, check }`. The `check` says how it is verified: `verify-job` (a Job in the overlay exits 0), `ci` (a workflow passes), `metric` (a measurable number), or `manual` (a named human signs). Prefer the first three. "Stakeholders are happy" is not a gate; "the approver named in the brief signs the Walk report" is.
+
+A manual gate is a meeting; an automated gate is a proof. Keep manual gates to the approver's sign-off and the decisions only a person can make (retention, budget), and express everything else as `verify-job`, `ci` or `metric`, even when the check does not exist yet: naming it is what makes the quality expert build it. If more than a third of a transition's gates are manual, rewrite them.
 
 Crawl always carries at least one `verify-job` gate because the ephemeral runner blocks on it: `ephemeral.sh up <name>` returning 0 is the proof that Crawl works. Walk carries at least one `metric` gate tied to the brief's success metric. Run carries the compliance and operability gates the regulated flag demands.
 

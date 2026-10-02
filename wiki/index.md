@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-09-02'
+compiled_at: '2026-10-02'
 ---
 
 # Forjate wiki — index
@@ -201,3 +201,4 @@ Concrete environments assembled from base + components.
 - [multi-tenant-pattern-tenants-client-b](overlays/multi-tenant-pattern-tenants-client-b.md) — declares `Namespace` · 1 local reference
 - [quickstart](overlays/quickstart.md) — deploys `curlimages/curl:8.10.1` · 2 local references
 - [usecases-db-migration-a-to-b](overlays/usecases-db-migration-a-to-b.md) — deploys `busybox:1.36` · 2 local references
+- [usecases-ha-decision-gate](overlays/usecases-ha-decision-gate.md) — deploys `homeassistant/home-assistant:stable` · 2 local references

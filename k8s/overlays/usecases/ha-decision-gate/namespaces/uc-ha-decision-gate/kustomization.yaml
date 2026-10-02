@@ -1,0 +1,80 @@
+namespace: uc-ha-decision-gate
+
+resources:
+  - namespace.yaml
+  # A real Home Assistant, not a stand-in. It holds the entity state the engine
+  # is scored on and, after `run`, every verdict as a sensor entity.
+  - ../../../../../components/apps/home-automation/hass
+  # The model backend behind the decision service.
+  - ../../../../../components/apps/ai-models/ollama
+  - decision-service.yaml
+  - hadg-seed-job.yaml
+  - hadg-run-job.yaml
+  - hadg-verify-job.yaml
+
+# The hass component leaves credentials to the consuming overlay. These are
+# dev-only values for a throwaway environment — the .env is gitignored and seeded
+# from the committed example by the runner and by CI.
+#
+# This one keeps its plain name on purpose: the contract advertises `hass-secret`
+# in spec.outputs, and an agent reads that name expecting to find it. A content
+# hash here would make the contract lie.
+secretGenerator:
+  - name: hass-secret
+    envs:
+      - secrets/hass.env
+    options:
+      disableNameSuffixHash: true
+
+# These deliberately DO carry a content hash. The decision service is a long-lived
+# Deployment reading its code from a ConfigMap, and a Python process does not
+# re-read a module after the file under it changes. With a stable ConfigMap name,
+# editing the engine and re-running `up` leaves the old code serving: the apply is
+# a no-op because the Deployment spec never changed. The hash makes the volume
+# reference change, which makes Kubernetes roll the pod, which is the only reason
+# an edit here takes effect at all.
+#
+# None of these names appear in the contract, so hashing them costs nothing.
+configMapGenerator:
+  # Which engine answers /v1/decide. This is the whole swap surface: point these
+  # three keys at a different backend and nothing else in the use case changes.
+  - name: hadg-engine-config
+    literals:
+      - ENGINE=ollama
+      - ENGINE_BASE_URL=http://ollama-service:11434
+      - ENGINE_MODEL=qwen2.5:3b
+  # The engine adapter, run straight from the ConfigMap so a cold `up` needs no
+  # image build and no registry.
+  - name: hadg-engine
+    files:
+      - decision_service.py=configs/decision_service.py
+  # Lifecycle scripts, shared by all three Jobs.
+  - name: hadg-scripts
+    files:
+      - ha_client.py=configs/ha_client.py
+      - seed.py=configs/seed.py
+      - run.py=configs/run.py
+      - verify.py=configs/verify.py
+  # The typed question schema and the labelled ground truth.
+  - name: hadg-data
+    files:
+      - questions.json=configs/questions.json
+      - scenarios.json=configs/scenarios.json
+
+patches:
+  - path: patches/hass-amd64.yaml
+    target:
+      kind: Deployment
+      name: hass
+  - path: patches/hass-ingress-delete.yaml
+    target:
+      kind: Ingress
+      name: hass-ingress
+  - path: patches/ollama-resources.yaml
+    target:
+      kind: StatefulSet
+      name: ollama
+  - path: patches/ollama-pvc-size.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: pvc-ollama

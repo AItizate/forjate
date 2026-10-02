@@ -1,0 +1,10 @@
+# The catalog default is 1Gi, which is smaller than the model. Ollama fails the
+# pull partway through with a disk error that reads like a network problem.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-ollama
+spec:
+  resources:
+    requests:
+      storage: 8Gi

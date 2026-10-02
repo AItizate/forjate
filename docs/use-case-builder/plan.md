@@ -256,7 +256,7 @@ Tests:
 
 Exit: a user can run `/forjate:coordinator` and get a reviewed brief + stage plan committed under `.builder/`.
 
-**Done 2026-10-02 (tag `builder-p1`).** Planner: 3 evals × 2 configs on Opus, 100 % both, skill cites pack rules 3–6× more and raises `OPEN:` questions the baseline omits. Coordinator: 3 evals × 2 configs, 100 % both; with the plugin it delegates to `forjate:stage-planner` (confirmed in `subagent_stats`), writes the report in the brief's language, and fabricates no expert record. Baselines re-run after the control fix; see `evals-workspace/*/benchmark.md`.
+**Done 2026-10-02 (tag `builder-p1`).** Opus, baseline with the plugin stripped from the worktree; tables in `benchmarks/`. Planner: with skill 100 % on 3 evals, baseline 97 % (lists non-expert roles, skips `business`); the skill cites pack rules 3× more on the regulated case and raises `OPEN:` questions the baseline never does. Coordinator: with skill 100 % on 3 evals, baseline 42 % (no derived name, fabricated expert records, no assumptions recorded) at 2–8× the cost. With the plugin the coordinator delegates to `forjate:stage-planner` (confirmed in `subagent_stats`) and writes the report in the brief's language.
 
 ### Phase 2 — Core experts: business, architecture, AI engineering, data store, data pipeline (≈ 2.5 weeks)
 

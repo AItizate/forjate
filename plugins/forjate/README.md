@@ -7,7 +7,10 @@ plugins/forjate/
 ├── .claude-plugin/plugin.json   # manifest
 ├── skills/<role>/SKILL.md       # one skill per role, invoked as /forjate:<role>
 ├── agents/<role>.md             # subagent per expert; loads its skill, returns a Decision record
+├── evals/<role>/evals.json      # L1 skill evals; fixtures/ holds golden briefs, plans, business records, packs
 └── scripts/builder/             # packs.py (context-pack resolver), validate.py, schemas/, tests/
+
+Roles today: coordinator, stage-planner, kustomize, context-pack (shared), and the core experts business, architecture, ai-engineering, data-store, data-pipeline (`docs/use-case-builder/experts.md`).
 ```
 
 ## Install

@@ -111,10 +111,10 @@ def main(argv: list[str]) -> int:
             continue
         g = grade_run(run_dir)
         timing = json.loads((run_dir / "timing.json").read_text()) if (run_dir / "timing.json").exists() else {}
-        rows.append((g["eval_name"], run_dir.name, g["pass_rate"], timing.get("total_duration_seconds"), timing.get("total_cost_usd"), timing.get("num_turns")))
-    lines = [f"# Benchmark — {it.parent.name} / {it.name}", "", "| eval | config | pass rate | seconds | cost USD | turns |", "|---|---|---|---|---|---|"]
-    for name, cfg, pr, secs, cost, turns in rows:
-        lines.append(f"| {name} | {cfg} | {pr:.0%} | {secs if secs is None else round(secs)} | {cost if cost is None else round(cost, 3)} | {turns} |")
+        rows.append((g["eval_name"], run_dir.name, g["pass_rate"], timing.get("total_duration_seconds"), timing.get("total_cost_usd"), timing.get("num_turns"), ",".join(m.replace("claude-", "") for m in timing.get("models", []))))
+    lines = [f"# Benchmark — {it.parent.name} / {it.name}", "", "| eval | config | pass rate | seconds | cost USD | turns | models |", "|---|---|---|---|---|---|---|"]
+    for name, cfg, pr, secs, cost, turns, models in rows:
+        lines.append(f"| {name} | {cfg} | {pr:.0%} | {secs if secs is None else round(secs)} | {cost if cost is None else round(cost, 3)} | {turns} | {models} |")
     for cfg in ("with_skill", "without_skill"):
         prs = [r[2] for r in rows if r[1] == cfg]
         if prs:

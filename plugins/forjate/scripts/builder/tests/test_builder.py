@@ -112,3 +112,71 @@ def test_golden_briefs_validate():
     assert len(briefs) >= 3
     for b in briefs:
         assert schema_errors("brief", load_yaml(b), str(b)) == []
+
+
+# --- cross-record consistency (check 6) -------------------------------------
+
+def _write_decision(uc: Path, area: str, stages: dict, open_questions: list | None = None) -> None:
+    d = {"apiVersion": "forjate.io/v0", "kind": "Decision",
+         "metadata": {"area": area, "usecase": uc.name, "author": f"forjate:{area}", "version": 1},
+         "spec": {"stages": stages}}
+    if open_questions:
+        d["spec"]["open_questions"] = open_questions
+    (uc / ".builder" / "decisions" / f"{area}.yaml").write_text(yaml.safe_dump(d, sort_keys=False))
+
+
+def test_broker_conflict_across_records_is_an_error(usecase: Path):
+    _write_decision(usecase, "architecture", {"walk": {"choice": ["apps/brokers/nats"], "settings": {"broker": "nats"}, "rationale": "x"}})
+    _write_decision(usecase, "data-pipeline", {"walk": {"choice": ["apps/brokers/rabbitmq"], "settings": {"broker": "rabbitmq"}, "rationale": "y"}})
+    errors, _ = validate_usecase(usecase)
+    hits = [e for e in errors if "cross-record conflict (walk, broker)" in e]
+    assert hits and "nats" in hits[0] and "rabbitmq" in hits[0] and "open question" in hits[0]
+
+
+def test_broker_conflict_via_setting_only(usecase: Path):
+    # One record names the broker in settings, the other picks the component: still one conflict.
+    _write_decision(usecase, "architecture", {"walk": {"choice": [], "settings": {"broker": "nats"}, "rationale": "x"}})
+    _write_decision(usecase, "data-pipeline", {"walk": {"choice": ["apps/brokers/rabbitmq"], "rationale": "y"}})
+    errors, _ = validate_usecase(usecase)
+    assert any("cross-record conflict (walk, broker)" in e for e in errors)
+
+
+def test_acknowledged_conflict_is_a_warning_not_a_fix(usecase: Path):
+    _write_decision(usecase, "architecture", {"walk": {"choice": ["apps/brokers/nats"], "rationale": "x"}})
+    _write_decision(usecase, "data-pipeline", {"walk": {"choice": ["apps/brokers/rabbitmq"], "rationale": "y"}},
+                    open_questions=[{"id": "Q1", "question": "Architecture chose NATS but the Debezium connector needs RabbitMQ; which broker does the organisation operate?", "blocks_stage": "walk"}])
+    errors, warnings = validate_usecase(usecase)
+    assert not any("cross-record conflict" in e for e in errors)
+    assert any("cross-record conflict (walk, broker)" in w and "acknowledged by open question data-pipeline/Q1" in w for w in warnings)
+    # The records are untouched: both brokers are still there for the user to decide.
+    arch = yaml.safe_load((usecase / ".builder/decisions/architecture.yaml").read_text())
+    assert arch["spec"]["stages"]["walk"]["choice"] == ["apps/brokers/nats"]
+
+
+def test_shared_setting_conflict_is_an_error(usecase: Path):
+    # data-store fixture says data_residency eu at walk; a devops record saying us conflicts.
+    _write_decision(usecase, "devops", {"walk": {"choice": [], "settings": {"data_residency": "us"}, "rationale": "x"}})
+    errors, _ = validate_usecase(usecase)
+    assert any("cross-record conflict (walk, setting data_residency)" in e and "eu" in e and "us" in e for e in errors)
+
+
+def test_same_choice_across_records_is_not_a_conflict(usecase: Path):
+    _write_decision(usecase, "architecture", {"walk": {"choice": ["apps/brokers/nats"], "rationale": "x"}})
+    _write_decision(usecase, "data-pipeline", {"walk": {"choice": ["apps/brokers/nats"], "settings": {"broker": "nats"}, "rationale": "y"}})
+    errors, warnings = validate_usecase(usecase)
+    assert not any("cross-record conflict" in m for m in errors + warnings)
+
+
+def test_cdc_connector_implies_its_broker(usecase: Path):
+    _write_decision(usecase, "architecture", {"walk": {"choice": ["apps/brokers/nats"], "rationale": "x"}})
+    _write_decision(usecase, "data-pipeline", {"walk": {"choice": ["apps/cdc/debezium-postgres-rabbitmq"], "rationale": "y"}})
+    errors, warnings = validate_usecase(usecase)
+    assert any("cross-record conflict (walk, broker)" in e and "debezium-postgres-rabbitmq" in e for e in errors)
+    assert any("needs apps/brokers/rabbitmq" in w for w in warnings)
+
+
+def test_conflicts_in_different_stages_do_not_collide(usecase: Path):
+    _write_decision(usecase, "architecture", {"crawl": {"choice": ["apps/minio/dev"], "rationale": "x"}})
+    _write_decision(usecase, "data-pipeline", {"walk": {"choice": ["apps/minio/single-server"], "rationale": "y"}})
+    errors, warnings = validate_usecase(usecase)
+    assert not any("cross-record conflict" in m for m in errors + warnings)

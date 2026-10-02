@@ -44,7 +44,13 @@ run_one() {  # <eval-name> <prompt> <with|without>
   find "$wt/k8s/overlays" -name '*.env.example' | while read -r ex; do [[ -f "${ex%.example}" ]] || cp "$ex" "${ex%.example}"; done
   # Evals run in a throwaway worktree, so the build/validate commands the skills
   # rely on are pre-approved; everything else still goes through the default policy.
-  local allowed="Read Edit Write Glob Grep Agent Bash(kubectl kustomize *) Bash(kustomize *) Bash(kubeconform *) Bash(poetry run *) Bash(python3 *) Bash(yq *) Bash(./scripts/ephemeral/create-usecase.sh *) Bash(cp *) Bash(mkdir *) Bash(ls *) Bash(cat *) Bash(git diff *) Bash(git status *)"
+  local allowed="Read Edit Write Glob Grep Agent Skill Bash(cd *) Bash(kubectl kustomize *) Bash(kustomize *) Bash(kubeconform *) Bash(poetry run *) Bash(python3 *) Bash(yq *) Bash(./scripts/ephemeral/create-usecase.sh *) Bash(cp *) Bash(mkdir *) Bash(ls *) Bash(cat *) Bash(git diff *) Bash(git status *)"
+  # The plugin is checked into this repo, so a worktree carries the skills on
+  # disk even without --plugin-dir. Strip them for the baseline so it is a real
+  # control; the builder scripts and schemas stay because the prompts cite them.
+  if [[ "$cfg" == "without" ]]; then
+    rm -rf "$wt/plugins/forjate/skills" "$wt/plugins/forjate/agents" "$wt/docs/use-case-builder"
+  fi
   local args=(-p "$prompt" --output-format json --permission-mode acceptEdits --max-turns "$max_turns" --model "$model" --allowedTools "$allowed")
   [[ "$cfg" == "with" ]] && args+=(--plugin-dir "$PLUGIN_DIR")
   echo "  [$cfg] $name"

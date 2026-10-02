@@ -10,3 +10,4 @@ implementation_plan.md
 k8s/**/charts/**
 # use-case builder
 .pytest_cache/
+evals-workspace/

@@ -1,0 +1,40 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: data-store, usecase: support-copilot, author: "forjate:data-store", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: [apps/databases/postgres]
+      settings:
+        memory_kinds: [session, episodic]
+        session_store: apps/databases/postgres
+        working_store: none
+        episodic_store: apps/databases/postgres
+        semantic_store: none
+        artifact_store: none
+        retention_session: 4h
+        retention_episodic: 4h
+        backup: none
+        restore_tested: false
+        systems_of_record: [orders API]
+      rationale: One Postgres for the PoC holds the session turns with a TTL column and the escalation records; the split into Redis happens at Walk.
+      gate_to_next:
+        - { id: G-DS-1, text: session retention and transcript retention agreed with the head of CS, owner: data-store, check: { type: manual, ref: decisions/data-store.yaml } }
+    walk:
+      choice: [apps/databases/redis, apps/databases/postgres]
+      settings:
+        memory_kinds: [session, episodic]
+        session_store: apps/databases/redis
+        working_store: none
+        episodic_store: apps/databases/postgres
+        semantic_store: none
+        artifact_store: none
+        retention_session: 24h
+        retention_episodic: 90d
+        backup: snapshot+dump
+        restore_tested: false
+        systems_of_record: [orders API]
+      rationale: Redis for the live conversation, Postgres for escalations and conversation summaries by customer id; the orders API stays the system of record.
+      gate_to_next:
+        - { id: G-DS-2, text: restore of Postgres rehearsed into a scratch namespace with row counts verified, owner: data-store, check: { type: ci, ref: restore-rehearsal } }
+  references: [docs/storage-strategy.md]

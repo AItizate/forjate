@@ -1,0 +1,14 @@
+rules:
+  SEC-1:
+    type: deny_components
+    value: [apps/sealed-secrets]
+    reason: Controller key custody is not solved org-wide; sealed secrets were lost once in a cluster rebuild.
+  SEC-2:
+    type: secrets_mechanism
+    value: external-secrets
+    stages: [walk, run]
+    reason: Secrets live in the corporate store; environments pull, never hold.
+  SEC-3:
+    type: deny_components
+    value: [apps/auth/gotrue-auth]
+    reason: Keycloak is the only approved identity provider.

@@ -1,0 +1,10 @@
+rules:
+  QA-1:
+    type: deny_setting_value
+    target: judge
+    value: [rules, llm-judge, rules+human-sample]
+    reason: Internal audit requires a person to grade every evaluated item on financial data.
+  QA-2:
+    type: deny_components
+    value: [apps/monitoring/prometheus, apps/monitoring/grafana, apps/monitoring/otel-collector]
+    reason: The platform team runs no in-cluster monitoring; metrics are shipped to the corporate observability SaaS.

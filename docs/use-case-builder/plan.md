@@ -330,14 +330,16 @@ Goal: the coordinator produces a complete, deployable Crawl overlay and a Walk/R
 1. **`forjate:ux`**: surface selection per stage (CLI/notebook for Crawl, Open WebUI or Telegram for Walk, custom web/API for Run), human-in-the-loop checkpoints, feedback capture (Formbricks is in the catalog), latency/streaming expectations, failure UX.
 1b. **`forjate:app-scaffold`**: from the records, generate the workload: service skeleton (FastAPI agent, Temporal worker, or batch Job as `forjate:architecture` decided), tool stubs typed per `forjate:ai-engineering`, Dockerfile, unit tests, and the image reference the overlay patches. Pack guidelines on tool development apply here verbatim.
 2. **Assembly step** in the coordinator: merges records → calls `forjate:kustomize` to write `kustomization.yaml`, `namespaces/`, `patches/`, `secrets/*.env.example`, `usecase.yaml`, `stages/walk/`, `stages/run/`, README with the decision summary.
-3. **Review mode**: `/usecase review <name>` prints a human-readable report (per-area decisions, open questions, gates, cost per stage) — the artifact a stakeholder reads before approving a stage.
+2b. **Tenant target** (added after the im-u survey, `tenant-patterns.md`): `--target tenant <repo>` emits the tenant-root shape with SSH refs pinned to one tag, `$patch: delete` for placeholder Secrets, ArgoCD Application and repo-server SSH wiring at Walk, `images:` as the write-back surface. Without it the builder's output cannot be consumed by the two real tenants.
+2c. **Plaintext-credential scan** as a `ci` gate: `scripts/builder/secret-scan.py`, wired into `validate-kustomize.yml`.
+3. **Review mode**: `/usecase review <name>` prints a human-readable report (per-area decisions, open questions, gates, cost per stage) — the artifact a stakeholder reads before approving a stage. Inside a tenant repo it also lists drift between the tenant's `CLAUDE.md` and its tree.
 4. **Docs**: `docs/use-case-builder/` (overview, contracts, how to add an expert), entry in `docs/learning-path.md`.
 
 Tests:
 - `forjate:ux` L1 (G1–G3 + "no UI needed, it is a nightly batch" negative case).
 - `forjate:app-scaffold` L1: generated service builds, its tests pass, tool signatures match the AI-engineering record.
 - L3 full: coordinator from cold on G1 and G2 → `kustomize build` + `kubeconform` + `ephemeral.sh up` green in CI (k3d job, nightly, not per-PR).
-- Walk stage: `kustomize build stages/walk` green; a manual deploy on the homelab cluster once, documented.
+- Walk stage: `kustomize build stages/walk` green, and the tenant-target output builds against the factory at the pinned tag; a manual deploy on the homelab cluster once, documented.
 
 Exit: a new user can go from problem statement to a running Crawl environment in one session, and read a report that explains every choice.
 

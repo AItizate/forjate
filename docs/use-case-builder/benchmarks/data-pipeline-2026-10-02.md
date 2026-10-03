@@ -31,3 +31,11 @@
 | pack-no-docling | without_skill | 2 | 5 | 2 | 5 | 10 | 8 | 8 | 6 |
 | regulated-invoice-intake | with_skill | 2 | 4 | 0 | 2 | 10 | 10 | 5 | 4 |
 | regulated-invoice-intake | without_skill | 2 | 5 | 0 | 1 | 8 | 8 | 6 | 5 |
+
+## Iteration 2 (after strengthening the CDC rule in SKILL.md; only the failed eval re-run, with skill)
+
+| eval | config | pass rate | seconds | cost USD | turns | models |
+|---|---|---|---|---|---|---|
+| adversarial-cdc-at-crawl | with_skill | 100% | 221 | 1.346 | 29 | haiku-4-5-20251001,opus-5 |
+
+With that run, with_skill is 100 % over the 5 evals; the baseline rows above are unchanged.

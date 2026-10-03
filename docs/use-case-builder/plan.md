@@ -2,7 +2,7 @@
 
 > An agentic team that takes a one-paragraph business problem and turns it into a Forjate overlay, staged Crawl → Walk → Run, with structured, reviewable artifacts at every step.
 
-Status: **Phase 1 done (tag `builder-p1`, 2026-10-02)** · Owner: Sebas · Created: 2026-10-02
+Status: **Phase 2 done (tag `builder-p2`, 2026-10-03)** · Owner: Sebas · Created: 2026-10-02
 
 ---
 
@@ -208,6 +208,8 @@ Lessons from Phase 0 and 1, binding for every later eval:
 - **Form assertions stop discriminating fast.** With the schema path in the prompt, a frontier model produces a valid artifact with or without the skill. Each eval needs at least two assertions on *judgement* (a pack rule cited, an `OPEN:` question raised, a stage skipped with a reason, a gate expressed as `ci`/`metric` rather than `manual`) next to the form checks, or the pass rate says nothing.
 - **Run evals on Opus, record the model.** `run.sh` defaults to `--model opus` and the benchmark lists the models used; a session-limit hit is recorded as `is_error` and re-run, never counted as a failure.
 - **Quality metrics travel with the benchmark.** Gate counts by check type, pack references and `OPEN:` lines are computed per run; they are where the skill's value showed when pass rates tied.
+- **Assert consistency, not a fixed shape.** "Temporal at Walk" failed a record that chose a Postgres outbox at 200 messages/day with a sound argument; "a webhook implies an external surface" is what the eval was really after. When a with-skill run fails, read the record before touching the skill: half the time the assertion is the thing that is wrong.
+- **Hung runs need a wall-clock deadline.** A `sleep`-based watchdog does not fire while a laptop is suspended; `run.sh` polls the clock every 15 s and kills on the deadline. Keep the machine awake (`caffeinate -i -s`) for the length of a batch.
 
 Assertion style for L1: objective and named, e.g. `recommends-postgres-for-crawl-state`, `declares-retention-per-stage`, `no-component-outside-catalog`, `gate-to-walk-has-backup-check`, `answers-in-schema`. Every expert additionally gets one **pack eval**: the same golden prompt with a pack that forbids its default choice, asserting `respects-pack-must`, `cites-pack-rule`, `raises-open-question-on-unsatisfiable-rule`. Subjective quality (tone, clarity) is reviewed by the human in the eval viewer, never forced into assertions.
 
@@ -276,6 +278,20 @@ Tests:
 - L3 smoke: coordinator on G3 regenerates a `usecase.yaml` equivalent to the committed one (diff ignoring ordering).
 
 Exit: G1 and G2 have five validated decision records and a Crawl `kustomization.yaml` that builds.
+
+**Done 2026-10-03 (tag `builder-p2`).** Five expert skills, agents and eval suites; cross-record consistency as check 6 of `validate.py` (18 tests); coordinator fan-out in two waves with the consistency pass; `experts.md`. Evals on Opus, baseline with the plugin stripped, 5 evals per expert (3 golden briefs, 1 adversarial, 1 pack), tables in `benchmarks/`:
+
+| Expert | with skill | baseline | What the baseline misses |
+|--------|-----------|----------|--------------------------|
+| business | 100 % | 73 % | as-is exceptions, go/no-go per stage, numbers derived from the brief's volume, baseline kept under pressure |
+| architecture | 100 % | 80 % | integrations named with a pattern, workloads for the scaffolder, closed Crawl surface, durability at Run instead of a cron monolith |
+| ai-engineering | 100 % | 83 % | structured output, untrusted inputs, gated write tools, memory requested by kind, cost per 1k, eval strategy |
+| data-store | 100 % | 79 % | one store per memory kind and stage, short vs long term separated, backup ladder, systems of record |
+| data-pipeline | 100 % (97 % before the CDC fix) | 68 % | batch Crawl with a seeded verify, live pattern at Walk, source-derived idempotency key, seed that represents the exceptions |
+
+Quality metrics (open questions caused by a rule, pack refs, automated gates) favour the skill on every pack eval even where pass rates tie. Three evals tie at 100 % in both configurations (`pack-api-only`, `pack-no-docling`, `pack-no-temporal`): a frontier model honours a pack it is pointed at; the value of the skill there is in the record's shape, not the verdict, and those evals need harder assertions in Phase 5. The one with-skill miss (`data-pipeline` adversarial: CDC accepted at Walk "on the requester's instruction") was fixed in the skill's CDC rule and re-run as iteration 2. The Crawl `kustomization.yaml` for G1/G2 is Phase 4 (assembly); the five records of each were validated together with zero cross-record conflicts.
+
+Lessons added to §3: assertions must check consistency between fields (webhook ⇒ external surface) rather than one fixed shape, or they punish a record that reasons better than the eval author; a `claude -p` that hangs while the laptop sleeps is only caught by a wall-clock deadline (`run.sh` polls instead of sleeping; keep the machine awake with `caffeinate` for a batch).
 
 ### Phase 3 — Governance experts: security, compliance, quality, devops (≈ 2.5 weeks)
 

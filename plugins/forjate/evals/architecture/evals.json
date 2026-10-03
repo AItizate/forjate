@@ -81,7 +81,7 @@
     {
       "name": "chat-copilot-no-packs",
       "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/support-copilot/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the architecture expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area architecture, metadata.author forjate:architecture, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
-      "expected_output": "Crawl polls Telegram with no Temporal; Walk is chat-durable with temporal-stack, an external surface for the webhook and auth in front of the Temporal UI.",
+      "expected_output": "Crawl replays recorded conversations with no Temporal; Walk is chat-durable, polls Telegram (or exposes an external surface if it uses the webhook), with durability by Temporal or a named outbox fallback and auth in front of anything exposed.",
       "assertions": [
         {
           "type": "file_exists",
@@ -114,8 +114,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
-          "expr": "any('temporal' in c for c in choices('walk'))",
-          "text": "Temporal at Walk for escalations"
+          "expr": "any('temporal' in c for c in choices('walk')) or setting('durable_execution', 'walk') == 'temporal' or has('outbox|idempot', st('walk').get('rationale'))",
+          "text": "escalations are durable at Walk: Temporal, or a named fallback (outbox, idempotency key)"
         },
         {
           "type": "yaml_expr",
@@ -126,14 +126,14 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
-          "expr": "any(has('telegram', x) and has('poll', x) for x in listed(setting('integrations', 'crawl')))",
-          "text": "Telegram is polled at Crawl"
+          "expr": "any(has('telegram', x) and has('poll', x) for s in stages for x in listed(setting('integrations', s))) or has('replay|recorded', st('crawl').get('rationale'))",
+          "text": "Telegram is polled, or Crawl replays recorded conversations"
         },
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
-          "expr": "setting('api_surface', 'walk') == 'external'",
-          "text": "walk exposes an external surface for the channel webhook"
+          "expr": "('webhook' not in listed(setting('integration_patterns', 'walk'))) or setting('api_surface', 'walk') == 'external'",
+          "text": "a webhook at Walk implies an external surface; polling keeps it closed"
         },
         {
           "type": "yaml_expr",

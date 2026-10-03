@@ -54,7 +54,7 @@ Then wire in components, fill the Jobs, and add generators and patches. `k8s/ove
 
 - **Builds clean**: `kustomize build --enable-helm k8s/overlays/usecases/<name>` and `kubeconform` on the output. Run both before you say done.
 - **Contract matches the overlay**: `metadata.name` equals the directory; every Job in `spec.jobs` exists in the built manifest and ships `spec.suspend: true` (the runner un-suspends them in order).
-- **Secrets**: every `.env` a `secretGenerator` reads has a committed `.env.example` with placeholder values at the same path. CI and the runner `cp` examples to real files.
+- **Secrets**: every `.env` a `secretGenerator` reads, and every `sealed-*.yaml` from Walk, has a committed `.env.example` with placeholder values at the same path and a header carrying the `# To generate:` and `# To seal:` commands (the security skill's rule; the recipe travels with the secret). CI and the runner `cp` examples to real files. From Walk a factory placeholder Secret is removed with `$patch: delete` and replaced by a SealedSecret of the same name (`references/patterns.md`).
 - **Namespace**: declared explicitly in `namespace.yaml`; the sub-overlay sets `namespace: uc-<name>`. Never put a global `namespace:` on the root kustomization, it collides with base namespaces.
 - **Component secrets**: catalog databases leave their Secret out and expect the overlay to supply one with the exact name they mount (`postgres-secret`, `mongodb-secret`). Check the component's wiki page for the name and keys.
 - **Sizing**: catalog defaults are sized for tenants. Add `patches/<component>-resources.yaml` for Crawl so it fits k3d on a laptop.
@@ -76,7 +76,7 @@ patches:
     target: { kind: Namespace, name: uc-<name> }
 ```
 
-Each stage overlay adds what the decision records require for that stage (`forjate:devops`, `forjate:security`) and nothing the stage planner put out of scope. A stage overlay must build on its own: `kustomize build k8s/overlays/usecases/<name>/stages/walk`.
+Each stage overlay adds what the decision records require for that stage (`forjate:devops`, `forjate:security`) and nothing the stage planner put out of scope. From Walk the security record's `network_policy: default-deny`, `egress_allowlist`, `psa_level` and `security_context` are written as manifests and labels unprompted (`references/patterns.md`); they are decisions, not options. A stage overlay must build on its own and differ from the root: `kustomize build k8s/overlays/usecases/<name>/stages/walk`. Remote refs in a stage overlay carry `?ref=<tag>`, never a branch.
 
 ## Validate everything
 
@@ -103,5 +103,5 @@ Full rules: `forjate:context-pack`. For you the packs that matter most are namin
 ## See also
 
 - `references/checklist.md`: the tier checklist, condensed from `docs/overlays/CONVENTION.md`.
-- `references/patterns.md`: patch and generator snippets that recur across overlays.
+- `references/patterns.md`: patch and generator snippets that recur across overlays, plus what a real tenant does (tenant root shape, both SSH URL forms, placeholder-Secret replacement, patch naming, index-based env patches, default-deny NetworkPolicy).
 - `docs/ephemeral-use-cases.md`, `scripts/ephemeral/README.md`: the runner and the contract, in full.

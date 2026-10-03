@@ -10,7 +10,7 @@ plugins/forjate/
 ├── evals/<role>/evals.json      # L1 skill evals; fixtures/ holds golden briefs, plans, business records, packs
 └── scripts/builder/             # packs.py (context-pack resolver), validate.py, schemas/, tests/
 
-Roles today: coordinator, stage-planner, kustomize, context-pack (shared), and the core experts business, architecture, ai-engineering, data-store, data-pipeline (`docs/use-case-builder/experts.md`).
+Roles today: coordinator, stage-planner, kustomize, context-pack (shared), the core experts business, architecture, ai-engineering, data-store, data-pipeline, and the governance experts security, compliance, quality (also consolidates gates.yaml), devops (`docs/use-case-builder/experts.md`).
 ```
 
 ## Install

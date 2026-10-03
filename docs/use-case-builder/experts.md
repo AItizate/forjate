@@ -2,7 +2,7 @@
 
 One skill and one subagent per decision area. Every expert reads the brief, the stage plan and its resolved context packs, writes `.builder/decisions/<role>.yaml` per the decision schema, validates it, and returns a five-line summary; the file is the record. This page says, per expert, what it consumes, what it emits, when it pushes back, and what it will never decide alone. The skills themselves are under `plugins/forjate/skills/<role>/`.
 
-Order of execution: `business` first and alone; the rest in parallel; then the validator's cross-record consistency pass (`contracts.md`, check 6).
+Order of execution: `business` first and alone; the rest in parallel, including the governance experts; then the validator's cross-record consistency pass (`contracts.md`, check 6); then `quality` again in consolidate mode to write `gates.yaml`.
 
 ## business (`forjate:business`)
 
@@ -49,10 +49,46 @@ Order of execution: `business` first and alone; the rest in parallel; then the v
 | **Pushes back when** | streaming or CDC is asked for at Crawl or for a one-off; a different broker than the architecture's is needed (raises the question naming both; never switches); the only parser in the catalog is denied (declares parsing blocked, names what is possible, raises the question); a seed would copy regulated data without the compliance expert |
 | **Never decides alone** | the broker (architecture's; conflicts stay open); where data lands (names the kind, data-store maps it); the model steps (AI-engineering) |
 
+## security (`forjate:security`)
+
+| | |
+|---|---|
+| **Inputs** | brief (`classification`, `llm_egress_allowed`, `regulated`), plan, business record, architecture (`api_surface`, `auth_in_front`), ai-engineering (`tools`, `untrusted_inputs`, `data_egress`) and data-store records if present, packs (`min_psa_level`, `secrets_mechanism`, `data_egress`, `deny_components`, security-baseline guideline), `wiki/concepts/secret-strategy.md` |
+| **Emits** | `choice`: `apps/sealed-secrets`, `apps/security/external-secrets` or `apps/security/vault` (one per stage), `apps/auth/gotrue-auth`, `rbac`; settings `data_classification`, `secrets_mechanism`, `env_example_per_secret`, `secret_scan`, `psa_level`, `network_policy`, `egress_allowlist`, `security_context`, `auth_in_front`, `identity_provider`, `data_egress`, `audit_trail`, `audit_log_content`, `untrusted_inputs`, `llm_threats`, `tool_write_gate`, `image_policy`, `deploy_from`; gates `G-SEC-n` with `ci` checks (secret scan, `.env.example` count, NetworkPolicy, PSA, ArgoCD revision) |
+| **Pushes back when** | a credential sits in a `configMapGenerator` literal or an env patch (a `ci` gate, from a real leak); a secret has no `.env.example` recipe; a human-facing surface has no auth at Walk (open question naming both values); an external model is asked for on data that may not leave; a write tool is reachable from untrusted content; a branch `targetRevision` with `selfHeal: false` is proposed past Crawl; a pack denies the only IdP or mechanism the stage can use (unsatisfiable, open question) |
+| **Never decides alone** | the surfaces (architecture); the tools (ai-engineering); where data lives (data-store); the CDC audit stream (data-pipeline wires it); whether a licence or a provider's terms are acceptable (compliance) |
+
+## compliance (`forjate:compliance`)
+
+| | |
+|---|---|
+| **Inputs** | brief (`classification`, `residency`, `regulated`), plan, business record, data-store (`retention_*`, `data_residency`, `choice`), ai-engineering (`model`, `inference`, `data_egress`), security (`audit_trail`), architecture and data-pipeline (`choice`) records if present, packs (`data_residency`, `data_egress`, `deny_components`, baseline guidelines), `wiki/catalog.json` licence facts |
+| **Emits** | `choice: []` always; settings `data_classification`, `data_residency`, `transfer_mechanism`, `legal_basis`, `legal_retention_<kind>`, `retention_reconciled`, `dpia_required`, `dpia_status`, `subject_rights_path`, `licences`, `licence_flags`, `model_provider`, `model_provider_terms`, `data_egress`, `audit_evidence`, `evidence_bundle`, `signoff`; gates `G-COMP-n` (`ci` for the licence inventory and the data-class field in logs; `manual` sign-offs naming the signer) |
+| **Pushes back when** | a legal retention figure is missing (range stated, open question blocking Run); the data-store retention exceeds the legal copy or no audit copy exists (`retention_reconciled: false`); a model provider breaks residency or egress (open question naming model, provider, rule; never substitutes a model); a chosen component carries SSPL, AGPL-as-a-service, BUSL or a non-OSI licence (flag for the record that chose it); erasure collides with an immutable audit copy; a pack residency contradicts the brief (unsatisfiable, open question) |
+| **Never decides alone** | components (flags them, never removes them); the model (ai-engineering); operational retention (data-store); DPIA approval, DPA signature, stage sign-off (humans named in manual gates) |
+
+## quality (`forjate:quality`)
+
+| | |
+|---|---|
+| **Inputs** | brief, plan (`exit_criteria`), business record (`kpi_metric`, `kpi_target`, `approver`), every other record (`gate_to_next`, `verify_assertions`, `eval_strategy`, `untrusted_inputs`), packs (`deny_setting_value` on `judge`, `deny_components` on monitoring, baseline guidelines), `usecase.yaml` when present |
+| **Emits** | record mode: `choice: []`; settings `verify_job`, `verify_assertions`, `test_pyramid`, `golden_set`, `judge`, `eval_threshold`, `injection_suite`, `regression_trigger`, `kpi_metric`, `kpi_metric_source`, `observability_signals`, `gate_policy`, `manual_gates_justified`; gates `G-Q-n`. Consolidate mode: `.builder/gates.yaml` with every record's gates verbatim per transition, a `check` on each, the approver per transition and `pack_overrides` |
+| **Pushes back when** | a verify Job only checks readiness or skips the exception path or idempotency; a `metric` gate has no source (open question, `caused_by_rule` when a pack removed the stack); an LLM judge is proposed as the only grader; a golden set omits the exceptions or is built on real regulated data before compliance allows it; two records claim one gate id with different texts (kept apart, open question); a manual gate has no justification |
+| **Never decides alone** | the gates' texts (copied verbatim from the owners); the monitoring stack (devops); the KPI (business); the seed (data-pipeline) |
+
+## devops (`forjate:devops`)
+
+| | |
+|---|---|
+| **Inputs** | brief (`budget_per_month_usd`, `residency`), plan (`forjate_tier`, cost), business record (envelope), security (`psa_level`, `secrets_mechanism`, `network_policy`, `deploy_from`), data-store (`backup`, `data_residency`), architecture (`workloads`), compliance records if present, packs (`min_psa_level`, `secrets_mechanism`, `data_residency`, `naming_pattern`, `max_cost_usd_month`, `deny_components`), `docs/lab-to-production.md`, `docs/ci-cd.md`, `tenant-patterns.md` |
+| **Emits** | `choice`: `apps/continuous-delivery/argocd`, the stage's secrets component (same as security), `apps/storage/longhorn`, `apps/networking/metallb`, `apps/monitoring/prometheus`, `apps/monitoring/grafana`, `apps/monitoring/otel-collector`, `apps/monitoring/reloader`, `apps/docker-registry`; settings `environment`, `cluster_shape`, `storage_class`, `deploy_method`, `gitops`, `argocd_sync`, `target_revision`, `remote_refs`, `argocd_private_refs`, `environments_distinct`, `image_registry`, `image_tag_policy`, `image_writeback`, `image_signing`, `secrets_mechanism`, `secret_rotation`, `psa_level`, `network_policy`, `observability`, `golden_signals`, `alerting`, `backup`, `restore_rehearsed`, `rollback`, `rollback_rehearsed`, `data_residency`; `estimated_cost_usd_month` per stage; gates `G-OPS-n` (`ci`: ref pinning, stage overlay builds, revision check, rotation, restore and rollback rehearsals, controller-key backup) |
+| **Pushes back when** | ArgoCD, Longhorn or a monitoring stack is asked for at Crawl; a remote ref is a branch past Crawl; private refs have no repo-server prerequisites; testing and production resolve to one directory (`environments_distinct: false` is a finding past Crawl); write-back is `sed` on a string or tags are `latest`; rotation exists only in commit messages; a shared setting differs from the record that owns it (open question naming both, never silent); Velero or another missing component is needed (open question, never an invented path); the cost shape does not fit the envelope (states what the envelope buys; the business expert changes `go_no_go`) |
+| **Never decides alone** | PSA, secrets mechanism, network policy (security); backup target and retention (data-store, compliance); the workloads (architecture); the metrics' meaning (quality); the budget (business) |
+
 ## Adding an expert
 
 1. `plugins/forjate/skills/<role>/SKILL.md` under 500 lines, a pushy description, `references/` split by stage or domain, the "Context packs" section pasted verbatim from `skills/context-pack/references/section.md`.
 2. `plugins/forjate/agents/<role>.md` preloading the skill and `context-pack`, returning only the five-line summary.
 3. `plugins/forjate/evals/<role>/evals.json`: the three golden briefs, one adversarial prompt, one pack eval with a fixture pack under `evals/fixtures/packs/` that forbids the expert's default; judgement assertions next to the form checks.
 4. The settings keys the expert emits, listed here and, when a pack rule should match them, in `contracts.md`.
-5. If the expert can conflict with another on a component group, the group in `validate.py` `EXCLUSIVE_GROUPS`.
+5. If the expert can conflict with another on a component group or a shared setting, the group in `validate.py` `EXCLUSIVE_GROUPS`, the setting in `SHARED_SETTINGS`, and a setting that implies a component in `SETTING_TO_GROUP`, each with a test.

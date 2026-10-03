@@ -12,10 +12,15 @@ Checks, per use case:
   5. consistency between stage-plan and decisions: experts the plan marks as
      run=true have a record, decisions do not cover stages the plan skipped
   6. cross-record consistency: two records that choose incompatible components for the
-     same stage (NATS vs RabbitMQ, LanceDB vs Milvus, Ollama vs vLLM, ...) or disagree on
-     a shared setting (broker, psa_level, secrets_mechanism, data_residency, data_egress)
-     are a conflict. A conflict is an error unless a record acknowledges it with an open
-     question that names both sides; the validator never picks a winner.
+     same stage (NATS vs RabbitMQ, LanceDB vs Milvus, Ollama vs vLLM, Sealed Secrets vs
+     External Secrets, ...), disagree on a shared setting (broker, psa_level,
+     secrets_mechanism, data_residency, data_egress, network_policy, backup,
+     auth_in_front) or claim one gate id with different texts are a conflict. A conflict
+     is an error unless a record acknowledges it with an open question that names both
+     sides; the validator never picks a winner.
+  7. gates consolidation: when gates.yaml exists, every gate a record emits for a stage
+     with a transition out of it appears under that transition (warning), and every
+     pack override it lists cites a rule of an active pack (error).
 
 Exit 1 on any error. Warnings never fail the run.
 """
@@ -46,8 +51,17 @@ EXCLUSIVE_GROUPS = {
 SETTING_TO_GROUP = {
     "broker": ("broker", {"nats": "apps/brokers/nats", "rabbitmq": "apps/brokers/rabbitmq"}),
     "inference": ("inference server", {"ollama": "apps/ai-models/ollama", "vllm": "apps/ai-models/vllm"}),
+    # secret-generator has no component: it maps to nothing and conflicts with nothing.
+    "secrets_mechanism": ("secrets mechanism", {"sealed-secrets": "apps/sealed-secrets",
+                                                "external-secrets": "apps/security/external-secrets",
+                                                "vault": "apps/security/vault"}),
 }
-SHARED_SETTINGS = ("psa_level", "secrets_mechanism", "data_residency", "data_egress")
+# Settings two experts both emit and must agree on per stage (contracts.md lists the owners):
+# security/devops share the hardening keys, data-store/devops the backup ladder,
+# architecture/security the auth surface, and three experts the egress and residency facts.
+SHARED_SETTINGS = ("psa_level", "secrets_mechanism", "data_residency", "data_egress",
+                   "network_policy", "backup", "auth_in_front")
+TRANSITION_OUT_OF = {"crawl": "crawl->walk", "walk": "walk->run"}
 CDC_BROKER = {"-nats": "apps/brokers/nats", "-rabbitmq": "apps/brokers/rabbitmq"}
 SECRETS_RANK = {"secret-generator": 0, "sealed-secrets": 1, "external-secrets": 2, "vault": 2}
 
@@ -231,7 +245,45 @@ def cross_record_conflicts(decisions: dict[str, dict]) -> tuple[list[str], list[
                     present = any(needed in (dd["spec"]["stages"].get(stage) or {}).get("choice", []) for dd in decisions.values())
                     if needed and not present:
                         warnings.append(f"{area}: {stage}: {c} needs {needed} in some record's choice for the same stage")
+    # One gate id, two texts: the consolidation would have to pick one, and it must not.
+    gate_texts: dict[str, dict[str, list[str]]] = {}
+    for area, d in decisions.items():
+        for sd in d["spec"]["stages"].values():
+            for g in sd.get("gate_to_next") or []:
+                gate_texts.setdefault(g["id"], {}).setdefault(" ".join(str(g.get("text", "")).split()), [])
+                if area not in gate_texts[g["id"]][" ".join(str(g.get("text", "")).split())]:
+                    gate_texts[g["id"]][" ".join(str(g.get("text", "")).split())].append(area)
+    for gid, by_text in gate_texts.items():
+        if len(by_text) < 2:
+            continue
+        areas = sorted({a for aa in by_text.values() for a in aa})
+        sides = "; ".join(f"{', '.join(aa)} → \"{t[:60]}\"" for t, aa in by_text.items())
+        msg = f"cross-record conflict (gate {gid}): {sides}"
+        ack = _acknowledged(decisions, [gid] + areas)
+        if ack:
+            warnings.append(f"{msg}; acknowledged by open question {ack}, resolve with the authors")
+        else:
+            errors.append(f"{msg}; one gate id, one text: raise an open question naming the id and both records, do not merge the texts")
     return errors, warnings
+
+
+def gates_consolidation(decisions: dict[str, dict], gates: dict, skipped: set[str]) -> list[str]:
+    """Check 7. Every record gate for a stage with a transition out of it is in gates.yaml."""
+    warnings: list[str] = []
+    transitions = gates["spec"].get("transitions") or {}
+    for area, d in decisions.items():
+        for stage, sd in d["spec"]["stages"].items():
+            tr = TRANSITION_OUT_OF.get(stage)
+            if not tr:
+                continue
+            target = tr.split("->")[1]
+            if target in skipped:
+                continue
+            present = {g["id"] for g in (transitions.get(tr) or {}).get("gates") or []}
+            for g in sd.get("gate_to_next") or []:
+                if g["id"] not in present:
+                    warnings.append(f"gates.yaml: {tr} lacks {g['id']} from decisions/{area}.yaml; re-run the quality expert in consolidate mode")
+    return warnings
 
 
 def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
@@ -324,6 +376,9 @@ def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
         for ov in gates["spec"].get("pack_overrides", []):
             if ov["rule"] not in rules:
                 errors.append(f"{b/'gates.yaml'}: pack_overrides cites unknown rule {ov['rule']}")
+        if gates["metadata"]["usecase"] != uc_name:
+            errors.append(f"{b/'gates.yaml'}: metadata.usecase != '{uc_name}'")
+        warnings += [f"{uc}: {w}" for w in gates_consolidation(decisions, gates, skipped)]
     return errors, warnings
 
 

@@ -3,9 +3,9 @@ kind: ContextPack
 metadata:
   name: flux-shop
   version: 1.0.0
-  scope: org
-  precedence: 20
-  description: Eval fixture for forjate:devops. Forbids ArgoCD, mandates Vault from the pilot onwards and caps the Walk budget.
+  scope: team
+  precedence: 30
+  description: Eval fixture (layered over regulated-corp) for forjate:devops. Forbids ArgoCD, mandates Vault from the pilot onwards and caps the Walk budget.
 spec:
   applies_to: [devops]
   language: en

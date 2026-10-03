@@ -61,10 +61,18 @@ run_one() {  # <eval-name> <prompt> <with|without>
   local rc=0
   ( cd "$wt" && exec claude "${args[@]}" < /dev/null > "$dir/result.json" 2> "$dir/stderr.log" ) &
   local pid=$!
-  ( sleep "$timeout_s"; kill -0 "$pid" 2>/dev/null && { echo "    TIMEOUT after ${timeout_s}s, killing $pid"; kill -TERM "$pid" 2>/dev/null; sleep 5; kill -KILL "$pid" 2>/dev/null; } ) &
-  local watchdog=$!
+  # Wall-clock deadline polled every 15 s rather than one long sleep: a laptop
+  # that suspends mid-run still times out on wake, and nothing is left behind.
+  local started=$(date +%s)
+  while kill -0 "$pid" 2>/dev/null; do
+    if (( $(date +%s) - started >= timeout_s )); then
+      echo "    TIMEOUT after ${timeout_s}s, killing $pid"
+      kill -TERM "$pid" 2>/dev/null; sleep 5; kill -KILL "$pid" 2>/dev/null
+      break
+    fi
+    sleep 15
+  done
   wait "$pid" || rc=$?
-  kill "$watchdog" 2>/dev/null; wait "$watchdog" 2>/dev/null || true
   [[ $rc -ne 0 ]] && echo "    claude exited $rc (see stderr.log)"
   python3 - "$dir" "$rc" "$timeout_s" <<'PY'
 import json, sys, pathlib

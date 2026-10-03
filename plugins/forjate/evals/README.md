@@ -1,5 +1,7 @@
 # Skill evals
 
+How the mechanism works end to end: `docs/use-case-builder/evals.md`. This page is the operating reference.
+
 Level-1 tests from `docs/use-case-builder/plan.md` §3: every skill has a few realistic prompts, each run twice — with the plugin loaded and without it (baseline) — in an isolated git worktree, then graded by objective assertions. The point of the baseline is to prove the skill changes behaviour; a skill whose pass-rate equals the baseline is dead weight. Because the plugin lives in this repo, the baseline worktree has `plugins/forjate/skills`, `agents` and `docs/use-case-builder` removed; otherwise the model reads the skills off disk and the control is meaningless.
 
 ```

@@ -193,6 +193,8 @@ Packs are also how **tool-development guidelines** reach `forjate:ai-engineering
 
 ## 3. Testing strategy (applies to every agent)
 
+Mechanism, end to end: `evals.md`.
+
 Three levels, all automated, all runnable locally and in CI.
 
 | Level | What | Tooling | Gate |

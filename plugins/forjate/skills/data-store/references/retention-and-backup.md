@@ -27,3 +27,7 @@ A backup that was never restored is a hope. Every Walk and Run record carries a 
 ## Residency
 
 `settings.data_residency` carries the region the brief or pack states. Every store in `choice` runs on cluster PVCs (Longhorn) inside that region at Walk and Run; a managed service appears only within the region and is named in `rationale`. A pack residency that contradicts the brief is an open question with `caused_by_rule`, never a silent choice of one or the other.
+
+## Where the PVC lives
+
+Residency is per store, and a store is a PVC on a StorageClass. `local-path` at Crawl (k3d, node-local, dies with the cluster), `longhorn` from Walk (three replicas across the nodes, snapshots for the backup ladder). The class is set by the overlay, not by the component: one global PVC patch plus per-StatefulSet patches (`components-per-stage.md`). A component whose PVC lands on the wrong class is the first thing a restore rehearsal finds.

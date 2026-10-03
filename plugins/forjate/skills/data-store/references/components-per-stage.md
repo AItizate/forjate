@@ -25,3 +25,22 @@ Catalog databases expect the overlay to supply a Secret with a fixed name (`post
 ## Sizing hints for `risks`
 
 Postgres single StatefulSet: fine to tens of GB and hundreds of writes per second; the operator at Run is for HA, not for size. Redis: memory-bound; name the eviction policy. LanceDB: single writer; concurrent ingestion is the limit. MinIO single server: no redundancy; the Run gate is the Tenant.
+
+## `storageClassName` is an overlay parameter
+
+Observed in a production tenant: one global patch targeting every PVC plus a `volumeClaimTemplates/0` patch per StatefulSet, because catalog components either omit the class (k3d default `local-path` at Crawl) or hard-code one. Your record names the class per stage (`local-path` at Crawl, `longhorn` from Walk, as the devops record's `storage_class`) in `rationale`; the kustomize skill writes:
+
+```yaml
+patches:
+  - target: { kind: PersistentVolumeClaim }
+    patch: |
+      - op: add
+        path: /spec/storageClassName
+        value: longhorn
+  - path: patches/postgres-storage-patch.yaml          # /spec/volumeClaimTemplates/0/spec/storageClassName
+    target: { kind: StatefulSet, name: postgres }
+```
+
+## Init Jobs for multi-database Postgres and Mongo
+
+When several workloads share one Postgres or Mongo (the tenant pattern: one StatefulSet, many databases), name it in `rationale` as the `multi-database init` pattern so the kustomize skill ships it: a `POSTGRES_MULTIPLE_DATABASES=app1,app2` env on the StatefulSet with an init script, or `init-mongo.js` through a `configMapGenerator` with `disableNameSuffixHash: true`, applied by an `<app>-init-job.yaml` with `ttlSecondsAfterFinished` and `backoffLimit`. Those Jobs assert nothing; the verify Job does. One database per workload, credentials per database in their own Secret, and the system-of-record rule still applies: none of them is a copy of the ERP.

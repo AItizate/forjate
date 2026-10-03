@@ -1,0 +1,49 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: data-pipeline, usecase: invoice-intake, author: "forjate:data-pipeline", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: [apps/document-processing/docling]
+      settings:
+        ingestion_pattern: batch
+        sources: ["invoice PDFs: batch from the seed bucket", "purchase orders: stub API"]
+        steps: [list-inbox, parse-pdf, extract-fields (model), lookup-po, compare, route]
+        document_parser: docling
+        broker: none
+        idempotency_key: sha256 of the PDF plus supplier and invoice number
+        replay: rerun the Job; items already in the episodic table are skipped by key
+        dead_letter: unparseable PDFs land in the review queue with reason=parse-failed; the AP clerk reviews
+        schedule: once
+        seed_strategy: synthetic
+        seed_size: 20 PDFs, 3 mismatches, 1 duplicate, 1 unparseable
+        verify_assertions: ["20 items processed, 15 matched, 3 mismatched in review, 1 duplicate skipped, 1 parse failure in review", "0 wrong amounts on matched items", "a second run changes no counts", "no posting recorded by the stub for mismatches"]
+        landing_zones: ["artifacts: PDFs and parsed JSON", "working: mailbox cursor and queue status", "episodic: extraction and decision per invoice"]
+      rationale: One batch over a synthetic seed that represents the exceptions; the verify Job is the gate.
+      gate_to_next:
+        - { id: G-PIPE-1, text: verify Job passes the four assertions on the synthetic seed, owner: data-pipeline, check: { type: verify-job, ref: inv-validate } }
+    walk:
+      choice: [apps/document-processing/docling]
+      settings:
+        ingestion_pattern: poll
+        sources: ["IMAP mailbox: poll every 10 minutes", "purchase orders: Odoo REST pull"]
+        document_parser: docling
+        broker: none
+        idempotency_key: IMAP UID plus attachment hash
+        dead_letter: parse failures and unknown suppliers to the review queue, weekly report to finance ops
+        schedule: "*/10 * * * *"
+        throughput_target: 10 invoices per hour
+        seed_strategy: anonymised-copy
+        verify_assertions: ["canary invoice processed within 15 minutes", "duplicate canary skipped", "mismatch canary lands in review"]
+      rationale: Polling fits the volume; webhooks would need a mail provider that offers them.
+      gate_to_next:
+        - { id: G-PIPE-2, text: "30 days with every mailbox item accounted for (processed, reviewed or dead-lettered)", owner: data-pipeline, check: { type: metric, ref: items_unaccounted } }
+    run:
+      choice: [apps/document-processing/docling]
+      settings:
+        ingestion_pattern: poll
+        document_parser: docling
+        broker: none
+        idempotency_key: IMAP UID plus attachment hash
+      rationale: Unchanged; CDC on the decisions table is the audit stream the security expert asked for and rides on NATS if introduced.
+  references: [docs/apps/docling.md]

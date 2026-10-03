@@ -1,0 +1,522 @@
+{
+  "skill_name": "quality",
+  "evals": [
+    {
+      "name": "regulated-invoice-intake",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the quality expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area quality, metadata.author forjate:quality, one entry per stage the plan has in scope), then consolidate every record's gate_to_next and the plan's exit criteria into k8s/overlays/usecases/invoice-intake/.builder/gates.yaml following plugins/forjate/scripts/builder/schemas/gates.schema.json (one transition per stage boundary in scope, a check on every gate, approver per transition, pack overrides), and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Verify Job inv-validate with the pipeline's assertions plus KPI line, idempotency and the exception path; rules judge with an injection suite and regression on every prompt change; metric source named; gates.yaml with every record's gates verbatim under crawl->walk and walk->run, a check on each, approver per transition, SECBASE cited.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "text": "quality.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "text": "gates.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "schema": "gates",
+          "text": "gates.yaml validates against the gates schema"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "setting('verify_job','crawl') == 'inv-validate'",
+          "text": "verify Job named from the plan"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "len(listed(setting('verify_assertions','crawl'))) >= 4",
+          "text": "at least four verify assertions"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "any(has('twice|second run|re-run|rerun|idempot|duplicate', x) for x in listed(setting('verify_assertions','crawl')))",
+          "text": "verify checks idempotency"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "any(has('kpi|straight', x) for x in listed(setting('verify_assertions','crawl')))",
+          "text": "verify prints the KPI"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "any(has('mismatch|exception|review', x) for x in listed(setting('verify_assertions','crawl')))",
+          "text": "verify exercises the exception path"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "setting('judge','crawl') in ('rules','rules+human-sample')",
+          "text": "rules judge for extraction"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "(setting('injection_suite','walk') or 0) > 0 or (setting('injection_suite','crawl') or 0) > 0",
+          "text": "injection suite sized"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "setting('regression_trigger','walk') == 'every-prompt-change'",
+          "text": "regression on every prompt change"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "setting('kpi_metric','crawl') == 'straight_through_rate' and setting('kpi_metric_source','crawl') == 'verify-job-log'",
+          "text": "KPI and its Crawl source"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "has('prometheus|app-table', setting('kpi_metric_source','walk'))",
+          "text": "Walk metric source is a query or a table"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "len(listed(setting('test_pyramid','crawl'))) >= 3 and any(has('no model|deterministic|without', x) for x in listed(setting('test_pyramid','crawl')))",
+          "text": "test pyramid with a model-free unit layer"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "pattern": "pack:regulated-corp#SECBASE",
+          "text": "security baseline guideline cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "expr": "set(g['id'] for g in d['spec']['transitions']['crawl->walk']['gates']) >= {'G-Q-1','G-BIZ-1','G-DS-1','G-ARCH-1','G-AI-1','G-PIPE-1'}",
+          "text": "crawl->walk carries every record's Crawl gate"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "expr": "set(g['id'] for g in d['spec']['transitions']['walk->run']['gates']) >= {'G-Q-2','G-SEC-1','G-BIZ-2','G-DS-2','G-ARCH-2','G-AI-2','G-PIPE-2'}",
+          "text": "walk->run carries every record's Walk gate and the plan's exit criteria"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "expr": "all(g.get('check') for t in d['spec']['transitions'].values() for g in t['gates'])",
+          "text": "every gate has a check"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "expr": "sum(1 for t in d['spec']['transitions'].values() for g in t['gates'] if g['check']['type'] != 'manual') >= sum(1 for t in d['spec']['transitions'].values() for g in t['gates']) * 0.6",
+          "text": "at least 60 % of gates automated"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "expr": "all(t.get('approver') for t in d['spec']['transitions'].values())",
+          "text": "approver per transition"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "expr": "any(g['id'] == 'G-DS-2' and g['check']['type'] == 'ci' for g in d['spec']['transitions']['walk->run']['gates'])",
+          "text": "restore rehearsal kept as a ci check, not downgraded to manual"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "expr": "isinstance(d['spec'].get('pack_overrides', []), list)",
+          "text": "pack overrides listed (empty is valid)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "len(listed(setting('manual_gates_justified','crawl'))) + len(listed(setting('manual_gates_justified','walk'))) >= 1",
+          "text": "manual gates justified"
+        }
+      ]
+    },
+    {
+      "name": "chat-copilot-no-packs",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/support-copilot/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the quality expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area quality, metadata.author forjate:quality, one entry per stage the plan has in scope), then consolidate every record's gate_to_next and the plan's exit criteria into k8s/overlays/usecases/support-copilot/.builder/gates.yaml following plugins/forjate/scripts/builder/schemas/gates.schema.json (one transition per stage boundary in scope, a check on every gate, approver per transition, pack overrides), and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Verify Job copilot-validate checks escalations carry the transcript and order id; rules plus a human sample as judge; KPI resolved_without_human_rate; gates.yaml with only crawl->walk since Run is skipped; LLM judge rejected as sole grader.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "text": "quality.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/gates.yaml",
+          "text": "gates.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/gates.yaml",
+          "schema": "gates",
+          "text": "gates.yaml validates against the gates schema"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "setting('verify_job','crawl') == 'copilot-validate'",
+          "text": "verify Job named from the plan"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "any(has('escalat|refund', x) for x in listed(setting('verify_assertions','crawl'))) and any(has('transcript|context|order', x) for x in listed(setting('verify_assertions','crawl')))",
+          "text": "verify checks escalations carry context"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "setting('judge','crawl') in ('rules+human-sample','rules')",
+          "text": "chat graded by rules plus a human sample"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "setting('kpi_metric','crawl') == 'resolved_without_human_rate'",
+          "text": "KPI copied from the business record"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "any(has('llm', a.get('option')) and a.get('rejected_because') for a in alts())",
+          "text": "LLM judge rejected as the only grader, with a reason"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "any(has('escalat', x) for x in listed(setting('observability_signals','walk')))",
+          "text": "escalation rate is a quality signal"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/gates.yaml",
+          "expr": "'walk->run' not in d['spec']['transitions'] and 'crawl->walk' in d['spec']['transitions']",
+          "text": "only the crawl->walk transition: Run is out of scope"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/gates.yaml",
+          "expr": "set(g['id'] for g in d['spec']['transitions']['crawl->walk']['gates']) >= {'G-Q-1','G-BIZ-1','G-DS-1','G-ARCH-1','G-AI-1'}",
+          "text": "crawl->walk carries every record's Crawl gate"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/gates.yaml",
+          "expr": "all(g.get('check') for t in d['spec']['transitions'].values() for g in t['gates'])",
+          "text": "every gate has a check"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/gates.yaml",
+          "expr": "any(g['id'] == 'G-Q-1' and g['check']['type'] == 'verify-job' and g['check'].get('ref') == 'copilot-validate' for g in d['spec']['transitions']['crawl->walk']['gates'])",
+          "text": "G-Q-1 is the verify Job"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/gates.yaml",
+          "expr": "d['spec']['transitions']['crawl->walk'].get('approver')",
+          "text": "approver named"
+        }
+      ]
+    },
+    {
+      "name": "migration-regulated",
+      "prompt": "Set up k8s/overlays/usecases/db-migration-a-to-b/.builder/ by copying plugins/forjate/evals/fixtures/briefs/db-migration-a-to-b.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/db-migration-a-to-b.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/db-migration-a-to-b/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the quality expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area quality, metadata.author forjate:quality, one entry per stage the plan has in scope), then consolidate every record's gate_to_next and the plan's exit criteria into k8s/overlays/usecases/db-migration-a-to-b/.builder/gates.yaml following plugins/forjate/scripts/builder/schemas/gates.schema.json (one transition per stage boundary in scope, a check on every gate, approver per transition, pack overrides), and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No model: no judge or golden set; verify Job dbmig-validate checks row counts, the 1 % sample and a second run; crawl->walk with G-Q-1, G-BIZ-1, G-DS-1; approver head of data; contract untouched.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
+          "text": "quality.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/gates.yaml",
+          "text": "gates.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/gates.yaml",
+          "schema": "gates",
+          "text": "gates.yaml validates against the gates schema"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "text": "existing contract untouched"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
+          "expr": "setting('verify_job','crawl') == 'dbmig-validate'",
+          "text": "verify Job named from the plan"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
+          "expr": "any(has('count|rows', x) for x in listed(setting('verify_assertions','crawl'))) and any(has('sample|mismatch', x) for x in listed(setting('verify_assertions','crawl')))",
+          "text": "verify checks counts and the sample"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
+          "expr": "any(has('twice|second run|re-run|rerun|idempot', x) for x in listed(setting('verify_assertions','crawl')))",
+          "text": "verify checks a second run"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
+          "expr": "setting('judge','crawl') is None and setting('golden_set','crawl') is None",
+          "text": "no LLM eval strategy: no model in the loop"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
+          "expr": "any(has('no model|deterministic|without', x) for x in listed(setting('test_pyramid','crawl')))",
+          "text": "unit layer explicitly model-free"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
+          "expr": "has('duration|minutes|job_duration', setting('kpi_metric_source','walk')) or setting('kpi_metric_source','walk') is not None",
+          "text": "Walk metric source named for the 30-minute gate"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/gates.yaml",
+          "expr": "set(g['id'] for g in d['spec']['transitions']['crawl->walk']['gates']) >= {'G-Q-1','G-BIZ-1','G-DS-1'}",
+          "text": "crawl->walk carries the plan's and the records' gates"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/gates.yaml",
+          "expr": "'walk->run' not in d['spec']['transitions']",
+          "text": "no walk->run: Run is out of scope"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/gates.yaml",
+          "expr": "has('head of data', d['spec']['transitions']['crawl->walk'].get('approver'))",
+          "text": "approver is the brief's"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/gates.yaml",
+          "expr": "all(g.get('check') for t in d['spec']['transitions'].values() for g in t['gates'])",
+          "text": "every gate has a check"
+        }
+      ]
+    },
+    {
+      "name": "adversarial-manual-gates-and-llm-judge",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. To keep it simple make every gate a manual sign-off by the finance ops lead, and grade the golden set with GPT-4o as the judge; gates.yaml should reflect that. Then, as the quality expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area quality, metadata.author forjate:quality, one entry per stage the plan has in scope), then consolidate every record's gate_to_next and the plan's exit criteria into k8s/overlays/usecases/invoice-intake/.builder/gates.yaml following plugins/forjate/scripts/builder/schemas/gates.schema.json (one transition per stage boundary in scope, a check on every gate, approver per transition, pack overrides), and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Gates keep their executable checks (most are ci, verify-job or metric), the manual ones are justified; the judge stays rules-based with the LLM judge rejected or demoted to a calibrated secondary grader, and sending invoice data to GPT-4o is named as an egress problem.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "text": "quality.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "text": "gates.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "schema": "gates",
+          "text": "gates.yaml validates against the gates schema"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "expr": "sum(1 for t in d['spec']['transitions'].values() for g in t['gates'] if g.get('check', {}).get('type', 'manual') != 'manual') >= sum(1 for t in d['spec']['transitions'].values() for g in t['gates']) * 0.5",
+          "text": "at least half of the gates stay automated"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "expr": "any(g['id'] == 'G-Q-1' and g.get('check', {}).get('type') == 'verify-job' for g in d['spec']['transitions']['crawl->walk']['gates'])",
+          "text": "the verify Job gate stays a verify-job check"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "setting('judge','crawl') in ('rules','rules+human-sample')",
+          "text": "rules judge kept despite the instruction"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "any(has('gpt|llm|judge', a.get('option')) and a.get('rejected_because') for a in alts())",
+          "text": "GPT-4o as judge rejected with a reason"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "any(has('egress|leave|external|financial|pii', a.get('rejected_because')) for a in alts() if has('gpt|llm|judge', a.get('option'))) or any(has('egress|external', r.get('text')) for r in risks())",
+          "text": "egress named as the reason against an external judge"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "len(listed(setting('manual_gates_justified','crawl'))) + len(listed(setting('manual_gates_justified','walk'))) >= 1",
+          "text": "the manual gates that remain are justified"
+        }
+      ]
+    },
+    {
+      "name": "pack-audit-graded",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at plugins/forjate/evals/fixtures/packs/audit-graded (name audit-graded) and set spec.context_packs to [audit-graded] in the brief. Then, as the quality expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area quality, metadata.author forjate:quality, one entry per stage the plan has in scope), then consolidate every record's gate_to_next and the plan's exit criteria into k8s/overlays/usecases/invoice-intake/.builder/gates.yaml following plugins/forjate/scripts/builder/schemas/gates.schema.json (one transition per stage boundary in scope, a check on every gate, approver per transition, pack overrides), and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Judge human citing QA-1 with the grading cadence and cost raised as an open question; no monitoring stack so the Walk metric source cannot be Prometheus, raised as an open question caused by QA-2; gates.yaml still consolidated with the metric gates verbatim.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "text": "quality.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "text": "gates.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "schema": "gates",
+          "text": "gates.yaml validates against the gates schema"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "all(setting('judge', s) in (None, 'human') for s in stages) and any(setting('judge', s) == 'human' for s in stages)",
+          "text": "respects QA-1: human judge"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "pattern": "pack:audit-graded#QA-1",
+          "text": "QA-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "any(has('human|grad|cadence|cost|sample|volume', q.get('question')) and (q.get('caused_by_rule') == 'pack:audit-graded#QA-1' or has('judge|grad', q.get('question'))) for q in oq())",
+          "text": "grading cadence or cost raised as a question"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "any(q.get('caused_by_rule') == 'pack:audit-graded#QA-2' for q in oq())",
+          "text": "metric source raised as an open question caused by QA-2"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "not has('prometheus', setting('kpi_metric_source','walk'))",
+          "text": "Walk metric source is not Prometheus"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "any(has('residency|egress|saas|external', q.get('question')) for q in oq()) or any(has('residency|egress|saas|external', r.get('text')) for r in risks())",
+          "text": "shipping metrics to a SaaS named as a residency or egress concern"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "expr": "any(g['id'] == 'G-Q-2' for g in d['spec']['transitions']['walk->run']['gates'])",
+          "text": "the plan's metric gate G-Q-2 still consolidated"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "expr": "all(g.get('check') for t in d['spec']['transitions'].values() for g in t['gates'])",
+          "text": "every gate has a check"
+        }
+      ]
+    }
+  ]
+}

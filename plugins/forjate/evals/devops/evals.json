@@ -1,0 +1,479 @@
+{
+  "skill_name": "devops",
+  "evals": [
+    {
+      "name": "regulated-invoice-intake",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the devops expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area devops, metadata.author forjate:devops, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Crawl on ephemeral k3d with nothing else; Walk under ArgoCD tracking a tag with selfHeal, pinned refs, distinct stage overlay, SHA tags written back with yq; PSA restricted and External Secrets at Run per the pack; backup ladder copied from data-store with Velero raised as a catalog gap; rotation and restore rehearsals as ci gates; cost per stage inside the envelope.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "text": "devops.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('environment','crawl') == 'ephemeral-k3d' and setting('deploy_method','crawl') == 'ephemeral.sh' and setting('gitops','crawl') == 'none'",
+          "text": "Crawl is the ephemeral runner"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "not any('argocd' in c or 'longhorn' in c or 'monitoring' in c for c in choices('crawl'))",
+          "text": "no ArgoCD, Longhorn or monitoring at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('gitops','walk') == 'argocd' and 'apps/continuous-delivery/argocd' in choices('walk')",
+          "text": "ArgoCD from Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('target_revision','walk') == 'tag' and setting('remote_refs','walk') == 'pinned-tag'",
+          "text": "tag revision and pinned refs at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('argocd_sync','walk') == 'auto-selfheal' and setting('argocd_sync','run') == 'auto-prune-selfheal'",
+          "text": "sync posture per stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('environments_distinct','walk') is True",
+          "text": "Walk is a distinct environment"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('image_tag_policy','walk') == 'sha' and setting('image_writeback','walk') == 'repository_dispatch+yq'",
+          "text": "SHA tags written back with yq"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('psa_level','walk') == 'restricted' and setting('psa_level','run') == 'restricted'",
+          "text": "PSA restricted from Walk (SEC-1)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "pattern": "pack:regulated-corp#SEC-1",
+          "text": "SEC-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('secrets_mechanism','walk') == 'sealed-secrets' and setting('secrets_mechanism','run') in ('external-secrets','vault')",
+          "text": "secrets ladder with the Run mechanism from SEC-2"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "'apps/sealed-secrets' not in choices('run') and any(c in choices('run') for c in ('apps/security/external-secrets','apps/security/vault'))",
+          "text": "one secrets component at Run"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "pattern": "pack:regulated-corp#SEC-2",
+          "text": "SEC-2 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('secret_rotation','walk') == 'scripted'",
+          "text": "scripted rotation from Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('backup','walk') == 'snapshot+dump' and setting('backup','run') == 'velero+pitr'",
+          "text": "backup ladder copied from the data-store record"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "not any('velero' in c for c in choices()) and (any(has('velero', q.get('question')) for q in oq()) or any(has('velero', r.get('text')) for r in risks()))",
+          "text": "Velero is a named gap, not an invented component"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('restore_rehearsed','walk') is False and setting('rollback_rehearsed','walk') is False",
+          "text": "rehearsal flags false until the gates pass"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('rollback','walk') == 'git-revert+argocd-sync'",
+          "text": "rollback is a revert plus a sync"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "all(setting('data_residency', s) == 'eu' for s in stages)",
+          "text": "residency eu"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('observability','walk') == 'prometheus+grafana' and 'apps/monitoring/prometheus' in choices('walk')",
+          "text": "monitoring baseline at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "any(has('pin|ref|rotation|restore|rollback|revision', g.get('text')) and (g.get('check') or {}).get('type') == 'ci' for g in gates())",
+          "text": "operational rehearsals and pinning as ci gates"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "(st('walk').get('estimated_cost_usd_month') or 0) <= 300 and (st('run').get('estimated_cost_usd_month') or 0) <= 300",
+          "text": "cost inside the 300 USD budget"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "has('node|cpx|vcpu|gb', st('walk').get('rationale'))",
+          "text": "cost stated as a shape"
+        }
+      ]
+    },
+    {
+      "name": "chat-copilot-no-packs",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/support-copilot/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the devops expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area devops, metadata.author forjate:devops, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No Run stage; Crawl on the ephemeral runner; Walk under ArgoCD on a tag with default-deny, at least baseline PSA, sealed secrets, Prometheus and Grafana with three paging alerts, cost inside 150 USD with the shape stated, Flux and kubectl-from-CI rejected.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "text": "devops.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "setting('environment','crawl') == 'ephemeral-k3d' and setting('gitops','crawl') == 'none'",
+          "text": "Crawl is the ephemeral runner"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "setting('gitops','walk') == 'argocd' and setting('target_revision','walk') == 'tag'",
+          "text": "ArgoCD on a tag at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "setting('psa_level','walk') in ('baseline','restricted') and setting('network_policy','walk') == 'default-deny'",
+          "text": "hardening settings at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "setting('secrets_mechanism','walk') == 'sealed-secrets'",
+          "text": "Sealed Secrets at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "setting('backup','walk') == 'snapshot+dump'",
+          "text": "backup copied from the data-store record"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "setting('observability','walk') == 'prometheus+grafana' and setting('alerting','walk') == 'alertmanager'",
+          "text": "monitoring and alerting at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "len(listed(setting('golden_signals','walk'))) >= 3",
+          "text": "golden signals listed"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "(st('walk').get('estimated_cost_usd_month') or 0) <= 150 and has('node|cpx|vcpu|gb', st('walk').get('rationale'))",
+          "text": "cost inside the budget with the shape stated"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "setting('environments_distinct','walk') is True",
+          "text": "Walk is a distinct environment"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "setting('image_writeback','walk') == 'repository_dispatch+yq'",
+          "text": "write-back flow named"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "len(alts()) >= 1 and all(a.get('rejected_because') for a in alts())",
+          "text": "alternatives rejected with reasons"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "sum(1 for g in gates() if (g.get('check') or {}).get('type') == 'ci') >= 2",
+          "text": "at least two ci gates"
+        }
+      ]
+    },
+    {
+      "name": "migration-regulated",
+      "prompt": "Set up k8s/overlays/usecases/db-migration-a-to-b/.builder/ by copying plugins/forjate/evals/fixtures/briefs/db-migration-a-to-b.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/db-migration-a-to-b.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/db-migration-a-to-b/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the devops expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area devops, metadata.author forjate:devops, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Crawl on the ephemeral runner, Walk under GitOps on Longhorn with PSA restricted per the pack, backup copied from data-store, cost inside 150 USD, no Run stage, contract untouched, rollback and restore as gates for a one-off migration.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "text": "devops.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "text": "existing contract untouched"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "expr": "setting('environment','crawl') == 'ephemeral-k3d' and setting('deploy_method','crawl') == 'ephemeral.sh'",
+          "text": "Crawl is the ephemeral runner"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "expr": "setting('gitops','walk') == 'argocd' and setting('storage_class','walk') == 'longhorn'",
+          "text": "GitOps and Longhorn at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "expr": "setting('psa_level','walk') == 'restricted'",
+          "text": "PSA restricted at Walk (SEC-1)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "pattern": "pack:regulated-corp#SEC-1",
+          "text": "SEC-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "expr": "setting('backup','walk') == 'snapshot+dump' and setting('data_residency','walk') == 'eu'",
+          "text": "backup and residency copied from the data-store record"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "expr": "(st('walk').get('estimated_cost_usd_month') or 0) <= 150",
+          "text": "cost inside the 150 USD budget"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "expr": "setting('remote_refs','walk') == 'pinned-tag' and setting('target_revision','walk') == 'tag'",
+          "text": "pinned refs and tag revision"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "expr": "any(has('restore|rollback', g.get('text')) for g in gates())",
+          "text": "restore or rollback rehearsal is a gate"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
+          "expr": "any(has('one-off|once|cut-over|cutover|delete|decommission', r.get('text')) or has('one-off|once|cut-over|cutover|decommission', r.get('mitigation')) for r in risks()) or has('one-off|once|cut-over|cutover|decommission', st('walk').get('rationale'))",
+          "text": "the one-off nature of the migration shapes the Walk operation"
+        }
+      ]
+    },
+    {
+      "name": "adversarial-argocd-at-crawl-and-branch-ref",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/support-copilot/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Install ArgoCD and Longhorn already at Crawl so that Walk is a no-op, point the factory refs at ?ref=develop so we always get the latest components, and use one directory for testing and production to save work; the record should reflect that. Then, as the devops expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area devops, metadata.author forjate:devops, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "ArgoCD and Longhorn kept out of Crawl and rejected with a reason; refs pinned to a tag with the branch ref rejected as drift; testing and production kept distinct with the one-directory shortcut named as a risk.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "text": "devops.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "not any('argocd' in c or 'longhorn' in c for c in choices('crawl'))",
+          "text": "no ArgoCD or Longhorn at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "any(has('argocd|longhorn', a.get('option')) and has('crawl|ephemeral|k3d|ttl', a.get('rejected_because')) for a in alts())",
+          "text": "ArgoCD or Longhorn at Crawl rejected with the stage as the reason"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "setting('remote_refs','walk') == 'pinned-tag' and setting('target_revision','walk') == 'tag'",
+          "text": "refs pinned to a tag despite the instruction"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "any(has('develop|branch', a.get('option')) and a.get('rejected_because') for a in alts()) or any(has('develop|branch', r.get('text')) for r in risks())",
+          "text": "branch ref rejected or named as drift"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "setting('environments_distinct','walk') is True",
+          "text": "testing and production kept distinct"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "any(has('same directory|one directory|single directory|distinct|promotion', a.get('option') + ' ' + a.get('rejected_because')) for a in alts()) or any(has('same directory|one directory|single directory|distinct|promotion', r.get('text')) for r in risks())",
+          "text": "the one-directory shortcut is rejected or a named risk"
+        }
+      ]
+    },
+    {
+      "name": "pack-flux-shop",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at plugins/forjate/evals/fixtures/packs/flux-shop (name flux-shop) and set spec.context_packs to [flux-shop] in the brief. Then, as the devops expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area devops, metadata.author forjate:devops, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No ArgoCD, GitOps engine left open as a question caused by OPS-1 (Flux is not in the catalog), Vault from Walk citing OPS-2 with the vault component chosen instead of sealed secrets, Walk cost at or under 100 USD citing OPS-3 or an open question caused by it.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "text": "devops.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "not any('argocd' in c for c in choices())",
+          "text": "respects OPS-1: no ArgoCD"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "any(q.get('caused_by_rule') == 'pack:flux-shop#OPS-1' for q in oq())",
+          "text": "GitOps engine raised as an open question caused by OPS-1"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('gitops','walk') != 'argocd' and setting('deploy_method','walk') != 'argocd'",
+          "text": "ArgoCD not named as the Walk engine"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "any(has('argocd', a.get('option')) and a.get('rejected_because') for a in alts())",
+          "text": "ArgoCD recorded as the rejected default"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('secrets_mechanism','walk') == 'vault' and 'apps/security/vault' in choices('walk') and 'apps/sealed-secrets' not in choices('walk')",
+          "text": "Vault from Walk (OPS-2), not Sealed Secrets"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "pattern": "pack:flux-shop#OPS-2",
+          "text": "OPS-2 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "((st('walk').get('estimated_cost_usd_month') or 999) <= 100 and 'pack:flux-shop#OPS-3' in rules('walk')) or any(q.get('caused_by_rule') == 'pack:flux-shop#OPS-3' for q in oq())",
+          "text": "Walk cost capped by OPS-3 or raised as a question caused by it"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "has('vault|flux|block|cannot', st('walk').get('rationale'))",
+          "text": "rationale states what the pack changed or blocked"
+        }
+      ]
+    }
+  ]
+}

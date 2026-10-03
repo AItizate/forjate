@@ -1,0 +1,24 @@
+apiVersion: forjate.io/v0
+kind: ContextPack
+metadata:
+  name: audit-graded
+  version: 1.0.0
+  scope: org
+  precedence: 20
+  description: Eval fixture for forjate:quality. Internal audit grades every evaluated item by hand and the cluster runs no monitoring stack.
+spec:
+  applies_to: [quality, devops]
+  language: en
+  sources:
+    - id: QA-1
+      kind: constraint
+      path: constraints.yaml#/rules/QA-1
+      enforce: must
+      applies_to: [quality]
+      summary: Only a human grader is accepted for model outputs on financial data.
+    - id: QA-2
+      kind: constraint
+      path: constraints.yaml#/rules/QA-2
+      enforce: must
+      applies_to: [quality, devops]
+      summary: No cluster monitoring stack; metrics go to the corporate SaaS.

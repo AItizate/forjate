@@ -1,0 +1,66 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: ai-engineering, usecase: invoice-intake, author: "forjate:ai-engineering", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: [apps/ai-models/ollama]
+      settings:
+        data_egress: none
+        model: ollama/qwen2.5:7b
+        inference: ollama
+        gateway: none
+        agent_pattern: single-call
+        structured_output: true
+        tools: ["extract_invoice_fields: read PDF text [read-only]", "lookup_po: read purchase order by number [read-only]", "queue_for_review: write review item [idempotent]"]
+        guardrails: ["input: PDF text delimited as data, instructions in it ignored", "output: JSON schema with supplier, amount, date, po_number, validated before use", "budget: 1 call per invoice, 60 s timeout", "escalation: any field missing or mismatch goes to the review queue"]
+        untrusted_inputs: [invoice PDFs, email bodies]
+        memory_needs: [working, episodic, artifacts]
+        context_strategy: system prompt plus the PDF text; PO fields retrieved by lookup, never in the prompt; no bank account numbers in logs
+        prompt_versioning: git, prompts/extract-v1.md
+        eval_strategy: 20 seeded invoices with 3 mismatches labelled by the AP clerk, rules judge per field, 95 % field accuracy and 0 wrong amounts
+        estimated_cost_per_1k_requests_usd: 0
+      rationale: Financial data with bank account numbers and no egress allowed means local inference; extraction is a single structured call on a 7B model with arithmetic and PO lookup done in code.
+      constrained_by: ["pack:regulated-corp#AI-2", "pack:regulated-corp#AI-1"]
+      risks:
+        - { id: R1, text: hallucinated amounts on low-quality scans, mitigation: amount validated against the PO by arithmetic and any difference routed to review, severity: high }
+        - { id: R2, text: prompt injection through invoice text, mitigation: text delimited as data and no write tool reachable without the review step, severity: medium }
+      gate_to_next:
+        - { id: G-AI-1, text: 95 % field accuracy and 0 wrong amounts on the seeded set, owner: ai-engineering, check: { type: metric, ref: field_accuracy } }
+    walk:
+      choice: [apps/ai-models/ollama, apps/ai-models/litellm]
+      settings:
+        data_egress: none
+        model: ollama/qwen2.5:7b
+        inference: ollama
+        gateway: litellm
+        agent_pattern: single-call
+        structured_output: true
+        tools: ["extract_invoice_fields: read PDF text [read-only]", "lookup_po: read purchase order by number [read-only]", "queue_for_review: write review item [idempotent]", "post_to_erp: write payable to Odoo [idempotent, requires approval token]"]
+        untrusted_inputs: [invoice PDFs, email bodies]
+        memory_needs: [working, episodic, artifacts]
+        prompt_versioning: git, prompts/extract-v1.md
+        eval_strategy: 100 real invoices anonymised, labelled by the AP clerk, rules judge, 95 % field accuracy and 0 wrong amounts, run on every prompt change
+        estimated_cost_per_1k_requests_usd: 0
+      rationale: Same model behind LiteLLM for routing and cost logging; posting to Odoo is a tool that needs the clerk's approval token for anything that did not match.
+      constrained_by: ["pack:regulated-corp#AI-2", "pack:regulated-corp#AI-1"]
+      gate_to_next:
+        - { id: G-AI-2, text: injection suite of 20 adversarial invoices all ignored and eval pass rate held for 30 days, owner: ai-engineering, check: { type: ci, ref: eval-regression } }
+    run:
+      choice: [apps/ai-models/vllm, apps/ai-models/litellm]
+      settings:
+        data_egress: none
+        model: ollama/qwen2.5:7b
+        inference: vllm
+        gateway: litellm
+        agent_pattern: single-call
+        structured_output: true
+        untrusted_inputs: [invoice PDFs, email bodies]
+        memory_needs: [working, episodic, artifacts]
+        eval_strategy: 300 labelled invoices, rules judge, nightly regression
+        estimated_cost_per_1k_requests_usd: 0
+      rationale: vLLM on a GPU node for throughput; the model and the eval do not change.
+      constrained_by: ["pack:regulated-corp#AI-2"]
+  open_questions:
+    - { id: Q1, question: "Is a GPU node in the Walk budget? Without it extraction on CPU takes about 40 s per invoice, fine for 300 a month but not for a clerk waiting on screen.", blocks_stage: walk }
+  references: [docs/apps/ollama.md, docs/apps/litellm.md]

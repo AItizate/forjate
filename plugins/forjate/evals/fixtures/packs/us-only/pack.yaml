@@ -3,9 +3,9 @@ kind: ContextPack
 metadata:
   name: us-only
   version: 1.0.0
-  scope: org
-  precedence: 20
-  description: Eval fixture for forjate:compliance. Pins residency to the US and bans AGPL components.
+  scope: team
+  precedence: 30
+  description: Eval fixture (layered over regulated-corp) for forjate:compliance. Pins residency to the US and bans AGPL components.
 spec:
   applies_to: [compliance]
   language: en

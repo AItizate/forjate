@@ -156,8 +156,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
-          "expr": "setting('data_egress','crawl') == 'none' and setting('data_egress','walk') == 'anonymized'",
-          "text": "egress matches the AI-engineering record per stage"
+          "expr": "setting('data_egress','crawl') == 'none' and (setting('data_egress','walk') == 'anonymized' or any(q.get('blocks_stage') == 'walk' and has('anonymi', q.get('question')) and has('none', q.get('question')) for q in oq()))",
+          "text": "egress matches the AI-engineering record, or the disagreement is an open question naming both values and blocking Walk"
         },
         {
           "type": "yaml_expr",
@@ -376,7 +376,7 @@
     },
     {
       "name": "pack-central-secrets",
-      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at plugins/forjate/evals/fixtures/packs/central-secrets (name central-secrets) and set spec.context_packs to [central-secrets] in the brief. Then, as the security expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area security, metadata.author forjate:security, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating two packs, context-packs/examples/regulated-corp (name regulated-corp) and plugins/forjate/evals/fixtures/packs/central-secrets (name central-secrets), and set spec.context_packs to [regulated-corp, central-secrets] in the brief. Then, as the security expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area security, metadata.author forjate:security, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
       "expected_output": "No Sealed Secrets anywhere, External Secrets from Walk citing SEC-2 and SEC-1, Sealed Secrets in alternatives, GoTrue denied by SEC-3 so oauth2-proxy stays (it is in base) with the identity provider left open as a question caused by SEC-3.",
       "assertions": [
         {

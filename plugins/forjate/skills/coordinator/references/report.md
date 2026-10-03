@@ -29,6 +29,9 @@ Conflicts between experts: <every `cross-record conflict` line validate.py repor
 
 ## Gates (consolidated)
 <from gates.yaml when present; otherwise "quality expert has not consolidated yet", followed by the gate_to_next lists found in the records>
+| Transition | Approver | Gates | Automated (verify-job / ci / metric) | Manual |
+one row per transition; counts from check.type, absent check counts as manual
+then one line per gate: `<id> [<check.type>: <ref>] <text> (<owner>)`, manual ones last
 Pack overrides: <from gates.yaml, or none>
 
 ## Not yet available

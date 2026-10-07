@@ -345,8 +345,15 @@ Tests:
 
 Exit: a new user can go from problem statement to a running Crawl environment in one session, and read a report that explains every choice.
 
-### Phase 5 — Hardening and protocol decision (≈ 1 week)
+### Phase 5 — Hardening and protocol decision (≈ 2 weeks)
 
+0. **De-bias the skills: roles and properties, not component names.** Review on 2026-10-07 counted component names against role or catalog references per skill: data-store 90/4, devops 74/1, architecture 71/2, compliance 55/4, data-pipeline 55/2, security 48/1, ai-engineering 41/1. The skills were written against today's catalog; as it grows, a ladder that says "Walk → `apps/sealed-secrets`" or an assertion named `recommends-postgres-for-crawl-state` keeps a better component from ever being chosen. The fix moves the role→component mapping to the one place that already owns it, the catalog:
+   - Skills ask by **role and property** (`session-memory`, `secrets.mechanism >= sealed`, `local-model`, `durable-workflows`) and resolve the component from `wiki/catalog.json` at run time; with several candidates they apply the selection criteria (stage fitness, licence, maturity, GPU, HA, data class) and record the alternatives, which they already do well.
+   - `catalog-overrides.yaml` gains the properties the skills hard-code today: `secrets.mechanism`, `gpu_required`, `ha` (single | replicated | operator), `psa_restricted`, `data_classes`. `validate.py` ranks mechanisms through the catalog instead of a table in the code.
+   - Concrete examples stay, as a generated `references/catalog-snapshot.md` per skill ("today the catalog resolves `session-memory` to Redis"), compiled by `wiki-compile.py` and labelled as a snapshot, never as a rule. Prose keeps naming a component only where the catalog has a single option for the role.
+   - Evals assert roles, not names: new assertion type `choice_has_role`; names remain only for single-option roles. Re-run every suite after the rewrite.
+   - `scripts/builder/skill-lint.py` in CI flags component names in `SKILL.md` and references outside snapshot files.
+   Rules of judgement that use a component as an illustration ("session memory is a TTL key-value problem") are not the target; stage→component tables and assertions are.
 1. **Description optimization** for all thirteen skills with the trigger-eval loop (L4). Experts should not fire on general k8s questions; the coordinator should fire on "automate", "use case", "PoC", "I want an agent that…".
 2. **`forjate-catalog` MCP server** (`mcp-builder` skill): tools `search_catalog`, `get_component`, `list_overlays`, `validate_decision`, `kustomize_dry_run`. Replace file-grepping in the skills with MCP calls; keep the file fallback.
 3. **Protocol checkpoint**: measure whether any expert needs to run outside Claude Code (Agent SDK service, Cowork). If yes, write an ADR on A2A vs MCP-tools for that boundary. If no, record "not needed yet" and move on.
@@ -395,6 +402,6 @@ An agent/skill is "done" for a phase only when all of these hold:
 | 2 Core experts | 2.5 | `builder-p2` |
 | 3 Governance experts | 2.5 (done in 1 day) | `builder-p3` |
 | 4 UX + assembly | 1.5 | `builder-p4` |
-| 5 Hardening + protocol | 1 | `builder-p5` / `v1.x.0` |
+| 5 Hardening + protocol | 2 | `builder-p5` / `v1.x.0` |
 
-Total ≈ 9.5 weeks of focused work; phases 2 and 3 parallelize across people if available.
+Total ≈ 10.5 weeks of focused work; phases 2 and 3 parallelize across people if available.

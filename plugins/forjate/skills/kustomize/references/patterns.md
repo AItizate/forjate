@@ -195,7 +195,7 @@ When an index is unavoidable (an upstream list without `name`), every op carries
 
 ## NetworkPolicy default-deny (Walk and Run)
 
-Generated from the security record's `network_policy: default-deny` and `egress_allowlist`; not optional, not a component. Absent from a whole production tenant because the convention listed it as hardening.
+Generated from the security record's `network_policy: default-deny` and `egress_allowlist` (external hostnames) plus the in-cluster allows you derive from the architecture record's workloads and the components in the overlay; not optional, not a component. Absent from a whole production tenant because the convention listed it as hardening. A per-workload matrix is written only when the security record says `egress_matrix: required`.
 
 ```yaml
 # netpol-default-deny.yaml
@@ -216,7 +216,7 @@ spec:
     - to: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } } }]
       ports: [{ protocol: UDP, port: 53 }, { protocol: TCP, port: 53 }]
 ---
-# one per egress_allowlist line, e.g. "agent-api: postgres:5432"
+# one per in-cluster dependency you derive (workload → component), e.g. agent-api → postgres; and one per external hostname in egress_allowlist
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: { name: allow-agent-api-to-postgres, namespace: uc-<name> }

@@ -74,7 +74,7 @@
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
           "expr": "any(has('odoo', x) for x in listed(setting('egress_allowlist','walk'))) and any(has('imap', x) for x in listed(setting('egress_allowlist','walk')))",
-          "text": "egress allow-list names Odoo and IMAP"
+          "text": "egress allow-list names the external hosts Odoo and IMAP"
         },
         {
           "type": "yaml_expr",
@@ -168,8 +168,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
-          "expr": "setting('network_policy','walk') == 'default-deny' and len(listed(setting('egress_allowlist','walk'))) >= 2",
-          "text": "default-deny with an allow-list at Walk"
+          "expr": "setting('network_policy','walk') == 'default-deny' and len(listed(setting('egress_allowlist','walk'))) >= 1",
+          "text": "default-deny with the external destinations listed at Walk"
         },
         {
           "type": "yaml_expr",

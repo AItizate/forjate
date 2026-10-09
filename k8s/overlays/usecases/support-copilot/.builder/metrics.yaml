@@ -1,4 +1,8 @@
+dead_letter_rate:
+  measured_at: '2026-10-09T23:37:04+00:00'
+  source: verify-job-log:copilot-validate
+  value: '0.0333'
 resolved_without_human_rate:
-  measured_at: '2026-10-09T23:35:13+00:00'
+  measured_at: '2026-10-09T23:37:04+00:00'
   source: verify-job-log:copilot-validate
   value: '0.6'

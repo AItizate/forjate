@@ -13,12 +13,17 @@ metadata:
 spec:
   containers:
   - name: minio
-    image: quay.io/minio/minio:latest
+    # quay.io/minio/minio:latest stopped resolving in 2026 (401) and docker.io/minio/minio is gone;
+    # the Bitnami legacy build is the pullable MinIO server today. Runs as uid 1001.
+    image: docker.io/bitnamilegacy/minio:2025.7.23
     command:
     - /bin/bash
     - -c
     args: 
     - minio server /data --console-address :9090
+    securityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
     volumeMounts:
     - mountPath: /data
       name: localvolume # Corresponds to the `spec.volumes` Persistent Volume

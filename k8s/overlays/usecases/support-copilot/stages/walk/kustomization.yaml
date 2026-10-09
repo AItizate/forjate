@@ -1,0 +1,77 @@
+# walk stage of support-copilot: recomposes the Crawl root (base, Crawl components, the namespace child) and adds what the records require for walk, nothing the plan put out of scope.
+# images: is the write-back surface: sync-app-image.yml (repository_dispatch app-image-updated) sets the SHA with yq, never sed.
+# Every remote ref is a tag (ref-pinning-check); the Application tracks a tag with selfHeal (argocd-revision-check).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../../../../base
+- ../../namespaces/uc-support-copilot
+- ../../../../../components/apps/cloudflare-tunnel
+- ../../../../../components/apps/continuous-delivery/argocd
+- ../../../../../components/apps/sealed-secrets
+- ../../../../../components/apps/storage/longhorn
+- ../../../../../components/apps/monitoring/prometheus
+- ../../../../../components/apps/monitoring/grafana
+- ../../../../../components/apps/monitoring/reloader
+- ./namespaces/uc-support-copilot
+- argocd/application.yaml
+- argocd/secrets/sealed-argocd-ssh-keys.yaml
+- argocd/secrets/sealed-argocd-repo-creds.yaml
+patches:
+- path: patches/namespace-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: uc-support-copilot
+- path: patches/agent-api-env-patch.yaml
+  target:
+    kind: Deployment
+    name: agent-api
+    namespace: uc-support-copilot
+- path: patches/orders-stub-env-patch.yaml
+  target:
+    kind: Deployment
+    name: orders-stub
+    namespace: uc-support-copilot
+- path: patches/seed-job-env-patch.yaml
+  target:
+    kind: Job
+    name: seed-job
+    namespace: uc-support-copilot
+- path: patches/replay-job-env-patch.yaml
+  target:
+    kind: Job
+    name: replay-job
+    namespace: uc-support-copilot
+- path: patches/verify-job-env-patch.yaml
+  target:
+    kind: Job
+    name: verify-job
+    namespace: uc-support-copilot
+- target:
+    kind: Secret
+    name: postgres-secret
+    namespace: uc-support-copilot
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: postgres-secret\n"
+- target:
+    kind: Secret
+    name: litellm-secret
+    namespace: uc-support-copilot
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: litellm-secret\n"
+- path: argocd/repo-server-ssh-patch.yaml
+  target:
+    kind: Deployment
+    name: argocd-repo-server
+    namespace: argocd
+- path: argocd/cmd-params-cm-patch.yaml
+  target:
+    kind: ConfigMap
+    name: argocd-cmd-params-cm
+    namespace: argocd
+labels:
+- pairs:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/overlay: support-copilot
+images:
+- name: support-copilot
+  newName: ghcr.io/aitizate/support-copilot
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

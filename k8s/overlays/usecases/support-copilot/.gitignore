@@ -1,0 +1,4 @@
+# Real credentials never land in git; the committed examples do.
+**/secrets/*.env
+!**/secrets/*.env.example
+app/.venv*/

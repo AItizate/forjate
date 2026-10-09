@@ -1,0 +1,98 @@
+# agent-api: a workload the architecture record names, served from the scaffold's image.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-api
+  namespace: uc-support-copilot
+  labels: &id001
+    app: agent-api
+    forjate.io/usecase: support-copilot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-api
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: agent-api
+        image: support-copilot
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - -m
+        - support_copilot.api
+        env:
+        - name: PGHOST
+          value: postgres
+        - name: ORDERS_URL
+          value: http://orders-stub:8001
+        - name: OLLAMA_URL
+          value: http://ollama-service:11434
+        - name: MODEL_MODE
+          value: rules
+        - name: ALLOWED_ORDER_FIELDS
+          value: status,eta,items_count
+        - name: DATA_CLASS
+          value: pii
+        - name: SESSION_TTL_HOURS
+          value: '4'
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: writable-0
+          mountPath: /tmp
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        ports:
+        - containerPort: 8000
+      volumes:
+      - name: writable-0
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-api
+  namespace: uc-support-copilot
+  labels:
+    app: agent-api
+    forjate.io/usecase: support-copilot
+spec:
+  selector:
+    app: agent-api
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP

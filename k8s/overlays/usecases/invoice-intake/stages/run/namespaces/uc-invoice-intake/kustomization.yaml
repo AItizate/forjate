@@ -1,0 +1,13 @@
+# run: what the records add inside uc-invoice-intake (components fit for run, NetworkPolicies, the secrets mechanism, the surface).
+namespace: uc-invoice-intake
+resources:
+- ../../../../../../../components/apps/ai-models/vllm
+- externalsecrets/postgres-secret.yaml
+- externalsecrets/minio-secret.yaml
+- externalsecrets/approval-secret.yaml
+- externalsecrets/litellm-secret.yaml
+- externalsecrets/gotrue-secret.yaml
+- externalsecrets/minio-storage-configuration.yaml
+- externalsecrets/formbricks-secret.yaml
+- externalsecrets/imap-mailbox-secret.yaml
+- externalsecrets/odoo-rest-api-secret.yaml

@@ -1,0 +1,16 @@
+# Run: minio-storage-configuration pulled from the central store (security: secrets_mechanism external-secrets); the SealedSecret of the same name is deleted above.
+# ClusterSecretStore corporate-store is the organisation's (devops Q: which store, inside the residency).
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: minio-storage-configuration
+  namespace: uc-invoice-intake
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: corporate-store
+    kind: ClusterSecretStore
+  target:
+    name: minio-storage-configuration
+    creationPolicy: Owner
+  data: []

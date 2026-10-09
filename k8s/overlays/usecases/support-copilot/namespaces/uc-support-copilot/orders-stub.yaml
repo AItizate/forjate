@@ -1,0 +1,88 @@
+# orders-stub: a workload the architecture record names, served from the scaffold's image.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-stub
+  namespace: uc-support-copilot
+  labels: &id001
+    app: orders-stub
+    forjate.io/usecase: support-copilot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders-stub
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: orders-stub
+        image: support-copilot
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - -m
+        - support_copilot.orders_stub
+        env:
+        - name: PGHOST
+          value: postgres
+        - name: DATA_CLASS
+          value: pii
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: writable-0
+          mountPath: /tmp
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8001
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        ports:
+        - containerPort: 8001
+      volumes:
+      - name: writable-0
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-stub
+  namespace: uc-support-copilot
+  labels:
+    app: orders-stub
+    forjate.io/usecase: support-copilot
+spec:
+  selector:
+    app: orders-stub
+  ports:
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP

@@ -12,6 +12,22 @@ class ParseFailed(ToolError):
     pass
 
 
+def wait_ready(timeout_s: float = 600.0) -> None:
+    """Docling pulls a large image and loads models before /readyz answers; the batch waits for it once."""
+    import time
+    cfg = settings()
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            if httpx.get(f"{cfg.docling_url}/readyz", timeout=5).status_code == 200:
+                return
+        except httpx.HTTPError:
+            pass
+        if time.monotonic() > deadline:
+            raise ParseFailed("docling did not become ready")
+        time.sleep(5)
+
+
 def parse_pdf(document_id: str, pdf: bytes, *, timeout_s: float = 120.0) -> str:
     cfg = settings()
     files = {"files": (f"{document_id}.pdf", pdf, "application/pdf")}

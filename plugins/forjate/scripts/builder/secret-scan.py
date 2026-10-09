@@ -64,9 +64,14 @@ def is_placeholder(value: str) -> bool:
     return PLACEHOLDER.match(v) is not None or SELF_DECLARED.search(v) is not None or v.startswith(INDIRECT)
 
 
+CONSTANT_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$|^[a-z][a-z0-9_.-]*(/[a-z0-9_.-]+)*$")
+
+
 def looks_random(value: str) -> bool:
-    """A real credential has letters and digits (or is long); CHANGE_ME does not."""
+    """A real credential has letters and digits (or is long); CHANGE_ME, a constant name or a path does not."""
     v = str(value)
+    if CONSTANT_NAME.match(v):
+        return False
     classes = sum(bool(re.search(p, v)) for p in (r"[a-z]", r"[A-Z]", r"[0-9]", r"[^A-Za-z0-9]"))
     return len(v) >= 16 and classes >= 3 or len(v) >= 32
 
@@ -135,7 +140,8 @@ def scan_dir(root: Path) -> list[dict]:
             continue
         if name.endswith(".env"):
             continue
-        scan_text(text, rel, findings)
+        # A SealedSecret's encryptedData is ciphertext by construction; only the shape rules apply to it.
+        scan_text(text, rel, findings, keyed="kind: SealedSecret" not in text)
         if name in ("kustomization.yaml", "kustomization.yml"):
             findings += scan_kustomization(text, rel)
     # de-duplicate (a literal may match both a shape and the keyed rule)

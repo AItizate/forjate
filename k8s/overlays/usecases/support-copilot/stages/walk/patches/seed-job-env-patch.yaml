@@ -1,0 +1,15 @@
+# walk: the real model and the real systems (strategic merge on the container name, order-independent).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: seed-job
+        env:
+        - name: MODEL_MODE
+          value: live
+        - name: ORDERS_URL
+          value: https://orders.corp.example.com

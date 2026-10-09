@@ -70,6 +70,8 @@ Each step is independently useful, and none of them requires a cloud account or 
 
 **6. Graduate it.** A use case that stops being disposable becomes an overlay: give it a real namespace, real secrets, a design doc and a diagram per the [overlay convention](./overlays/CONVENTION.md), and start climbing [Lab → MVP → Production](./lab-to-production.md).
 
+**7. Let the team build one with you.** The [use-case builder](./use-case-builder/overview.md) is the same path with ten experts beside you: `/usecase "<a problem you have>"` interviews you, plans Crawl → Walk → Run, writes one reviewable decision record per area (where state lives, how data moves, what a security reviewer will ask, what the verify Job proves, what a person sees), scaffolds the workload and assembles the overlay you would otherwise write by hand in step 5, then `ephemeral.sh up` proves it. Read the records under `k8s/overlays/usecases/invoice-intake/.builder/` before running anything: every choice there explains itself, and the explanations are the curriculum.
+
 ## What it costs
 
 Nothing, in the sense that matters. k3d on a laptop, Docker, and disk. No cloud account, no credit card, no API keys, no shared cluster to be careful around. The `quickstart` overlay is deliberately zero-secret so that step one cannot be blocked by credentials you do not have.

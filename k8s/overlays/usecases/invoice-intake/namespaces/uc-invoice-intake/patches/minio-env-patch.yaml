@@ -1,0 +1,19 @@
+# apps/minio/dev has no credentials; mount the overlay's minio-secret (strategic merge on the container name).
+# The component's hostPath is root-owned on k3d and the image runs as 1001: an emptyDir is the laptop's disk at Crawl.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: minio
+spec:
+  containers:
+  - name: minio
+    envFrom:
+    - secretRef:
+        name: minio-secret
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: '1'
+        memory: 1Gi

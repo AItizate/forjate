@@ -20,3 +20,4 @@ Types: `compile`, `concept`, `lint`, `query`.
 ## [2026-10-28] compile | 57 page(s) changed — components:/transformers: and namespaces/ sub-kustomizations count as consumers, kinds and images only from listed files (#19)
 
 ## [2026-10-02] catalog | wiki/catalog.json added — compiled from k8s/components + catalog-overrides.yaml
+## [2026-10-09] compile | 19 page(s) changed — 5 base, 74 component, 17 overlay

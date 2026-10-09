@@ -2,14 +2,14 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: verify-job
+  name: copilot-validate
 spec:
   template:
     spec:
       containers:
-      - name: verify-job
+      - name: copilot-validate
         env:
         - name: MODEL_MODE
           value: live
-        - name: ERP_URL
-          value: https://odoo.corp.example.com
+        - name: ORDERS_URL
+          value: https://orders.corp.example.com

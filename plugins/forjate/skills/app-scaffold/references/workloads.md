@@ -10,8 +10,8 @@ One Python package, one image, one module per architecture workload. The Job or 
 | `request-response` with `trigger: chat` or `http` | `<pkg>/api.py` | Deployment, `port: 8000`, `health_path: /healthz` | FastAPI; the webhook route verifies the channel's secret header before anything else; a replay route or the replay Job drives it at Crawl |
 | `chat-durable`, `durable_execution: temporal` | `<pkg>/worker.py` + `<pkg>/workflows.py` | Deployment | temporalio worker on the bundle's task queue; activities wrap the tools; the API starts workflows |
 | any stub integration (`<system>: stub`) | `<pkg>/<system>_stub.py` | Deployment, `port: 8001` | FastAPI; same field set and errors as the real system; records every write it receives so the verify Job can count them |
-| always | `<pkg>/seed.py` | Job (`phase: seed`) | writes the pipeline's `seed_size`, idempotently, with the labels the replay double reads |
-| always | `<pkg>/verify.py` | Job (`phase: verify`) | the quality record's assertions, the KPI line, exit code |
+| always | `<pkg>/seed.py` | Job (`phase: seed`), `<prefix>-seed` | writes the pipeline's `seed_size`, idempotently, with the labels the replay double reads |
+| always | `<pkg>/verify.py` | Job (`phase: verify`), named as the quality record's `verify_job` (the gates' `check.ref`, e.g. `inv-validate`) | the quality record's assertions, the KPI line, exit code |
 | `trigger: schedule` from Walk | the batch module | CronJob (the assembly writes it) | nothing changes in the code |
 
 ## Configuration contract (`config.py`)

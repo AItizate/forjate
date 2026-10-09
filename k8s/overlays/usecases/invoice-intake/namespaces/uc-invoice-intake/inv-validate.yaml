@@ -1,12 +1,12 @@
-# verify phase (verify-job): suspended, the runner un-suspends it in order (seed -> run -> verify).
+# verify phase (inv-validate): suspended, the runner un-suspends it in order (seed -> run -> verify).
 # Command and environment from .builder/scaffold.yaml; the image is built by ephemeral.sh from usecase.yaml spec.build.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: verify-job
+  name: inv-validate
   namespace: uc-invoice-intake
   labels: &id001
-    app: verify-job
+    app: inv-validate
     forjate.io/usecase: invoice-intake
     forjate.io/phase: verify
 spec:
@@ -24,7 +24,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-      - name: verify-job
+      - name: inv-validate
         image: invoice-intake
         imagePullPolicy: IfNotPresent
         command:

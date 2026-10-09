@@ -32,20 +32,20 @@ patches:
     kind: Deployment
     name: orders-stub
     namespace: uc-support-copilot
-- path: patches/seed-job-env-patch.yaml
+- path: patches/copilot-seed-env-patch.yaml
   target:
     kind: Job
-    name: seed-job
+    name: copilot-seed
     namespace: uc-support-copilot
 - path: patches/replay-job-env-patch.yaml
   target:
     kind: Job
     name: replay-job
     namespace: uc-support-copilot
-- path: patches/verify-job-env-patch.yaml
+- path: patches/copilot-validate-env-patch.yaml
   target:
     kind: Job
-    name: verify-job
+    name: copilot-validate
     namespace: uc-support-copilot
 - target:
     kind: Secret

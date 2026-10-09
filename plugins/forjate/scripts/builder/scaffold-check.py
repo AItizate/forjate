@@ -91,9 +91,11 @@ def check_workloads(arch: dict, scaffold: dict, app: Path, findings: list[str]) 
     crawl = ((arch.get("spec") or {}).get("stages", {}).get("crawl") or {}).get("settings") or {}
     wanted = [str(w) for w in (crawl.get("workloads") or [])]
     have = {w["name"]: w for w in (scaffold.get("spec") or {}).get("workloads", [])}
+    by_phase = {w.get("phase"): w for w in have.values() if w.get("phase")}
     for w in wanted:
-        if w not in have:
-            findings.append(f"workload {w}: in the architecture record at Crawl but not in scaffold.yaml")
+        generic = {"seed-job": "seed", "verify-job": "verify", "run-job": "run", "replay-job": "run", "intake-job": "run"}.get(w)
+        if w not in have and not (generic and generic in by_phase):
+            findings.append(f"workload {w}: in the architecture record at Crawl but not in scaffold.yaml (nor a Job with phase {generic or '?'})")
     pkg = (scaffold.get("spec") or {}).get("package", "")
     for name, w in have.items():
         cmd = w.get("command") or []

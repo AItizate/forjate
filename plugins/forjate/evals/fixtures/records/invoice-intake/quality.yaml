@@ -15,7 +15,7 @@ spec:
           - "each of the 5 seeded exceptions (3 mismatches, 1 duplicate, 1 unparseable) has a review-queue row carrying its reason"
           - "field accuracy measured against the labelled seed and printed as EVAL field_accuracy=<value>: 1.0 with EXTRACTOR=replay (the CI run), at least 0.95 with EXTRACTOR=ollama (the demo run the finance ops lead sees)"
           - "the KPI measured once on the seed and printed as KPI straight_through_rate=<value>"
-          - "model-call and tool-call logs carry data_class=financial and no payload: a grep over the Job logs finds no IBAN, no bank account number and no invoice amount, and at least 20 model-call lines exist"
+          - "model-call and tool-call logs carry data_class=financial and no payload: a grep over the Job logs finds no IBAN, no bank account number and no invoice amount, and at least 18 model-call lines exist (one per extracted invoice; the duplicate and the unparseable file never reach the model)"
           - "every seeded PDF and its parsed JSON is present in the MinIO artifact bucket, read through the in-namespace endpoints declared in usecase.yaml and nothing outside the namespace"
           - "exit non-zero on the first failed assertion, naming it in the log"
         test_pyramid:

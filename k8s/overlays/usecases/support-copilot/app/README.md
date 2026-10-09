@@ -8,9 +8,9 @@ Customers write to a Telegram group about their orders and subscriptions; this s
 |----------|---------|------|
 | `agent-api` | `python -m support_copilot.api` | Deployment on :8000: `POST /webhook/telegram` (Walk, secret token verified), `POST /replay/turn` (Crawl) |
 | `orders-stub` | `python -m support_copilot.orders_stub` | Deployment on :8001: read-only orders and subscriptions from the seed, every call recorded |
-| `seed-job` | `python -m support_copilot.seed` | Job: 40 customers, 200 orders, 50 subscriptions, the 60-conversation replay set |
+| `copilot-seed` | `python -m support_copilot.seed` | Job: 40 customers, 200 orders, 50 subscriptions, the 60-conversation replay set |
 | `replay-job` | `python -m support_copilot.replay` | Job: feeds the replay set to the agent API in order |
-| `verify-job` | `python -m support_copilot.verify` | Job: the quality record's assertions, `KPI resolved_without_human_rate=` |
+| `copilot-validate` | `python -m support_copilot.verify` | Job: the quality record's assertions, `KPI resolved_without_human_rate=` |
 
 Tools (`src/support_copilot/tools/`): `get_order` [read-only, bound to the sender's customer], `get_subscription` [read-only], `escalate` [idempotent on conversation id plus reason]. The handoffs are a pure predicate (`should_escalate`): refund, cancellation, anger, two unresolved turns.
 

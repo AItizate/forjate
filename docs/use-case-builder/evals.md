@@ -32,7 +32,7 @@ For every eval, `run.sh` performs the same sequence twice, once per configuratio
 
 ## Grading
 
-`grade.py` reads each run's `eval_metadata.json`, evaluates every assertion against the worktree, and writes `grading.json` with `{text, passed, evidence}` per assertion, the field names the skill-creator viewer expects. Assertions check outputs on disk, never transcripts: a file exists, a `yq` query equals a value, an overlay builds, `validate.py` passes, a pack rule is cited, a file the skill must not touch is unchanged against `HEAD`. Checks that need the builder's Python run with the main checkout's venv.
+`grade.py` reads each run's `eval_metadata.json`, evaluates every assertion against the worktree, and writes `grading.json` with `{text, passed, evidence}` per assertion, the field names the skill-creator viewer expects. Assertions check outputs on disk, never transcripts: a file exists, a `yq` query equals a value, an overlay builds, `validate.py` passes, a pack rule is cited, a file the skill must not touch is unchanged against `HEAD`; for the builders, a shell command exits 0 in the worktree (`command`: the generated service's tests pass, the image builds, a gate check passes) and `scaffold-check.py` is clean (`scaffold_check`). Checks that need the builder's Python run with the main checkout's venv.
 
 `grade.py --all <iteration-dir>` grades every run and writes `benchmark.md`: one row per eval and configuration with pass rate, seconds, cost, turns and models, and the mean per configuration. The final benchmark of each skill is copied to `benchmarks/<skill>-<date>.md` as the phase's evidence.
 

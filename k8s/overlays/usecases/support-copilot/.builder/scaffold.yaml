@@ -22,7 +22,7 @@ spec:
       env: [PGHOST=postgres, DATA_CLASS=pii]
       secrets: [postgres-secret]
       writable_paths: [/tmp]
-    - name: seed-job
+    - name: copilot-seed
       kind: job
       phase: seed
       command: [python, -m, support_copilot.seed]
@@ -36,7 +36,7 @@ spec:
       env: [PGHOST=postgres, AGENT_URL=http://agent-api:8000, DATA_CLASS=pii]
       secrets: [postgres-secret]
       writable_paths: [/tmp]
-    - name: verify-job
+    - name: copilot-validate
       kind: job
       phase: verify
       command: [python, -m, support_copilot.verify]

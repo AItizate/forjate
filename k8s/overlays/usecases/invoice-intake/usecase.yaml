@@ -16,13 +16,13 @@ spec:
   - apps/minio/dev
   jobs:
     seed:
-      name: seed-job
+      name: inv-seed
       timeout: 600
     run:
       name: intake-job
       timeout: 900
     verify:
-      name: verify-job
+      name: inv-validate
       timeout: 600
   outputs:
     endpoints:

@@ -1,12 +1,12 @@
-# seed phase (seed-job): suspended, the runner un-suspends it in order (seed -> run -> verify).
+# seed phase (inv-seed): suspended, the runner un-suspends it in order (seed -> run -> verify).
 # Command and environment from .builder/scaffold.yaml; the image is built by ephemeral.sh from usecase.yaml spec.build.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: seed-job
+  name: inv-seed
   namespace: uc-invoice-intake
   labels: &id001
-    app: seed-job
+    app: inv-seed
     forjate.io/usecase: invoice-intake
     forjate.io/phase: seed
 spec:
@@ -24,7 +24,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-      - name: seed-job
+      - name: inv-seed
         image: invoice-intake
         imagePullPolicy: IfNotPresent
         command:

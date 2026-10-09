@@ -44,12 +44,18 @@ def decide(fields: InvoiceFields, *, lookup) -> tuple[Decision, dict | None]:
 def process_one(document_id: str, pdf: bytes, *, cfg: Settings, model: Model, report: RunReport) -> None:
     key = idempotency_key(pdf)
     client = stores.minio_client()
-    seen = stores.scalar("select reason from invoices where idempotency_key = %s", key)
-    if seen is not None:
+    seen = stores.scalar("select document_id from invoices where idempotency_key = %s", key)
+    if seen == document_id or stores.scalar("select 1 from invoices where idempotency_key = %s", f"{key}:dup:{document_id}"):
         report.skipped_seen += 1
         return
-    # Duplicate: same bytes under another name, already processed under its first name.
-    dup_of = stores.scalar("select document_id from invoices where idempotency_key = %s", key)
+    if seen is not None:
+        # The same bytes under another name: a re-sent invoice. Dedupe before the model sees it (the pipeline's key),
+        # route it to review with the earlier item linked, and keep its own row so a second run skips it.
+        stores.put_object(client, cfg.bucket_parsed, f"{document_id}.json", json.dumps({"document_id": document_id, "duplicate_of": seen}).encode(), "application/json")
+        queue_for_review(ReviewItem(invoice_id=document_id, reason=Reason.DUPLICATE, detail=f"same document as {seen}", pdf_object=f"{cfg.bucket_inbox}/{document_id}.pdf"), idempotency_key=f"{key}:dup:{document_id}:review")
+        stores.record_invoice(f"{key}:dup:{document_id}", document_id, None, Reason.DUPLICATE.value, False, None)
+        report.processed += 1; report.add(Reason.DUPLICATE)
+        return
     try:
         text = parse_pdf(document_id, pdf)
     except ParseFailed as exc:

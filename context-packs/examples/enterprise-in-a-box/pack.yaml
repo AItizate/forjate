@@ -1,0 +1,97 @@
+apiVersion: forjate.io/v0
+kind: ContextPack
+metadata:
+  name: enterprise-in-a-box
+  version: 1.0.0
+  scope: org
+  precedence: 20
+  description: Governance posture of the "Enterprise Agent Architecture in a Box" delivery model, distilled from a 2026 enterprise RFI response. Copy and adapt; layer a team pack over it for exceptions.
+  owner: aitizate
+spec:
+  applies_to: ["*"]
+  language: en
+  sources:
+    - id: AUT-1
+      kind: constraint
+      path: constraints.yaml#/rules/AUT-1
+      enforce: must
+      applies_to: [stage-planner, ai-engineering, ux, quality]
+      summary: Crawl is assistive only; agents recommend, people act.
+    - id: AUT-2
+      kind: constraint
+      path: constraints.yaml#/rules/AUT-2
+      enforce: must
+      applies_to: [ai-engineering, security, quality]
+      summary: Every write to a business system needs a registered tool and human approval until Run.
+    - id: EXE-1
+      kind: constraint
+      path: constraints.yaml#/rules/EXE-1
+      enforce: must
+      applies_to: [ai-engineering, architecture, quality]
+      summary: "Execution is bounded: step limit, timeout per step, delegation depth."
+    - id: EXE-2
+      kind: constraint
+      path: constraints.yaml#/rules/EXE-2
+      enforce: must
+      applies_to: [ai-engineering, security]
+      summary: Tool calls pass an intent-validation check before execution.
+    - id: EXE-3
+      kind: constraint
+      path: constraints.yaml#/rules/EXE-3
+      enforce: must
+      applies_to: [security, architecture, devops]
+      summary: One access choke point in front of every agent, so revoking a permission is the kill switch.
+    - id: MOD-1
+      kind: constraint
+      path: constraints.yaml#/rules/MOD-1
+      enforce: must
+      applies_to: [ai-engineering, compliance]
+      summary: Model versions are pinned in configuration, never floating.
+    - id: MOD-2
+      kind: constraint
+      path: constraints.yaml#/rules/MOD-2
+      enforce: must
+      applies_to: [ai-engineering, security]
+      summary: Fallback only to a model of the same approved tier, never a silent downgrade.
+    - id: AUD-1
+      kind: constraint
+      path: constraints.yaml#/rules/AUD-1
+      enforce: must
+      applies_to: [quality, compliance, ai-engineering]
+      summary: Every agent action leaves a structured audit record (see guidelines/audit-artifacts.md).
+    - id: STD-1
+      kind: constraint
+      path: constraints.yaml#/rules/STD-1
+      enforce: must
+      applies_to: [architecture, devops, compliance]
+      summary: Open standards at every layer; no proprietary runtime the tenant cannot rebuild.
+    - id: MEM-1
+      kind: constraint
+      path: constraints.yaml#/rules/MEM-1
+      enforce: should
+      applies_to: [data-store, ai-engineering]
+      summary: "Memory is scoped (session, user, project, org) and anchored to governed knowledge."
+    - id: REVIEW
+      kind: guideline
+      path: guidelines/human-review.md
+      enforce: must
+      applies_to: [ux, quality, security]
+      summary: How human gates are designed so they validate instead of rubber-stamp; control levels by persona.
+    - id: AUDIT
+      kind: guideline
+      path: guidelines/audit-artifacts.md
+      enforce: must
+      applies_to: [quality, compliance, ai-engineering, devops]
+      summary: What is logged per agent action and how a decision trace is reconstructed.
+    - id: MODELGOV
+      kind: guideline
+      path: guidelines/model-governance.md
+      enforce: should
+      applies_to: [ai-engineering, compliance, security]
+      summary: "The model register: allow-list, pinning, upgrade gate, routing by risk tier and jurisdiction."
+    - id: OPMODEL
+      kind: guideline
+      path: guidelines/operating-model.md
+      enforce: should
+      applies_to: [business, devops, coordinator, stage-planner]
+      summary: "Co-delivery and transfer: RACI, severities, runbooks, the governance playbook, what the three months map to."

@@ -1,0 +1,425 @@
+{
+  "skill_name": "ux",
+  "evals": [
+    {
+      "name": "regulated-invoice-intake",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ and plugins/forjate/evals/fixtures/records/invoice-intake/security.yaml into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the UX expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ux, metadata.author forjate:ux, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No surface at Crawl (cli/none), a custom review page served by review-api at Walk behind oauth2-proxy matching the architecture and security records, token checkpoints for mismatch approval naming post_to_erp, Formbricks only from Walk, an asynchronous latency budget (the clerk never waits on extraction), failure lines for parse failure and Odoo down, an escalation context the verify Job can assert, a walkthrough as a manual gate.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "text": "ux.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "setting('surface','crawl') in ('cli','none','notebook')",
+          "text": "no screen invented at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "setting('surface','walk') in ('custom-web','existing-tool') and (setting('surface_workload','walk') == 'review-api' or setting('surface','walk') == 'existing-tool')",
+          "text": "Walk surface is the review page the architecture serves (or the ERP's own UI)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "setting('auth_in_front','walk') == 'oauth2-proxy' and setting('auth_in_front','crawl') == 'none'",
+          "text": "auth_in_front agrees with the architecture and security records"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any('[token]' in x and has('post_to_erp|approv', x) for x in listed(setting('hitl_checkpoints','walk')))",
+          "text": "a token checkpoint issues the approval post_to_erp requires"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(has('mismatch|differs|amount', x) for x in listed(setting('hitl_checkpoints','walk')))",
+          "text": "the mismatch exception has a checkpoint"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "'apps/surveys/formbricks' not in choices('crawl') and setting('feedback_capture','crawl') in ('verify-job-log','none')",
+          "text": "no feedback widget at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "setting('feedback_capture','walk') in ('formbricks','review-queue-flag') and (setting('feedback_capture','walk') != 'formbricks' or 'apps/surveys/formbricks' in choices('walk'))",
+          "text": "feedback captured on the page from Walk, Formbricks listed when chosen"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "has('[0-9]', setting('latency_budget','walk')) and has('async|never waits|queue|refresh', setting('latency_budget','walk'))",
+          "text": "latency budget with numbers and an asynchronous queue, not a spinner"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(has('parse', x) for x in listed(setting('failure_ux','walk'))) and any(has('odoo|erp|post', x) for x in listed(setting('failure_ux','walk')))",
+          "text": "failure UX covers parse failure and the ERP being down"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "has('reason', setting('escalation_context','crawl')) and has('po|purchase', setting('escalation_context','crawl'))",
+          "text": "escalation context names the reason and the PO values at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(((g.get('check') or {}).get('type')) == 'verify-job' for g in gates('crawl'))",
+          "text": "a verify-job gate proves the escalation context"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(((g.get('check') or {}).get('type')) == 'manual' and has('clerk|walkthrough|sign', g.get('text')) for g in gates('walk')) or has('walkthrough|shadow', setting('onboarding','walk'))",
+          "text": "adoption: a walkthrough with the clerks, as a manual gate or onboarding line"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(has('open-webui|open webui|chat', a.get('option')) for a in alts())",
+          "text": "a chat front-end is a rejected alternative, with a reason"
+        }
+      ]
+    },
+    {
+      "name": "chat-copilot-no-packs",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/support-copilot/ and plugins/forjate/evals/fixtures/records/support-copilot/security.yaml into decisions/ (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the UX expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ux, metadata.author forjate:ux, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Replay at Crawl with no surface, Telegram as the Walk surface served by agent-api with api-key matching the architecture record, deterministic handoffs for refunds and cancellations (no token), in-channel feedback instead of Formbricks, typing indicator and a per-turn budget, failure lines for the orders API down and the webhook outage, the plan's G-UX-1 carried verbatim, a shadow period as a manual gate, a question on group visibility or on a review UI.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "text": "ux.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "setting('surface','walk') == 'chat-channel' and has('telegram', setting('channel','walk'))",
+          "text": "Walk surface is the Telegram channel"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "setting('surface','crawl') in ('cli','none')",
+          "text": "no screen at Crawl: the replay is the surface"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "setting('auth_in_front','walk') == 'api-key' or any(has('api-key', q.get('question')) and has('oauth2', q.get('question')) for q in oq())",
+          "text": "auth_in_front agrees with the architecture (api-key) or the disagreement is an open question naming both values"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "any(has('refund|cancel', x) and '[deterministic]' in x for x in listed(setting('hitl_checkpoints','walk')))",
+          "text": "refunds and cancellations are deterministic handoffs, not token approvals"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "not any('[token]' in x for x in listed(setting('hitl_checkpoints','walk')))",
+          "text": "no token checkpoint: no tool requires an approval token"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "setting('feedback_capture','walk') == 'in-channel' and 'apps/surveys/formbricks' not in choices()",
+          "text": "feedback in the channel, not a web survey"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "setting('streaming','walk') == 'typing-indicator' and has('[0-9]', setting('latency_budget','walk'))",
+          "text": "typing indicator and a numeric per-turn budget"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "any(has('orders? api|lookup', x) for x in listed(setting('failure_ux','walk'))) and any(has('webhook|duplicate', x) for x in listed(setting('failure_ux','walk')))",
+          "text": "failure UX covers the orders API down and the webhook outage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "any(g.get('id') == 'G-UX-1' and has('transcript', g.get('text')) and has('order id', g.get('text')) for g in gates('walk'))",
+          "text": "the plan's G-UX-1 is carried with its text"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "has('transcript', setting('escalation_context','crawl')) and has('order', setting('escalation_context','crawl'))",
+          "text": "escalation context has the transcript and the order id"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "any(((g.get('check') or {}).get('type')) == 'manual' and has('shadow|agent|sign', g.get('text')) for g in gates('walk')) or has('shadow|mirror', setting('onboarding','walk'))",
+          "text": "a shadow period with the agents, as a manual gate or onboarding line"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "any(has('group|private|visib', q.get('question')) or has('review ui|ui of their own|agents', q.get('question')) for q in oq())",
+          "text": "asks about group visibility or a review UI for the agents"
+        }
+      ]
+    },
+    {
+      "name": "migration-operator-only",
+      "prompt": "Set up k8s/overlays/usecases/db-migration-a-to-b/.builder/ by copying plugins/forjate/evals/fixtures/briefs/db-migration-a-to-b.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/db-migration-a-to-b.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/db-migration-a-to-b/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the UX expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ux.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ux, metadata.author forjate:ux, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "The plan skipped ux (operator-only); the record is short: cli at both stages, no UI component, no Formbricks, the checkpoint is the operator's go/no-go before the full-volume run, feedback is the Job log, failure UX is the Job log and exit code, auth none, the contract untouched, no Run stage.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ux.yaml",
+          "text": "ux.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ux.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ux.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "text": "existing contract untouched"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ux.yaml",
+          "expr": "all(setting('surface', s) in ('cli','none') for s in stages)",
+          "text": "operator-only: cli or none at every stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ux.yaml",
+          "expr": "len(choices()) == 0",
+          "text": "no UI or feedback component"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ux.yaml",
+          "expr": "all(setting('feedback_capture', s) in ('verify-job-log','none') for s in stages)",
+          "text": "feedback is the Job log, not a survey"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ux.yaml",
+          "expr": "all(setting('auth_in_front', s) == 'none' for s in stages)",
+          "text": "nothing exposed: auth none"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ux.yaml",
+          "expr": "any(has('operator|go/no-go|go-no-go|head of data', x) for x in listed(setting('hitl_checkpoints','walk')))",
+          "text": "the operator's go/no-go before the full-volume run is the checkpoint"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ux.yaml",
+          "expr": "any(has('log|exit', x) for x in listed(setting('failure_ux','crawl')))",
+          "text": "failure UX is the Job log and exit code"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ux.yaml",
+          "expr": "has('skip|operator|cli', st('crawl').get('rationale'))",
+          "text": "rationale says why there is no surface"
+        }
+      ]
+    },
+    {
+      "name": "negative-nightly-batch-no-ui",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ and plugins/forjate/evals/fixtures/records/invoice-intake/security.yaml into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Change of plan from the requester: nobody approves anything any more; mismatches are written to a nightly CSV report dropped in the shared folder for finance ops to look at when they get to it. It is a nightly batch, no UI is needed; the record should reflect that. Then, as the UX expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ux, metadata.author forjate:ux, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No screen is invented: surface none or cli at every stage, no Open WebUI, no Formbricks. But the exception path is named: the CSV in the shared folder is recorded as the surface for mismatches, with what it lacks (no token, no per-person audit, nothing posts without a person) as a risk or an open question for finance ops; failure UX says where a failed batch is seen and who is told.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "text": "ux.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "all(setting('surface', s) in ('none','cli','existing-tool') for s in stages)",
+          "text": "no custom page or chat UI at any stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "'apps/ai-models/open-webui' not in choices() and 'apps/surveys/formbricks' not in choices()",
+          "text": "no UI or survey component"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(has('csv|shared folder|report', x) for x in listed(setting('hitl_checkpoints','walk')) + listed(setting('audiences','walk')) + listed(setting('escalation_context','walk')))",
+          "text": "the CSV in the shared folder is recorded as the exception surface"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(has('token|audit|approv|post', r.get('text')) for r in risks()) or any(has('token|audit|approv|post', q.get('question')) for q in oq())",
+          "text": "what the CSV lacks (token, per-person audit, who approves a posting) is a risk or an open question"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(has('fail|batch|nightly', x) and has('alert|email|log|notif|see', x) for x in listed(setting('failure_ux','walk')))",
+          "text": "a failed nightly batch is seen by someone"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "not any('[token]' in x for x in listed(setting('hitl_checkpoints','walk')))",
+          "text": "no token checkpoint is invented for a flow nobody approves"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(has('open-webui|open webui|review page|custom|web', a.get('option')) for a in alts())",
+          "text": "a page or a chat UI is listed as rejected, with the reason"
+        }
+      ]
+    },
+    {
+      "name": "pack-no-custom-ui",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ and plugins/forjate/evals/fixtures/records/invoice-intake/security.yaml into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating two packs, context-packs/examples/regulated-corp (name regulated-corp) and plugins/forjate/evals/fixtures/packs/no-custom-ui (name no-custom-ui), and set spec.context_packs to [regulated-corp, no-custom-ui] in the brief. Then, as the UX expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ux, metadata.author forjate:ux, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No Formbricks anywhere (UX-1 cited, feedback moves to a review-queue flag or the ERP's own tool), no custom-web and no Open WebUI at Walk (UX-2 cited): approvals move into Odoo's own UI as an existing-tool surface with the token path raised as an open question caused by UX-2, or the surface is left unset for Walk with the question; the checkpoints and the escalation context stay; the rejected default is in alternatives.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "text": "ux.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "'apps/surveys/formbricks' not in choices() and all(setting('feedback_capture', s) != 'formbricks' for s in stages)",
+          "text": "respects UX-1: no Formbricks"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "pattern": "pack:no-custom-ui#UX-1",
+          "text": "UX-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "setting('surface','walk') not in ('custom-web','open-webui')",
+          "text": "respects UX-2: no custom front-end at Walk"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "pattern": "pack:no-custom-ui#UX-2",
+          "text": "UX-2 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "setting('surface','walk') == 'existing-tool' or (setting('surface','walk') is None and any(q.get('caused_by_rule') == 'pack:no-custom-ui#UX-2' for q in oq()))",
+          "text": "approvals move into the ERP's own UI, or the surface is left open with a question caused by UX-2"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(has('token|approv|validat', q.get('question')) for q in oq())",
+          "text": "the approval token path through the existing tool is an open question"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(has('custom|review page|web', a.get('option')) for a in alts())",
+          "text": "the custom review page is recorded as the rejected default"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "any(has('mismatch|differs|amount', x) for x in listed(setting('hitl_checkpoints','walk')))",
+          "text": "the mismatch checkpoint survives the surface change"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "setting('feedback_capture','walk') in ('review-queue-flag','in-channel','none') or setting('feedback_capture','walk') is None",
+          "text": "feedback moves to a channel the organisation owns"
+        }
+      ]
+    }
+  ]
+}

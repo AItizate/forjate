@@ -1,0 +1,11 @@
+rules:
+  UX-1:
+    type: deny_components
+    value: [apps/surveys/formbricks]
+    reason: Procurement has not cleared any survey SaaS; feedback is collected in tools the organisation already owns.
+  UX-2:
+    type: deny_setting_value
+    target: surface
+    value: [custom-web, open-webui]
+    stages: [walk]
+    reason: A pilot must not create a front-end the platform team has to secure and maintain; use the ERP's own screens or an existing tool.

@@ -344,8 +344,11 @@ def test_golden_fixtures_validate_with_every_record_and_gates(tmp_path: Path):
         shutil.copy(fixtures / "briefs" / f"{name}.yaml", b / "brief.yaml")
         shutil.copy(fixtures / "plans" / f"{name}.yaml", b / "stage-plan.yaml")
         shutil.copy(fixtures / "gates" / f"{name}.yaml", b / "gates.yaml")
-        for f in (fixtures / "decisions" / name).glob("*.yaml"):
+        for f in (fixtures / "records" / name).glob("*.yaml"):
             shutil.copy(f, b / "decisions" / f.name)
+        # records/<uc>/ is the complete set; its core five are copies of decisions/<uc>/ (what the experts' evals consume)
+        for f in (fixtures / "decisions" / name).glob("*.yaml"):
+            assert (fixtures / "records" / name / f.name).read_text() == f.read_text(), f"{name}/{f.name}: records/ copy drifted from decisions/"
         (b / "packs.yaml").write_text(yaml.safe_dump({"apiVersion": "forjate.io/v0", "kind": "ActivePacks", "spec": {"packs": packs}}))
         errors, warnings = validate_usecase(uc)
         assert errors == [], f"{name}: {errors}"

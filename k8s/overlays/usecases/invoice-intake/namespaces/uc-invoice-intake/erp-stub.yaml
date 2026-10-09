@@ -1,0 +1,90 @@
+# erp-stub: a workload the architecture record names, served from the scaffold's image.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: erp-stub
+  namespace: uc-invoice-intake
+  labels: &id001
+    app: erp-stub
+    forjate.io/usecase: invoice-intake
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: erp-stub
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: erp-stub
+        image: invoice-intake
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - -m
+        - invoice_intake.erp_stub
+        env:
+        - name: PGHOST
+          value: postgres
+        - name: DATA_CLASS
+          value: financial
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        - secretRef:
+            name: approval-secret
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: writable-0
+          mountPath: /tmp
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8001
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        ports:
+        - containerPort: 8001
+      volumes:
+      - name: writable-0
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: erp-stub
+  namespace: uc-invoice-intake
+  labels:
+    app: erp-stub
+    forjate.io/usecase: invoice-intake
+spec:
+  selector:
+    app: erp-stub
+  ports:
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP

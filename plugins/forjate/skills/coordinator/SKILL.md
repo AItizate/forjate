@@ -1,9 +1,9 @@
 ---
 name: coordinator
-description: The entry point of the Forjate use-case builder. Guides a person from "I want to automate X" to a staged, reviewable use case — intake interview, brief, context packs, stage plan, expert fan-out, review report — writing every artifact under k8s/overlays/usecases/<name>/.builder/. Use it whenever someone describes a business problem or process they want automated with agents, asks to create, plan, scope, resume or review a use case, mentions a PoC that should reach production, or asks what the team of experts recommends. Also use it to resume a half-built use case or to produce the review report of an existing one.
+description: The entry point of the Forjate use-case builder. Guides a person from "I want to automate X" to a staged, deployable use case — intake interview, brief, context packs, stage plan, expert fan-out, gates consolidation, app scaffold, overlay assembly (or the tenant-root shape for a tenant repo), review report — writing every artifact under k8s/overlays/usecases/<name>/. Use it whenever someone describes a business problem or process they want automated with agents, asks to create, plan, scope, resume, assemble or review a use case, mentions a PoC that should reach production, or asks what the team of experts recommends. Also use it to resume a half-built use case, to assemble one whose records exist, or to produce the review report of an existing one, including the drift between a tenant repo's CLAUDE.md and its tree.
 user-invocable: true
-argument-hint: "<problem statement> | resume <name> | review <name>"
-allowed-tools: Read Grep Glob Write Edit Bash(poetry run python *) Bash(python3 *) Bash(ls *) Bash(cat *) Bash(mkdir *) Bash(cp *) AskUserQuestion Agent
+argument-hint: "<problem statement> | resume <name> | review <name> | assemble <name> [--target tenant <repo>]"
+allowed-tools: Read Grep Glob Write Edit Bash(poetry run python *) Bash(python3 *) Bash(ls *) Bash(cat *) Bash(mkdir *) Bash(cp *) Bash(./scripts/ephemeral/*) Bash(kubectl kustomize *) Bash(kubeconform *) AskUserQuestion Agent
 ---
 
 # Coordinator
@@ -14,9 +14,10 @@ Three modes, chosen from `$ARGUMENTS`:
 
 | Argument | Mode |
 |----------|------|
-| a problem statement | **build**: intake → brief → plan → experts → report |
+| a problem statement | **build**: intake → brief → plan → experts → gates → scaffold and assembly → report |
 | `resume <name>` | **resume**: continue from the last valid artifact, never re-ask what is already answered |
-| `review <name>` | **review**: print the stakeholder report from what exists, change nothing |
+| `review <name>` | **review**: print the stakeholder report from what exists, change nothing; inside a tenant repo, list the drift between its `CLAUDE.md` and its tree first |
+| `assemble <name> [--target tenant <repo>]` | **assemble** only: the overlay (or the tenant-root shape) from existing records and gates |
 
 Before anything else, check whether `k8s/overlays/usecases/<name>/.builder/` already exists for the name you derive or were given. If it does and the mode is build, switch to resume: re-interviewing someone who already answered is the fastest way to lose them.
 
@@ -58,17 +59,33 @@ Roles the plan wants but that have no agent yet are not an error: list them in t
 
 **Wave 3, gates consolidation.** When every available expert has a validating record and the conflicts are acknowledged, delegate once more to the `quality` agent with the use-case directory and the word `consolidate`. It writes `.builder/gates.yaml`: every record's `gate_to_next` verbatim under its transition, a `check` on each gate, the approver per transition, the pack overrides. Validate again; a `gates.yaml ... lacks` warning means a record changed after consolidation and the step is re-run. Count the gates per transition by `check.type` for the report. Log: `- <date> gates: consolidated, <n> automated / <m> manual`.
 
-### 5. Report
+### 5. Scaffold and assembly
 
-Print the review report (`references/report.md`) and stop. The gates section lists every gate with its check type and the automated versus manual count per transition, so the approver sees what a pipeline proves and what a person signs. Assembly of the overlay is the kustomize skill's job (phase 4); until then the use case is a set of reviewed decisions and a consolidated checklist, which is the point.
+Two builders, not experts; they decide nothing the records decided. Both run after wave 3 so `gates.yaml` is what the assembly honours.
+
+**Scaffold.** When the architecture record lists workloads (anything but a pure operator Job), delegate to the `app-scaffold` agent with the use-case directory. It writes `app/` (entrypoints per workload, one typed tool module per AI-engineering tool line, the model double for CI, the seed and verify scripts, tests, a Dockerfile, the workflows that call the shared CI templates) and `.builder/scaffold.yaml`, and reports its tests and `scaffold-check.py`. Log: `- <date> scaffold: app/ generated, tests <pass|fail>, scaffold-check <clean|n findings>`.
+
+**Assembly.** Delegate to the `kustomize` agent with the use-case directory (and `--target tenant <repo>` when the user wants the tenant-root shape for im-u, globant or another tenant repo). It runs `assemble.py`, reviews and fills what it wrote, then builds the root and every stage, runs `kubeconform`, `validate.py`, `scaffold-check.py`, `secret-scan.py` and `gates.py run <name> --transition 'crawl->walk' --only ci`, and returns the build results, the gates table and every note. Carry the notes into the report under "Assembly notes". When the user allows a cluster, `./scripts/ephemeral/ephemeral.sh up <name>` is the Crawl proof: the verify Job's exit code is `G-Q-1`. Log: `- <date> assembly: overlay written, root and stages build, ci gates <n pass / m fail / k skipped>`.
+
+### 6. Report
+
+Print the review report (`references/report.md`) and stop. The gates section lists every gate with its check type and the automated versus manual count per transition, so the approver sees what a pipeline proves and what a person signs; the assembly section says what was built, what passed and what the generator left open.
 
 ## Resume
 
-Read what exists, in this order: `brief.yaml`, `packs.yaml`, `stage-plan.yaml`, `decisions/*.yaml`, `gates.yaml`, `log.md`. Validate. Continue from the first missing or invalid artifact using the build steps above, skipping every completed step: missing records mean wave 2 for those roles only; records present and `gates.yaml` missing or stale means wave 3 only. Say in one line what you found and where you are picking up. A valid artifact is never rewritten on resume unless the user asks.
+Read what exists, in this order: `brief.yaml`, `packs.yaml`, `stage-plan.yaml`, `decisions/*.yaml`, `gates.yaml`, `scaffold.yaml`, `usecase.yaml`, `log.md`. Validate. Continue from the first missing or invalid artifact using the build steps above, skipping every completed step: missing records mean wave 2 for those roles only; records present and `gates.yaml` missing or stale means wave 3 only; gates present and no `app/` or no `kustomization.yaml` means step 5 only. Say in one line what you found and where you are picking up. A valid artifact is never rewritten on resume unless the user asks.
 
 ## Review
 
-Produce `references/report.md` from the artifacts and print it. No questions, no writes. If artifacts are missing, the report says so under each heading rather than guessing.
+Produce `references/report.md` from the artifacts and print it. No questions, no writes. If artifacts are missing, the report says so under each heading rather than guessing. The gates table comes from `gates.yaml` and, when a cluster or a previous `gates.py` run left `.builder/metrics.yaml`, the measured values; run `python3 scripts/gates/gates.py run <name> --transition <t> --only ci` when the overlay exists so the table shows pass and fail instead of the check names alone.
+
+**Inside a tenant repo** (the current directory has a `k8s/kustomization.yaml` pulling the factory by `ssh://` ref, or no `k8s/overlays/` at all), start with the drift between the tenant's `CLAUDE.md` and its tree, before trusting either:
+
+```bash
+poetry run python ${CLAUDE_PLUGIN_ROOT}/scripts/builder/tenant-drift.py <repo-dir>
+```
+
+It lists documented paths that do not exist, directories the `CLAUDE.md` never mentions, namespace directories the root does not reference and branch refs. Print that section first ("Tenant drift"), then the use case's report; a review that quotes a `CLAUDE.md` describing a `gitops/` tree that does not exist is worse than none.
 
 ## Language
 

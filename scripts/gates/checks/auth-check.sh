@@ -10,9 +10,11 @@ case "$want" in
 esac
 bad=0; n=0
 while IFS=$'\t' read -r name ann; do
-  [ -n "$name" ] || continue; n=$((n+1))
+  [ -n "$name" ] || continue
+  echo "$name" | grep -qiE 'gotrue|oauth2' && continue   # the identity provider's own Ingress cannot sit behind itself
+  n=$((n+1))
   echo "$ann" | grep -qiE 'gotrue|oauth2' || { echo "  Ingress $name has no auth middleware (annotation: '${ann:-none}')"; bad=1; }
-done < <(yq ea -r "select(.kind == \"Ingress\" and (.metadata.namespace // \"$UC_NS\") == \"$UC_NS\") | .metadata.name + \"\t\" + (.metadata.annotations[\"traefik.ingress.kubernetes.io/router.middlewares\"] // \"\")" "$m")
+done < <(yq ea -r "[select(.kind == \"Ingress\" and (.metadata.namespace // \"$UC_NS\") == \"$UC_NS\")] | .[] | .metadata.name + \"\t\" + (.metadata.annotations[\"traefik.ingress.kubernetes.io/router.middlewares\"] // \"\")" "$m")
 [ "$n" -ge 1 ] || fail "auth_in_front is $want but no Ingress is rendered in $UC_NS"
 [ "$bad" -eq 0 ] || fail "an exposed surface is not behind $want"
 pass "$n Ingress(es) in $UC_NS behind the auth middleware chain"

@@ -1,0 +1,74 @@
+# run phase (intake-job): suspended, the runner un-suspends it in order (seed -> run -> verify).
+# Command and environment from .builder/scaffold.yaml; the image is built by ephemeral.sh from usecase.yaml spec.build.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: intake-job
+  namespace: uc-invoice-intake
+  labels: &id001
+    app: intake-job
+    forjate.io/usecase: invoice-intake
+    forjate.io/phase: run
+spec:
+  suspend: true
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: intake-job
+        image: invoice-intake
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - -m
+        - invoice_intake.batch
+        env:
+        - name: PGHOST
+          value: postgres
+        - name: MINIO_ENDPOINT
+          value: minio:9000
+        - name: DOCLING_URL
+          value: http://docling:5001
+        - name: OLLAMA_URL
+          value: http://ollama-service:11434
+        - name: ERP_URL
+          value: http://erp-stub:8001
+        - name: MODEL_MODE
+          value: replay
+        - name: DATA_CLASS
+          value: financial
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        - secretRef:
+            name: minio-secret
+        - secretRef:
+            name: approval-secret
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: writable-0
+          mountPath: /tmp
+      volumes:
+      - name: writable-0
+        emptyDir: {}

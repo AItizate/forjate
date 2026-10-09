@@ -3,7 +3,7 @@ title: sealed-secrets
 kind: component
 sources:
 - k8s/components/apps/sealed-secrets
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-09'
 category: standalone
 consumed_by:
 - overlays/agentic-simple-workflow
@@ -11,6 +11,8 @@ consumed_by:
 - overlays/home-edge-lab
 - overlays/multi-cloud-portable
 - overlays/multi-tenant-pattern-org
+- overlays/usecases-invoice-intake-stages-walk
+- overlays/usecases-support-copilot-stages-walk
 source_last_commit: '2026-04-27'
 summary: vendors `controller.yaml`
 summary_source: derived
@@ -37,6 +39,8 @@ summary_source: derived
 - [overlays/home-edge-lab](../overlays/home-edge-lab.md)
 - [overlays/multi-cloud-portable](../overlays/multi-cloud-portable.md)
 - [overlays/multi-tenant-pattern-org](../overlays/multi-tenant-pattern-org.md)
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md)
+- [overlays/usecases-support-copilot-stages-walk](../overlays/usecases-support-copilot-stages-walk.md)
 
 <!-- END DECLARED -->
 

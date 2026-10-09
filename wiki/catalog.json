@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-10-02",
+  "compiled_at": "2026-10-09",
   "stages": [
     "crawl",
     "walk",
@@ -694,7 +694,8 @@
       "remote_refs": [],
       "consumed_by": [
         "overlays/bare-metal-starter",
-        "overlays/home-edge-lab"
+        "overlays/home-edge-lab",
+        "overlays/usecases-support-copilot-stages-walk"
       ],
       "parent": null,
       "stages": [
@@ -793,7 +794,9 @@
       ],
       "consumed_by": [
         "overlays/bare-metal-starter",
-        "overlays/multi-tenant-pattern-org"
+        "overlays/multi-tenant-pattern-org",
+        "overlays/usecases-invoice-intake-stages-walk",
+        "overlays/usecases-support-copilot-stages-walk"
       ],
       "parent": null,
       "stages": [
@@ -1278,9 +1281,9 @@
       "name": "minio-dev",
       "category": "minio",
       "wiki": "wiki/components/minio-dev.md",
-      "summary": "deploys `quay.io/minio/minio:latest`",
+      "summary": "deploys `docker.io/bitnamilegacy/minio:2025.7.23`",
       "images": [
-        "quay.io/minio/minio:latest"
+        "docker.io/bitnamilegacy/minio:2025.7.23"
       ],
       "kinds": [
         "Pod"
@@ -1359,7 +1362,9 @@
       "remote_refs": [],
       "consumed_by": [
         "overlays/bare-metal-starter",
-        "overlays/home-edge-lab"
+        "overlays/home-edge-lab",
+        "overlays/usecases-invoice-intake-stages-walk",
+        "overlays/usecases-support-copilot-stages-walk"
       ],
       "parent": null,
       "stages": [
@@ -1498,7 +1503,9 @@
         "k8s/components/apps/monitoring/otel-collector/cluster"
       ],
       "remote_refs": [],
-      "consumed_by": [],
+      "consumed_by": [
+        "overlays/usecases-invoice-intake-stages-run"
+      ],
       "parent": null,
       "stages": [
         "walk",
@@ -1542,7 +1549,9 @@
         "overlays/bare-metal-starter",
         "overlays/home-edge-lab",
         "overlays/multi-cloud-portable",
-        "overlays/multi-tenant-pattern-org"
+        "overlays/multi-tenant-pattern-org",
+        "overlays/usecases-invoice-intake-stages-walk",
+        "overlays/usecases-support-copilot-stages-walk"
       ],
       "parent": null,
       "stages": [
@@ -1570,7 +1579,10 @@
       "remote_refs": [
         "https://raw.githubusercontent.com/stakater/Reloader/v1.4.14/deployments/kubernetes/reloader.yaml"
       ],
-      "consumed_by": [],
+      "consumed_by": [
+        "overlays/usecases-invoice-intake-stages-walk",
+        "overlays/usecases-support-copilot-stages-walk"
+      ],
       "parent": null,
       "stages": [
         "walk",
@@ -1711,7 +1723,8 @@
       ],
       "consumed_by": [
         "overlays/bare-metal-starter",
-        "overlays/home-edge-lab"
+        "overlays/home-edge-lab",
+        "overlays/usecases-invoice-intake-stages-walk"
       ],
       "parent": null,
       "stages": [
@@ -2114,7 +2127,9 @@
         "overlays/bare-metal-starter",
         "overlays/home-edge-lab",
         "overlays/multi-cloud-portable",
-        "overlays/multi-tenant-pattern-org"
+        "overlays/multi-tenant-pattern-org",
+        "overlays/usecases-invoice-intake-stages-walk",
+        "overlays/usecases-support-copilot-stages-walk"
       ],
       "parent": null,
       "stages": [
@@ -2136,14 +2151,19 @@
       "name": "security-external-secrets",
       "category": "security",
       "wiki": "wiki/components/security-external-secrets.md",
-      "summary": "declares `Namespace`",
-      "images": [],
+      "summary": "deploys `repository:`",
+      "images": [
+        "repository:",
+        "{{"
+      ],
       "kinds": [
         "Namespace"
       ],
       "composes": [],
       "remote_refs": [],
-      "consumed_by": [],
+      "consumed_by": [
+        "overlays/usecases-invoice-intake-stages-run"
+      ],
       "parent": null,
       "stages": [
         "run"
@@ -2206,7 +2226,9 @@
       ],
       "consumed_by": [
         "overlays/ai-dev-stack",
-        "overlays/cdc-event-sourcing"
+        "overlays/cdc-event-sourcing",
+        "overlays/usecases-invoice-intake-stages-walk",
+        "overlays/usecases-support-copilot-stages-walk"
       ],
       "parent": null,
       "stages": [

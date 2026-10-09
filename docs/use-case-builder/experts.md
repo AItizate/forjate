@@ -1,6 +1,6 @@
 # Experts
 
-One skill and one subagent per decision area. Every expert reads the brief, the stage plan and its resolved context packs, writes `.builder/decisions/<role>.yaml` per the decision schema, validates it, and returns a five-line summary; the file is the record. This page says, per expert, what it consumes, what it emits, when it pushes back, and what it will never decide alone. The skills themselves are under `plugins/forjate/skills/<role>/`.
+One skill and one subagent per decision area. Every expert reads the brief, the stage plan and its resolved context packs, writes `.builder/decisions/<role>.yaml` per the decision schema, validates it, and returns a five-line summary; the file is the record. This page says, per expert, what it consumes, what it emits, when it pushes back, and what it will never decide alone. The skills themselves are under `plugins/forjate/skills/<role>/`. The two builders that consume the records (`app-scaffold`, `kustomize`) are described in `overview.md`; they decide nothing.
 
 Order of execution: `business` first and alone; the rest in parallel, including the governance experts and `ux`; then the validator's cross-record consistency pass (`contracts.md`, check 6); then `quality` again in consolidate mode to write `gates.yaml`; then the assembly (`forjate:kustomize` and `forjate:app-scaffold`, which are builders, not experts: `overview.md`).
 
@@ -96,8 +96,4 @@ Order of execution: `business` first and alone; the rest in parallel, including 
 
 ## Adding an expert
 
-1. `plugins/forjate/skills/<role>/SKILL.md` under 500 lines, a pushy description, `references/` split by stage or domain, the "Context packs" section pasted verbatim from `skills/context-pack/references/section.md`.
-2. `plugins/forjate/agents/<role>.md` preloading the skill and `context-pack`, returning only the five-line summary.
-3. `plugins/forjate/evals/<role>/evals.json`: the three golden briefs, one adversarial prompt, one pack eval with a fixture pack under `evals/fixtures/packs/` that forbids the expert's default; judgement assertions next to the form checks.
-4. The settings keys the expert emits, listed here and, when a pack rule should match them, in `contracts.md`.
-5. If the expert can conflict with another on a component group or a shared setting, the group in `validate.py` `EXCLUSIVE_GROUPS`, the setting in `SHARED_SETTINGS`, and a setting that implies a component in `SETTING_TO_GROUP`, each with a test.
+See `how-to-add-an-expert.md`.

@@ -35,11 +35,13 @@ def connect() -> Iterator[psycopg.Connection]:
 
 
 def ensure_schema() -> None:
+    wait_ready()
     with connect() as c:
         c.execute(SCHEMA)
 
 
 def reset() -> None:
+    wait_ready()
     with connect() as c:
         for t in ("event_log", "orders_stub_calls", "dead_letters", "escalations", "conversation_outcomes", "sessions", "processed_messages", "replay_set", "subscriptions", "orders", "customers"):
             c.execute(f"drop table if exists {t} cascade")
@@ -104,3 +106,17 @@ def customer_by_handle(handle: str | None) -> str | None:
     if not handle:
         return None
     return scalar("select customer_id from customers where handle = %s", handle)
+
+def wait_ready(timeout_s: float = 180.0) -> None:
+    """Postgres accepts connections (the component's readiness probe says ready before the DB does)."""
+    import time
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            with connect() as c:
+                c.execute("select 1")
+            return
+        except Exception:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(2)

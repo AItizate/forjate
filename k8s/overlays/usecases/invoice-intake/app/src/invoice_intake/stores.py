@@ -43,11 +43,13 @@ def connect() -> Iterator[psycopg.Connection]:
 
 
 def ensure_schema() -> None:
+    wait_ready()
     with connect() as c:
         c.execute(SCHEMA)
 
 
 def reset() -> None:
+    wait_ready()
     with connect() as c:
         for t in ("event_log", "erp_rejections", "erp_postings", "invoice_decisions", "review_queue", "invoices", "labels", "purchase_orders"):
             c.execute(f"drop table if exists {t} cascade")
@@ -93,9 +95,20 @@ def log_event(line: dict) -> None:
 
 # ---------------------------------------------------------------- MinIO
 
-def minio_client() -> Minio:
+def minio_client(timeout_s: float = 180.0) -> Minio:
+    """MinIO answers (the dev Pod has no readiness probe)."""
+    import time
     cfg = settings()
-    return Minio(cfg.minio_endpoint, access_key=cfg.minio_access_key, secret_key=cfg.minio_secret_key, secure=False)
+    client = Minio(cfg.minio_endpoint, access_key=cfg.minio_access_key, secret_key=cfg.minio_secret_key, secure=False)
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            client.list_buckets()
+            return client
+        except Exception:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(2)
 
 
 def ensure_bucket(client: Minio, name: str, *, empty: bool = False) -> None:
@@ -120,3 +133,17 @@ def get_object(client: Minio, bucket: str, name: str) -> bytes:
 
 def list_objects(client: Minio, bucket: str, suffix: str = "") -> list[str]:
     return sorted(o.object_name for o in client.list_objects(bucket, recursive=True) if o.object_name.endswith(suffix))
+
+def wait_ready(timeout_s: float = 180.0) -> None:
+    """Postgres accepts connections (the component's readiness probe says ready before the DB does)."""
+    import time
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            with connect() as c:
+                c.execute("select 1")
+            return
+        except Exception:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(2)

@@ -3,10 +3,12 @@ title: security-external-secrets
 kind: component
 sources:
 - k8s/components/apps/security/external-secrets
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-09'
 category: security
+consumed_by:
+- overlays/usecases-invoice-intake-stages-run
 source_last_commit: '2026-04-27'
-summary: declares `Namespace`
+summary: deploys `repository:`
 summary_source: derived
 ---
 
@@ -24,13 +26,18 @@ summary_source: derived
 
 `Namespace`
 
+### Container images
+
+- `repository:`
+- `{{`
+
 ### Labels
 
 - `app.kubernetes.io/ait-component: external-secrets`
 
 ### Consumed by
 
-_No overlay in this repo references this component._
+- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md)
 
 <!-- END DECLARED -->
 

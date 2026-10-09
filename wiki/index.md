@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-09-02'
+compiled_at: '2026-10-09'
 ---
 
 # Forjate wiki — index
@@ -82,7 +82,7 @@ The foundation every tenant inherits.
 
 ### continuous-delivery
 
-- [continuous-delivery-argocd](components/continuous-delivery-argocd.md) — vendors `install.yaml` · used by 2
+- [continuous-delivery-argocd](components/continuous-delivery-argocd.md) — vendors `install.yaml` · used by 4
 
 ### databases
 
@@ -110,18 +110,18 @@ The foundation every tenant inherits.
 
 ### minio
 
-- [minio-dev](components/minio-dev.md) — deploys `quay.io/minio/minio:latest` · unused in this repo
+- [minio-dev](components/minio-dev.md) — deploys `docker.io/bitnamilegacy/minio:2025.7.23` · unused in this repo
 - [minio-single-server](components/minio-single-server.md) — deploys `quay.io/minio/minio:latest` · used by 4
 
 ### monitoring
 
-- [monitoring-grafana](components/monitoring-grafana.md) — deploys `grafana/grafana:11.6.0` · used by 2
+- [monitoring-grafana](components/monitoring-grafana.md) — deploys `grafana/grafana:11.6.0` · used by 4
 - [monitoring-kubernetes-dashboard](components/monitoring-kubernetes-dashboard.md) — declares `ClusterRoleBinding`, `Ingress`, `Secret` · unused in this repo
-- [monitoring-otel-collector](components/monitoring-otel-collector.md) — deploys `otel/opentelemetry-collector-contrib:0.98.0` · unused in this repo
+- [monitoring-otel-collector](components/monitoring-otel-collector.md) — deploys `otel/opentelemetry-collector-contrib:0.98.0` · used by 1
   - [monitoring-otel-collector-agent](components/monitoring-otel-collector-agent.md) — deploys `otel/opentelemetry-collector-contrib:0.98.0` · used by 1
   - [monitoring-otel-collector-cluster](components/monitoring-otel-collector-cluster.md) — deploys `otel/opentelemetry-collector-contrib:0.98.0` · used by 1
-- [monitoring-prometheus](components/monitoring-prometheus.md) — deploys `prom/prometheus:v3.2.1` · used by 4
-- [monitoring-reloader](components/monitoring-reloader.md) — Stakater Reloader — auto-restarts Deployments/StatefulSets on Secret/ConfigMap changes · unused in this repo
+- [monitoring-prometheus](components/monitoring-prometheus.md) — deploys `prom/prometheus:v3.2.1` · used by 6
+- [monitoring-reloader](components/monitoring-reloader.md) — Stakater Reloader — auto-restarts Deployments/StatefulSets on Secret/ConfigMap changes · used by 2
 
 ### n8n
 
@@ -130,7 +130,7 @@ The foundation every tenant inherits.
 
 ### networking
 
-- [networking-metallb](components/networking-metallb.md) — vendors `native?ref=v0.15.2` · used by 2
+- [networking-metallb](components/networking-metallb.md) — vendors `native?ref=v0.15.2` · used by 3
 
 ### productivity
 
@@ -160,22 +160,22 @@ The foundation every tenant inherits.
 
 ### security
 
-- [security-external-secrets](components/security-external-secrets.md) — declares `Namespace` · unused in this repo
+- [security-external-secrets](components/security-external-secrets.md) — deploys `repository:` · used by 1
 - [security-vault](components/security-vault.md) — deploys `hashicorp/vault:1.19` · unused in this repo
 
 ### standalone
 
-- [cloudflare-tunnel](components/cloudflare-tunnel.md) — deploys `cloudflare/cloudflared:latest` · used by 2
+- [cloudflare-tunnel](components/cloudflare-tunnel.md) — deploys `cloudflare/cloudflared:latest` · used by 3
 - [docker-registry](components/docker-registry.md) — deploys `registry:2` · unused in this repo
 - [home-automation](components/home-automation.md) — deploys `esphome/esphome:latest` · used by 1
 - [n8n](components/n8n.md) — deploys `busybox:1.36` · unused in this repo
 - [node-red](components/node-red.md) — deploys `busybox:1.36` · used by 1
-- [sealed-secrets](components/sealed-secrets.md) — vendors `controller.yaml` · used by 5
+- [sealed-secrets](components/sealed-secrets.md) — vendors `controller.yaml` · used by 7
 - [whoami](components/whoami.md) — deploys `traefik/whoami` · unused in this repo
 
 ### storage
 
-- [storage-longhorn](components/storage-longhorn.md) — vendors `longhorn.yaml` · used by 2
+- [storage-longhorn](components/storage-longhorn.md) — vendors `longhorn.yaml` · used by 4
 
 ### surveys
 
@@ -201,3 +201,8 @@ Concrete environments assembled from base + components.
 - [multi-tenant-pattern-tenants-client-b](overlays/multi-tenant-pattern-tenants-client-b.md) — declares `Namespace` · 1 local reference
 - [quickstart](overlays/quickstart.md) — deploys `curlimages/curl:8.10.1` · 2 local references
 - [usecases-db-migration-a-to-b](overlays/usecases-db-migration-a-to-b.md) — deploys `busybox:1.36` · 2 local references
+- [usecases-invoice-intake](overlays/usecases-invoice-intake.md) — Crawl root of invoice-intake, assembled from .builder/ by forjate:kustomize. Stages extend it: stages/walk, stages/run · 2 local references
+- [usecases-invoice-intake-stages-run](overlays/usecases-invoice-intake-stages-run.md) — run stage of invoice-intake: extends ../walk and adds what the records require for run, nothing the plan put out of scope · 4 local references
+- [usecases-invoice-intake-stages-walk](overlays/usecases-invoice-intake-stages-walk.md) — walk stage of invoice-intake: recomposes the Crawl root (base, Crawl components, the namespace child) and adds what the records require for walk, nothing the plan put out of scope · 10 local references
+- [usecases-support-copilot](overlays/usecases-support-copilot.md) — Crawl root of support-copilot, assembled from .builder/ by forjate:kustomize. Stages extend it: stages/walk, stages/run · 2 local references
+- [usecases-support-copilot-stages-walk](overlays/usecases-support-copilot-stages-walk.md) — walk stage of support-copilot: recomposes the Crawl root (base, Crawl components, the namespace child) and adds what the records require for walk, nothing the plan put out of scope · 10 local references

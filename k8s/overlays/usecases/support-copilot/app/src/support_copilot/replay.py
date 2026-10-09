@@ -9,9 +9,24 @@ from .config import settings
 from .logging import log
 
 
+def wait_agent(cfg, timeout_s: float = 180.0) -> None:
+    import time
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            if httpx.get(f"{cfg.agent_url}/readyz", timeout=5).status_code == 200:
+                return
+        except httpx.HTTPError:
+            pass
+        if time.monotonic() > deadline:
+            raise RuntimeError("agent API did not become ready")
+        time.sleep(2)
+
+
 def run_once() -> dict:
     cfg = settings()
     stores.ensure_schema()
+    wait_agent(cfg)
     rows = stores.query("select conversation_id, chat_id, handle, messages from replay_set order by conversation_id")
     counts = {"conversations": 0, "messages": 0, "errors": 0}
     with httpx.Client(base_url=cfg.agent_url, timeout=cfg.turn_timeout_s + 10) as client:

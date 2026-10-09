@@ -1,0 +1,23 @@
+# ArgoCD Application for walk: tracks a tag (devops: target_revision tag, auto-selfheal); CreateNamespace=false keeps the PSA labels of namespace.yaml.
+# targetRevision is the tag that carries this overlay; bump it on release (the write-back never edits it).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: uc-support-copilot-walk
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ssh://git@github.com/AItizate/forjate.git
+    targetRevision: v1.2.0
+    path: k8s/overlays/usecases/support-copilot/stages/walk
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: uc-support-copilot
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+    - ServerSideApply=true
+    - CreateNamespace=false

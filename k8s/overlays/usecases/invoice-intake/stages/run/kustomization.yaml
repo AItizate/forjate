@@ -1,0 +1,65 @@
+# run stage of invoice-intake: extends ../walk and adds what the records require for run, nothing the plan put out of scope.
+# images: is the write-back surface: sync-app-image.yml (repository_dispatch app-image-updated) sets the SHA with yq, never sed.
+# Every remote ref is a tag (ref-pinning-check); the Application tracks a tag with selfHeal (argocd-revision-check).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../walk
+- ../../../../../components/apps/security/external-secrets
+- ../../../../../components/apps/monitoring/otel-collector
+- ./namespaces/uc-invoice-intake
+- argocd/application.yaml
+patches:
+- path: patches/namespace-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: uc-invoice-intake
+- target:
+    kind: SealedSecret
+    name: postgres-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: postgres-secret\n"
+- target:
+    kind: SealedSecret
+    name: minio-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: minio-secret\n"
+- target:
+    kind: SealedSecret
+    name: approval-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: approval-secret\n"
+- target:
+    kind: SealedSecret
+    name: litellm-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: litellm-secret\n"
+- target:
+    kind: SealedSecret
+    name: gotrue-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: gotrue-secret\n"
+- target:
+    kind: SealedSecret
+    name: minio-storage-configuration
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: minio-storage-configuration\n"
+- target:
+    kind: SealedSecret
+    name: formbricks-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: formbricks-secret\n"
+- target:
+    kind: SealedSecret
+    name: imap-mailbox-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: imap-mailbox-secret\n"
+- target:
+    kind: SealedSecret
+    name: odoo-rest-api-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: odoo-rest-api-secret\n"
+images:
+- name: invoice-intake
+  newName: ghcr.io/aitizate/invoice-intake
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

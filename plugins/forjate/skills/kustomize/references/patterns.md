@@ -101,6 +101,8 @@ Components carry no namespace. The sub-overlay's `namespace:` field places every
 
 ## Shape of a tenant root (remote pattern)
 
+`scripts/assemble.py --target tenant` writes this shape for a use case (`references/tenant-target.md`).
+
 Observed in `im-u/iac`, a production tenant (`docs/use-case-builder/tenant-patterns.md`): there is no `base/` + `overlays/` split in a tenant. One root pulls the factory base remotely and composes namespace children; a root label identifies the overlay on every resource.
 
 ```yaml

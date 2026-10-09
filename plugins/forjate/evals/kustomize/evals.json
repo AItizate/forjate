@@ -195,6 +195,108 @@
           "text": "Crawl overlay still builds"
         }
       ]
+    },
+    {
+      "name": "assemble-invoice-intake",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/invoice-intake/ into decisions/, plugins/forjate/evals/fixtures/gates/invoice-intake.yaml to gates.yaml, and plugins/forjate/evals/fixtures/scaffold/invoice-intake.yaml to scaffold.yaml (create the directories; do not copy anything else), and write packs.yaml there activating context-packs/examples/regulated-corp (name regulated-corp). The app/ directory under the use case already exists. Then assemble the complete overlay of the use case invoice-intake from those records: the Crawl root under k8s/overlays/usecases/invoice-intake/ with its namespace sub-overlay, the catalog components the records chose, the scaffold's Jobs and Deployments, secrets with their .env.example recipes, usecase.yaml, and the stages/walk and stages/run overlays with everything the security and devops records demand from Walk (PSA labels, default-deny NetworkPolicies and the egress allow-list, sealed secrets replacing every generated Secret, the ArgoCD Application on a tag). The root and every stage must build with kustomize and pass kubeconform.",
+      "expected_output": "assemble.py run and reviewed: root, walk and run build and pass kubeconform; default-deny, PSA restricted, sealed placeholders with recipes, the Application; usecase.yaml with spec.build; secret-scan clean; every ci gate of crawl->walk passes.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/usecase.yaml",
+          "text": "usecase.yaml written"
+        },
+        {
+          "type": "components_in_catalog",
+          "path": "k8s/overlays/usecases/invoice-intake/usecase.yaml",
+          "text": "every component in the contract exists"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/usecase.yaml",
+          "query": ".spec.jobs.verify.name",
+          "equals": "verify-job",
+          "text": "the verify Job is the scaffold's"
+        },
+        {
+          "type": "kustomize_builds",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "Crawl root builds"
+        },
+        {
+          "type": "kubeconform",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "Crawl root passes kubeconform"
+        },
+        {
+          "type": "kustomize_builds",
+          "path": "k8s/overlays/usecases/invoice-intake/stages/walk",
+          "text": "Walk stage builds on its own"
+        },
+        {
+          "type": "kubeconform",
+          "path": "k8s/overlays/usecases/invoice-intake/stages/walk",
+          "text": "Walk stage passes kubeconform"
+        },
+        {
+          "type": "kustomize_builds",
+          "path": "k8s/overlays/usecases/invoice-intake/stages/run",
+          "text": "Run stage builds on its own"
+        },
+        {
+          "type": "command",
+          "cmd": "kubectl kustomize --enable-helm k8s/overlays/usecases/invoice-intake/stages/walk | yq ea '[select(.kind == \"NetworkPolicy\" and .metadata.name == \"default-deny\" and .metadata.namespace == \"uc-invoice-intake\")] | length' | grep -qx 1",
+          "text": "default-deny NetworkPolicy in the Walk build"
+        },
+        {
+          "type": "command",
+          "cmd": "kubectl kustomize --enable-helm k8s/overlays/usecases/invoice-intake/stages/walk | yq ea '[select(.kind == \"Namespace\" and .metadata.name == \"uc-invoice-intake\")] | .[0].metadata.labels[\"pod-security.kubernetes.io/enforce\"]' | grep -qx restricted",
+          "text": "PSA restricted enforced at Walk (security record, pack SEC-1)"
+        },
+        {
+          "type": "command",
+          "cmd": "kubectl kustomize --enable-helm k8s/overlays/usecases/invoice-intake/stages/walk | yq ea '[select(.kind == \"Secret\" and .metadata.namespace == \"uc-invoice-intake\" and ((.data // {}) | length > 0 or (.stringData // {}) | length > 0))] | length' | grep -qx 0",
+          "text": "no plain Secret rendered at Walk: every generated one is deleted and sealed"
+        },
+        {
+          "type": "command",
+          "cmd": "kubectl kustomize --enable-helm k8s/overlays/usecases/invoice-intake/stages/walk | yq ea '[select(.kind == \"SealedSecret\")] | length' | awk '$1 >= 3'",
+          "text": "SealedSecrets replace the generated Secrets at Walk"
+        },
+        {
+          "type": "command",
+          "cmd": "kubectl kustomize --enable-helm k8s/overlays/usecases/invoice-intake/stages/walk | yq ea '[select(.kind == \"Application\")] | .[0].spec.syncPolicy.automated.selfHeal' | grep -qx true",
+          "text": "ArgoCD Application with selfHeal at Walk"
+        },
+        {
+          "type": "command",
+          "cmd": "grep -rl '^# To seal:' k8s/overlays/usecases/invoice-intake/namespaces/uc-invoice-intake/secrets/*.env.example | wc -l | awk '$1 >= 3'",
+          "text": ".env.example recipes with the seal command for every Crawl secret"
+        },
+        {
+          "type": "command",
+          "cmd": "python3 plugins/forjate/scripts/builder/secret-scan.py k8s/overlays/usecases/invoice-intake",
+          "text": "secret-scan clean over the assembled use case"
+        },
+        {
+          "type": "command",
+          "cmd": "cd . && python3 scripts/gates/gates.py run invoice-intake --transition crawl-walk --only ci --usecase-dir k8s/overlays/usecases/invoice-intake | grep -q 'fail: 0'",
+          "text": "every ci gate of crawl->walk passes on what was written"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/README.md",
+          "pattern": "(?i)open question|gates",
+          "text": "README carries the decision summary, open questions and gates"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/usecase.yaml",
+          "query": ".spec.build[0].image",
+          "equals": "invoice-intake",
+          "text": "spec.build names the scaffold image for the ephemeral runner"
+        }
+      ]
     }
   ]
 }

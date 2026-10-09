@@ -1,0 +1,48 @@
+apiVersion: forjate.io/v0
+kind: Scaffold
+metadata: { usecase: invoice-intake, version: 1, author: "forjate:app-scaffold" }
+spec:
+  package: invoice_intake
+  image: invoice-intake
+  model_modes: [replay, live]
+  workloads:
+    - name: seed-job
+      kind: job
+      phase: seed
+      command: [python, -m, invoice_intake.seed]
+      env: [PGHOST=postgres, MINIO_ENDPOINT=minio:9000, BUCKET_INBOX=inbox, BUCKET_PARSED=parsed, SEED_SIZE=20, DATA_CLASS=financial]
+      secrets: [postgres-secret, minio-secret]
+      writable_paths: [/tmp]
+    - name: intake-job
+      kind: job
+      phase: run
+      command: [python, -m, invoice_intake.batch]
+      env: [PGHOST=postgres, MINIO_ENDPOINT=minio:9000, DOCLING_URL=http://docling:5001, OLLAMA_URL=http://ollama-service:11434, ERP_URL=http://erp-stub:8001, MODEL_MODE=replay, DATA_CLASS=financial]
+      secrets: [postgres-secret, minio-secret, approval-secret]
+      writable_paths: [/tmp]
+    - name: verify-job
+      kind: job
+      phase: verify
+      command: [python, -m, invoice_intake.verify]
+      env: [PGHOST=postgres, MINIO_ENDPOINT=minio:9000, DOCLING_URL=http://docling:5001, OLLAMA_URL=http://ollama-service:11434, ERP_URL=http://erp-stub:8001, MODEL_MODE=replay, DATA_CLASS=financial]
+      secrets: [postgres-secret, minio-secret, approval-secret]
+      writable_paths: [/tmp]
+    - name: erp-stub
+      kind: deployment
+      command: [python, -m, invoice_intake.erp_stub]
+      port: 8001
+      health_path: /healthz
+      env: [PGHOST=postgres, DATA_CLASS=financial]
+      secrets: [postgres-secret, approval-secret]
+      writable_paths: [/tmp]
+  tools:
+    - { name: extract_invoice_fields, module: invoice_intake/tools/extract_invoice_fields.py, flags: [read-only] }
+    - { name: lookup_po, module: invoice_intake/tools/lookup_po.py, flags: [read-only] }
+    - { name: queue_for_review, module: invoice_intake/tools/queue_for_review.py, flags: [idempotent] }
+    - { name: post_to_erp, module: invoice_intake/tools/post_to_erp.py, flags: [idempotent, requires approval token] }
+  constrained_by: ["pack:regulated-corp#TOOLS"]
+  notes:
+    - "Crawl workloads only; the Walk intake-worker (IMAP poll) and review-api are the same package with two more modules, added when Walk is unlocked"
+    - "MODEL_MODE=replay in the Crawl overlay (CI); MODEL_MODE=live is the demo run; the quality record names both"
+    - "the approval token for straight-through items is issued by the deterministic check (security: tool_write_gate deterministic-check at Crawl); the clerk's token arrives with the review API at Walk"
+    - "regulated-corp TOOLS guideline: typed in and out, idempotency key on side-effecting tools, timeout and result bound, argument hash in the log, least privilege (the stub token is the only ERP credential), typed errors"

@@ -8,9 +8,9 @@ resources:
 - ../../../../../components/apps/databases/postgres
 - agent-api.yaml
 - orders-stub.yaml
-- seed-job.yaml
+- copilot-seed.yaml
 - replay-job.yaml
-- verify-job.yaml
+- copilot-validate.yaml
 secretGenerator:
 - name: postgres-secret
   envs:

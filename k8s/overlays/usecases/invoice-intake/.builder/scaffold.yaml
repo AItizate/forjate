@@ -6,7 +6,7 @@ spec:
   image: invoice-intake
   model_modes: [replay, live]
   workloads:
-    - name: seed-job
+    - name: inv-seed
       kind: job
       phase: seed
       command: [python, -m, invoice_intake.seed]
@@ -20,7 +20,7 @@ spec:
       env: [PGHOST=postgres, MINIO_ENDPOINT=minio:9000, DOCLING_URL=http://docling:5001, OLLAMA_URL=http://ollama-service:11434, ERP_URL=http://erp-stub:8001, MODEL_MODE=replay, DATA_CLASS=financial]
       secrets: [postgres-secret, minio-secret, approval-secret]
       writable_paths: [/tmp]
-    - name: verify-job
+    - name: inv-validate
       kind: job
       phase: verify
       command: [python, -m, invoice_intake.verify]

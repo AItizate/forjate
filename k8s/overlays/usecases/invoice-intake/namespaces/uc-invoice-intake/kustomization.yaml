@@ -9,9 +9,9 @@ resources:
 - ../../../../../components/apps/databases/postgres
 - ../../../../../components/apps/minio/dev
 - minio-service.yaml
-- seed-job.yaml
+- inv-seed.yaml
 - intake-job.yaml
-- verify-job.yaml
+- inv-validate.yaml
 - erp-stub.yaml
 secretGenerator:
 - name: postgres-secret

@@ -6,9 +6,9 @@ Supplier invoices arrive as PDFs; this service parses them (Docling), extracts t
 
 | Workload | Command | Kind |
 |----------|---------|------|
-| `seed-job` | `python -m invoice_intake.seed` | Job: 20 synthetic PDFs with labels, the purchase orders, the schema |
+| `inv-seed` | `python -m invoice_intake.seed` | Job: 20 synthetic PDFs with labels, the purchase orders, the schema |
 | `intake-job` | `python -m invoice_intake.batch` | Job: one pass over the inbox bucket |
-| `verify-job` | `python -m invoice_intake.verify` | Job: the quality record's assertions, `KPI straight_through_rate=`, `EVAL field_accuracy=` |
+| `inv-validate` | `python -m invoice_intake.verify` | Job: the quality record's assertions, `KPI straight_through_rate=`, `EVAL field_accuracy=` |
 | `erp-stub` | `python -m invoice_intake.erp_stub` | Deployment on :8001: purchase orders and postings, token-checked |
 
 Tools (`src/invoice_intake/tools/`): `extract_invoice_fields` [read-only], `lookup_po` [read-only], `queue_for_review` [idempotent], `post_to_erp` [idempotent, requires approval token]. The token is an HMAC bound to one invoice: the deterministic check issues it when amount, supplier and PO agree; the AP clerk's approval issues it for everything else (Walk).

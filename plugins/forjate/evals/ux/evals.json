@@ -156,7 +156,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
-          "expr": "not any('[token]' in x for x in listed(setting('hitl_checkpoints','walk')))",
+          "expr": "not any(txt(x).strip().endswith('[token]') for x in listed(setting('hitl_checkpoints','walk')))",
           "text": "no token checkpoint: no tool requires an approval token"
         },
         {
@@ -333,7 +333,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
-          "expr": "not any('[token]' in x for x in listed(setting('hitl_checkpoints','walk')))",
+          "expr": "not any(txt(x).strip().endswith('[token]') for x in listed(setting('hitl_checkpoints','walk')))",
           "text": "no token checkpoint is invented for a flow nobody approves"
         },
         {

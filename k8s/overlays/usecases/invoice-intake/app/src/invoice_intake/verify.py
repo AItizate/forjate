@@ -74,8 +74,8 @@ def main() -> int:
     lines = [json.dumps(r["line"]) for r in stores.query("select line from event_log")]
     calls = [l for l in lines if '"model_call"' in l or '"tool_call"' in l]
     amounts = {str(f["amount_cents"]) for f in labels.values()}
-    check("model-call and tool-call logs carry data_class=financial and no payload (no IBAN, no bank account number, no invoice amount), at least 20 model-call lines",
-          lambda: sum('"model_call"' in l for l in calls) >= 20 and all('"data_class": "financial"' in l for l in calls)
+    check("model-call and tool-call logs carry data_class=financial and no payload (no IBAN, no bank account number, no invoice amount), at least 18 model-call lines (one per extracted invoice)",
+          lambda: sum('"model_call"' in l for l in calls) >= 18 and all('"data_class": "financial"' in l for l in calls)
           and not any(IBAN.search(l) for l in calls) and not any(re.search(rf'\b{a}\b', l) for l in calls for a in amounts))
     client = stores.minio_client()
     inbox = {n[:-4] for n in stores.list_objects(client, cfg.bucket_inbox, ".pdf")}

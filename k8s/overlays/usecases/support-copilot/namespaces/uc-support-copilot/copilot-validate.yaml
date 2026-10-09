@@ -1,17 +1,17 @@
-# seed phase (seed-job): suspended, the runner un-suspends it in order (seed -> run -> verify).
+# verify phase (copilot-validate): suspended, the runner un-suspends it in order (seed -> run -> verify).
 # Command and environment from .builder/scaffold.yaml; the image is built by ephemeral.sh from usecase.yaml spec.build.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: seed-job
+  name: copilot-validate
   namespace: uc-support-copilot
   labels: &id001
-    app: seed-job
+    app: copilot-validate
     forjate.io/usecase: support-copilot
-    forjate.io/phase: seed
+    forjate.io/phase: verify
 spec:
   suspend: true
-  backoffLimit: 5
+  backoffLimit: 0
   ttlSecondsAfterFinished: 600
   template:
     metadata:
@@ -24,16 +24,22 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-      - name: seed-job
+      - name: copilot-validate
         image: support-copilot
         imagePullPolicy: IfNotPresent
         command:
         - python
         - -m
-        - support_copilot.seed
+        - support_copilot.verify
         env:
         - name: PGHOST
           value: postgres
+        - name: AGENT_URL
+          value: http://agent-api:8000
+        - name: MODEL_MODE
+          value: rules
+        - name: ALLOWED_ORDER_FIELDS
+          value: status,eta,items_count
         - name: DATA_CLASS
           value: pii
         envFrom:

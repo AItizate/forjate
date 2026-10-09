@@ -159,7 +159,8 @@ class Runner:
         if tr is None:
             raise SystemExit(f"gates.yaml has no transition {self.transition} (in scope: {', '.join(self.gates_doc['spec']['transitions'])})")
         rows = []
-        for gate in tr.get("gates") or []:
+        gates_in_order = sorted(tr.get("gates") or [], key=lambda g: 0 if ((g.get("check") or {}).get("type") == "verify-job") else 1)
+        for gate in gates_in_order:
             check = gate.get("check") or {"type": "manual"}
             ctype = check.get("type", "manual")
             if self.only and ctype != self.only:

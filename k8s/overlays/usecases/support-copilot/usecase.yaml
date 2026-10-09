@@ -14,13 +14,13 @@ spec:
   - apps/databases/postgres
   jobs:
     seed:
-      name: seed-job
+      name: copilot-seed
       timeout: 600
     run:
       name: replay-job
       timeout: 900
     verify:
-      name: verify-job
+      name: copilot-validate
       timeout: 600
   outputs:
     endpoints:

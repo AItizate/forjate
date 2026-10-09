@@ -116,12 +116,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-seed-job-egress
+  name: allow-copilot-seed-egress
   namespace: uc-support-copilot
 spec:
   podSelector:
     matchLabels:
-      app: seed-job
+      app: copilot-seed
   policyTypes:
   - Egress
   egress:
@@ -212,12 +212,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-verify-job-egress
+  name: allow-copilot-validate-egress
   namespace: uc-support-copilot
 spec:
   podSelector:
     matchLabels:
-      app: verify-job
+      app: copilot-validate
   policyTypes:
   - Egress
   egress:

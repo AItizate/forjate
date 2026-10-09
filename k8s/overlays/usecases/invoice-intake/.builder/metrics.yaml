@@ -1,0 +1,8 @@
+field_accuracy:
+  measured_at: '2026-10-09T20:00:23+00:00'
+  source: verify-job-log:inv-validate
+  value: '1.0'
+straight_through_rate:
+  measured_at: '2026-10-09T20:00:23+00:00'
+  source: verify-job-log:inv-validate
+  value: '0.75'

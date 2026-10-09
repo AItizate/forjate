@@ -22,20 +22,20 @@ patches:
   target:
     kind: Namespace
     name: uc-invoice-intake
-- path: patches/seed-job-env-patch.yaml
+- path: patches/inv-seed-env-patch.yaml
   target:
     kind: Job
-    name: seed-job
+    name: inv-seed
     namespace: uc-invoice-intake
 - path: patches/intake-job-env-patch.yaml
   target:
     kind: Job
     name: intake-job
     namespace: uc-invoice-intake
-- path: patches/verify-job-env-patch.yaml
+- path: patches/inv-validate-env-patch.yaml
   target:
     kind: Job
-    name: verify-job
+    name: inv-validate
     namespace: uc-invoice-intake
 - path: patches/erp-stub-env-patch.yaml
   target:

@@ -301,3 +301,77 @@ def test_gates_yaml_unknown_override_and_wrong_usecase_are_errors(usecase: Path)
     (usecase / ".builder/gates.yaml").write_text(yaml.safe_dump(g))
     errors, _ = validate_usecase(usecase)
     assert any("gates.yaml: metadata.usecase" in e for e in errors)
+
+
+# --- phase 4: ci refs are the checks directory, secret scan, fixtures ------------
+
+CHECKS = REPO / "scripts" / "gates" / "checks"
+
+
+def test_ci_ref_outside_the_checks_directory_is_an_error_in_gates(usecase: Path):
+    gates = {"apiVersion": "forjate.io/v0", "kind": "Gates", "metadata": {"usecase": usecase.name, "version": 1},
+             "spec": {"transitions": {"crawl->walk": {"gates": [
+                 {"id": "G-SEC-1", "text": "x", "owner": "security", "check": {"type": "ci", "ref": "netpol-check"}},
+                 {"id": "G-SEC-2", "text": "y", "owner": "security", "check": {"type": "ci", "ref": "no-such-check"}}]}}}}
+    (usecase / ".builder" / "gates.yaml").write_text(yaml.safe_dump(gates, sort_keys=False))
+    errors, _ = validate_usecase(usecase)
+    assert any("G-SEC-2" in e and "no-such-check" in e and "enum" in e for e in errors)
+    assert not any("G-SEC-1" in e for e in errors)
+
+
+def test_ci_ref_outside_the_checks_directory_is_a_warning_in_a_record(usecase: Path):
+    _write_decision(usecase, "security", {"walk": {"choice": [], "rationale": "x", "gate_to_next": [_gate("G-SEC-1", "t", type="ci", ref="made-up")]}})
+    errors, warnings = validate_usecase(usecase)
+    assert not any("made-up" in e for e in errors)
+    assert any("made-up" in w and "no script" in w for w in warnings)
+
+
+def test_every_check_script_has_the_contract_header():
+    scripts = sorted(p for p in CHECKS.glob("*.sh") if not p.name.startswith("_"))
+    assert len(scripts) >= 20
+    for s in scripts:
+        text = s.read_text()
+        assert 'source "$(dirname "$0")/_lib.sh"' in text, s.name
+        assert text.splitlines()[1].startswith("# "), f"{s.name}: second line must describe the check"
+
+
+def test_golden_fixtures_validate_with_every_record_and_gates(tmp_path: Path):
+    fixtures = BUILDER.parent.parent / "evals" / "fixtures"
+    for name, packs in (("invoice-intake", [{"name": "regulated-corp", "source": "context-packs/examples/regulated-corp"}]), ("support-copilot", [])):
+        uc = tmp_path / name
+        b = uc / ".builder"
+        (b / "decisions").mkdir(parents=True)
+        shutil.copy(fixtures / "briefs" / f"{name}.yaml", b / "brief.yaml")
+        shutil.copy(fixtures / "plans" / f"{name}.yaml", b / "stage-plan.yaml")
+        shutil.copy(fixtures / "gates" / f"{name}.yaml", b / "gates.yaml")
+        for f in (fixtures / "decisions" / name).glob("*.yaml"):
+            shutil.copy(f, b / "decisions" / f.name)
+        (b / "packs.yaml").write_text(yaml.safe_dump({"apiVersion": "forjate.io/v0", "kind": "ActivePacks", "spec": {"packs": packs}}))
+        errors, warnings = validate_usecase(uc)
+        assert errors == [], f"{name}: {errors}"
+        assert not any("lacks" in w for w in warnings), f"{name}: stale gates.yaml: {warnings}"
+        areas = {p.stem for p in (b / "decisions").glob("*.yaml")}
+        plan = yaml.safe_load((b / "stage-plan.yaml").read_text())
+        assert {e["role"] for e in plan["spec"]["experts"] if e["run"]} == areas
+
+
+def test_secret_scan_finds_literals_patches_and_examples(tmp_path: Path):
+    (tmp_path / "configs").mkdir(); (tmp_path / "patches").mkdir()
+    (tmp_path / "kustomization.yaml").write_text("configMapGenerator:\n  - name: cfg\n    literals:\n      - OPENAI_API_KEY=sk-live-0123456789abcdef0123456789abcdef\n")
+    (tmp_path / "patches" / "env-patch.yaml").write_text("env:\n  - name: GITHUB_TOKEN\n    value: ghp_0123456789abcdefghijklmnopqrstuvwxyz1234\n  - name: DB\n    value: postgres://app:S3cr3tPassw0rdValue@db:5432/x\n")
+    (tmp_path / "configs" / "litellm.yaml").write_text("model_list:\n  - litellm_params:\n      api_key: os.environ/KEY\n      api_base: http://ollama-service:11434\n")
+    (tmp_path / "configs" / "x.env.example").write_text("DB_PASSWORD=CHANGE_ME\nAPI_TOKEN=Qm9yaW5nVG9rZW5WYWx1ZTEyMzQ1Njc4\n")
+    r = run(str(BUILDER / "secret-scan.py"), str(tmp_path), "--json")
+    assert r.returncode == 1, r.stdout + r.stderr
+    import json
+    rules = [f["rule"] for f in json.loads(r.stdout)]
+    assert any("openai-style key" in x for x in rules)
+    assert any("github token" in x for x in rules)
+    assert any("credentials in url" in x for x in rules)
+    assert any("not a placeholder" in x for x in rules)
+    assert not any("os.environ" in x for x in rules)
+
+
+def test_secret_scan_is_clean_on_the_repo_overlays():
+    r = run(str(BUILDER / "secret-scan.py"), str(REPO / "k8s" / "overlays"))
+    assert r.returncode == 0, r.stdout

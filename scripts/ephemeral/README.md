@@ -64,6 +64,19 @@ spec:
           keys: [POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD] }
 ```
 
+A use case whose workload is its own code (the builder's app-scaffold output under
+`app/`) declares it under `spec.build`; `up` builds each image with docker from the use
+case directory and imports it into the k3d cluster as `<image>:dev` before applying the
+overlay, because Crawl has no registry:
+
+```yaml
+  build:
+    - { image: invoice-intake, context: app }   # app/Dockerfile → invoice-intake:dev
+```
+
+The overlay pins it with `images: [{ name: invoice-intake, newTag: dev }]`; at Walk the
+shared CI template builds the same Dockerfile and the write-back replaces `newTag`.
+
 Validated against [`usecase.schema.json`](./usecase.schema.json) in CI, which
 also asserts that `metadata.name` matches the directory and that every Job
 named under `spec.jobs` exists in the built manifest.

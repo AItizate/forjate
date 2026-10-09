@@ -1,0 +1,317 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: security, usecase: invoice-intake, author: "forjate:security", version: 1, language: en }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        data_classification: financial
+        secrets_mechanism: secret-generator
+        env_example_per_secret: true
+        secret_scan: none
+        psa_level: privileged
+        network_policy: none
+        egress_allowlist: []
+        egress_matrix: none
+        security_context: restricted-compatible
+        auth_in_front: none
+        identity_provider: none
+        data_egress: none
+        data_residency: eu
+        audit_trail: none
+        audit_log_content: data-class-not-payload
+        untrusted_inputs: [invoice PDFs, email bodies]
+        llm_threats:
+          - "prompt-injection via invoice PDFs and email bodies: PDF text delimited as data, instructions inside it ignored by policy, 20-item injection suite in the golden set (ai-engineering, quality)"
+          - "excessive agency: no tool reaches a system of record at Crawl; erp-stub records would-be postings and queue_for_review is the only write (ai-engineering)"
+          - "model egress: data_egress none, inference is in-cluster Ollama, no provider key exists to leak (ai-engineering)"
+          - "secret leakage into context: no credential in the system prompt, lookup_po receives a PO number not a DSN, bank account numbers never reach a log line (ai-engineering, app-scaffold)"
+          - "hallucinated actions on regulated fields: structured output validated against the JSON schema, the amount compared to the PO by arithmetic in code not by the model, every mismatch routed to review (ai-engineering, quality)"
+        tool_write_gate: deterministic-check
+        image_policy: any
+        deploy_from: branch
+      rationale: >-
+        Nothing real is reachable from Crawl, so the controls that cost money are deferred and the ones that are
+        free now and expensive to retrofit are not. Secrets are secretGenerator entries from gitignored .env files
+        seeded from committed .env.example (odoo-api, imap-mailbox, postgres, minio), each example carrying the
+        "# To generate:" and "# To seal:" header so the rotation recipe travels with the secret from day one; the
+        values are placeholders and the k3d environment dies with its TTL. PSA stays at the k3d default with the
+        namespace labelled warn and audit at restricted, so a violation is visible in the PoC, while the use case's
+        own four workloads (intake-job, seed-job, verify-job, erp-stub) are generated restricted-compatible already
+        -- runAsNonRoot, seccompProfile RuntimeDefault, allowPrivilegeEscalation false, readOnlyRootFilesystem with
+        an emptyDir on /tmp and on the Docling cache, capabilities drop ALL -- because retrofitting them at Walk under
+        a restricted enforce label is the expensive version of the same work. No NetworkPolicy: the cluster has no
+        route to the corporate network, the mailbox is replayed from MinIO and Odoo is a stub, so the allow-list is
+        empty by construction rather than by permission; the default-deny and the two external hosts are authored
+        as part of this overlay and proved by G-SEC-1 before any real invoice arrives. Nothing is exposed, so
+        auth_in_front is none, matching the architecture record. Egress is none and will stay none at every stage:
+        the brief sets llm_egress_allowed false, the class is financial and bank account numbers appear on the
+        invoices, and pack:regulated-corp#AI-2 forbids it outright -- there is no model gateway to an external
+        provider anywhere in this use case. The baseline guideline pack:regulated-corp#SECBASE is a must, and its
+        six numbered items are the six crawl-to-walk gates below rather than prose a reviewer has to check by hand.
+      constrained_by: ["pack:regulated-corp#AI-2"]
+      alternatives:
+        - option: Sealed Secrets already at Crawl
+          rejected_because: >-
+            the values are placeholders in a cluster that is deleted with its TTL; sealing them puts the controller
+            key in a disposable cluster and hides the fact that the first real credential appears at Walk, where the
+            key backup is a prerequisite
+        - option: default-deny NetworkPolicy at Crawl
+          rejected_because: >-
+            there is no external destination to deny -- the mailbox is seeded and Odoo is a stub -- so the policy
+            would be untested against the traffic it has to allow; it is authored here and enforced from Walk, where
+            G-SEC-1 proves it against the real hosts
+      risks:
+        - id: R1
+          text: >-
+            the erp-stub accepts any payload, so changing one env var to the real Odoo base URL would let a Crawl run
+            write to the system of record
+          mitigation: >-
+            the Odoo base URL comes only from the odoo-api secret whose .env.example pins the stub service name; the
+            k3d cluster has no route to the corporate network; from Walk the default-deny policy makes the real host
+            reachable only from intake-worker
+          severity: medium
+        - id: R2
+          text: >-
+            the seeded set is shaped like real invoices, so a careless seed would carry real supplier bank account
+            numbers into a cluster with 4 h retention, no backup and no NetworkPolicy
+          mitigation: >-
+            the seed Job the pipeline expert owns anonymises supplier and account fields; the seed bucket and every
+            .env are gitignored, and from Walk the secret scan covers *.env files that are not
+          severity: medium
+      gate_to_next:
+        - { id: G-SEC-1, text: namespace default-deny with egress allow-list to Odoo and IMAP only, owner: security, check: { type: ci, ref: netpol-check } }
+        - { id: G-SEC-2, text: PSA restricted enforced (pack:regulated-corp#SEC-1), owner: security, check: { type: ci, ref: psa-check } }
+        - { id: G-SEC-4, text: "secret scan finds no credential in configMapGenerator literals, configs/, patches/, env values or non-gitignored .env files", owner: security, check: { type: ci, ref: secret-scan } }
+        - { id: G-SEC-5, text: "every secret the overlay consumes has a committed .env.example at the same path with the generate and seal commands in its header", owner: security, check: { type: ci, ref: env-example-check } }
+        - { id: G-SEC-6, text: "the review API is unreachable without oauth2-proxy and a GoTrue session, proven by an unauthenticated request returning 302 to the IdP", owner: security, check: { type: ci, ref: auth-check } }
+        - { id: G-SEC-7, text: "audit log entries carry the data class and never the payload: no IBAN, no bank account number and no invoice line text in any log line of the canary run", owner: security, check: { type: ci, ref: log-content-scan } }
+        - { id: G-SEC-8, text: "the ArgoCD Application points at a tag and selfHeal is true", owner: security, check: { type: ci, ref: argocd-revision-check } }
+        - { id: G-SEC-12, text: "model egress documented and empty: the LiteLLM config declares only the in-cluster Ollama endpoint and no external provider key exists in the overlay", owner: security, check: { type: ci, ref: litellm-egress-check } }
+      estimated_cost_usd_month: 0
+    walk:
+      choice: [apps/sealed-secrets, apps/auth/gotrue-auth]
+      settings:
+        data_classification: financial
+        secrets_mechanism: sealed-secrets
+        env_example_per_secret: true
+        secret_scan: ci
+        psa_level: restricted
+        network_policy: default-deny
+        egress_allowlist:
+          - "imap.corp.example.com:993 # mailbox poll, intake-worker only"
+          - "odoo.corp.example.com:443 # ERP REST API, intake-worker only"
+        egress_matrix: none
+        security_context: restricted-compatible
+        auth_in_front: oauth2-proxy
+        identity_provider: gotrue
+        data_egress: none
+        data_residency: eu
+        audit_trail: app-log
+        audit_log_content: data-class-not-payload
+        untrusted_inputs: [invoice PDFs, email bodies]
+        llm_threats:
+          - "prompt-injection via invoice PDFs and email bodies: content delimited as data, post_to_erp unreachable without an approval token, 20 adversarial invoices in the eval suite gated in CI (ai-engineering, quality)"
+          - "excessive agency: post_to_erp writes to Odoo, so a straight-through posting requires the arithmetic and PO lookup to agree in code, and anything else requires the AP clerk's approval token (ai-engineering)"
+          - "exfiltration through tools: post_to_erp and the mailbox client have no free-form URL argument; the two external hosts in egress_allowlist are the only destinations the NetworkPolicy permits (ai-engineering, kustomize)"
+          - "model egress: data_egress none, LiteLLM routes only to the in-cluster Ollama and logs which model saw which data class (ai-engineering, compliance)"
+          - "secret leakage into context: tools receive handles, the Odoo token lives in the sealed odoo-api secret and is never rendered into a prompt or a tool result (ai-engineering, app-scaffold)"
+          - "hallucinated actions on regulated fields: amounts compared by arithmetic, bank account changes always routed to the clerk even when the amount matches (ai-engineering, quality)"
+          - "denial of wallet: one model call per invoice, 60 s timeout, no tool loop; alert on calls per invoice above 2 (ai-engineering, devops)"
+          - "prompt and tool tampering: prompts are versioned files reviewed in the app repo and eval-gated in CI (ai-engineering, quality)"
+          - "shared model endpoint: a NetworkPolicy allows only this namespace to reach the inference namespace, with a LiteLLM key scoped to this use case (kustomize, devops)"
+        tool_write_gate: human-approval
+        image_policy: pinned-digest
+        deploy_from: tag
+      rationale: >-
+        Walk is where the first real credential, the first real invoice and the first write to Odoo appear together,
+        so every control is enforced rather than warned. Secrets move to Sealed Secrets: the four placeholder Secrets
+        the catalog components mount (postgres-secret, minio-secret) are deleted by the overlay and replaced by
+        sealed-<name>.yaml of the same name, alongside sealed odoo-api, imap-mailbox and the GoTrue client secret and
+        JWT signing key -- rotating the latter invalidates every clerk session, which is why it is rehearsed before
+        Run. One mechanism only; the move to External Secrets is the Run gate, not a second mechanism here.
+        pack:regulated-corp#SEC-1 moves PSA restricted enforce to Walk, one stage earlier than the factory ladder's
+        baseline-enforce-with-restricted-warn, and that is the pack's call to make; the plan drafted the PSA gate as a
+        Run exit criterion, and the pack pulls it to the crawl-to-walk transition where it now sits as G-SEC-2.
+        The namespace gets a default-deny policy on ingress and egress, an allow-dns rule, the in-cluster allows the
+        kustomize skill derives from the architecture record's workloads, and one policy per external host for the two
+        destinations above -- ingress only from the ingress controller's namespace to the review API. The review API
+        is internal and a human uses it, so SECBASE item 4 puts it behind oauth2-proxy and GoTrue, the same value the
+        architecture record states. Audit is an application log with the data class per entry and never the payload:
+        supplier id and invoice number are fine, the bank account number and the invoice text are not, which is the
+        hard part of SECBASE item 5 and what G-SEC-7 scans. The catalog Postgres and MinIO are not proven under
+        restricted; they are an exception that moves to its own namespace at baseline rather than a reason to lower
+        this namespace, and because the mvp tier shares a cluster, Q1 asks the platform owner to accept it.
+      constrained_by: ["pack:regulated-corp#SEC-1", "pack:regulated-corp#AI-2"]
+      alternatives:
+        - option: Vault at Walk instead of Sealed Secrets
+          rejected_because: >-
+            it is BUSL-licensed and the compliance expert has not cleared it, and the pack already names External
+            Secrets for Run, so Vault would be a third mechanism to migrate through for no gain at this stage
+        - option: api-key on the review API instead of oauth2-proxy
+          rejected_because: >-
+            the consumer is an AP clerk, not a system; SECBASE item 4 requires a human-facing surface to sit behind
+            the org identity provider, and a shared API key gives no per-clerk audit trail for an approval that
+            releases a payable
+        - option: baseline PSA on the use case namespace so the catalog Postgres and MinIO fit
+          rejected_because: >-
+            pack:regulated-corp#SEC-1 is a must at Walk; shared infrastructure that cannot run restricted moves to
+            its own namespace with its own owner instead of lowering the level the invoice workloads run under
+      risks:
+        - id: R3
+          text: >-
+            a plaintext credential committed next to correctly sealed secrets -- the Odoo API token in an env patch or
+            the IMAP password as a configMapGenerator literal -- which is exactly how the tenant this factory serves
+            leaked two LLM keys while all 24 of its Secrets were sealed
+          mitigation: >-
+            G-SEC-4 scans configMapGenerator literals, configs/, patches/ and inline patch blocks, env entries with
+            value instead of valueFrom, and non-gitignored .env files, not only secrets/
+          severity: high
+        - id: R4
+          text: >-
+            the catalog Postgres and MinIO single-server are not proven under PSA restricted, which the pack requires
+            from Walk, and the mvp tier shares the cluster with other tenants
+          mitigation: >-
+            they move to a data namespace labelled baseline, owned by the platform team, with default-deny between it
+            and the use case namespace; the invoice workloads stay restricted. Accepted by the platform owner in Q1
+          severity: medium
+        - id: R5
+          text: >-
+            the sealed-secrets controller key is the single point of loss; without an offsite backup every sealed
+            secret in git becomes unrecoverable and the overlay cannot be redeployed
+          mitigation: >-
+            the devops record carries an offsite key backup as a gate, taken before the first real credential is
+            sealed; rotation is scripted and rehearsed once before Run
+          severity: high
+        - id: R6
+          text: >-
+            post_to_erp is reachable from a turn that has read an injected invoice, so an attacker who controls a
+            PDF could try to drive a payable to their own bank account
+          mitigation: >-
+            tool_write_gate is human-approval for anything the deterministic arithmetic and PO lookup do not confirm,
+            and any change of bank account goes to the clerk even when the amount matches; the approval token is part
+            of the tool contract and the 20-item injection suite gates the prompt in CI
+          severity: high
+        - id: R7
+          text: >-
+            an unauthenticated or wrongly-scoped review API would let anyone on the cluster network approve a payable
+          mitigation: >-
+            oauth2-proxy with GoTrue in front, ingress allowed only from the ingress controller's namespace, and
+            G-SEC-6 asserts an unauthenticated request is redirected to the IdP
+          severity: high
+      gate_to_next:
+        - { id: G-SEC-3, text: secrets via External Secrets (pack:regulated-corp#SEC-2), owner: security, check: { type: ci, ref: secrets-check } }
+        - { id: G-SEC-9, text: "secret rotation rehearsed end to end by the platform operator: every secret re-sealed from its .env.example recipe, consumers restarted by the reloader, the use case still posts to Odoo afterwards", owner: security, check: { type: manual, ref: rotation-rehearsal } }
+        - { id: G-SEC-10, text: "per-workload, per-port egress matrix written and applied, with namespace isolation from every other tenant on the cluster", owner: security, check: { type: ci, ref: netpol-matrix-check } }
+        - { id: G-SEC-11, text: "every image the use case runs is referenced by digest and verified by signature, or the absence of org signing is accepted in writing", owner: security, check: { type: ci, ref: image-policy-check } }
+      estimated_cost_usd_month: 10
+    run:
+      choice: [apps/security/external-secrets, apps/auth/gotrue-auth]
+      settings:
+        data_classification: financial
+        secrets_mechanism: external-secrets
+        env_example_per_secret: true
+        secret_scan: ci
+        psa_level: restricted
+        network_policy: default-deny
+        egress_allowlist:
+          - "imap.corp.example.com:993 # mailbox poll, intake-worker only"
+          - "odoo.corp.example.com:443 # ERP REST API, intake-worker only"
+        egress_matrix: recommended
+        security_context: restricted-compatible
+        auth_in_front: oauth2-proxy
+        identity_provider: gotrue
+        data_egress: none
+        data_residency: eu
+        audit_trail: cdc
+        audit_log_content: data-class-not-payload
+        untrusted_inputs: [invoice PDFs, email bodies]
+        llm_threats:
+          - "prompt-injection via invoice PDFs and email bodies: unchanged mitigation, injection suite grown with every real attempt seen in production (ai-engineering, quality)"
+          - "excessive agency: post_to_erp still requires the approval token for anything the deterministic check does not confirm, now per legal entity (ai-engineering)"
+          - "exfiltration through tools: the per-workload egress matrix narrows the two external hosts to intake-worker alone (kustomize)"
+          - "model egress: data_egress none on vLLM in-cluster, documented in the compliance evidence bundle (ai-engineering, compliance)"
+          - "secret leakage into context: credentials come from the central store and never reach a prompt, a tool result or the CDC stream (ai-engineering, app-scaffold)"
+          - "hallucinated actions on regulated fields: unchanged, with the nightly regression on 300 labelled invoices as the detector (ai-engineering, quality)"
+          - "denial of wallet: budget alert per entity, since multi-entity intake multiplies volume (ai-engineering, devops)"
+          - "prompt and tool tampering: prompt changes require review plus a passing eval in CI before the tag is cut (ai-engineering, quality)"
+          - "shared model endpoint: per-consumer NetworkPolicy to the inference namespace and a LiteLLM key per legal entity (kustomize, devops)"
+        tool_write_gate: human-approval
+        image_policy: signed
+        deploy_from: tag
+      rationale: >-
+        Run keeps the Walk shape and changes where the truth about a secret lives. pack:regulated-corp#SEC-2 makes
+        External Secrets the mechanism: every SealedSecret becomes an ExternalSecret of the same name so no consumer
+        changes, the sealed files are deleted in the same commit, and rotation happens in the central store with the
+        refresh interval picking it up -- the .env.example files stay as the documentation of which keys each secret
+        holds. PSA restricted is already enforced and the data namespace exception from Walk is the one thing a
+        reviewer re-checks. The audit trail becomes CDC on the decisions table for regulated data, which is a request
+        to the pipeline expert and not a component in this record; the application log keeps carrying the data class
+        and not the payload, and the CDC stream is the regulated copy that compliance retains for the legal period and
+        that stays inside this namespace. The per-workload, per-port egress matrix, FQDN policies where the CNI
+        supports them and a per-consumer policy to the inference namespace are the advanced-maturity step for a
+        multi-entity deployment, so egress_matrix is recommended and G-SEC-10 asks for it rather than the record
+        enumerating forty port rules a reviewer cannot read. Residency stays eu, which the compliance and data-store
+        records own, and egress stays none with nothing but in-cluster vLLM behind LiteLLM.
+      constrained_by: ["pack:regulated-corp#SEC-1", "pack:regulated-corp#SEC-2", "pack:regulated-corp#AI-2"]
+      alternatives:
+        - option: Vault as the central store
+          rejected_because: >-
+            the pack names External Secrets and the organisation already runs a central store it points at; Vault
+            would add a BUSL-licensed component for the compliance expert to clear with no change in posture
+        - option: egress_matrix required at Run
+          rejected_because: >-
+            no pack asks for it and the two external destinations are already bounded per workload by the Walk
+            policies; recommended keeps it a reviewer's request rather than a default that nobody reads
+      risks:
+        - id: R8
+          text: >-
+            apps/security/external-secrets has no consumer anywhere in this factory tree yet, so the migration off
+            Sealed Secrets is untested here and a wrong SecretStore reference leaves pods with no credentials
+          mitigation: >-
+            rehearsed in a scratch namespace first, ExternalSecret names identical to the SealedSecret names, old
+            files deleted only after the pods come up, and G-SEC-3 asserts no sealed-*.yaml remains in the overlay
+          severity: medium
+        - id: R9
+          text: >-
+            the CDC audit stream carries supplier names, amounts and posting decisions, so a broker or a consumer in
+            another namespace widens the blast radius of the regulated copy
+          mitigation: >-
+            the stream stays inside the use case namespace behind the default-deny policy, audit_log_content applies
+            to the application log, and the legal retention of the CDC copy is the compliance record's to set
+          severity: medium
+        - id: R10
+          text: >-
+            multi-entity intake means one compromised clerk account can approve payables for every legal entity
+          mitigation: >-
+            GoTrue groups per entity enforced in the review API's authorisation check, not only in the UI, and the
+            CDC audit stream records which clerk approved which entity's payable
+          severity: medium
+      estimated_cost_usd_month: 25
+  open_questions:
+    - id: Q1
+      question: >-
+        pack:regulated-corp#SEC-1 requires PSA restricted from Walk, but the catalog Postgres and MinIO single-server
+        are not proven under it, and the mvp tier shares the cluster with other tenants. Either they move to a data
+        namespace labelled baseline owned by the platform team, or the use case runs its own restricted-capable
+        Postgres. The platform owner decides and records the exception; security does not accept it on their behalf.
+      blocks_stage: walk
+      caused_by_rule: "pack:regulated-corp#SEC-1"
+    - id: Q2
+      question: >-
+        Does the organisation sign container images? Cosign is not in the catalog, so image_policy signed at Run is
+        either a CI step the platform team owns or an accepted gap, decided by the platform owner before the Run tag.
+      blocks_stage: run
+    - id: Q3
+      question: >-
+        Can the shared mailbox provider issue a per-application IMAP credential that can be rotated without affecting
+        the humans who also read that mailbox? If not, rotation of imap-mailbox is a manual coordination with finance
+        ops and G-SEC-9 cannot be fully automated. Finance ops and IT decide.
+      blocks_stage: walk
+  references:
+    - wiki/concepts/secret-strategy.md
+    - docs/lab-to-production.md
+    - docs/overlays/CONVENTION.md
+    - docs/use-case-builder/tenant-patterns.md
+    - context-packs/examples/regulated-corp/guidelines/security-baseline.md

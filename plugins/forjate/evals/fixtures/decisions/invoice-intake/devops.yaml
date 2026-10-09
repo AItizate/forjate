@@ -1,0 +1,257 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: devops, usecase: invoice-intake, author: "forjate:devops", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        environment: ephemeral-k3d
+        cluster_shape: k3d-1-node
+        storage_class: local-path
+        deploy_method: ephemeral.sh
+        namespace: uc-invoice-intake
+        isolation: shared
+        ttl_hours: 4
+        gitops: none
+        argocd_sync: n/a
+        target_revision: branch
+        remote_refs: n/a
+        argocd_private_refs: []
+        environments_distinct: false
+        image_registry: ghcr.io
+        image_tag_policy: any
+        image_writeback: none
+        image_signing: none
+        secrets_mechanism: secret-generator
+        secret_rotation: none
+        psa_level: privileged
+        network_policy: none
+        observability: none
+        golden_signals: ["seed/run/verify Job exit codes", "intake Job log line per invoice with the idempotency key", "wall time of the 20-PDF batch"]
+        alerting: none
+        backup: none
+        restore_rehearsed: false
+        rollback: redeploy-ephemeral
+        rollback_rehearsed: false
+        data_residency: eu
+      rationale: >-
+        `ephemeral.sh up invoice-intake` and nothing else. The overlay installs no CRD, no operator and no
+        StorageClass (Ollama is a StatefulSet, Postgres a StatefulSet, Docling a Deployment, `apps/minio/dev`
+        a single Pod), so `isolation: shared` on the shared k3d cluster is enough; `patches/ollama-resources.yaml`
+        and `patches/postgres-resources.yaml` size the components to a laptop, which is the only sizing work
+        Crawl needs. No ArgoCD, no Longhorn (it does not run on k3d) and no monitoring stack on a cluster that
+        dies in four hours: the Job logs the runner prints are the telemetry and `down && up` is the rollback.
+        Secrets are `secretGenerator` from gitignored `.env` files seeded from their committed `.env.example`;
+        placeholder values are fine because the seed is synthetic (20 PDFs, 3 mismatches, 1 duplicate,
+        1 unparseable) and the environment is disposable. PSA stays at the k3d default `privileged` with
+        `restricted` as warn and audit so violations are visible before Walk has to enforce them
+        (pack:regulated-corp#SEC-1 only binds Walk and Run). `data_residency: eu` holds trivially: the synthetic
+        seed contains no real supplier data, and the runner is pinned to an EU laptop or an EU CI runner so the
+        same statement survives the move to an anonymised copy at Walk. The namespace is `uc-invoice-intake`
+        rather than the org-prefixed name pack:regulated-corp#NAM-1 asks for: the ephemeral runner derives
+        `uc-<name>` from the contract and the stage overlays extend the same root, so the prefix would cost
+        a rename in every stage; NAM-1 is a `should`, this is the stated reason, and the tenant target
+        (`--target tenant`) applies the prefix when the use case lands as a namespace child of a tenant root.
+        Two things in this stage exist only to unblock Walk: the sealed-secrets controller key backup and the
+        ref-pinning check on the Walk overlay, both gated below.
+      constrained_by: ["pack:regulated-corp#RES-1", "pack:regulated-corp#NAM-1"]
+      alternatives:
+        - { option: ArgoCD on the k3d cluster so Crawl rehearses GitOps, rejected_because: "a four-hour cluster cannot drift, so there is nothing to reconcile; installing ArgoCD at Crawl buys a slower `up` and hides the fact that the GitOps posture has never been exercised against a real tag" }
+        - { option: Longhorn at Crawl for parity with Walk, rejected_because: "Longhorn does not run on k3d; local-path is the honest Crawl storage and the PVC-shape difference is what the Walk overlay is for" }
+      risks:
+        - { id: R1, text: "placeholder `.env` values make the Crawl run pass with credentials that would never work against the real IMAP mailbox or Odoo, so Walk discovers the first real auth failure", mitigation: "every secret ships a committed `.env.example` with the `# To generate:` and `# To seal:` header, and the Walk canary is the first thing run after the SealedSecrets land", severity: low }
+      gate_to_next:
+        - { id: G-OPS-1, text: "the platform operator backs the sealed-secrets controller key up offsite, encrypted, and restores it into a scratch k3d cluster that successfully decrypts a test SealedSecret, before the first real invoice-intake secret is sealed at Walk", owner: devops, check: { type: manual, ref: controller-key-backup } }
+        - { id: G-OPS-2, text: "every `ssh://...?ref=` in the Walk overlay resolves to a tag or a commit SHA; the check fails on `main`, `develop` or any feature-branch ref", owner: devops, check: { type: ci, ref: ref-pinning-check } }
+      estimated_cost_usd_month: 5
+    walk:
+      choice: [apps/continuous-delivery/argocd, apps/sealed-secrets, apps/storage/longhorn, apps/networking/metallb, apps/monitoring/prometheus, apps/monitoring/grafana, apps/monitoring/reloader]
+      settings:
+        environment: shared-cluster
+        cluster_shape: k3s-3-node
+        storage_class: longhorn
+        deploy_method: argocd
+        namespace: uc-invoice-intake
+        gitops: argocd
+        argocd_sync: auto-selfheal
+        target_revision: tag
+        remote_refs: pinned-tag
+        argocd_private_refs:
+          - "Secret argocd-ssh-keys (deploy key + ssh_config) mounted in the repo-server at /app/ssh-keys"
+          - "GIT_SSH_COMMAND: ssh -F /app/ssh-keys/ssh_config on the repo-server"
+          - "reposerver.enable.kustomize.helm: \"true\" in argocd-cmd-params-cm (longhorn, metallb, prometheus and grafana come in through helmCharts)"
+          - "ARGOCD_EXEC_TIMEOUT and timeout.reconciliation at 600s"
+          - "repo-creds credential template Secret for the ssh://git@github.com/<org>/ prefix"
+        environments_distinct: true
+        image_registry: ghcr.io
+        image_tag_policy: sha
+        image_writeback: repository_dispatch+yq
+        image_signing: none
+        secrets_mechanism: sealed-secrets
+        secret_rotation: scripted
+        rotation_script: scripts/rotate-secrets.sh
+        psa_level: restricted
+        network_policy: default-deny
+        observability: prometheus+grafana
+        golden_signals: ["intake worker: latency p95 per invoice, error rate, queue depth, invoices/hour", "review API: latency p95, 5xx rate, authenticated request rate", "KPI: straight_through_rate, wrong_amounts (must stay 0)", "escalation rate to the review queue and items_unaccounted", "model: tokens and seconds per invoice, extraction field accuracy", "Odoo posting: 4xx/5xx rate and duplicate-key rejections"]
+        alerting: alertmanager
+        paging_alerts: ["canary verify Job inv-validate failing", "review-queue items older than the 24 h exception SLA", "wrong_amounts > 0 on any posted invoice"]
+        backup: snapshot+dump
+        restore_rehearsed: false
+        rollback: git-revert+argocd-sync
+        rollback_rehearsed: false
+        data_residency: eu
+      rationale: >-
+        Three k3s nodes with embedded etcd, Longhorn at 3 replicas, MetalLB for the Traefik LoadBalancer IP,
+        and one ArgoCD Application `uc-invoice-intake-walk` tracking a **tag** with
+        `automated: { selfHeal: true, prune: false }` and `syncOptions: [ServerSideApply=true, CreateNamespace=false]`.
+        `prune: false` because a bad commit must not delete the review queue's PVC; `CreateNamespace=false`
+        because the overlay declares `namespace.yaml` with its PSA labels and letting ArgoCD create the namespace
+        loses them. `remote_refs: pinned-tag` is enforced, not assumed: a branch ref is drift with a commit
+        message, and the check from G-OPS-2 keeps running. Both URL forms are in scope,
+        `.git//k8s/...` (a factory subdirectory) and `.git/k8s/base` (a sibling app repo), and the Walk overlay
+        prefers a `bundles/*` entry over several `apps/*` entries in the same namespace because the repo-server
+        clones once per resource entry on every refresh. `environments_distinct: true`:
+        `k8s/overlays/usecases/invoice-intake/stages/walk` builds on its own, differs from the Crawl root and has
+        its own Application, so a promotion to Run is a reviewed second commit instead of a no-op.
+        Images: the agent repo's CI pushes `ghcr.io/<org>/invoice-intake:<full-sha>`, fires
+        `repository_dispatch` (`event_type: app-image-updated`, payload `app_name`, `new_tag`, `tenant`, `namespace`) at this repo,
+        and the workflow runs
+        `yq -i '(.images[] | select(.name == "ghcr.io/<org>/invoice-intake")).newTag = "<sha>"'`
+        on `stages/walk/kustomization.yaml`, commits `chore(deploy): update invoice-intake to <sha> in walk`
+        under `concurrency: gitops-walk-invoice-intake`, pushes to the tracked tag's branch and lets ArgoCD sync.
+        The image is declared in an `images:` block so the write-back is a structural edit, never a `sed` on a
+        line, and the tag is a full SHA, never `latest`.
+        Secrets: `apps/sealed-secrets` with `sealed-*.yaml` committed next to the overlay (IMAP app password,
+        Odoo API credentials, Postgres and MinIO credentials replacing the catalog placeholder Secrets
+        `postgres-secret` and the MinIO root Secret), rotation through `scripts/rotate-secrets.sh` which re-seals
+        every `.env` from its example's `# To generate:` recipe, with `apps/monitoring/reloader` restarting the
+        consumers on Secret change. The controller key backup (G-OPS-1) comes before any of this.
+        `psa_level: restricted` is pack:regulated-corp#SEC-1, not the factory default of `baseline` at Walk; the
+        consequence is that Postgres, Ollama, Docling and MinIO all need restricted-compatible security contexts
+        at Walk rather than at Run, which is a kustomize task the security record owns and this record's cost
+        line assumes no extra hardware for.
+        Rollback runbook: `argocd app history uc-invoice-intake-walk` for the last good revision,
+        `git revert <sha>` (or move the tag back), push to what the Application tracks,
+        `argocd app sync uc-invoice-intake-walk`, then watch the `inv-validate` canary and
+        `straight_through_rate`. If the decisions table changed shape, that is the restore gate (G-OPS-3),
+        not a rollback, and the runbook says so.
+        Cost shape: 3 x 4 vCPU / 8 GB (Hetzner CPX21-class) ~= 75, Longhorn volumes ~= 15, a 200 GB offsite
+        dump target ~= 20, monitoring retention on-cluster ~= 10, GHCR free => ~120, which is the business
+        record's Walk envelope. There is no GPU in that number, so CPU extraction runs at about 40 s per
+        invoice: fine for 300 invoices a month as a batch, not fine for a clerk waiting on screen
+        (see Q1 and the ai-engineering record's own open question).
+        `argocd-revision-check` (the Application tracks a tag and has `selfHeal: true`) is the security record's
+        gate; this record sets the values it checks rather than duplicating it.
+      constrained_by: ["pack:regulated-corp#RES-1", "pack:regulated-corp#SEC-1", "pack:regulated-corp#NAM-1"]
+      alternatives:
+        - { option: "Flux instead of ArgoCD", rejected_because: "the catalog ships apps/continuous-delivery/argocd and the factory's remote-reference pinning, private-ref SSH wiring and write-back docs are all written against ArgoCD; Flux would be a second control plane to learn for no behavioural gain here" }
+        - { option: "kubectl apply from CI with a deploy token", rejected_because: "no reconciliation, so drift persists until someone notices, and the cluster state stops being a function of the repo; this is exactly the posture the Walk gates exist to leave behind" }
+        - { option: "auto-prune-selfheal at Walk", rejected_because: "prune at Walk means a commit that drops a resource deletes it on the next sync, including PVCs holding the review queue; prune waits until `argocd app diff` has been read once on Run" }
+        - { option: "`latest` or a branch-name image tag with imagePullPolicy: Always", rejected_because: "two syncs of the same commit would produce different pods, so a rollback has nothing to roll back to and the canary proves nothing" }
+        - { option: "a shared `testing`/`production` directory with the env chosen by the write-back payload", rejected_because: "observed in a real tenant: both targets resolved to one directory, so a promotion was a no-op and a bad image reached both at once; stages/walk and stages/run are separate overlays with separate Applications" }
+      risks:
+        - { id: R2, text: "losing the sealed-secrets controller key makes every sealed-*.yaml in git undecryptable and a cluster rebuild loses all 6 secrets at once", mitigation: "G-OPS-1 backs the key up offsite and proves the restore in a scratch cluster before the first real secret is sealed; the backup is re-verified whenever the controller is upgraded", severity: high }
+        - { id: R3, text: "a factory or app-repo ref drifts back to a branch during a hurried fix and two builds of the same commit stop being identical", mitigation: "G-OPS-2 runs on every PR and fails on any non-tag ref; the Walk overlay's refs are reviewed as part of the tag bump", severity: medium }
+        - { id: R4, text: "index-based env patches such as /spec/template/spec/containers/0/env/3 break silently when an upstream chart reorders a list, producing a pod with the wrong Odoo URL", mitigation: "strategic-merge patches keyed on `name` wherever possible; any remaining index-based patch carries a comment naming the assumed order and the upstream version it was read from", severity: medium }
+        - { id: R5, text: "no GPU node means ~40 s CPU extraction per invoice, so the review API shows a stale queue to a clerk who is waiting and the 24 h exception SLA is met by the batch rather than by responsiveness", mitigation: "extraction is asynchronous behind the queue and the clerk is never blocked on a model call; Q1 puts the GPU node in front of the CFO with its price before Run", severity: medium }
+        - { id: R6, text: "the repo-server clones once per resource entry per refresh, so a Walk overlay with many apps/* SSH refs makes refresh slow enough to hit the default timeout and ArgoCD fails at refresh with a generic error", mitigation: "ARGOCD_EXEC_TIMEOUT and timeout.reconciliation at 600s, and bundles/* preferred over several apps/* entries in one namespace", severity: low }
+      gate_to_next:
+        - { id: G-OPS-3, text: "backup restore rehearsed end to end by the platform operator from the offsite copy, not only from the on-cluster snapshot: Postgres dump and the audit bucket restored into a scratch namespace with row and object counts compared against the source", owner: devops, check: { type: manual, ref: restore-rehearsal } }
+        - { id: G-OPS-4, text: "secret rotation rehearsed once by the platform operator: scripts/rotate-secrets.sh re-seals every .env, the committed sealed-*.yaml change, reloader restarts the consumers and the inv-validate canary passes afterwards", owner: devops, check: { type: manual, ref: rotation-rehearsal } }
+        - { id: G-OPS-5, text: "rollback rehearsed once on Walk by the platform operator: a deliberate bad commit reverted, the tag moved back, argocd app sync run and the canary verify Job green again, with the elapsed time recorded in the runbook", owner: devops, check: { type: manual, ref: rollback-rehearsal } }
+        - { id: G-OPS-6, text: "stages/walk and stages/run each build on their own with kustomize build and each differs from the Crawl root; the check fails if any stage overlay equals the root or if two stages resolve to the same directory", owner: devops, check: { type: ci, ref: stage-overlay-builds } }
+      estimated_cost_usd_month: 120
+    run:
+      choice: [apps/continuous-delivery/argocd, apps/security/external-secrets, apps/storage/longhorn, apps/networking/metallb, apps/monitoring/prometheus, apps/monitoring/grafana, apps/monitoring/otel-collector, apps/monitoring/reloader]
+      settings:
+        environment: prod-cluster
+        cluster_shape: k3s-ha-3+
+        storage_class: longhorn
+        deploy_method: argocd
+        namespace: uc-invoice-intake
+        gitops: argocd
+        argocd_sync: auto-prune-selfheal
+        target_revision: tag
+        remote_refs: pinned-tag
+        argocd_private_refs:
+          - "Secret argocd-ssh-keys (deploy key + ssh_config) mounted in the repo-server at /app/ssh-keys"
+          - "GIT_SSH_COMMAND: ssh -F /app/ssh-keys/ssh_config on the repo-server"
+          - "reposerver.enable.kustomize.helm: \"true\" in argocd-cmd-params-cm"
+          - "ARGOCD_EXEC_TIMEOUT and timeout.reconciliation at 600s"
+          - "repo-creds credential template Secret for the ssh://git@github.com/<org>/ prefix"
+        environments_distinct: true
+        image_registry: ghcr.io
+        image_tag_policy: semver+sha
+        image_writeback: repository_dispatch+yq
+        image_signing: cosign
+        secrets_mechanism: external-secrets
+        secret_rotation: store-managed
+        psa_level: restricted
+        network_policy: default-deny
+        observability: prometheus+grafana+otel
+        golden_signals: ["intake worker: latency p95 per invoice, error rate, queue depth, invoices/hour", "review API: latency p95, 5xx rate, authenticated request rate", "KPI: straight_through_rate, wrong_amounts (must stay 0)", "escalation rate, items_unaccounted, dead-letter count", "model: tokens, seconds and cost per invoice, field accuracy, eval pass rate", "Odoo posting: 4xx/5xx rate, duplicate-key rejections, posting-to-approval latency", "traces: one span per model call and per tool call with the invoice idempotency key"]
+        alerting: alertmanager
+        paging_alerts: ["canary verify Job inv-validate failing", "SLO burn-rate on straight_through_rate and on the 24 h exception SLA", "wrong_amounts > 0 on any posted invoice", "cost per invoice above the AI-engineering budget"]
+        backup: velero+pitr
+        restore_rehearsed: false
+        rollback: git-revert+argocd-sync
+        rollback_rehearsed: false
+        data_residency: eu
+      rationale: >-
+        Same shape hardened, not a new architecture. One Application per stage overlay on a tag,
+        `auto-prune-selfheal` only after `argocd app diff` has been read once against the live cluster, so the
+        repo becomes the truth including removals. `image_signing: cosign` is a CI step (`cosign sign` on the
+        digest, `cosign verify` before the write-back commit), not a catalog component: the factory has no
+        admission controller for signatures, so the enforcement point is the pipeline and the record says so
+        rather than implying a cluster-side policy exists.
+        Secrets move to `apps/security/external-secrets` (pack:regulated-corp#SEC-2), which makes rotation a
+        store operation picked up by `refreshInterval` instead of a commit. The migration is a gate and not a
+        state in which both mechanisms exist: every SealedSecret is replaced by an ExternalSecret of the same
+        name, the sealed files are deleted and the consumers restarted. Neither External Secrets nor Vault has a
+        consumer anywhere in this factory's tree yet, so this path is untested here (R7), and the backing store
+        itself is unresolved (Q4) - it has to sit inside the EU to keep pack:regulated-corp#RES-1 true, which
+        rules out the default region of most managed secret stores.
+        `observability: prometheus+grafana+otel`: the OTel collector exists for traces of model and tool calls,
+        which is what turns "the amount was wrong on invoice 4471" into a span tree showing the PDF text the
+        model saw, the `lookup_po` response and the arithmetic. That trace is also part of the evidence bundle
+        the compliance record needs, so its retention is a compliance decision, not a monitoring one.
+        Backup stays at the `velero+pitr` target the data-store record set, and this is a gap, not a
+        configuration: **Velero is not a catalog component** (issue #6 in `docs/lab-to-production.md`). This
+        record does not invent `apps/backup/velero`; it names the hole and Q2 carries the two decisions that
+        fill it - which offsite object store inside the EU, and who operates the restore. Postgres point-in-time
+        recovery needs WAL archiving to that same target, which is the other half of the question.
+        Cost: the envelope is 300 and it does not stretch. 3 HA nodes plus the extra control-plane headroom is
+        ~140, Longhorn with 3 replicas and a larger audit volume ~40, offsite target plus egress ~40,
+        observability retention with traces ~40 => ~260 before a single GPU. The vLLM inference the
+        AI-engineering record chose for Run needs a GPU node at 150-300/month, which puts the real figure at
+        410-560. The number stays at 300 because that is the business record's envelope and `go_no_go` is the
+        business expert's to change, not this one's; Q3 states what 300 actually buys (CPU inference on the same
+        3 nodes, no managed Postgres) so the CFO can decide between the envelope and the throughput.
+        Rollback is unchanged from Walk and its rehearsal carries over; the Run-specific addition is that a
+        revert which drops a resource now prunes it, so the runbook's first step at Run is
+        `argocd app diff uc-invoice-intake-run` before the sync, not after.
+      constrained_by: ["pack:regulated-corp#RES-1", "pack:regulated-corp#SEC-1", "pack:regulated-corp#SEC-2", "pack:regulated-corp#NAM-1"]
+      alternatives:
+        - { option: "staying on Sealed Secrets at Run", rejected_because: "pack:regulated-corp#SEC-2 requires external-secrets at Run; it is a must, and rotation that leaves a trace only in git commit messages is what the rule exists to stop" }
+        - { option: "a managed Postgres service instead of the operator on Longhorn", rejected_because: "it would give PITR without building WAL archiving, but every candidate's default region is outside the EU and the in-region tier pushes the envelope further past 300; left as part of Q3 rather than decided here" }
+        - { option: "ApplicationSet generating the stage Applications", rejected_because: "two stage overlays do not justify a generator, and an ApplicationSet makes the per-stage targetRevision (the thing that keeps a promotion reviewable) a template variable instead of a reviewed value" }
+      risks:
+        - { id: R7, text: "External Secrets has no consumer anywhere in this factory's tree, so the Run secrets path is untested here and the first real exercise of it is the migration off Sealed Secrets in production", mitigation: "the migration is rehearsed on the Walk cluster first with throwaway values, and the SealedSecret files stay in git until the ExternalSecret of the same name has been confirmed mounted by every consumer", severity: high }
+        - { id: R8, text: "backup at Run is specified as velero+pitr but Velero is not in the catalog and no offsite EU target is chosen, so Run could go live with Walk's nightly dump as its only recovery path", mitigation: "G-OPS-3 is a hard gate out of Walk and Q2 names the two missing decisions; until both are answered the honest backup posture at Run is snapshot+dump and the compliance record should hear that", severity: high }
+        - { id: R9, text: "auto-prune-selfheal means a commit that removes a resource deletes it on the next sync, which on this use case includes the PVC holding the audit copy of invoices", mitigation: "prune is enabled only after `argocd app diff` has been read once, the audit PVC and bucket carry a Longhorn/ArgoCD prune-protection annotation, and MinIO object lock on the audit bucket survives a namespace deletion", severity: high }
+        - { id: R10, text: "the 300/month envelope does not cover the GPU node vLLM needs, so Run either runs CPU inference at ~40 s per invoice or quietly exceeds the budget", mitigation: "Q3 puts the real figure (410-560 with a GPU) in front of the CFO; the fallback inside the envelope is CPU inference on the same nodes, which the current volume of 300 invoices a month tolerates", severity: medium }
+        - { id: R11, text: "signature enforcement lives only in CI, so an image pushed to GHCR out of band and written back by hand would deploy unsigned", mitigation: "the write-back workflow is the only writer of the images: block and runs `cosign verify` before committing; branch protection on the IaC repo keeps the block from being edited directly", severity: medium }
+  open_questions:
+    - { id: Q1, question: "Is a GPU node inside the Walk envelope of 120 USD/month? It costs 150 to 300 USD/month more, which the envelope does not hold. Without it CPU extraction runs at about 40 s per invoice, acceptable as a batch for 300 invoices a month but not for a clerk watching the queue. Finance ops and the CFO decide whether to raise the envelope or accept batch latency.", blocks_stage: walk }
+    - { id: Q2, question: "Which offsite object store inside the EU receives the Run backups and the Postgres WAL archive, and who operates the restore? Velero is not a catalog component (issue #6 in docs/lab-to-production.md), so both the target and the tooling are open; the target must stay inside the EU.", blocks_stage: run, caused_by_rule: "pack:regulated-corp#RES-1" }
+    - { id: Q3, question: "The Run envelope is 300 USD/month and the shape this record needs costs 260 without a GPU and 410 to 560 with the GPU node vLLM requires. Business owns go_no_go: either the envelope rises, or Run accepts CPU inference on the same 3 nodes and no managed Postgres. This record keeps 300 and does not resolve it.", blocks_stage: run }
+    - { id: Q4, question: "Which backing store does External Secrets read at Run, and is its region inside the EU? Most managed secret stores default to a region outside the EU, and Vault is BUSL-licensed, which the compliance record has to clear before it can be the answer.", blocks_stage: run, caused_by_rule: "pack:regulated-corp#SEC-2" }
+  references:
+    - docs/lab-to-production.md
+    - docs/ci-cd.md
+    - docs/ci-write-back-integration.md
+    - docs/use-case-builder/tenant-patterns.md
+    - wiki/concepts/remote-references.md
+    - wiki/concepts/secret-strategy.md

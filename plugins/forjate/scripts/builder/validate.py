@@ -21,6 +21,10 @@ Checks, per use case:
   7. gates consolidation: when gates.yaml exists, every gate a record emits for a stage
      with a transition out of it appears under that transition (warning), and every
      pack override it lists cites a rule of an active pack (error).
+  8. ci refs: a `ci` gate's check.ref names a script in scripts/gates/checks/ (the
+     directory is the enum). Error in gates.yaml, warning in a record's gate_to_next;
+     skipped with a warning when no checks directory is reachable (a tenant repo
+     without the factory checkout; set FORJATE_ROOT to point at one).
 
 Exit 1 on any error. Warnings never fail the run.
 """
@@ -31,10 +35,34 @@ import re
 import sys
 from pathlib import Path
 
-from common import BuilderError, STAGES, component_exists, die, load_yaml, report, schema_errors
+from common import BuilderError, REPO, STAGES, component_exists, die, load_yaml, report, schema_errors
 from packs import active_packs, load_pack, RULE_REF_RE
 
 RULE_REF = re.compile(r"^pack:(?P<pack>[a-z0-9-]+)#(?P<id>[A-Z][A-Z0-9]*-[0-9]+)$")
+
+
+def checks_dir() -> Path | None:
+    """scripts/gates/checks/ of the factory: the enum of `ci` gate refs."""
+    import os
+    for root in (Path(os.environ["FORJATE_ROOT"]) if os.environ.get("FORJATE_ROOT") else None, REPO,
+                 Path(__file__).resolve().parents[4]):
+        if root and (root / "scripts" / "gates" / "checks").is_dir():
+            return root / "scripts" / "gates" / "checks"
+    return None
+
+
+def ci_ref_errors(gates: list[dict], where: str) -> list[str]:
+    d = checks_dir()
+    if d is None:
+        return []
+    out = []
+    for g in gates:
+        c = g.get("check") or {}
+        if c.get("type") == "ci":
+            ref = str(c.get("ref") or "")
+            if not ref or not (d / f"{ref}.sh").is_file():
+                out.append(f"{where}: gate {g.get('id')} has ci ref '{ref}' with no script scripts/gates/checks/{ref}.sh (the directory is the enum)")
+    return out
 PSA_RANK = {"privileged": 0, "baseline": 1, "restricted": 2}
 
 # Cross-record consistency (check 6). Components in one group are mutually exclusive
@@ -351,6 +379,7 @@ def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
         for stage, sd in d["spec"]["stages"].items():
             if stage in skipped:
                 warnings.append(f"{dpath}: decides for stage '{stage}' which the plan skipped")
+            warnings += ci_ref_errors(sd.get("gate_to_next") or [], f"{dpath}: {stage}")
             for c in sd.get("choice", []):
                 if not component_exists(c):
                     errors.append(f"{dpath}: {stage}: component not in catalog: {c}")
@@ -378,6 +407,10 @@ def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
                 errors.append(f"{b/'gates.yaml'}: pack_overrides cites unknown rule {ov['rule']}")
         if gates["metadata"]["usecase"] != uc_name:
             errors.append(f"{b/'gates.yaml'}: metadata.usecase != '{uc_name}'")
+        if checks_dir() is None:
+            warnings.append(f"{b/'gates.yaml'}: ci refs not checked (no scripts/gates/checks/ reachable; set FORJATE_ROOT)")
+        for tr, body in gates["spec"]["transitions"].items():
+            errors += ci_ref_errors(body.get("gates") or [], f"{b/'gates.yaml'}: {tr}")
         warnings += [f"{uc}: {w}" for w in gates_consolidation(decisions, gates, skipped)]
     return errors, warnings
 

@@ -1,0 +1,149 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: data-pipeline, usecase: support-copilot, author: "forjate:data-pipeline", version: 1, language: en }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        ingestion_pattern: batch
+        sources:
+          - "chat messages: batch (recorded conversations replayed in order by the seed Job, timing collapsed)"
+          - "orders and subscriptions: batch (seeded fixture read by a read-only stub; the real orders API is never called)"
+        steps:
+          - "replay: the run Job reads the seeded conversations in chat order, one message at a time (code)"
+          - "normalise: trim markup, attach chat_id/message_id/customer handle, detect language (code)"
+          - "resolve-customer: map the chat handle to a customer id in the seeded dataset; unknown handle is an exception (code)"
+          - "classify-intent (model): ten common intents plus refund, cancellation, unknown"
+          - "lookup-order: read the seeded orders/subscriptions fixture, whitelisted fields only (code)"
+          - "answer (model): grounded reply built from the looked-up fields and the curated FAQ snippets"
+          - "route: refund, cancellation, unknown order or low confidence go to escalation with transcript + order id; everything else replies (code)"
+          - "record: write the transcript and the outcome (resolved | escalated | dead-lettered) to episodic memory so the KPI is computable (code)"
+        document_parser: none
+        broker: none
+        cdc_connector: none
+        idempotency_key: "chat_id + message_id of the recorded message; the conversation outcome is keyed by conversation_id"
+        replay: "Re-run the run Job over the same seeded set; the processed_messages table keyed by chat_id+message_id skips already answered messages and the outcome row is upserted, so a second pass produces the same stores."
+        dead_letter: "dead_letters table (working memory) with the message, the stage that failed and the reason; the verify Job asserts the two intentionally malformed conversations landed there. Reviewed by the support agent, escalation path to the head of CS."
+        schedule: once
+        throughput_target: "60 conversations / ~180 messages in a single pass within a 15 min Job budget (>= 700 messages/hour), far above the brief's 200 messages/day"
+        seed_strategy: recorded-replay
+        seed_size: "60 conversations (~180 messages): 40 answerable spread over the ten common intents (4 each), 8 refund requests, 4 cancellations, 4 with an order id that does not exist, 2 ambiguous multi-intent, 2 malformed with no order reference; plus a synthetic catalogue of 200 orders and 50 subscriptions over 40 customers"
+        seed_anonymisation: "transcripts are pseudonymised (names, handles, emails, phone numbers, order ids rewritten) before the set enters the repo; the mapping stays outside the ephemeral environment"
+        verify_assertions:
+          - "run Job executed twice over the same seed produces identical outcomes and zero duplicate replies"
+          - "conversations processed = 60, messages processed = seed message count, none dropped"
+          - "each of the ten common intents is answered at least once and no answer contains a field outside the whitelist"
+          - "all 12 refund and cancellation conversations are escalated, each carrying the full transcript and the order id"
+          - "escalations missing an order id = 0"
+          - "false escalations among the 40 answerable conversations <= 4 (over-escalation ceiling), so resolved_without_human_rate >= 60% on the seeded set against the 40% target"
+          - "the 4 unknown order ids reply with a not-found handoff and are escalated, not answered from a guess"
+          - "the 2 malformed conversations are in dead_letters with a reason and the customer received a handoff message"
+          - "the stub orders API received read calls only; write calls = 0"
+        landing_zones:
+          - "session: per-chat conversation state (open intent, resolved order id, pending escalation)"
+          - "working: processed_messages dedupe table, order lookup cache, escalations queue, dead_letters"
+          - "episodic: full transcript plus outcome per conversation, the source of resolved_without_human_rate"
+          - "semantic: curated FAQ and policy snippets for the ten intents (small, hand-written at Crawl)"
+          - "artifacts: none; an escalation is a row with the transcript inline, not a file"
+      rationale: >-
+        No context packs are active, so factory defaults apply. Crawl is a batch of three suspended Jobs
+        (seed, run, verify) over a recorded conversation set, exactly as the plan puts the real Telegram
+        group out of scope: a live stream has nothing finite to assert against and the verify-job gate
+        needs a fixed input. The seed is a recorded replay because the source is chat and scripted
+        conversations would not reproduce how customers actually ask; the data class is pii, so the set is
+        pseudonymised before it enters the repo and the seed Job writes only to the landing zones, never
+        to the orders API. No broker, no parser, no CDC: there are no documents, producer and consumer are
+        the same Job, and nothing is live. The exceptions the business cares about (refunds, cancellations,
+        order not found) are each in the seed with their own assertion, and the first assertion is the
+        double run, because the resolution-rate KPI is a lie if replay duplicates answers. The live poll
+        arrives at Walk.
+      alternatives:
+        - { option: "stream over apps/brokers/nats at Crawl", rejected_because: "nothing produces live messages at Crawl; a broker would add a component with no finite input for the verify Job to assert against" }
+        - { option: "webhook from the real Telegram group at Crawl", rejected_because: "the plan puts the real group out of scope and a webhook needs an external API surface plus a tunnel; customers would be exposed to an unproven bot" }
+        - { option: "subset of the real conversation history as the seed", rejected_because: "the data class is pii and a raw subset carries it into the ephemeral environment; the recorded set is pseudonymised instead" }
+        - { option: "synthetic conversations only", rejected_because: "scripted phrasing hides the intent-classification problem the stage has to prove; kept as the fallback if the anonymisation is not approved" }
+      risks:
+        - { id: R1, text: "The bot escalates nearly everything, the verify Job passes on escalation quality and the resolution rate reads near zero, hiding the failure.", mitigation: "The over-escalation ceiling is a verify assertion (<= 4 false escalations out of 40 answerable), so the gate fails on a cowardly bot, not just on a wrong one.", severity: high }
+        - { id: R2, text: "Pseudonymised transcripts still carry customer pii if the rewriting misses free-text mentions of names or addresses.", mitigation: "Rewrite with a deterministic pass plus a manual read of all 60 conversations before they enter the repo; the set is small enough to review by hand.", severity: medium }
+        - { id: R3, text: "A re-run of the run Job answers the same message twice and inflates the resolution-rate numerator.", mitigation: "processed_messages keyed by chat_id+message_id is checked before the answer step; the double-run assertion is the first thing the verify Job checks.", severity: medium }
+      gate_to_next:
+        - { id: G-PIPE-1, text: "verify Job copilot-validate exits 0: 60 conversations processed, duplicate replies = 0 after a second run, all 12 refund and cancellation conversations escalated with transcript and order id", owner: data-pipeline, check: { type: verify-job, ref: copilot-validate } }
+        - { id: G-PIPE-2, text: "dead-letter rate on the seeded set equals the 2 intentionally malformed conversations and no others, each with a reason recorded", owner: data-pipeline, check: { type: metric, ref: dead_letter_rate } }
+    walk:
+      choice: []
+      settings:
+        ingestion_pattern: webhook
+        sources:
+          - "chat messages: webhook (Telegram setWebhook through the architecture's cloudflare tunnel, secret token verified before anything else; update_id recorded per delivery)"
+          - "orders and subscriptions: poll (on-demand read per conversation, not a cursor loop; 60 s per-customer cache in working memory)"
+        steps:
+          - "receive: webhook POST verified by the Telegram secret token, acknowledged immediately, update_id and message persisted before any model call (code)"
+          - "normalise: same as Crawl, over live Telegram payloads (code)"
+          - "resolve-customer: map the Telegram user id to a customer id through the orders API (code)"
+          - "classify-intent (model): same taxonomy, thresholds tuned on the Crawl seed"
+          - "lookup-order: live read of the orders API, whitelisted fields, 3 s timeout, circuit breaker (code)"
+          - "answer (model): grounded reply, refusing to answer when the lookup failed"
+          - "route: refunds, cancellations, unknown orders and low confidence into the support agents' escalation queue with transcript + order id (code)"
+          - "record: transcript and outcome to episodic memory; resolution rate reported over 90 days (code)"
+        document_parser: none
+        broker: none
+        cdc_connector: none
+        idempotency_key: "chat_id + message_id (Telegram update_id is the poll cursor, not the item key)"
+        replay: "Telegram re-delivers unacknowledged updates; processed_messages makes a re-delivered message a no-op. A conversation that failed mid-way is re-run from its stored transcript by an operator-triggered batch over that conversation_id."
+        dead_letter: "dead_letters table plus an immediate escalation to the support agents' queue with the failure reason, so a poison message never leaves a customer silent. Reviewed by the support agent within one business day, weekly summary to the head of CS."
+        schedule: on-arrival
+        throughput_target: "200 messages/day = ~10 messages/hour, peak assumed 40/hour; one worker, answer latency budget under 10 s per message"
+        seed_strategy: recorded-replay
+        seed_size: "the Crawl set (60 conversations) is kept as the regression set and replayed against every prompt or model change before it reaches the live group"
+        verify_assertions:
+          - "the Crawl regression set still passes unchanged before any deploy to the live group"
+          - "duplicate replies in the live group = 0 over the stage"
+          - "every escalation in the agents' queue carries the full transcript and the order id (G-UX-1)"
+          - "every received update_id is persisted before the model call; no update older than one hour is unprocessed"
+          - "dead-letter rate under 1% of messages and every dead letter reviewed within one business day"
+        landing_zones:
+          - "session: live per-chat conversation state with an idle timeout"
+          - "working: processed_messages, received update_ids, order lookup cache, escalations queue, dead_letters"
+          - "episodic: transcripts and outcomes for the 90-day KPI window"
+          - "semantic: FAQ and policy snippets, now maintained by the support agents"
+          - "artifacts: none"
+      rationale: >-
+        The architecture record exposes an external surface at Walk through apps/cloudflare-tunnel with
+        the Telegram webhook behind it, so the webhook is nearly free here and this record adopts it: one
+        trigger per use case. Long-poll was the cheaper pattern in isolation (nothing inbound, seconds of
+        latency against a ten-second budget) and stays the fallback if the tunnel is ever dropped. No
+        broker: the receiver, the model call and the reply are one request-shaped
+        workload, and an escalation is a row the agents' queue reads, not a message that needs decoupling.
+        No CDC: the orders API is a system of record this organisation reads but does not operate at the
+        database level, so changes are pulled on demand rather than captured. The orders lookup is read-only
+        and on demand because the trigger is a customer asking, not a row changing. The pipeline's real
+        failure mode here is not throughput but silence: a lookup timeout or a poison message must become a
+        human handoff, which is why the dead-letter path notifies as well as records.
+      alternatives:
+        - { option: "long-poll getUpdates instead of the webhook", rejected_because: "cheaper in isolation, but the architecture record already exposes the tunnel and the webhook secret token, so a second trigger would be a second path to secure; kept as the fallback if the tunnel is dropped" }
+        - { option: "stream over apps/brokers/nats between poller and answerer", rejected_because: "producer and consumer are the same workload and the customer is waiting on the reply; a broker adds a hop and a duplicate-delivery class of bug without decoupling anything" }
+        - { option: "apps/cdc/debezium-postgres-nats on the orders database", rejected_because: "the organisation integrates the orders API, not its database; CDC needs logical decoding on an instance it does not operate, and the trigger is a question in chat, not a row change" }
+        - { option: "nightly batch over the group history", rejected_because: "customers expect an answer in the conversation; a nightly pass cannot resolve anything without a human" }
+      risks:
+        - { id: R4, text: "The webhook endpoint is down longer than Telegram keeps retrying, so updates are dropped and customers go unanswered.", mitigation: "Acknowledge every delivery before processing, persist the update_id, alert when no update has arrived for 30 minutes during business hours, and backfill from getUpdates keyed by chat_id+message_id when a gap is detected.", severity: high }
+        - { id: R5, text: "An orders API incident turns every conversation into a retry storm or, worse, into a confidently wrong answer from stale cache.", mitigation: "3 s timeout, 60 s cache lifetime, circuit breaker that stops answering from the orders data and escalates with an explicit 'cannot read your order right now' instead of guessing.", severity: high }
+        - { id: R6, text: "Volume is trivial (10 messages/hour), so the pipeline is never load-tested and a promotion campaign spike finds the single worker.", mitigation: "The answer path is stateless behind the dedupe table, so the worker scales horizontally; the record states the peak assumption (40/hour) and a spike above it is the trigger to introduce a broker, as one decision with the architecture expert.", severity: low }
+      gate_to_next:
+        - { id: G-PIPE-3, text: "duplicate replies in the live group = 0 and the Crawl regression set passes before every deploy", owner: data-pipeline, check: { type: metric, ref: duplicate_reply_count } }
+        - { id: G-PIPE-4, text: "dead-letter rate under 1% of messages over the stage, with every dead letter reviewed within one business day", owner: data-pipeline, check: { type: metric, ref: dead_letter_rate } }
+        - { id: G-PIPE-5, text: "no received update older than one hour left unprocessed over the stage, measured from the persisted update timestamps", owner: data-pipeline, check: { type: metric, ref: webhook_lag_max_minutes } }
+  open_questions:
+    - id: Q1
+      question: "Which fields of the orders API may be shown to a customer in chat? The lookup and answer steps need the whitelist; until it exists the Crawl assertion on 'no field outside the whitelist' has nothing to check against. The plan carries this as an open item and it blocks the seeded fixture's shape."
+      blocks_stage: crawl
+    - id: Q2
+      question: "Who approves the pseudonymised transcript set as the Crawl seed (security runs at this stage; compliance is skipped)? If it is not approved, the seed strategy falls back to synthetic conversations and the intent-coverage assertion weakens."
+      blocks_stage: crawl
+  references:
+    - plugins/forjate/skills/data-pipeline/references/ingestion-patterns.md
+    - plugins/forjate/skills/data-pipeline/references/seed-and-verify.md
+    - plugins/forjate/skills/data-pipeline/references/documents-and-cdc.md
+    - docs/ephemeral-use-cases.md
+    - scripts/ephemeral/README.md
+    - wiki/catalog.json

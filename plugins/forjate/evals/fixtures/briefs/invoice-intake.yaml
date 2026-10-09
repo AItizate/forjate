@@ -1,0 +1,33 @@
+apiVersion: forjate.io/v0
+kind: UseCaseBrief
+metadata:
+  name: invoice-intake
+  created: 2026-10-02
+  requested_by: finance-ops
+spec:
+  problem: Supplier invoices arrive as PDF attachments in a shared mailbox. Someone reads each one, types supplier, amount, date and PO number into the ERP, and flags mismatches against the purchase order. We want this automated with a human approving anything that does not match.
+  language: en
+  context_packs: [regulated-corp]
+  actors:
+    - { name: AP clerk, role: end-user, notes: approves exceptions }
+    - { name: finance ops lead, role: requester }
+    - { name: CFO, role: approver }
+    - { name: ERP (Odoo), role: system, notes: system of record for POs and payables }
+    - { name: shared mailbox (IMAP), role: system }
+  data:
+    sources:
+      - { name: invoice PDFs, kind: email, volume: "300/month", system_of_record: false }
+      - { name: purchase orders, kind: api, volume: "500 open", system_of_record: true }
+    classification: financial
+    residency: eu
+  constraints:
+    regulated: true
+    budget_per_month_usd: 300
+    must_integrate_with: [Odoo REST API, IMAP mailbox]
+    llm_egress_allowed: false
+    notes: Bank account numbers appear on invoices.
+  success:
+    metric: invoices posted to the ERP without manual typing
+    baseline: "0%"
+    target: "80% straight-through, 0 wrong amounts"
+  stages_requested: [crawl, walk, run]

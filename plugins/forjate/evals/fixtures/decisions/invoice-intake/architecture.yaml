@@ -1,0 +1,50 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: architecture, usecase: invoice-intake, author: "forjate:architecture", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        topology: batch
+        workloads: [intake-job, seed-job, verify-job, erp-stub]
+        integrations: ["IMAP mailbox: seed-replay", "Odoo REST API: stub"]
+        integration_patterns: [batch]
+        durable_execution: job
+        broker: none
+        api_surface: none
+        auth_in_front: none
+        trigger: file-arrival
+      rationale: A batch Job over seeded PDFs in MinIO, matched against seeded POs served by a stub of the Odoo API; nothing is exposed and nothing real is touched.
+      gate_to_next:
+        - { id: G-ARCH-1, text: the intake Job processes the seeded set end to end and the stub records every would-be posting, owner: architecture, check: { type: verify-job, ref: inv-validate } }
+    walk:
+      choice: [apps/auth/gotrue-auth]
+      settings:
+        topology: batch
+        workloads: [intake-worker, review-api, verify-job]
+        integrations: ["IMAP mailbox: poll", "Odoo REST API: rest-push"]
+        integration_patterns: [poll, rest-push]
+        durable_execution: job
+        broker: none
+        api_surface: internal
+        auth_in_front: oauth2-proxy
+        trigger: schedule
+      rationale: A scheduled worker polls the mailbox every 10 minutes, the review API serves the AP clerk's queue behind oauth2-proxy and GoTrue, approved items are posted to Odoo with an idempotency key.
+      alternatives:
+        - { option: Temporal workflow per invoice, rejected_because: "300 invoices a month with a 24 h exception SLA do not need durable execution; a Job with a Postgres status table retries safely" }
+      gate_to_next:
+        - { id: G-ARCH-2, text: "posting to Odoo is idempotent on invoice number plus supplier, proven by a double submission in the canary", owner: architecture, check: { type: verify-job, ref: inv-validate } }
+    run:
+      choice: [apps/auth/gotrue-auth]
+      settings:
+        topology: batch
+        workloads: [intake-worker, review-api, verify-job]
+        integration_patterns: [poll, rest-push]
+        durable_execution: job
+        broker: none
+        api_surface: internal
+        auth_in_front: oauth2-proxy
+        trigger: schedule
+      rationale: Same shape, multi-entity by configuration, posting behind the approval step; durable execution revisited only if volume grows past 5k a month.
+  references: [docs/service-integration.md]

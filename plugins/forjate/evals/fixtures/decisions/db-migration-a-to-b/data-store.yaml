@@ -1,0 +1,43 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: data-store, usecase: db-migration-a-to-b, author: "forjate:data-store", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: [apps/databases/postgres, apps/minio/dev]
+      settings:
+        memory_kinds: [working, artifacts]
+        working_store: apps/databases/postgres
+        artifact_store: apps/minio/dev
+        retention_working: 4h
+        retention_artifacts: 4h
+        backup: none
+        restore_tested: false
+        data_residency: eu
+        systems_of_record: [legacy-postgres]
+      rationale: Migration progress and checkpoints in Postgres, the verification report in MinIO; MongoDB is denied by the org pack so the target is modelled as a Postgres JSONB table for the PoC.
+      alternatives:
+        - { option: apps/databases/mongodb, rejected_because: denied by pack:regulated-corp#DATA-1 }
+      constrained_by: ["pack:regulated-corp#DATA-1", "pack:regulated-corp#RES-1"]
+      gate_to_next:
+        - { id: G-DS-1, text: retention of the staging copy agreed with the head of data, owner: data-store, check: { type: manual, ref: decisions/data-store.yaml } }
+    walk:
+      choice: [apps/databases/postgres, apps/minio/single-server]
+      settings:
+        memory_kinds: [working, artifacts]
+        working_store: apps/databases/postgres
+        artifact_store: apps/minio/single-server
+        retention_working: 30d
+        retention_artifacts: 30d
+        backup: snapshot+dump
+        restore_tested: false
+        data_residency: eu
+        systems_of_record: [legacy-postgres]
+      rationale: Same shape, real volume on Longhorn PVCs; the staging copy of 2M customer rows is deleted after the verified cut-over.
+      constrained_by: ["pack:regulated-corp#RES-1"]
+  open_questions:
+    - id: Q1
+      question: "Which document store is licensed for production, given MongoDB is denied?"
+      blocks_stage: walk
+      caused_by_rule: "pack:regulated-corp#DATA-1"
+  references: [wiki/components/databases-postgres.md, docs/storage-strategy.md]

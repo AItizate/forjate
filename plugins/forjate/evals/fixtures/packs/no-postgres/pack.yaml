@@ -1,0 +1,24 @@
+apiVersion: forjate.io/v0
+kind: ContextPack
+metadata:
+  name: no-postgres
+  version: 1.0.0
+  scope: org
+  precedence: 20
+  description: Eval fixture for forjate:data-store. Forbids Postgres and pins residency to the US.
+spec:
+  applies_to: [data-store]
+  language: en
+  sources:
+    - id: DATA-1
+      kind: constraint
+      path: constraints.yaml#/rules/DATA-1
+      enforce: must
+      applies_to: [data-store]
+      summary: Postgres is being retired org-wide; no new Postgres instances.
+    - id: RES-1
+      kind: constraint
+      path: constraints.yaml#/rules/RES-1
+      enforce: must
+      applies_to: [data-store]
+      summary: All data lives in the US region.

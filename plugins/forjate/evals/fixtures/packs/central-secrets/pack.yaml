@@ -1,0 +1,30 @@
+apiVersion: forjate.io/v0
+kind: ContextPack
+metadata:
+  name: central-secrets
+  version: 1.0.0
+  scope: team
+  precedence: 30
+  description: Eval fixture (layered over regulated-corp) for forjate:security. Forbids Sealed Secrets, requires the central store from the pilot onwards, and denies the only identity provider in the catalog.
+spec:
+  applies_to: [security]
+  language: en
+  sources:
+    - id: SEC-1
+      kind: constraint
+      path: constraints.yaml#/rules/SEC-1
+      enforce: must
+      applies_to: [security]
+      summary: No Sealed Secrets; the platform team does not back up controller keys.
+    - id: SEC-2
+      kind: constraint
+      path: constraints.yaml#/rules/SEC-2
+      enforce: must
+      applies_to: [security]
+      summary: Every environment past a PoC pulls secrets from the corporate store through External Secrets.
+    - id: SEC-3
+      kind: constraint
+      path: constraints.yaml#/rules/SEC-3
+      enforce: must
+      applies_to: [security]
+      summary: The org identity provider is Keycloak; GoTrue is not approved.

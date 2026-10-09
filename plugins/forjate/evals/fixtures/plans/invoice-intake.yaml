@@ -1,0 +1,46 @@
+apiVersion: forjate.io/v0
+kind: StagePlan
+metadata: { usecase: invoice-intake, version: 1 }
+spec:
+  stages:
+    crawl:
+      in_scope: true
+      goal: Prove that invoice PDFs from a seeded mailbox are parsed, matched against seeded purchase orders and routed to a review queue with zero wrong amounts on the sample.
+      forjate_tier: lab
+      exit_criteria:
+        - { id: G-Q-1, text: verify Job exits 0 on the seeded invoice set of 20 PDFs with 3 mismatches, owner: quality, check: { type: verify-job, ref: inv-validate } }
+        - { id: G-BIZ-1, text: straight-through rate measured once on the sample and shown to the finance ops lead, owner: business, check: { type: metric, ref: straight_through_rate } }
+      out_of_scope:
+        - real mailbox access; the seed Job drops PDFs into MinIO
+        - posting to the real Odoo; a stub API records what would have been posted
+      estimated_cost_usd_month: 5
+    walk:
+      in_scope: true
+      goal: AP clerks rely on the queue for real invoices for one month, with Odoo posting behind an approval step.
+      forjate_tier: mvp
+      exit_criteria:
+        - { id: G-Q-2, text: 80% straight-through over 30 days with 0 wrong amounts, owner: quality, check: { type: metric, ref: straight_through_rate } }
+        - { id: G-SEC-1, text: namespace default-deny with egress allow-list to Odoo and IMAP only, owner: security, check: { type: ci, ref: netpol-check } }
+        - { id: G-BIZ-2, text: CFO signs the Walk report, owner: business, check: { type: manual } }
+      estimated_cost_usd_month: 120
+    run:
+      in_scope: true
+      goal: Audited, PSA restricted, multi-entity invoice intake with External Secrets and offsite backup.
+      forjate_tier: production
+      exit_criteria:
+        - { id: G-SEC-2, text: PSA restricted enforced (pack:regulated-corp#SEC-1), owner: security, check: { type: ci, ref: psa-check } }
+        - { id: G-SEC-3, text: secrets via External Secrets (pack:regulated-corp#SEC-2), owner: security, check: { type: ci, ref: secrets-check } }
+        - { id: G-COMP-1, text: compliance record signed; residency eu and zero model egress documented, owner: compliance, check: { type: manual } }
+        - { id: G-OPS-3, text: backup restore rehearsed, owner: devops, check: { type: manual } }
+      estimated_cost_usd_month: 300
+  experts:
+    - { role: business, run: true }
+    - { role: architecture, run: true }
+    - { role: ai-engineering, run: true }
+    - { role: data-store, run: true }
+    - { role: data-pipeline, run: true }
+    - { role: security, run: true }
+    - { role: compliance, run: true }
+    - { role: quality, run: true }
+    - { role: devops, run: true }
+    - { role: ux, run: true }

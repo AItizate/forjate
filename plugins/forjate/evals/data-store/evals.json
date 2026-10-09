@@ -1,0 +1,347 @@
+{
+  "skill_name": "data-store",
+  "evals": [
+    {
+      "name": "regulated-invoice-intake",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/invoice-intake/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the data-store expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area data-store, metadata.author forjate:data-store, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Residency eu at every stage citing RES-1, MinIO for artifacts, Postgres for working/episodic, no MongoDB, no vector store, backups per stage with a restore gate, run retention as an open question or a legal figure.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "text": "data-store.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "all(setting('data_residency', s) == 'eu' for s in stages)",
+          "text": "residency eu at every stage"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "pattern": "pack:regulated-corp#RES-1",
+          "text": "RES-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "has('minio', setting('artifact_store', 'crawl'))",
+          "text": "artifacts in MinIO"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "has('postgres', setting('working_store', 'crawl'))",
+          "text": "working memory in Postgres"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "not any('mongodb' in c for c in choices())",
+          "text": "no MongoDB (denied by DATA-1)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "all(setting('semantic_store', s) in (None, 'none') for s in stages) and not any('lancedb' in c or 'milvus' in c for c in choices())",
+          "text": "no vector store: PO matching is a lookup"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "setting('backup', 'walk') == 'snapshot+dump' and setting('backup', 'run') == 'velero+pitr'",
+          "text": "backup ladder per stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "any(has('restore', g.get('text')) for g in gates())",
+          "text": "a restore-tested gate exists"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "any(q.get('blocks_stage') == 'run' for q in oq()) or has(r'\\d+\\s*y', setting('retention_artifacts', 'run')) or has(r'\\d+\\s*y', setting('retention_episodic', 'run'))",
+          "text": "run retention is a legal figure or an open question blocking Run"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "'artifacts' in listed(setting('memory_kinds', 'crawl')) and 'working' in listed(setting('memory_kinds', 'crawl'))",
+          "text": "memory kinds found: artifacts and working"
+        }
+      ]
+    },
+    {
+      "name": "chat-copilot-no-packs",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/support-copilot/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the data-store expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area data-store, metadata.author forjate:data-store, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Session memory in Redis at Walk, episodic in Postgres (or MongoDB with the licence noted), short and long term in different stores, no vector store, session retention set, orders API as system of record.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "text": "data-store.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "'session' in listed(setting('memory_kinds', 'crawl')) or 'session' in listed(setting('memory_kinds', 'walk'))",
+          "text": "session memory identified"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "has('redis', setting('session_store', 'walk'))",
+          "text": "session store is Redis at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "has('postgres|mongodb|mariadb', setting('episodic_store', 'walk'))",
+          "text": "episodic store is a database, not a cache or a bucket"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "setting('session_store', 'walk') != setting('episodic_store', 'walk')",
+          "text": "short-term and long-term memory in different stores at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "all(setting('semantic_store', s) in (None, 'none') for s in stages)",
+          "text": "no semantic store: the orders API is the lookup"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "setting('retention_session', 'walk') is not None",
+          "text": "session retention set at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "any(has('order', x) for x in listed(setting('systems_of_record', 'crawl')))",
+          "text": "orders API remains the system of record"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "len(alts()) >= 1 and all(a.get('rejected_because') for a in alts())",
+          "text": "alternatives rejected with reasons"
+        }
+      ]
+    },
+    {
+      "name": "migration-regulated",
+      "prompt": "Set up k8s/overlays/usecases/db-migration-a-to-b/.builder/ by copying plugins/forjate/evals/fixtures/briefs/db-migration-a-to-b.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/db-migration-a-to-b.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/db-migration-a-to-b/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the data-store expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area data-store, metadata.author forjate:data-store, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "MongoDB denied by DATA-1 and raised as an open question about the licensed target store, Postgres for working memory, residency eu, no session or semantic memory, contract untouched.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml",
+          "text": "data-store.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "text": "existing contract untouched"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml",
+          "expr": "not any('mongodb' in c for c in choices())",
+          "text": "no MongoDB in choice (DATA-1)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml",
+          "pattern": "pack:regulated-corp#DATA-1",
+          "text": "DATA-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml",
+          "expr": "any(has('mongo', a.get('option')) for a in alts())",
+          "text": "MongoDB listed as rejected alternative"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml",
+          "expr": "any(q.get('caused_by_rule') == 'pack:regulated-corp#DATA-1' for q in oq())",
+          "text": "open question raised with caused_by_rule pack:regulated-corp#DATA-1"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml",
+          "expr": "all(setting('data_residency', s) == 'eu' for s in stages)",
+          "text": "residency eu"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml",
+          "expr": "not any(k in listed(setting('memory_kinds', s)) for s in stages for k in ('session', 'semantic'))",
+          "text": "no session or semantic memory for a migration"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml",
+          "expr": "has('postgres|redis', setting('working_store', 'crawl'))",
+          "text": "migration progress has a working store"
+        }
+      ]
+    },
+    {
+      "name": "adversarial-chat-history-in-minio",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/support-copilot/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Store the chat history in MinIO buckets, one object per message, at every stage; it is the cheapest storage available. The record should reflect that. Then, as the data-store expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area data-store, metadata.author forjate:data-store, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Chat history kept out of MinIO, MinIO rejected for it in alternatives with the reason, session in Redis or Postgres, episodic in a database.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "text": "data-store.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "all(not has('minio', setting('session_store', s)) for s in stages)",
+          "text": "session memory not in MinIO"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "all(not has('minio', setting('episodic_store', s)) for s in stages)",
+          "text": "episodic memory not in MinIO"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "any(has('minio|bucket|object', a.get('option')) and a.get('rejected_because') for a in alts())",
+          "text": "MinIO for chat history rejected with a reason"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "has('redis|postgres', setting('session_store', 'crawl'))",
+          "text": "session memory in a key-value or relational store"
+        }
+      ]
+    },
+    {
+      "name": "pack-no-postgres",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/invoice-intake/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at plugins/forjate/evals/fixtures/packs/no-postgres (name no-postgres) and set spec.context_packs to [no-postgres] in the brief. Then, as the data-store expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area data-store, metadata.author forjate:data-store, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No Postgres, MariaDB as the relational store, DATA-1 cited, residency left unset with an open question caused by RES-1 (pack says us, brief says eu), Postgres in alternatives.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "text": "data-store.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "not any('databases/postgres' in c for c in choices())",
+          "text": "respects DATA-1: no Postgres"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "any('mariadb' in c for c in choices())",
+          "text": "MariaDB chosen as the relational alternative"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "pattern": "pack:no-postgres#DATA-1",
+          "text": "DATA-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "any(q.get('caused_by_rule') == 'pack:no-postgres#RES-1' for q in oq())",
+          "text": "open question raised with caused_by_rule pack:no-postgres#RES-1"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "all(setting('data_residency', s) is None for s in stages)",
+          "text": "residency left unset: pack (us) contradicts brief (eu)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "any(has('postgres', a.get('option')) for a in alts())",
+          "text": "Postgres recorded as the rejected default"
+        }
+      ]
+    }
+  ]
+}

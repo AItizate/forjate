@@ -1,0 +1,30 @@
+apiVersion: forjate.io/v0
+kind: ContextPack
+metadata:
+  name: solo-dev
+  version: 1.0.0
+  scope: user
+  precedence: 70
+  description: Example user pack for a solo developer on a home lab. Copy and adapt.
+spec:
+  applies_to: ["*"]
+  language: en
+  sources:
+    - id: COST-1
+      kind: constraint
+      path: constraints.yaml#/rules/COST-1
+      enforce: must
+      applies_to: [business, devops, ai-engineering]
+      summary: Keep every stage under a small monthly budget.
+    - id: SEC-1
+      kind: constraint
+      path: constraints.yaml#/rules/SEC-1
+      enforce: should
+      applies_to: [security, devops]
+      summary: Baseline PSA is enough on a single-node lab.
+    - id: PREF-1
+      kind: constraint
+      path: constraints.yaml#/rules/PREF-1
+      enforce: should
+      applies_to: [ai-engineering]
+      summary: Prefer local models.

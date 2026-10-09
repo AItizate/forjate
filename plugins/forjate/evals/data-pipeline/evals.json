@@ -1,0 +1,353 @@
+{
+  "skill_name": "data-pipeline",
+  "evals": [
+    {
+      "name": "regulated-invoice-intake",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/invoice-intake/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the data-pipeline expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area data-pipeline, metadata.author forjate:data-pipeline, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Batch Crawl with Docling, poll at Walk for the mailbox, no broker at Crawl, idempotency key from mail UID/attachment hash or invoice number, synthetic or anonymised seed that includes mismatches, verify assertions incl. a second run, dead letters owned, verify-job gate.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "text": "data-pipeline.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "setting('ingestion_pattern', 'crawl') == 'batch'",
+          "text": "Crawl is a batch"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "any('docling' in c for c in choices('crawl'))",
+          "text": "Docling parses the PDFs at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "setting('ingestion_pattern', 'walk') in ('poll', 'webhook')",
+          "text": "live ingestion arrives at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "setting('broker', 'crawl') in ('none', None)",
+          "text": "no broker at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "has('invoice|uid|hash|supplier|message', setting('idempotency_key', 'crawl'))",
+          "text": "idempotency key derived from the source"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "setting('seed_strategy', 'crawl') in ('synthetic', 'anonymised-copy')",
+          "text": "seed strategy fit for financial data"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "has('mismatch|exception|missing|duplicate', setting('seed_size', 'crawl'))",
+          "text": "seed represents the exceptions"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "len(listed(setting('verify_assertions', 'crawl'))) >= 3",
+          "text": "at least three verify assertions"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "any(has('twice|duplicate|idempot|second run|re-run|rerun', a) for a in listed(setting('verify_assertions', 'crawl')))",
+          "text": "verify checks idempotency (second run)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "setting('dead_letter', 'crawl') is not None",
+          "text": "dead letters have a place and an owner"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "any(((g.get('check') or {}).get('type')) == 'verify-job' for g in gates('crawl'))",
+          "text": "Crawl gate is the verify Job"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "not any('debezium' in c for c in choices())",
+          "text": "no CDC for a document intake"
+        }
+      ]
+    },
+    {
+      "name": "chat-copilot-no-packs",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/support-copilot/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the data-pipeline expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area data-pipeline, metadata.author forjate:data-pipeline, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Recorded replay seed at Crawl, webhook or poll at Walk, no document parser, message id as idempotency key, landing zones by memory kind, verify checks escalations carry context.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
+          "text": "data-pipeline.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
+          "expr": "setting('seed_strategy', 'crawl') == 'recorded-replay'",
+          "text": "Crawl replays recorded conversations"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
+          "expr": "setting('ingestion_pattern', 'crawl') == 'batch'",
+          "text": "Crawl is a batch replay"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
+          "expr": "setting('ingestion_pattern', 'walk') in ('webhook', 'poll')",
+          "text": "live channel ingestion at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
+          "expr": "all(setting('document_parser', s) in ('none', None) for s in stages) and not any('docling' in c for c in choices())",
+          "text": "no document parser for chat"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
+          "expr": "has('message|update|telegram', setting('idempotency_key', 'crawl'))",
+          "text": "idempotency key is the channel message id"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
+          "expr": "any(has('session|working|episodic', z) for s in stages for z in listed(setting('landing_zones', s)))",
+          "text": "landing zones named by memory kind"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
+          "expr": "any(has('escalat', a) for a in listed(setting('verify_assertions', 'crawl')))",
+          "text": "verify checks escalations"
+        }
+      ]
+    },
+    {
+      "name": "migration-regulated",
+      "prompt": "Set up k8s/overlays/usecases/db-migration-a-to-b/.builder/ by copying plugins/forjate/evals/fixtures/briefs/db-migration-a-to-b.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/db-migration-a-to-b.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/db-migration-a-to-b/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the data-pipeline expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area data-pipeline, metadata.author forjate:data-pipeline, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Batch at both stages, no CDC, no broker, one-off schedule, primary-key idempotency, checkpointed replay, synthetic or anonymised seed for PII, verify by row counts and sample, CDC rejected in alternatives, contract untouched.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "text": "data-pipeline.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "text": "existing contract untouched"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "all(setting('ingestion_pattern', s) == 'batch' for s in stages)",
+          "text": "batch at every stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "not any('debezium' in c or 'brokers/' in c for c in choices()) and all(setting('broker', s) in ('none', None) for s in stages)",
+          "text": "no CDC and no broker"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "has('primary|key|id', setting('idempotency_key', 'crawl'))",
+          "text": "idempotency by primary key"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "has('checkpoint|range|upsert|resume|watermark', setting('replay', 'crawl'))",
+          "text": "replay is checkpointed or upsert-based"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "setting('seed_strategy', 'crawl') in ('synthetic', 'anonymised-copy')",
+          "text": "seed fit for PII under a regulated pack"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "any(has('count|sample|mismatch', a) for a in listed(setting('verify_assertions', 'crawl')))",
+          "text": "verify by row counts and sample"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "any(has('cdc|debezium|stream', a.get('option')) for a in alts())",
+          "text": "CDC considered and rejected"
+        }
+      ]
+    },
+    {
+      "name": "adversarial-cdc-at-crawl",
+      "prompt": "Set up k8s/overlays/usecases/db-migration-a-to-b/.builder/ by copying plugins/forjate/evals/fixtures/briefs/db-migration-a-to-b.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/db-migration-a-to-b.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/db-migration-a-to-b/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. The data engineer wants this done as streaming CDC with Debezium from the legacy Postgres through RabbitMQ at every stage, Crawl included; the record should reflect that. Then, as the data-pipeline expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area data-pipeline, metadata.author forjate:data-pipeline, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Crawl stays a batch with no connector and no broker, CDC rejected in alternatives with a reason (one-off, Walk+ in catalog, logical decoding on a source they do not operate).",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "text": "data-pipeline.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "setting('ingestion_pattern', 'crawl') == 'batch' and not any('debezium' in c or 'brokers/' in c for c in choices('crawl'))",
+          "text": "Crawl stays a batch without CDC or broker"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "any(has('cdc|debezium|stream', a.get('option')) and a.get('rejected_because') for a in alts())",
+          "text": "CDC rejected with a reason"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "any(has('cdc|debezium|stream', a.get('option')) and has('one-off|once|walk|crawl|logical|replica|overkill|batch', a.get('rejected_because')) for a in alts())",
+          "text": "rejection reason is substantive"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
+          "expr": "all(setting('cdc_connector', s) in ('none', None) for s in stages)",
+          "text": "no CDC connector at any stage"
+        }
+      ]
+    },
+    {
+      "name": "pack-no-docling",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/invoice-intake/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at plugins/forjate/evals/fixtures/packs/no-docling (name no-docling) and set spec.context_packs to [no-docling] in the brief. Then, as the data-pipeline expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area data-pipeline, metadata.author forjate:data-pipeline, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No Docling, parsing declared blocked with the fallback for native PDFs and an open question caused by PIPE-1; RabbitMQ required from Walk by PIPE-2 and cited; broker rabbitmq at Walk.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "text": "data-pipeline.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "not any('docling' in c for c in choices()) and all(setting('document_parser', s) in ('none', None) for s in stages)",
+          "text": "respects PIPE-1: no Docling"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "pattern": "pack:no-docling#PIPE-1",
+          "text": "PIPE-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "any(q.get('caused_by_rule') == 'pack:no-docling#PIPE-1' for q in oq())",
+          "text": "open question raised with caused_by_rule pack:no-docling#PIPE-1"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "any('rabbitmq' in c for c in choices('walk')) and setting('broker', 'walk') == 'rabbitmq'",
+          "text": "RabbitMQ at Walk (PIPE-2)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "pattern": "pack:no-docling#PIPE-2",
+          "text": "PIPE-2 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "expr": "any(has('text layer|scan|ocr|native pdf|block', st(s).get('rationale')) for s in stages)",
+          "text": "rationale names what parsing is possible without Docling"
+        }
+      ]
+    }
+  ]
+}

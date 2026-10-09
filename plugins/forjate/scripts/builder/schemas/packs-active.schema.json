@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AItizate/forjate/plugins/forjate/scripts/builder/schemas/packs-active.schema.json",
+  "title": "ActivePacks",
+  "description": ".builder/packs.yaml — which context packs are active for a use case and where they come from.",
+  "type": "object",
+  "required": ["apiVersion", "kind", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "forjate.io/v0" },
+    "kind": { "const": "ActivePacks" },
+    "spec": {
+      "type": "object",
+      "required": ["packs"],
+      "additionalProperties": false,
+      "properties": {
+        "packs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "source"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "$ref": "_defs.schema.json#/$defs/name" },
+              "source": {
+                "type": "string",
+                "description": "Local directory (repo-relative or absolute) or a git URL with ?ref=, same syntax as remote components."
+              },
+              "ref": { "type": "string", "description": "Pinned git ref when source is remote." }
+            }
+          }
+        }
+      }
+    }
+  }
+}

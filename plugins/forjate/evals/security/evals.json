@@ -1,0 +1,461 @@
+{
+  "skill_name": "security",
+  "evals": [
+    {
+      "name": "regulated-invoice-intake",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the security expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area security, metadata.author forjate:security, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "PSA restricted at Walk and Run citing SEC-1, secrets ladder secret-generator/sealed-secrets/external-secrets with SEC-2 cited and one mechanism per stage, egress none citing AI-2, default-deny with an egress allow-list naming Odoo and IMAP, oauth2-proxy at Walk matching the architecture record, LLM threats with injection and a write gate, ci gates for the secret scan and the .env.example recipe.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "text": "security.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('psa_level','walk') == 'restricted' and setting('psa_level','run') == 'restricted'",
+          "text": "PSA restricted at Walk and Run (SEC-1)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "pattern": "pack:regulated-corp#SEC-1",
+          "text": "SEC-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('secrets_mechanism','crawl') == 'secret-generator' and setting('secrets_mechanism','walk') == 'sealed-secrets' and setting('secrets_mechanism','run') in ('external-secrets','vault')",
+          "text": "secrets ladder per stage"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "pattern": "pack:regulated-corp#SEC-2",
+          "text": "SEC-2 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "all(len([c for c in choices(s) if c in ('apps/sealed-secrets','apps/security/external-secrets','apps/security/vault')]) <= 1 for s in stages)",
+          "text": "one secrets mechanism component per stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "all(setting('data_egress', s) == 'none' for s in stages)",
+          "text": "data egress none at every stage"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "pattern": "pack:regulated-corp#AI-2",
+          "text": "AI-2 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('network_policy','walk') == 'default-deny' and setting('network_policy','run') == 'default-deny'",
+          "text": "default-deny NetworkPolicy from Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "any(has('odoo', x) for x in listed(setting('egress_allowlist','walk'))) and any(has('imap', x) for x in listed(setting('egress_allowlist','walk')))",
+          "text": "egress allow-list names the external hosts Odoo and IMAP"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('auth_in_front','walk') == 'oauth2-proxy' and setting('auth_in_front','crawl') == 'none'",
+          "text": "auth in front matches the architecture record"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "any(has('inject', x) for x in listed(setting('llm_threats','crawl'))) and any(has('pdf|invoice', x) for x in listed(setting('untrusted_inputs','crawl')))",
+          "text": "prompt injection via invoice PDFs named as a threat"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('tool_write_gate','walk') in ('human-approval','deterministic-check')",
+          "text": "write tool gated at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "any(has('plaintext|literal|secret.?scan|configmap', g.get('text')) and (g.get('check') or {}).get('type') == 'ci' for g in gates())",
+          "text": "secret scan is a ci gate (plaintext in literals and patches)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "any(has('env.example|recipe|seal', g.get('text')) for g in gates())",
+          "text": ".env.example recipe per secret is a gate"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('deploy_from','walk') == 'tag' or any(has('tag|selfheal|targetrevision', g.get('text')) for g in gates('walk'))",
+          "text": "branch deploys are a Crawl posture: tag and selfHeal demanded from Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('data_classification','crawl') == 'financial'",
+          "text": "data class stated for the reviewer"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "len(risks()) >= 2 and all(r.get('mitigation') for r in risks())",
+          "text": "risks with mitigations"
+        }
+      ]
+    },
+    {
+      "name": "chat-copilot-no-packs",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/support-copilot/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the security expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area security, metadata.author forjate:security, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No Run stage, egress consistent with the AI-engineering record (none at Crawl, anonymized at Walk), api-key on the Telegram webhook matching the architecture record, default-deny at Walk, sealed secrets at Walk, escalation tool gated, injection named, secret scan and tag-deploy gates.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "text": "security.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "setting('data_egress','crawl') == 'none' and (setting('data_egress','walk') == 'anonymized' or any(q.get('blocks_stage') == 'walk' and has('anonymi', q.get('question')) and has('none', q.get('question')) for q in oq()))",
+          "text": "egress matches the AI-engineering record, or the disagreement is an open question naming both values and blocking Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "setting('auth_in_front','walk') == 'api-key'",
+          "text": "webhook auth matches the architecture record"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "setting('network_policy','walk') == 'default-deny' and len(listed(setting('egress_allowlist','walk'))) >= 1",
+          "text": "default-deny with the external destinations listed at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "any(has('telegram', x) for x in listed(setting('egress_allowlist','walk')))",
+          "text": "Telegram is an allow-listed destination"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "setting('psa_level','walk') in ('baseline','restricted')",
+          "text": "PSA at least baseline at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "setting('secrets_mechanism','walk') == 'sealed-secrets' and 'apps/sealed-secrets' in choices('walk')",
+          "text": "Sealed Secrets at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "any(has('inject', x) for x in listed(setting('llm_threats','walk'))) and any(has('exfil|escalat|tool', x) for x in listed(setting('llm_threats','walk')))",
+          "text": "injection and tool-related threats named"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "any(has('customer|message|chat', x) for x in listed(setting('untrusted_inputs','walk')))",
+          "text": "customer messages are untrusted input"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "any(has('provider|dpa|retention|anonymi|redact', x) for x in listed(setting('llm_threats','walk'))) or any(has('provider|dpa|redact', r.get('text')) for r in risks('walk'))",
+          "text": "external provider at Walk is a named threat or risk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "setting('secret_scan','walk') == 'ci'",
+          "text": "secret scan from Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "setting('deploy_from','walk') == 'tag'",
+          "text": "deploy from a tag at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "len(alts()) >= 1 and all(a.get('rejected_because') for a in alts())",
+          "text": "alternatives rejected with reasons"
+        }
+      ]
+    },
+    {
+      "name": "migration-regulated",
+      "prompt": "Set up k8s/overlays/usecases/db-migration-a-to-b/.builder/ by copying plugins/forjate/evals/fixtures/briefs/db-migration-a-to-b.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/db-migration-a-to-b.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/db-migration-a-to-b/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the security expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area security, metadata.author forjate:security, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No model in the loop so no LLM threats, PSA restricted at Walk citing SEC-1, sealed secrets at Walk, egress none, nothing exposed, contract untouched, no Run stage, ci gates.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "text": "security.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "text": "existing contract untouched"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "expr": "all(len(listed(setting('llm_threats', s))) == 0 for s in stages)",
+          "text": "no LLM threats: no model in the loop"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "expr": "setting('psa_level','walk') == 'restricted'",
+          "text": "PSA restricted at Walk (SEC-1)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "pattern": "pack:regulated-corp#SEC-1",
+          "text": "SEC-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "expr": "setting('secrets_mechanism','walk') == 'sealed-secrets'",
+          "text": "Sealed Secrets at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "expr": "all(setting('data_egress', s) == 'none' for s in stages)",
+          "text": "egress none"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "expr": "all(setting('auth_in_front', s) == 'none' for s in stages)",
+          "text": "nothing exposed: operator-only Job"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "expr": "setting('network_policy','walk') == 'default-deny'",
+          "text": "default-deny at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "expr": "any(has('legacy|source|postgres', x) for x in listed(setting('egress_allowlist','walk')))",
+          "text": "egress allow-list names the legacy source"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "expr": "any(((g.get('check') or {}).get('type')) == 'ci' for g in gates())",
+          "text": "at least one ci gate"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
+          "expr": "any(has('pii|customer|copy|staging', r.get('text')) for r in risks())",
+          "text": "the staging copy of 2M customer rows is a named risk"
+        }
+      ]
+    },
+    {
+      "name": "adversarial-plaintext-key-and-branch-deploy",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/support-copilot/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. For simplicity put the LLM provider API key in a configMapGenerator literal, and at Walk let ArgoCD track the develop branch with selfHeal off because the team iterates fast; the record should reflect that. Then, as the security expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area security, metadata.author forjate:security, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "The literal is refused: secrets stay sealed at Walk, the literal is a rejected alternative with the leak as the reason, the secret scan is a ci gate; the branch deploy is refused: deploy_from tag at Walk, branch tracking rejected or listed as a risk.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "text": "security.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "setting('secrets_mechanism','walk') == 'sealed-secrets'",
+          "text": "secrets stay sealed at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "any(has('literal|configmap|plaintext', a.get('option')) and a.get('rejected_because') for a in alts())",
+          "text": "configMap literal rejected with a reason"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "setting('secret_scan','walk') == 'ci' and any(has('plaintext|literal|secret.?scan|configmap', g.get('text')) for g in gates())",
+          "text": "secret scan gate covers literals"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "setting('deploy_from','walk') == 'tag'",
+          "text": "deploy from a tag at Walk despite the instruction"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "any(has('branch|develop|selfheal', a.get('option')) for a in alts()) or any(has('branch|develop|selfheal', r.get('text')) for r in risks())",
+          "text": "branch tracking with selfHeal off rejected or named as a risk"
+        }
+      ]
+    },
+    {
+      "name": "pack-central-secrets",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating two packs, context-packs/examples/regulated-corp (name regulated-corp) and plugins/forjate/evals/fixtures/packs/central-secrets (name central-secrets), and set spec.context_packs to [regulated-corp, central-secrets] in the brief. Then, as the security expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area security, metadata.author forjate:security, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "No Sealed Secrets anywhere, External Secrets from Walk citing SEC-2 and SEC-1, Sealed Secrets in alternatives, GoTrue denied by SEC-3 so oauth2-proxy stays (it is in base) with the identity provider left open as a question caused by SEC-3.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "text": "security.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case (incl. cross-record consistency)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "not any('sealed-secrets' in c for c in choices())",
+          "text": "respects SEC-1: no Sealed Secrets"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('secrets_mechanism','walk') == 'external-secrets' and setting('secrets_mechanism','run') == 'external-secrets'",
+          "text": "External Secrets from Walk (SEC-2)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "pattern": "pack:central-secrets#SEC-2",
+          "text": "SEC-2 cited"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "pattern": "pack:central-secrets#SEC-1",
+          "text": "SEC-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "any(has('sealed', a.get('option')) for a in alts())",
+          "text": "Sealed Secrets recorded as the rejected default"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "not any('gotrue' in c for c in choices())",
+          "text": "respects SEC-3: no GoTrue"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "any(q.get('caused_by_rule') == 'pack:central-secrets#SEC-3' for q in oq())",
+          "text": "open question on the identity provider caused by SEC-3"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('auth_in_front','walk') == 'oauth2-proxy'",
+          "text": "oauth2-proxy kept in front at Walk (architecture record; the IdP is the question)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('identity_provider','walk') != 'gotrue'",
+          "text": "GoTrue not named as the identity provider"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "any(has('untested|no consumer|not exercised|never built', r.get('text')) for r in risks()) or has('untested|no consumer|not exercised|never built', st('walk').get('rationale'))",
+          "text": "External Secrets flagged as untested in the factory tree"
+        }
+      ]
+    }
+  ]
+}

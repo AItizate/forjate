@@ -1,0 +1,50 @@
+{
+  "skill_name": "coordinator",
+  "evals": [
+    {
+      "name": "cold-start-with-answers",
+      "prompt": "Quiero automatizar esto en este repo usando el use-case builder de Forjate: los proveedores mandan facturas en PDF a una casilla compartida, hoy una persona tipea proveedor, monto, fecha y número de orden de compra en el ERP (Odoo) y marca las que no coinciden con la orden. Quiero que lo haga un agente y que una persona apruebe solo las excepciones. No me hagas preguntas, estas son las respuestas: documentos en español; sin context packs; la métrica es el porcentaje de facturas posteadas sin tipeo manual, hoy 0%, objetivo 80%; los datos son financieros y hay números de cuenta bancaria, deben quedar en la UE y no pueden salir a un proveedor de modelos externo; aprueba el CFO; presupuesto 300 USD por mes; ambiente regulado; quiero llegar a producción. Dejá todo bajo k8s/overlays/usecases/<nombre>/.builder/ validado con plugins/forjate/scripts/builder/validate.py y terminá con el reporte de revisión.",
+      "expected_output": "brief.yaml (language es, classification financial, regulated, llm_egress_allowed false, stages crawl+walk+run), packs.yaml empty, stage-plan.yaml produced by the planner, log.md, report printed listing experts not yet available.",
+      "assertions": [
+        { "type": "file_exists", "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml", "text": "brief written under a derived name (invoice-intake)" },
+        { "type": "schema_valid", "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml", "schema": "brief", "text": "brief validates" },
+        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml", "query": ".spec.language", "equals": "es", "text": "language recorded as es" },
+        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml", "query": ".spec.data.classification", "equals": "financial", "text": "classification financial" },
+        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml", "query": ".spec.constraints.llm_egress_allowed", "equals": "false", "text": "no LLM egress recorded" },
+        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml", "query": ".spec.constraints.regulated", "equals": "true", "text": "regulated recorded" },
+        { "type": "yaml_path", "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml", "query": ".spec.stages_requested | length", "equals": "3", "text": "three stages requested" },
+        { "type": "file_exists", "path": "k8s/overlays/usecases/invoice-intake/.builder/packs.yaml", "text": "packs.yaml written" },
+        { "type": "schema_valid", "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml", "schema": "stage-plan", "text": "stage plan produced and valid" },
+        { "type": "usecase_valid", "path": "k8s/overlays/usecases/invoice-intake", "text": "validate.py passes on the use case" },
+        { "type": "file_exists", "path": "k8s/overlays/usecases/invoice-intake/.builder/log.md", "text": "log.md written" },
+        { "type": "file_absent", "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml", "text": "no expert record fabricated (no expert agents exist yet)" }
+      ]
+    },
+    {
+      "name": "resume-does-not-reinterview",
+      "prompt": "Copy the directory plugins/forjate/scripts/builder/tests/fixtures/db-migration-a-to-b/.builder into k8s/overlays/usecases/db-migration-a-to-b/.builder (it has a brief, packs, a stage plan and one decision record). Then resume the Forjate use-case builder for the use case db-migration-a-to-b: continue from where it is, do not ask questions, do not rewrite artifacts that already validate, and end with the review report.",
+      "expected_output": "brief, stage-plan and decisions/data-store.yaml untouched; log.md appended; report lists the experts without a record under 'Not yet available'; no new decision records fabricated.",
+      "assertions": [
+        { "type": "usecase_valid", "path": "k8s/overlays/usecases/db-migration-a-to-b", "text": "use case still validates" },
+        { "type": "yaml_path", "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml", "query": ".metadata.version", "equals": "1", "text": "existing stage plan kept (version 1)" },
+        { "type": "yaml_path", "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/brief.yaml", "query": ".spec.success.target", "equals": "100% with 0 mismatches on a 1% sample", "text": "brief content preserved" },
+        { "type": "yaml_path", "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml", "query": ".metadata.version", "equals": "1", "text": "existing decision record kept" },
+        { "type": "file_exists", "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/log.md", "text": "log.md exists after resume" },
+        { "type": "file_absent", "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/business.yaml", "text": "no business record fabricated" },
+        { "type": "file_absent", "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml", "text": "no security record fabricated" }
+      ]
+    },
+    {
+      "name": "vague-prompt-records-assumptions",
+      "prompt": "Use the Forjate use-case builder in this repo to set up a use case for: 'we get a lot of support emails and want AI to help'. Nobody is available to answer questions, so proceed on your own and leave everything under k8s/overlays/usecases/<name>/.builder/, validated with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "A valid brief whose constraints.notes carries ASSUMED: lines for language, packs, classification (pii), egress, stages; stage plan produced; no fabricated expert records.",
+      "assertions": [
+        { "type": "grep", "path": "k8s/overlays/usecases", "pattern": "ASSUMED:", "text": "assumptions recorded explicitly in the brief" },
+        { "type": "grep", "path": "k8s/overlays/usecases", "pattern": "classification:\\s*pii", "text": "support emails classified as pii (conservative)" },
+        { "type": "grep", "path": "k8s/overlays/usecases", "pattern": "kind:\\s*StagePlan", "text": "stage plan produced" },
+        { "type": "grep", "path": "k8s/overlays/usecases", "pattern": "kind:\\s*UseCaseBrief", "text": "brief produced" },
+        { "type": "not_grep", "path": "k8s/overlays/usecases", "pattern": "kind:\\s*Decision", "text": "no expert decision fabricated" }
+      ]
+    }
+  ]
+}

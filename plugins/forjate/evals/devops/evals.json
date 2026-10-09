@@ -139,8 +139,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
-          "expr": "any(has('pin|ref|rotation|restore|rollback|revision', g.get('text')) and (g.get('check') or {}).get('type') == 'ci' for g in gates())",
-          "text": "operational rehearsals and pinning as ci gates"
+          "expr": "any(has('pin|ref|revision|stage', g.get('text')) and (g.get('check') or {}).get('type') == 'ci' for g in gates()) and any(has('rotation|restore|rollback|key', g.get('text')) and (g.get('check') or {}).get('type') == 'manual' for g in gates())",
+          "text": "pinning as ci gates, rehearsals as manual gates"
         },
         {
           "type": "yaml_expr",

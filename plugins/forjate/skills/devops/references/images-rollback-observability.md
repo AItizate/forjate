@@ -22,10 +22,10 @@ Requirements the record states: the image is declared in an `images:` block (not
 | Stage | `secret_rotation` | What exists |
 |-------|-------------------|-------------|
 | Crawl | `none` | the environment dies with its TTL |
-| Walk | `scripted` | `scripts/rotate-secrets.sh <overlay>`: for every `secrets/*.env.example`, regenerate values per the header's `# To generate:` line, re-seal per `# To seal:`, commit the new `sealed-*.yaml`; `apps/monitoring/reloader` restarts consumers on Secret change; rehearsed once before Run (`G-OPS-<n>`, `ci`, `rotation-rehearsal`) |
+| Walk | `scripted` | `scripts/rotate-secrets.sh <overlay>`: for every `secrets/*.env.example`, regenerate values per the header's `# To generate:` line, re-seal per `# To seal:`, commit the new `sealed-*.yaml`; `apps/monitoring/reloader` restarts consumers on Secret change; rehearsed once before Run (`G-OPS-<n>`, `manual`, `rotation-rehearsal`, operator named) |
 | Run | `store-managed` | rotation in the external store; External Secrets `refreshInterval` picks it up; the same rehearsal gate |
 
-Before the first real secret is sealed at Walk: the sealed-secrets controller key is backed up offsite (`kubectl get secret -n kube-system -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml`, encrypted, outside the cluster). A cluster rebuild without it loses every secret in git. `G-OPS-<n>` with `ci` ref `controller-key-backup`, verified by restoring the key into a scratch cluster.
+Before the first real secret is sealed at Walk: the sealed-secrets controller key is backed up offsite (`kubectl get secret -n kube-system -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml`, encrypted, outside the cluster). A cluster rebuild without it loses every secret in git. `G-OPS-<n>`, `manual`, ref `controller-key-backup`, operator named; verified by restoring the key into a scratch cluster.
 
 ## Backup and restore
 
@@ -34,7 +34,7 @@ Before the first real secret is sealed at Walk: the sealed-secrets controller ke
 | `backup` | Operation | Rehearsal gate |
 |----------|-----------|----------------|
 | `none` (Crawl) | the seed Job recreates everything | n/a |
-| `snapshot+dump` (Walk) | Longhorn recurring snapshots on the PVCs plus a nightly CronJob: `pg_dump` to a MinIO bucket on another node, Redis RDB, `mc mirror` for buckets | restore into a scratch namespace, row counts compared (`restore-rehearsal`, `ci`); `restore_rehearsed: false` until done |
+| `snapshot+dump` (Walk) | Longhorn recurring snapshots on the PVCs plus a nightly CronJob: `pg_dump` to a MinIO bucket on another node, Redis RDB, `mc mirror` for buckets | restore into a scratch namespace, row counts compared (`restore-rehearsal`, `manual`, operator named); `restore_rehearsed: false` until done |
 | `velero+pitr` (Run) | Velero to an offsite target within residency, Postgres operator with WAL archiving for point-in-time recovery, MinIO Tenant versioning | the same rehearsal, from the offsite target |
 
 Velero is not a catalog component (issue #6 in `docs/lab-to-production.md`). The record keeps the target the data-store set, names the gap and raises the open question (offsite target within residency, who operates it); it never lists `apps/backup/velero` in `choice`.
@@ -48,7 +48,7 @@ Velero is not a catalog component (issue #6 in `docs/lab-to-production.md`). The
 3. `argocd app sync uc-<name>-<stage>` and watch the canary verify Job and the KPI metric.
 4. If data changed shape, this is the restore gate, not a rollback; say so.
 
-`rollback_rehearsed: false` until done once on Walk (`G-OPS-<n>`, `ci`, `rollback-rehearsal`). Image-only rollback is a write-back with the previous SHA.
+`rollback_rehearsed: false` until done once on Walk (`G-OPS-<n>`, `manual`, `rollback-rehearsal`, operator named). Image-only rollback is a write-back with the previous SHA.
 
 ## Observability baseline
 

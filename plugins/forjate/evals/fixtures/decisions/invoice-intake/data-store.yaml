@@ -41,7 +41,7 @@ spec:
       rationale: Same split on Longhorn PVCs; nightly pg_dump and bucket mirror to a second node; the audit copy of invoices and decisions is retained for the legal period the compliance expert sets.
       constrained_by: ["pack:regulated-corp#RES-1"]
       gate_to_next:
-        - { id: G-DS-2, text: restore of Postgres and the audit bucket rehearsed from the last backup into a scratch namespace with row and object counts verified, owner: data-store, check: { type: ci, ref: restore-rehearsal } }
+        - { id: G-DS-2, text: restore of Postgres and the audit bucket rehearsed from the last backup into a scratch namespace with row and object counts verified, owner: data-store, check: { type: manual, ref: restore-rehearsal } }
     run:
       choice: [apps/databases/postgres, apps/minio/single-server]
       settings:

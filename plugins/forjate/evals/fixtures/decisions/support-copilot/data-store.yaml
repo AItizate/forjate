@@ -36,5 +36,5 @@ spec:
         systems_of_record: [orders API]
       rationale: Redis for the live conversation, Postgres for escalations and conversation summaries by customer id; the orders API stays the system of record.
       gate_to_next:
-        - { id: G-DS-2, text: restore of Postgres rehearsed into a scratch namespace with row counts verified, owner: data-store, check: { type: ci, ref: restore-rehearsal } }
+        - { id: G-DS-2, text: restore of Postgres rehearsed into a scratch namespace with row counts verified, owner: data-store, check: { type: manual, ref: restore-rehearsal } }
   references: [docs/storage-strategy.md]

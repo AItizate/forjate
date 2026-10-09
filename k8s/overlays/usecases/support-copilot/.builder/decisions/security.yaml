@@ -1,0 +1,154 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: security, usecase: support-copilot, author: "forjate:security", version: 1, language: en }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        data_classification: pii
+        secrets_mechanism: secret-generator
+        env_example_per_secret: true
+        secret_scan: none
+        psa_level: privileged
+        network_policy: none
+        egress_allowlist: []
+        egress_matrix: none
+        security_context: restricted-compatible
+        auth_in_front: none
+        identity_provider: none
+        data_egress: none
+        audit_trail: none
+        audit_log_content: data-class-not-payload
+        untrusted_inputs: [customer messages]
+        llm_threats:
+          - "prompt injection via replayed customer messages: the conversation is delimited as data and instructions inside it are ignored by policy; an injection subset of the 40 recorded conversations asserts no escalation is suppressed and no order field outside the allowed list is emitted (ai-engineering, quality)"
+          - "excessive agency on escalate: escalate is the only write tool and it writes an escalation record, never the orders API; a deterministic rule (refund, cancellation, anger, two unresolved turns) decides it, so the model cannot suppress an escalation it should raise (ai-engineering)"
+          - "model egress: data_egress none because the replay set carries real names and order ids; Ollama in-cluster is the only inference path and the namespace has no external egress to lose it through (ai-engineering)"
+          - "secret leakage into context: the orders stub token and the Postgres DSN reach the agent as env handles, never in the system prompt or a tool result, and logs carry the data class not the message body (ai-engineering, app-scaffold)"
+          - "hallucinated order facts: structured output is validated against the allowed-field list and the order id in every answer is compared to the stub record by the verify Job, not by the model (ai-engineering, quality)"
+        tool_write_gate: deterministic-check
+        image_policy: any
+        deploy_from: branch
+      rationale: >-
+        No packs are active, so the factory defaults apply. Crawl is a replay against a stub of the
+        orders API inside an ephemeral k3d environment with a TTL, so secretGenerator from gitignored
+        .env files is enough and the placeholder values are disposable; the committed .env.examples
+        for the orders stub token, the Postgres credentials and the Telegram bot token (unused at
+        Crawl, present so the file travels) carry the generate and seal commands already, so Walk
+        only re-seals them. PSA stays privileged because k3d's default is, but the namespace is
+        labelled warn and audit at restricted and the three custom workloads (agent-api, replay-job,
+        verify-job) plus the seed Job are generated restricted-compatible now, which is free here and
+        expensive to retrofit at Walk; readOnlyRootFilesystem needs an emptyDir for /tmp and the model
+        client's cache, so the scaffolder mounts one. network_policy is none and the allow-list is
+        empty by consequence, not by permission: the replay set never leaves the cluster, Ollama runs
+        in-cluster and the orders API is a stub, so data_egress is none even though the brief allows
+        egress. The data is pii, which is why nothing external is reachable at this stage rather than
+        the other way round. The agent reads the orders stub and writes only escalation records, so
+        no tool touches a system of record and deterministic-check is the write gate; the escalation
+        rule is code, not a model judgement, so an injected "do not escalate" cannot win.
+      alternatives:
+        - { option: sealed-secrets at Crawl, rejected_because: "the environment dies with its TTL and the controller key would have to be backed up before any real secret existed; the ladder puts the move at Walk and the .env.example headers make it a one-command step" }
+        - { option: PSA baseline enforce at Crawl, rejected_because: "k3d ships privileged and the catalog Postgres is not proven restricted here; warn and audit at restricted surfaces every violation in the PoC without blocking the replay, and the use case's own workloads are already compliant" }
+        - { option: default-deny NetworkPolicy at Crawl, rejected_because: "nothing external is reachable and the ephemeral runner needs to talk to the services it just created; the policy would be written and never exercised, so it lands at Walk where there is real traffic to deny" }
+      risks:
+        - { id: R1, text: "the replay set is recorded real conversations, so it carries customer names, phone numbers and order ids in a PoC namespace with no NetworkPolicy and a 4h retention that nothing enforces yet.", mitigation: "the seed Job loads the replay set from a gitignored file (never committed, covered by the secret scan patterns for *.env and plaintext blobs), the environment has a TTL, and the data-store record's 4h session and episodic retention is asserted by the verify Job before G-SEC-1 passes.", severity: medium }
+        - { id: R2, text: "the orders stub is permissive by design, so a prompt-injection success at Crawl looks harmless and the finding gets closed as a stub artefact instead of a real over-reach.", mitigation: "the stub returns the same field set and the same errors as the real API, and the injection assertions check the emitted answer against the allowed-field list rather than the stub's behaviour.", severity: low }
+        - { id: R3, text: "the Postgres catalog component ships a placeholder postgres-secret and cannot be assumed to run under restricted, so it is the one workload the warn/audit labels will flag.", mitigation: "recorded as an expected exception, not a reason to drop the labels; at Walk the placeholder is deleted and replaced by a SealedSecret of the same name and the component keeps its own security context in the use case's namespace.", severity: low }
+      gate_to_next:
+        - { id: G-SEC-1, text: "every secret the overlay consumes has a committed .env.example at the same path with the generate and seal commands in its header, and no .env file is tracked", owner: security, check: { type: ci, ref: env-example-check } }
+        - { id: G-SEC-2, text: "the injection subset of the replay set produces no suppressed escalation and no order field outside the allowed list, and the agent makes no connection outside the namespace during the run", owner: security, check: { type: verify-job, ref: copilot-validate } }
+        - { id: G-SEC-3, text: "agent-api, replay-job, seed-job and verify-job run with runAsNonRoot, seccompProfile RuntimeDefault, allowPrivilegeEscalation false, readOnlyRootFilesystem and capabilities drop ALL, so the restricted audit shows only the Postgres exception", owner: security, check: { type: ci, ref: psa-check } }
+      estimated_cost_usd_month: 0
+    walk:
+      choice: [apps/sealed-secrets]
+      settings:
+        data_classification: pii
+        secrets_mechanism: sealed-secrets
+        env_example_per_secret: true
+        secret_scan: ci
+        psa_level: baseline
+        network_policy: default-deny
+        egress_allowlist:
+          - "api.telegram.org:443                 # Telegram Bot API, agent-api only: setWebhook and sendMessage"
+          - "orders.corp.example.com:443          # orders API read-only, agent-api only (get_order, get_subscription)"
+          - "support-queue.corp.example.com:443   # escalation push, escalation-worker only"
+          - "api.anthropic.com:443                # claude-sonnet-4-5 inference, LiteLLM only; the agent has no direct route out"
+        egress_matrix: none
+        security_context: restricted-compatible
+        auth_in_front: api-key
+        identity_provider: none
+        data_egress: anonymized
+        audit_trail: app-log
+        audit_log_content: data-class-not-payload
+        untrusted_inputs: [customer messages]
+        llm_threats:
+          - "prompt injection via live Telegram messages: customer text is delimited as data, instructions inside it are ignored by policy, and the 150-conversation golden set carries an injection suite whose regression blocks the deploy (ai-engineering, quality)"
+          - "excessive agency on escalate: escalate writes an escalation record keyed by conversation id (idempotent), never the orders API; the escalation trigger is deterministic code, so refund and cancellation intents escalate even when the turn's content asks not to (ai-engineering)"
+          - "exfiltration through tools: get_order and get_subscription take an order id and a customer id validated against a schema, with no free-form URL or host parameter, and the four allow-listed hostnames are the only external destinations the NetworkPolicy permits (ai-engineering, kustomize)"
+          - "model egress of pii: LiteLLM is the only path out and redaction of names, emails and phone numbers runs before the call, so the provider sees the order id and the question, not the customer record; LiteLLM logs which model saw which data class (ai-engineering, compliance)"
+          - "over-retention by the provider: zero-retention or DPA terms confirmed in writing before real traffic, otherwise data_egress drops to none and the local model stays (compliance)"
+          - "secret leakage into context: the Telegram bot token, the webhook secret token, the orders API credential and the LiteLLM key are env handles from SealedSecrets, never in a prompt or a tool result; the app-log records the data class and the conversation id, never the message body (ai-engineering, app-scaffold)"
+          - "denial of wallet: the 6 tool calls and 20 s per turn budget from the AI-engineering record is enforced in code, with a per-conversation token ceiling and an alert when cost per 1k requests exceeds 4 USD against the 150 USD/month envelope (ai-engineering, devops)"
+          - "prompt and tool tampering: prompts and tool contracts are versioned files in the app repo, reviewed, and gated by the eval run in CI, so a prompt change cannot reach the group without the golden set passing (ai-engineering, quality)"
+          - "shared model endpoint: LiteLLM gets a key scoped to this use case and the NetworkPolicy allows only agent-api to reach it, so another namespace cannot spend this budget or read its context (kustomize, devops)"
+          - "webhook spoofing: Telegram's secret token header is verified on every request before any model call, and the tunnel exposes the webhook path only (architecture, app-scaffold)"
+        tool_write_gate: deterministic-check
+        image_policy: pinned-digest
+        deploy_from: tag
+      rationale: >-
+        Walk puts the bot in front of real customers, so the overlay becomes complete in git: Sealed
+        Secrets is the one mechanism for this stage and the Postgres, Redis, Telegram bot token,
+        webhook secret token, orders API credential and LiteLLM key placeholders are each replaced by
+        a sealed secret of the name the component mounts, with its .env.example beside it. The leak
+        that matters is not the mechanism but what sits next to it, so secret_scan is a CI gate over
+        configMapGenerator literals, configs/, patches and env values, not only secrets/. PSA is
+        baseline enforce with restricted warn and audit, which is the factory ladder and this stage's
+        honest level: Redis and Postgres from the catalog are not proven restricted, while agent-api,
+        escalation-worker and verify-job are generated restricted-compatible so the audit stream stays
+        limited to the two databases. No pack asks for min_psa_level restricted, so baseline stands.
+        default-deny ingress and egress is generated from this record, with ingress allowed only from
+        the tunnel to the webhook path and the four external destinations above; in-cluster traffic to
+        Redis, Postgres and LiteLLM is derived from the architecture record's workloads, not listed
+        here. The per-workload, per-port matrix and FQDN policies are the next step and belong to Run,
+        which the plan does not request. auth_in_front is api-key, the same value the architecture
+        record carries: Telegram is a system, not a human, and the secret token it sends is the key;
+        there is no human-facing HTTP surface because escalations land in the agents' existing queue,
+        which is why identity_provider is none rather than gotrue. data_egress is anonymized, matching
+        the AI-engineering record: the brief permits egress and the class is pii, so redaction before
+        the call is what makes the permission usable. The use case is not regulated, so app-log with
+        the data class per entry is the audit trail and CDC is not requested from the pipeline expert.
+      alternatives:
+        - { option: "external-secrets or Vault at Walk", rejected_because: "no central secret store exists for this team, neither component has a consumer in the factory tree yet, and Vault is BUSL-licensed; Sealed Secrets keeps the overlay complete in git and the move up the ladder is a devops gate if Run is ever requested" }
+        - { option: "oauth2-proxy plus gotrue in front of the agent API", rejected_because: "the only caller is the Telegram webhook, a system; oauth2-proxy would break it and protect nothing. It becomes mandatory the moment a human-facing escalation or review UI appears, which is Q2" }
+        - { option: "PSA restricted enforce at Walk", rejected_because: "it would block the catalog Redis and Postgres and the pressure would be to move them out of the namespace or lower the level for everything; warn and audit at restricted keeps the violations visible and the factory ladder puts enforce at Run" }
+        - { option: "data_egress none with the local Ollama model at Walk", rejected_because: "the AI-engineering record needs claude-sonnet-4-5 to reach 60% resolution and the brief allows egress; redaction plus provider terms is the control, and if the terms are refused this alternative is the fallback, not a rewrite" }
+        - { option: "human-approval on the escalate tool", rejected_because: "escalate is the handoff to the human, so gating it on a human is circular; it writes no system of record and is idempotent by conversation id, and the read tools cannot change anything" }
+      risks:
+        - { id: R4, text: "the sealed-secrets controller private key is the single point of loss: without an offsite backup every sealed secret in the overlay is unrecoverable after a cluster rebuild.", mitigation: "the devops record owns the gate; the key is backed up offsite and a restore is rehearsed before the first real secret is sealed, which is why G-SEC-4 blocks on it rather than on the sealing itself.", severity: high }
+        - { id: R5, text: "a plaintext credential committed beside correctly sealed secrets, which is exactly what the surveyed production tenant did with two LLM API keys, one as a configMapGenerator literal and one in an env patch.", mitigation: "G-SEC-5 runs the scan over literals, configs/, patches, inline patch blocks, untracked-by-mistake *.env files and manifest env[].value, with the sk-, AKIA, PRIVATE KEY, ghp_ and credentials-in-URL patterns; the org's gitleaks run is the ref if it has one.", severity: high }
+        - { id: R6, text: "the redaction step is the whole justification for anonymized egress, and it is application code that can regress silently in a deploy that passes every other check.", mitigation: "the canary redaction check in CI (G-AI-2 in the AI-engineering record) is a deploy blocker, and LiteLLM logs the data class per call so a batch of unredacted pii is visible after the fact; a failure drops the stage to data_egress none.", severity: high }
+        - { id: R7, text: "a Telegram group is a public-ish channel: any member can impersonate another customer's order id in a question, and the bot has no way to authenticate a customer.", mitigation: "the agent answers order questions only for the customer id bound to the Telegram sender in the subscription mapping and refuses a free-typed order id; this is an authorisation rule in the tool, not a prompt instruction. Named in Q1 because the mapping has to exist first.", severity: high }
+        - { id: R8, text: "Redis and Postgres run in the use case's namespace and are the workloads the restricted audit will flag; closing the warning by relabelling the namespace would silently weaken every custom workload too.", mitigation: "recorded as a scoped exception at baseline with restricted warn and audit; if the platform owner wants the namespace clean, the databases move to their own namespace with their own level rather than the use case dropping below baseline. On a cluster shared with other tenants this is Q3.", severity: medium }
+        - { id: R9, text: "pii in the app-log: a conversation id and a data class are safe, but a developer debugging a bad answer is one log line away from dumping the transcript.", mitigation: "audit_log_content is data-class-not-payload and the logger has no payload field; transcripts live only in Postgres under the 90d episodic retention the data-store record sets, where retention and restore are already gated.", severity: medium }
+      gate_to_next:
+        - { id: G-SEC-4, text: "the platform operator backs the sealed-secrets controller key up offsite and rehearses a restore into a scratch cluster before the first real secret is sealed", owner: security, check: { type: manual, ref: controller-key-backup } }
+        - { id: G-SEC-5, text: "the secret scan passes over configMapGenerator literals, configs/, patches, inline patch blocks, env[].value in every manifest and any untracked .env, and every secret still has its .env.example header", owner: security, check: { type: ci, ref: secret-scan } }
+        - { id: G-SEC-6, text: "the namespace carries PSA baseline enforce with restricted warn and audit, a default-deny NetworkPolicy, allow-dns, and exactly the four external destinations above; a request from agent-api to any other external host fails", owner: security, check: { type: verify-job, ref: copilot-validate } }
+        - { id: G-SEC-7, text: "the webhook rejects a request without the Telegram secret token before any model call, and the agent answers order questions only for the customer id bound to the sender", owner: security, check: { type: verify-job, ref: copilot-validate } }
+        - { id: G-SEC-8, text: "the injection suite in the golden set shows no suppressed escalation, no order field outside the allowed list and no unredacted name, email or phone number sent to the provider", owner: security, check: { type: ci, ref: redaction-check } }
+        - { id: G-SEC-9, text: "the ArgoCD Application points at a tag, not a branch, with selfHeal true, and every image is a pinned digest", owner: security, check: { type: ci, ref: argocd-revision-check } }
+        - { id: G-SEC-10, text: "a secret rotation is rehearsed once by the platform operator: every .env re-sealed, consumers restarted by the reloader, the bot answering afterwards", owner: security, check: { type: manual, ref: rotation-rehearsal } }
+      estimated_cost_usd_month: 0
+  open_questions:
+    - { id: Q1, question: "How is a Telegram sender bound to a customer id? Without that mapping any group member can ask about any order id they guess, and the bot cannot authorise a question (R7). If no mapping exists, the allowed answer set at Walk has to shrink to non-account questions." }
+    - { id: Q2, question: "Will the support agents get a human-facing escalation or review UI at Walk? The architecture record says api_surface external with auth_in_front api-key and no human surface, and this record agrees. If a UI appears, the value becomes oauth2-proxy with gotrue as the identity provider and the head of CS decides whether support agents authenticate against it or an existing org IdP.", blocks_stage: walk }
+    - { id: Q3, question: "Is the Walk cluster shared with other tenants? If it is, the platform owner decides whether the catalog Redis and Postgres staying at baseline inside this namespace is acceptable (R8) or whether they move to their own namespace, and whether namespace-to-namespace NetworkPolicy isolation is required before Walk rather than at Run." }
+    - { id: Q4, question: "Which order fields may be shown to a customer in chat? Open in the AI-engineering record as Q1 and in the stage plan as out of scope at Crawl; it is also a security boundary, because the allowed-field list is what G-SEC-2 and G-SEC-8 assert against. Until the head of CS sets it, the assertions use the narrowest plausible list.", blocks_stage: walk }
+    - { id: Q5, question: "Does the model provider's contract offer zero retention or an equivalent DPA term for this team? The plan does not run the compliance expert, so nobody else is checking; a refusal means data_egress drops to none and Walk runs on the local model with a lower resolution target." }
+  references:
+    - wiki/concepts/secret-strategy.md
+    - docs/lab-to-production.md
+    - docs/overlays/CONVENTION.md
+    - docs/use-case-builder/tenant-patterns.md
+    - k8s/components/apps/sealed-secrets

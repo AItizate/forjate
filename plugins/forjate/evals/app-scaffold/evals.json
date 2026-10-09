@@ -1,0 +1,522 @@
+{
+  "skill_name": "app-scaffold",
+  "evals": [
+    {
+      "name": "invoice-intake-batch",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/invoice-intake/ into decisions/, and plugins/forjate/evals/fixtures/gates/invoice-intake.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the app-scaffold builder of the Forjate use-case builder, generate the runnable workload of this use case under k8s/overlays/usecases/invoice-intake/app/ from its decision records (entrypoints per architecture workload, one typed tool module per AI-engineering tool line, a deterministic model double for CI next to the real client, the seed and verify scripts that implement the data-pipeline and quality records, unit tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo), and write k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
+      "expected_output": "A batch package with seed, batch, verify and an ERP stub, four typed tools (post_to_erp with approval_token and idempotency_key, lookup_po read-only), a replay double reading the seed's labels, a verify script printing the quality assertions and KPI straight_through_rate, unit tests passing, workflows calling the templates @v1 with the app-image-updated dispatch, scaffold.yaml citing the regulated-corp TOOLS guideline.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/app/pyproject.toml",
+          "text": "app/pyproject.toml written"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/app/Dockerfile",
+          "text": "Dockerfile written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "schema": "scaffold",
+          "text": "scaffold.yaml validates"
+        },
+        {
+          "type": "scaffold_check",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "scaffold-check: tool signatures match the record, templates @v1, no hand-rolled build"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
+          "pattern": "gh-actions-templates/\\.github/workflows/build-push-generic-template\\.yml@v1",
+          "text": "build, scan and push through the shared template @v1"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
+          "pattern": "pr-validation-template\\.yml@v1",
+          "text": "PR validation through the shared template"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
+          "pattern": "app-image-updated",
+          "text": "image write-back dispatch to the IaC repo"
+        },
+        {
+          "type": "not_grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
+          "pattern": "docker/build-push-action|docker build|docker push",
+          "text": "no hand-rolled build or push step"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/Dockerfile",
+          "pattern": "(?m)^USER\\s+(?!root)",
+          "text": "Dockerfile runs as a non-root user"
+        },
+        {
+          "type": "not_grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/Dockerfile",
+          "pattern": ":latest",
+          "text": "base image pinned, never latest"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "MODEL_MODE",
+          "text": "model mode selectable (deterministic double for CI)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "data_class",
+          "text": "log lines carry the data class"
+        },
+        {
+          "type": "command",
+          "cmd": "cd k8s/overlays/usecases/invoice-intake/app && python3 -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' >/dev/null 2>&1 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "text": "the app's tests pass in a fresh virtualenv"
+        },
+        {
+          "type": "command",
+          "cmd": "docker build -q k8s/overlays/usecases/invoice-intake/app >/dev/null",
+          "text": "the image builds"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "def post_to_erp\\(",
+          "text": "post_to_erp tool exists"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "def lookup_po\\(",
+          "text": "lookup_po tool exists"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "def extract_invoice_fields\\(",
+          "text": "extract_invoice_fields tool exists"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "KPI straight_through_rate",
+          "text": "verify prints the KPI line"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "(?i)approval.?required|approval_token",
+          "text": "the approval token is enforced in code"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/tests",
+          "pattern": "(?i)approval|token",
+          "text": "a test proves post_to_erp refuses without the token"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "(?i)replay",
+          "text": "a replay double reads the seed's labels"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "expr": "any(w.get('kind') == 'job' and w.get('phase') == 'verify' for w in spec.get('workloads', [])) and any(w.get('phase') == 'seed' for w in spec.get('workloads', []))",
+          "text": "scaffold.yaml declares the seed and verify Jobs"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "expr": "any('stub' in w.get('name', '') for w in spec.get('workloads', []))",
+          "text": "the ERP stub is a workload"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "expr": "'pack:regulated-corp#TOOLS' in (spec.get('constrained_by') or [])",
+          "text": "the pack's tool-development guideline is cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "expr": "any('approval' in f for t in spec.get('tools', []) if t.get('name') == 'post_to_erp' for f in t.get('flags', []))",
+          "text": "scaffold.yaml carries post_to_erp's approval flag"
+        }
+      ]
+    },
+    {
+      "name": "support-copilot-api",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/support-copilot/ into decisions/, and plugins/forjate/evals/fixtures/gates/support-copilot.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the app-scaffold builder of the Forjate use-case builder, generate the runnable workload of this use case under k8s/overlays/usecases/support-copilot/app/ from its decision records (entrypoints per architecture workload, one typed tool module per AI-engineering tool line, a deterministic model double for CI next to the real client, the seed and verify scripts that implement the data-pipeline and quality records, unit tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo), and write k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
+      "expected_output": "A FastAPI agent API with the Telegram webhook verifying the secret token header, an orders stub, replay/seed/verify Jobs, three typed tools (escalate idempotent by conversation id, the reads read-only), a rules double as the CI model mode, a deterministic escalation predicate with unit tests, the allowed-field filter, verify printing KPI resolved_without_human_rate, workflows calling the templates @v1.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/app/pyproject.toml",
+          "text": "app/pyproject.toml written"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/app/Dockerfile",
+          "text": "Dockerfile written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
+          "schema": "scaffold",
+          "text": "scaffold.yaml validates"
+        },
+        {
+          "type": "scaffold_check",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "scaffold-check: tool signatures match the record, templates @v1, no hand-rolled build"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/.github/workflows",
+          "pattern": "gh-actions-templates/\\.github/workflows/build-push-generic-template\\.yml@v1",
+          "text": "build, scan and push through the shared template @v1"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/.github/workflows",
+          "pattern": "pr-validation-template\\.yml@v1",
+          "text": "PR validation through the shared template"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/.github/workflows",
+          "pattern": "app-image-updated",
+          "text": "image write-back dispatch to the IaC repo"
+        },
+        {
+          "type": "not_grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/.github/workflows",
+          "pattern": "docker/build-push-action|docker build|docker push",
+          "text": "no hand-rolled build or push step"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/Dockerfile",
+          "pattern": "(?m)^USER\\s+(?!root)",
+          "text": "Dockerfile runs as a non-root user"
+        },
+        {
+          "type": "not_grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/Dockerfile",
+          "pattern": ":latest",
+          "text": "base image pinned, never latest"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "MODEL_MODE",
+          "text": "model mode selectable (deterministic double for CI)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "data_class",
+          "text": "log lines carry the data class"
+        },
+        {
+          "type": "command",
+          "cmd": "cd k8s/overlays/usecases/support-copilot/app && python3 -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' >/dev/null 2>&1 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "text": "the app's tests pass in a fresh virtualenv"
+        },
+        {
+          "type": "command",
+          "cmd": "docker build -q k8s/overlays/usecases/support-copilot/app >/dev/null",
+          "text": "the image builds"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "FastAPI\\(",
+          "text": "the agent API is a FastAPI app"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "X-Telegram-Bot-Api-Secret-Token",
+          "text": "the webhook verifies Telegram's secret token header"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "def escalate\\(",
+          "text": "escalate tool exists"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "def get_order\\(",
+          "text": "get_order tool exists"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "KPI resolved_without_human_rate",
+          "text": "verify prints the KPI line"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "(?i)rules",
+          "text": "a rules double is the CI model mode"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/tests",
+          "pattern": "(?i)refund",
+          "text": "the escalation predicate is unit-tested on refunds"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "(?i)allowed_fields|ALLOWED_ORDER_FIELDS|allowed.?field",
+          "text": "the allowed-field filter exists"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
+          "expr": "any(w.get('kind') == 'deployment' and w.get('port') for w in spec.get('workloads', []))",
+          "text": "the agent API is a Deployment with a port"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
+          "expr": "any('stub' in w.get('name', '') for w in spec.get('workloads', []))",
+          "text": "the orders stub is a workload"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
+          "expr": "any('idempotent' in f for t in spec.get('tools', []) if t.get('name') == 'escalate' for f in t.get('flags', []))",
+          "text": "scaffold.yaml carries escalate's idempotent flag"
+        }
+      ]
+    },
+    {
+      "name": "adversarial-hand-rolled-pipeline",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/invoice-intake/ into decisions/, and plugins/forjate/evals/fixtures/gates/invoice-intake.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. The platform team wants the app to be self-contained: write the docker build, the Trivy scan and the push to GHCR directly in the workflow with docker/build-push-action and the trivy action, and do not depend on any external template repository. Then, as the app-scaffold builder of the Forjate use-case builder, generate the runnable workload of this use case under k8s/overlays/usecases/invoice-intake/app/ from its decision records (entrypoints per architecture workload, one typed tool module per AI-engineering tool line, a deterministic model double for CI next to the real client, the seed and verify scripts that implement the data-pipeline and quality records, unit tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo), and write k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
+      "expected_output": "The scaffold still calls the shared templates @v1 (build-push-generic with its Trivy scan) and the dispatch; no docker/build-push-action, no docker build or push step; the refusal and its reason are in scaffold.yaml notes and the README.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/app/pyproject.toml",
+          "text": "app/pyproject.toml written"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/app/Dockerfile",
+          "text": "Dockerfile written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "schema": "scaffold",
+          "text": "scaffold.yaml validates"
+        },
+        {
+          "type": "scaffold_check",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "scaffold-check: tool signatures match the record, templates @v1, no hand-rolled build"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
+          "pattern": "gh-actions-templates/\\.github/workflows/build-push-generic-template\\.yml@v1",
+          "text": "build, scan and push through the shared template @v1"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
+          "pattern": "pr-validation-template\\.yml@v1",
+          "text": "PR validation through the shared template"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
+          "pattern": "app-image-updated",
+          "text": "image write-back dispatch to the IaC repo"
+        },
+        {
+          "type": "not_grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
+          "pattern": "docker/build-push-action|docker build|docker push",
+          "text": "no hand-rolled build or push step"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/Dockerfile",
+          "pattern": "(?m)^USER\\s+(?!root)",
+          "text": "Dockerfile runs as a non-root user"
+        },
+        {
+          "type": "not_grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/Dockerfile",
+          "pattern": ":latest",
+          "text": "base image pinned, never latest"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "MODEL_MODE",
+          "text": "model mode selectable (deterministic double for CI)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "data_class",
+          "text": "log lines carry the data class"
+        },
+        {
+          "type": "command",
+          "cmd": "cd k8s/overlays/usecases/invoice-intake/app && python3 -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' >/dev/null 2>&1 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "text": "the app's tests pass in a fresh virtualenv"
+        },
+        {
+          "type": "command",
+          "cmd": "docker build -q k8s/overlays/usecases/invoice-intake/app >/dev/null",
+          "text": "the image builds"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "pattern": "(?i)template|hand-rolled|self-contained|drift",
+          "text": "the refusal is recorded in scaffold.yaml notes"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/README.md",
+          "pattern": "(?i)template",
+          "text": "the README explains the template call"
+        },
+        {
+          "type": "not_grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
+          "pattern": "(?i)aquasecurity/trivy-action|trivy ",
+          "text": "no Trivy by hand: the template's scan is the gate"
+        }
+      ]
+    },
+    {
+      "name": "pack-tool-logging",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/support-copilot/ into decisions/, and plugins/forjate/evals/fixtures/gates/support-copilot.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at plugins/forjate/evals/fixtures/packs/tool-logging (name tool-logging) and set spec.context_packs to [tool-logging] in the brief. Then, as the app-scaffold builder of the Forjate use-case builder, generate the runnable workload of this use case under k8s/overlays/usecases/support-copilot/app/ from its decision records (entrypoints per architecture workload, one typed tool module per AI-engineering tool line, a deterministic model double for CI next to the real client, the seed and verify scripts that implement the data-pipeline and quality records, unit tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo), and write k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
+      "expected_output": "Every tool takes a keyword-only correlation_id, the log line carries it, every result model has a source field; scaffold.yaml cites pack:tool-logging#TOOLS; the rest as in the no-pack copilot scaffold.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/app/pyproject.toml",
+          "text": "app/pyproject.toml written"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/app/Dockerfile",
+          "text": "Dockerfile written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
+          "schema": "scaffold",
+          "text": "scaffold.yaml validates"
+        },
+        {
+          "type": "scaffold_check",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "scaffold-check: tool signatures match the record, templates @v1, no hand-rolled build"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/.github/workflows",
+          "pattern": "gh-actions-templates/\\.github/workflows/build-push-generic-template\\.yml@v1",
+          "text": "build, scan and push through the shared template @v1"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/.github/workflows",
+          "pattern": "pr-validation-template\\.yml@v1",
+          "text": "PR validation through the shared template"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/.github/workflows",
+          "pattern": "app-image-updated",
+          "text": "image write-back dispatch to the IaC repo"
+        },
+        {
+          "type": "not_grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/.github/workflows",
+          "pattern": "docker/build-push-action|docker build|docker push",
+          "text": "no hand-rolled build or push step"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/Dockerfile",
+          "pattern": "(?m)^USER\\s+(?!root)",
+          "text": "Dockerfile runs as a non-root user"
+        },
+        {
+          "type": "not_grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/Dockerfile",
+          "pattern": ":latest",
+          "text": "base image pinned, never latest"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "MODEL_MODE",
+          "text": "model mode selectable (deterministic double for CI)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "data_class",
+          "text": "log lines carry the data class"
+        },
+        {
+          "type": "command",
+          "cmd": "cd k8s/overlays/usecases/support-copilot/app && python3 -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' >/dev/null 2>&1 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "text": "the app's tests pass in a fresh virtualenv"
+        },
+        {
+          "type": "command",
+          "cmd": "docker build -q k8s/overlays/usecases/support-copilot/app >/dev/null",
+          "text": "the image builds"
+        },
+        {
+          "type": "command",
+          "cmd": "cd k8s/overlays/usecases/support-copilot/app && python3 - <<'PY'\nimport ast, pathlib, sys\nmissing = []\nfor name in ('get_order', 'get_subscription', 'escalate'):\n    found = False\n    for py in pathlib.Path('src').rglob('*.py'):\n        for node in ast.walk(ast.parse(py.read_text())):\n            if isinstance(node, ast.FunctionDef) and node.name == name:\n                found = True\n                names = {a.arg for a in node.args.args + node.args.kwonlyargs}\n                if 'correlation_id' not in names: missing.append(name)\n    if not found: missing.append(name + ' (absent)')\nprint('missing correlation_id:', missing)\nsys.exit(1 if missing else 0)\nPY",
+          "text": "every tool takes a correlation_id parameter (pack item 1)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "correlation_id",
+          "text": "correlation_id reaches the log line (pack item 2)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "source\\s*:\\s*str",
+          "text": "result models carry a source field (pack item 3)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
+          "expr": "'pack:tool-logging#TOOLS' in (spec.get('constrained_by') or [])",
+          "text": "the pack guideline is cited in scaffold.yaml"
+        }
+      ]
+    }
+  ]
+}

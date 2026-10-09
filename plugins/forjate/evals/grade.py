@@ -144,6 +144,13 @@ def check(a: dict, repo: Path) -> tuple[bool, str]:
     if t == "yaml_count":
         rc, out = sh(["yq", "-r", a["query"], a["path"]], repo)
         return rc == 0 and out == str(a["equals"]), f"{a['query']} = {out!r}"
+    if t == "command":
+        # A shell command run in the worktree (the generated service builds, its tests pass).
+        rc, out = sh(["bash", "-lc", a["cmd"]], repo)
+        return rc == 0, (out[-400:] or "exit 0") if rc else "exit 0"
+    if t == "scaffold_check":
+        rc, out = sh([PY, str(BUILDER / "scaffold-check.py"), a["path"]], repo)
+        return rc == 0, out[-400:]
     if t == "git_unchanged":
         rc, out = sh(["git", "diff", "--quiet", "HEAD", "--", a["path"]], repo)
         return rc == 0, "unchanged" if rc == 0 else "modified"

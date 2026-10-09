@@ -1,0 +1,63 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: data-store, usecase: invoice-intake, author: "forjate:data-store", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: [apps/databases/postgres, apps/minio/dev]
+      settings:
+        memory_kinds: [working, episodic, artifacts]
+        session_store: none
+        working_store: apps/databases/postgres
+        episodic_store: apps/databases/postgres
+        semantic_store: none
+        artifact_store: apps/minio/dev
+        retention_working: 4h
+        retention_episodic: 4h
+        retention_artifacts: 4h
+        backup: none
+        restore_tested: false
+        data_residency: eu
+        systems_of_record: [Odoo]
+      rationale: PDFs and parsed outputs in MinIO buckets (inbox, parsed, audit); mailbox cursor, approval status and the extraction per invoice in Postgres. No vector store, PO matching is a lookup.
+      constrained_by: ["pack:regulated-corp#RES-1", "pack:regulated-corp#DATA-1"]
+      gate_to_next:
+        - { id: G-DS-1, text: retention of Walk data agreed with finance ops, owner: data-store, check: { type: manual, ref: decisions/data-store.yaml } }
+    walk:
+      choice: [apps/databases/postgres, apps/minio/single-server]
+      settings:
+        memory_kinds: [working, episodic, artifacts]
+        working_store: apps/databases/postgres
+        episodic_store: apps/databases/postgres
+        semantic_store: none
+        artifact_store: apps/minio/single-server
+        retention_working: 7d
+        retention_episodic: 90d
+        retention_artifacts: 90d
+        backup: snapshot+dump
+        restore_tested: false
+        data_residency: eu
+        systems_of_record: [Odoo]
+      rationale: Same split on Longhorn PVCs; nightly pg_dump and bucket mirror to a second node; the audit copy of invoices and decisions is retained for the legal period the compliance expert sets.
+      constrained_by: ["pack:regulated-corp#RES-1"]
+      gate_to_next:
+        - { id: G-DS-2, text: restore of Postgres and the audit bucket rehearsed from the last backup into a scratch namespace with row and object counts verified, owner: data-store, check: { type: manual, ref: restore-rehearsal } }
+    run:
+      choice: [apps/databases/postgres, apps/minio/single-server]
+      settings:
+        memory_kinds: [working, episodic, artifacts]
+        working_store: apps/databases/postgres
+        episodic_store: apps/databases/postgres
+        semantic_store: none
+        artifact_store: apps/minio/single-server
+        retention_working: 30d
+        retention_episodic: 1y
+        backup: velero+pitr
+        restore_tested: false
+        data_residency: eu
+        systems_of_record: [Odoo]
+      rationale: Postgres through an operator for PITR, MinIO Tenant with versioning and object lock on the audit bucket; the legal retention of the audit copy is the open question.
+      constrained_by: ["pack:regulated-corp#RES-1"]
+  open_questions:
+    - { id: Q1, question: "What is the legal retention for invoice documents and the posting decisions in this jurisdiction? Needed for retention_artifacts at Run.", blocks_stage: run }
+  references: [docs/storage-strategy.md]

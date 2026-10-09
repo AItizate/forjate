@@ -1,0 +1,189 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: quality, usecase: invoice-intake, author: "forjate:quality", version: 1, language: en }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        verify_job: inv-validate
+        verify_assertions:
+          - "20 items processed, 15 matched, 3 mismatched in review, 1 duplicate skipped, 1 parse failure in review"
+          - "0 wrong amounts on matched items: every posted amount equals the PO amount by arithmetic in the Job, not by the model"
+          - "a second run changes no counts, writes no duplicate row in the episodic table and records no second posting in the stub"
+          - "no posting recorded by the stub for mismatches, and no write reached the stub without an approval token"
+          - "each of the 5 seeded exceptions (3 mismatches, 1 duplicate, 1 unparseable) has a review-queue row carrying its reason"
+          - "field accuracy measured against the labelled seed and printed as EVAL field_accuracy=<value>: 1.0 with EXTRACTOR=replay (the CI run), at least 0.95 with EXTRACTOR=ollama (the demo run the finance ops lead sees)"
+          - "the KPI measured once on the seed and printed as KPI straight_through_rate=<value>"
+          - "model-call and tool-call logs carry data_class=financial and no payload: a grep over the Job logs finds no IBAN, no bank account number and no invoice amount, and at least 20 model-call lines exist"
+          - "every seeded PDF and its parsed JSON is present in the MinIO artifact bucket, read through the in-namespace endpoints declared in usecase.yaml and nothing outside the namespace"
+          - "exit non-zero on the first failed assertion, naming it in the log"
+        test_pyramid:
+          - "unit: PDF field normalisation, amount and VAT arithmetic, PO matcher tolerance, sha256 idempotency key derivation, tool argument schemas, bank-account redaction; no model"
+          - "contract: the three tool schemas against decisions/ai-engineering.yaml, usecase.yaml against scripts/ephemeral/usecase.schema.json, every record and pack through validate.py in validate-builder"
+          - "integration: extract_invoice_fields, lookup_po and queue_for_review against the real Postgres, MinIO and erp-stub on the ephemeral environment; the extraction prompt against the local ollama/qwen2.5:7b on the golden set"
+          - "e2e: the inv-validate Job on ephemeral.sh up invoice-intake; its exit code is this stage's gate"
+        golden_set: "20 items from the data-pipeline synthetic seed, labelled field by field by the AP clerk, includes 5 exceptions (3 mismatches, 1 duplicate, 1 unparseable)"
+        judge: rules
+        eval_threshold: ">= 95 % field accuracy per field (supplier, amount, date, po_number) on the golden set, 0 wrong amounts, 100 % of the injection suite ignored"
+        injection_suite: 10
+        regression_trigger: every-prompt-change
+        kpi_metric: straight_through_rate
+        kpi_metric_source: verify-job-log
+        observability_signals:
+          - "inv-validate exit code and the named failing assertion"
+          - "KPI straight_through_rate from the Job log"
+          - "EVAL field_accuracy per field from the Job log"
+          - "review-queue rows by reason (mismatch, duplicate, parse-failed)"
+        gate_policy: automated-first
+        manual_gates_justified:
+          - "G-DS-1: retention for Walk is an agreement between finance ops and the compliance reviewer, not a property any manifest or query can read"
+      rationale: >-
+        The stage is proved by one Job, not by readiness. inv-validate is the name the plan already
+        gives G-Q-1, so usecase.yaml spec.jobs.verify carries it and CI asserts it exists in the built
+        manifest. Its assertions are the data-pipeline's four lines plus the exception path, the
+        idempotency re-run, the KPI line and the log-hygiene grep that the corporate security baseline
+        (pack:regulated-corp#SECBASE item 5) demands; the ruleRef pattern cannot carry a guideline id
+        with no numeric suffix, so SECBASE is cited here in prose rather than in constrained_by.
+        Grading is by rules because every field has a label and the amount is arithmetic: an LLM judge
+        would add variance to a question that has a right answer, and a reviewer has to be able to
+        re-run the grader. The golden set is the pipeline's seed itself, so the eval and the verify Job
+        cannot disagree about what failure means; the 10 injection items are a separate set so they do
+        not distort the 20-item seed composition the pipeline expert fixed. Secret scanning is a gate
+        here rather than at Walk because the overlay carries a secretGenerator from the first commit
+        (pack:regulated-corp#SECBASE item 3). In CI the intake runs with EXTRACTOR=replay, which reads
+        the seed's labels instead of calling the model, so the Job's exit code measures routing, the
+        arithmetic, idempotency, the exception path and log hygiene deterministically; EXTRACTOR=ollama
+        is the same Job against the local model and is the run G-AI-1 reads field_accuracy from. The
+        replay is a test double for the model only: Postgres, MinIO and Docling are the real components.
+      alternatives:
+        - { option: "llm-judge on the extracted fields", rejected_because: "the fields are labelled and the amount is checkable by arithmetic; a judge would add variance and cost with no information, and a regulated reviewer needs a grader they can re-run deterministically" }
+        - { option: "a verify Job that waits for the Pods to be ready", rejected_because: "it would pass on an empty seed bucket; the exit code has to mean the invoices were processed correctly, not that the Deployment rolled out" }
+        - { option: "a human sample grading the Crawl extraction", rejected_because: "20 seeded items with known labels need no sampling; the AP clerk's time is better spent labelling the Walk corpus" }
+      risks:
+        - { id: R1, text: "the verify Job flakes because the 7B model varies between runs, and a flaky gate gets ignored", mitigation: "temperature 0 and structured output from the ai-engineering record, field comparison tolerant only on whitespace and currency symbol; no retry budget, a failure is treated as a real failure and investigated", severity: high }
+        - { id: R2, text: "a 20-item golden set cannot distinguish 95 % from 85 % field accuracy with any confidence", mitigation: "at Crawl it only has to catch a broken prompt; the Walk gate is read against the 100-item anonymised corpus, not this one", severity: medium }
+        - { id: R3, text: "the log-hygiene assertion passes because the logs are empty, not because they are clean", mitigation: "the grep is paired with a positive assertion that at least 20 model-call log lines carrying data_class=financial exist", severity: medium }
+      estimated_cost_usd_month: 0
+      gate_to_next:
+        - { id: G-Q-1, text: verify Job exits 0 on the seeded invoice set of 20 PDFs with 3 mismatches, owner: quality, check: { type: verify-job, ref: inv-validate } }
+        - { id: G-Q-3, text: "no plaintext secret in git: secret-scan clean over the overlay and .env.example present for every generator", owner: quality, check: { type: ci, ref: secret-scan } }
+    walk:
+      choice: []
+      settings:
+        verify_job: inv-validate
+        verify_assertions:
+          - "canary invoice processed within 15 minutes"
+          - "duplicate canary skipped"
+          - "mismatch canary lands in review"
+          - "the canary posting to Odoo is idempotent on invoice number plus supplier, proven by a double submission"
+          - "no canary write reaches Odoo without an approval token"
+          - "exit non-zero on any miss, naming the failed assertion"
+        test_pyramid:
+          - "unit: unchanged, plus IMAP UID handling and attachment-hash idempotency; no model"
+          - "contract: post_to_erp and its approval token against decisions/ai-engineering.yaml, the Odoo REST client against a recorded Odoo schema, usecase.yaml and every record in validate-builder"
+          - "integration: the four tools against Postgres, MinIO, GoTrue and a sandbox Odoo tenant on the ephemeral environment; the prompt against the local model on the 100-item corpus"
+          - "e2e: inv-validate as an ArgoCD PostSync hook on every deploy, driving a synthetic canary invoice through the live environment"
+        golden_set: "100 items from the anonymised mailbox copy the data-pipeline seed produces, labelled by the AP clerk, includes the 5 Crawl exceptions plus 15 production exceptions (unknown supplier, partial delivery, credit note, foreign currency, scanned fax)"
+        judge: rules
+        eval_threshold: ">= 95 % field accuracy per field on the 100-item corpus, 0 wrong amounts, 100 % of the 20 injection items ignored; below any of the three the merge fails"
+        injection_suite: 20
+        regression_trigger: every-prompt-change
+        kpi_metric: straight_through_rate
+        kpi_metric_source: "app-table:invoice_decisions"
+        observability_signals:
+          - "straight_through_rate over a 30-day window from invoice_decisions"
+          - "wrong-amount reports raised by AP clerks, the only signal that catches a confident error"
+          - "exception rate and review-queue depth against the 24 h exception SLA"
+          - "items_unaccounted, the data-pipeline gate G-PIPE-2"
+          - "tool failure rate per tool (lookup_po, post_to_erp, queue_for_review)"
+          - "p95 seconds per invoice end to end and p95 inference seconds per invoice"
+          - "eval pass rate per prompt version"
+          - "parse failure rate from docling"
+        gate_policy: automated-first
+        manual_gates_justified:
+          - "G-BIZ-2: the CFO signing the Walk report is a business judgement on whether 30 days of numbers justify Run; the numbers under the signature are automated, the judgement is not"
+      rationale: >-
+        From Walk the Crawl proof becomes continuous: the same inv-validate Job runs as a PostSync hook
+        against a synthetic canary, so every deploy re-proves the path, while the rate assertions move
+        off the Job log and onto a query. The KPI source is app-table:invoice_decisions, the episodic
+        Postgres table the data-store record already keeps for 90 days at Walk, which keeps the number
+        inside the cluster and inside the EU; no residency hop is introduced and the compliance record
+        has nothing new to cover. The devops record chooses prometheus+grafana at Walk: the gates read
+        the table, the dashboards and the three paging alerts read the stack. G-Q-4 keeps the security baseline's identity-provider item checkable as a manifest
+        property through validate-kustomize rather than as a reviewer's opinion
+        (pack:regulated-corp#SECBASE item 4, served by the architecture record's oauth2-proxy and
+        GoTrue). The regression gate is deliberately separate from the ai-engineering record's G-AI-2:
+        G-Q-5 blocks a merge on a prompt change, G-AI-2 reads a 30-day production trend; the same
+        workflow produces both, they fail at different moments.
+      alternatives:
+        - { option: "prometheus:<query> as the KPI source at Walk", rejected_because: "no record chooses a monitoring stack yet, so the query would name a Prometheus nobody has committed to deploy; the Postgres table exists in the data-store record today and the gate must be readable the day it is read" }
+        - { option: "nightly regression only", rejected_because: "a prompt change that drops field accuracy must fail the merge, not be discovered the next morning after it shipped to the clerks" }
+        - { option: "rules+human-sample", rejected_because: "there is no free text to grade for tone; the human stays in the loop as the exception approver, which is a product step and not a grading step" }
+      risks:
+        - { id: R4, text: "the Walk metric gates G-Q-2 and G-PIPE-2 are read from a table, so a rate that falls between gate readings is seen only when someone reads it", mitigation: "the devops record's Prometheus scrapes straight_through_rate and wrong_amounts from the review API and Alertmanager pages on wrong_amounts > 0", severity: medium }
+        - { id: R5, text: "the AP clerk both labels the golden set and approves the exceptions, so a systematic misreading becomes the ground truth", mitigation: "the finance ops lead second-labels the 20 exception items; disagreements go back to the clerk before the corpus is frozen", severity: medium }
+        - { id: R6, text: "eval-regression and validate-kustomize are ci refs whose scripts live in scripts/gates/checks/, but eval-regression can only pass once the app repo ships the golden set and the grader", mitigation: "the app-scaffold generates the eval suite the check runs; until it lands the check reports skipped, never pass", severity: medium }
+        - { id: R7, text: "judge drift: the rules grader is tuned until the corpus passes rather than the prompt being fixed", mitigation: "the grader lives in git with the prompt, and a change to a comparison tolerance requires the same review as a prompt change", severity: low }
+      estimated_cost_usd_month: 0
+      gate_to_next:
+        - { id: G-Q-2, text: 80% straight-through over 30 days with 0 wrong amounts, owner: quality, check: { type: metric, ref: straight_through_rate } }
+        - { id: G-Q-4, text: "every HTTP surface is behind oauth2-proxy and GoTrue in the built manifest, with no Ingress reaching the review API directly", owner: quality, check: { type: ci, ref: validate-kustomize } }
+        - { id: G-Q-5, text: "the 100-item golden set runs in CI on every prompt change and the merge fails below 95 % field accuracy, any wrong amount, or any injection item obeyed", owner: quality, check: { type: ci, ref: eval-regression } }
+    run:
+      choice: []
+      settings:
+        verify_job: inv-validate
+        verify_assertions:
+          - "the canary set runs hourly per entity and every entity's canary is accounted for"
+          - "idempotency proven per entity on a double submission"
+          - "the audit evidence row for the canary exists and is immutable in the object-locked bucket"
+          - "exit non-zero on any miss, naming the failed assertion"
+        test_pyramid:
+          - "unit: unchanged, plus multi-entity routing and per-entity PO namespace"
+          - "contract: unchanged, run per entity configuration"
+          - "integration: unchanged, against the production-shaped ephemeral environment"
+          - "e2e: inv-validate as an hourly CronJob per entity against the live environment"
+        golden_set: "300 items from production exceptions, labelled by the AP clerks of each entity, grown monthly from the review queue"
+        judge: rules
+        eval_threshold: ">= 95 % field accuracy per field per entity, 0 wrong amounts, 100 % of the injection suite ignored"
+        injection_suite: 20
+        regression_trigger: nightly
+        kpi_metric: straight_through_rate
+        kpi_metric_source: "app-table:invoice_decisions"
+        observability_signals:
+          - "straight_through_rate per entity, sustained at 85 %"
+          - "wrong-amount reports per entity"
+          - "exception rate, review-queue depth and SLA breaches per entity"
+          - "tool failure rate per tool per entity"
+          - "p95 seconds per invoice and inference saturation on the GPU node"
+          - "eval pass rate per prompt version, nightly"
+          - "audit-evidence completeness: invoices with no evidence row"
+        gate_policy: automated-first
+        manual_gates_justified:
+          - "G-COMP-1 and G-OPS-3 are the plan's Run exit criteria and sit outside any transition; the compliance signature and the restore rehearsal sign-off stay manual because both are a named reviewer attesting to something they inspected, while the facts under them (residency, zero egress, the restore counts) are checked by ci and metric"
+      rationale: >-
+        Nothing in the quality design changes shape at Run; it multiplies by entity and gains the audit
+        dimension. The golden set grows from the production review queue, which is the only source of
+        exceptions nobody invented. Regression moves to nightly on top of every-prompt-change because
+        at Run the thing that drifts is the data, not only the prompt. There is no gate_to_next: the
+        plan declares no stage after Run, so these signals are the steady-state contract rather than an
+        unlock condition, and the Run exit criteria in the plan stay in the plan.
+      alternatives:
+        - { option: "drop the verify Job once Run is stable and rely on the metrics", rejected_because: "the metrics measure what the clerks sent; the canary measures that the path still works when nobody sent anything, which is exactly the failure a monthly volume of 300 hides" }
+      risks:
+        - { id: R8, text: "the hourly canary per entity writes canary rows into the audited decisions table and pollutes the audit evidence", mitigation: "canary rows carry an entity-scoped canary flag, are excluded from the KPI query, and the exclusion is itself asserted by the Job", severity: medium }
+        - { id: R9, text: "a 300-item corpus grown from production exceptions drifts towards hard cases and the measured accuracy stops representing the real mix", mitigation: "the corpus keeps a fixed representative stratum and reports accuracy on both the stratum and the exception set", severity: low }
+      estimated_cost_usd_month: 0
+  open_questions:
+    - { id: Q2, question: "The Walk golden set is 100 anonymised real invoices carrying supplier bank account numbers. The compliance record does not exist yet: who approves reusing invoices as an evaluation corpus, what anonymisation is required, and how long may the corpus be kept?", blocks_stage: walk }
+  references:
+    - .builder/brief.yaml
+    - .builder/stage-plan.yaml
+    - .builder/decisions/business.yaml
+    - .builder/decisions/data-pipeline.yaml
+    - .builder/decisions/ai-engineering.yaml
+    - .builder/decisions/data-store.yaml
+    - .builder/decisions/architecture.yaml
+    - context-packs/examples/regulated-corp/guidelines/security-baseline.md
+    - docs/ephemeral-use-cases.md

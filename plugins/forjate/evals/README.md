@@ -31,6 +31,8 @@ Results land in `evals-workspace/<skill>/iteration-N/<eval-name>/{with_skill,wit
 | `components_in_catalog` | `path` | every component listed in that `usecase.yaml` exists |
 | `git_unchanged` | `path` | the file is identical to HEAD (the skill must not touch it) |
 | `schema_valid` | `path`, `schema` | the YAML validates against `scripts/builder/schemas/<schema>.schema.json` |
+| `command` | `cmd` | a shell command exits 0 in the worktree (a generated service builds, its tests pass) |
+| `scaffold_check` | `path` | `scaffold-check.py` exits 0 on that use case (tool signatures match the AI-engineering record, templates @v1, no hand-rolled build) |
 | `yaml_expr` | `path`, `expr` | a Python expression over the loaded YAML is truthy; helpers: `d`, `stages`, `setting(key[, stage])`, `choices([stage])`, `alts()`, `risks()`, `gates()`, `rules()`, `oq()`, `has(regex, x)`, `txt(x)`, `listed(x)` |
 
 Assertions check outputs, not transcripts. Tone and clarity are reviewed by a human reading `result.json`. Every expert eval mixes form checks (schema, validator) with judgement checks (a pack rule cited, an open question raised with `caused_by_rule`, an alternative rejected with a reason, a default refused); the form checks stop discriminating against a frontier baseline fast.

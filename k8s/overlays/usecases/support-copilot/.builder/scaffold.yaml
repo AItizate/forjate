@@ -1,0 +1,55 @@
+apiVersion: forjate.io/v0
+kind: Scaffold
+metadata: { usecase: support-copilot, version: 1, author: "forjate:app-scaffold" }
+spec:
+  package: support_copilot
+  image: support-copilot
+  model_modes: [rules, live]
+  workloads:
+    - name: agent-api
+      kind: deployment
+      command: [python, -m, support_copilot.api]
+      port: 8000
+      health_path: /healthz
+      env: [PGHOST=postgres, ORDERS_URL=http://orders-stub:8001, OLLAMA_URL=http://ollama-service:11434, MODEL_MODE=rules, "ALLOWED_ORDER_FIELDS=status,eta,items_count", DATA_CLASS=pii, SESSION_TTL_HOURS=4]
+      secrets: [postgres-secret]
+      writable_paths: [/tmp]
+    - name: orders-stub
+      kind: deployment
+      command: [python, -m, support_copilot.orders_stub]
+      port: 8001
+      health_path: /healthz
+      env: [PGHOST=postgres, DATA_CLASS=pii]
+      secrets: [postgres-secret]
+      writable_paths: [/tmp]
+    - name: seed-job
+      kind: job
+      phase: seed
+      command: [python, -m, support_copilot.seed]
+      env: [PGHOST=postgres, DATA_CLASS=pii]
+      secrets: [postgres-secret]
+      writable_paths: [/tmp]
+    - name: replay-job
+      kind: job
+      phase: run
+      command: [python, -m, support_copilot.replay]
+      env: [PGHOST=postgres, AGENT_URL=http://agent-api:8000, DATA_CLASS=pii]
+      secrets: [postgres-secret]
+      writable_paths: [/tmp]
+    - name: verify-job
+      kind: job
+      phase: verify
+      command: [python, -m, support_copilot.verify]
+      env: [PGHOST=postgres, AGENT_URL=http://agent-api:8000, MODEL_MODE=rules, "ALLOWED_ORDER_FIELDS=status,eta,items_count", DATA_CLASS=pii]
+      secrets: [postgres-secret]
+      writable_paths: [/tmp]
+  tools:
+    - { name: get_order, module: support_copilot/tools/get_order.py, flags: [read-only] }
+    - { name: get_subscription, module: support_copilot/tools/get_subscription.py, flags: [read-only] }
+    - { name: escalate, module: support_copilot/tools/escalate.py, flags: [idempotent] }
+  constrained_by: []
+  notes:
+    - "Crawl workloads only; the Walk escalation-worker (support-queue push) and the Telegram transport are the same package with one more module, added when Walk is unlocked"
+    - "MODEL_MODE=rules in the Crawl overlay (CI); MODEL_MODE=live is the demo run; the quality record names both"
+    - "ASSUMED: ALLOWED_ORDER_FIELDS=status,eta,items_count until the head of CS answers Q1; the verify Job fails closed on an empty list"
+    - "no packs active: the factory tool contract applies (typed, bounded, logged with an argument hash, least privilege, typed errors, the escalation is the handoff and is never gated on a human)"

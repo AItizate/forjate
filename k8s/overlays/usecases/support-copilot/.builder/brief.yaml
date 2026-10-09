@@ -1,0 +1,32 @@
+apiVersion: forjate.io/v0
+kind: UseCaseBrief
+metadata:
+  name: support-copilot
+  created: 2026-10-02
+  requested_by: customer-success
+spec:
+  problem: Customers write to a Telegram group with questions about their orders and subscriptions. Two agents answer by hand, looking things up in the admin panel. We want a bot that answers the common questions itself, keeps the conversation context, and hands anything involving refunds or cancellations to a human with the full context attached.
+  language: en
+  context_packs: []
+  actors:
+    - { name: customer, role: end-user }
+    - { name: support agent, role: end-user, notes: receives escalations }
+    - { name: head of CS, role: requester }
+    - { name: head of CS, role: approver }
+    - { name: orders API, role: system, notes: system of record }
+    - { name: Telegram, role: system }
+  data:
+    sources:
+      - { name: chat messages, kind: chat, volume: "200/day" }
+      - { name: orders and subscriptions, kind: api, volume: "40k customers", system_of_record: true }
+    classification: pii
+  constraints:
+    regulated: false
+    budget_per_month_usd: 150
+    must_integrate_with: [Telegram Bot API, orders API]
+    llm_egress_allowed: true
+  success:
+    metric: share of conversations resolved without a human
+    baseline: "0%"
+    target: "60% within 3 months, escalations carry full context"
+  stages_requested: [crawl, walk]

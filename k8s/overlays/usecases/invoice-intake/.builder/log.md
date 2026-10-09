@@ -1,0 +1,4 @@
+- 2026-10-09 intake: brief and plan from the golden fixtures (plugins/forjate/evals/fixtures), packs: regulated-corp
+- 2026-10-09 experts: all ten records from the phase 2 and 3 fixtures, 0 conflicts open
+- 2026-10-09 gates: consolidated, 21 crawl->walk (10 ci, 4 verify-job, 2 metric, 5 manual), 23 walk->run
+- 2026-10-09 scaffold: app/ generated, tests pass, scaffold-check clean

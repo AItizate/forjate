@@ -11,6 +11,8 @@ evals/
 └── <skill>/evals.json
 ```
 
+Fixtures: `fixtures/briefs/`, `fixtures/plans/`, `fixtures/decisions/<uc>/` (the core five records an expert eval copies in), `fixtures/records/<uc>/` (the complete set of ten plus `fixtures/gates/<uc>.yaml`, what the assembly, scaffold and gates evals consume; its core five are byte-identical copies of `decisions/`, a test asserts it), `fixtures/packs/`.
+
 Results land in `evals-workspace/<skill>/iteration-N/<eval-name>/{with_skill,without_skill}/` (git-ignored): `result.json` (claude -p output incl. duration and cost), `repo/` (the worktree after the run), `grading.json`.
 
 ## Assertion types

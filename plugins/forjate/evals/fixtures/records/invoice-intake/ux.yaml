@@ -60,6 +60,7 @@ spec:
         latency_budget: "queue refresh within 10 minutes of mailbox arrival (the poll interval); the clerk never waits on a model call: extraction is asynchronous and an item appears in the queue when it is ready"
         streaming: none
         failure_ux:
+          - "parse failure: the item lands in review with reason=parse-failed and the PDF inline; the clerk types the four fields or rejects it"
           - "extraction slow or failed: the item shows 'awaiting extraction', then lands in review with its reason; the clerk can type the fields by hand"
           - "Odoo posting failed: the item returns to the queue with the Odoo error text, the worker retries with the same idempotency key, the clerk sees a status and never a stack trace"
           - "not signed in: redirect to the identity provider; no anonymous view of any invoice"

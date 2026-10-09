@@ -1,0 +1,100 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: ux, usecase: support-copilot, author: "forjate:ux", version: 1, language: en }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        surface: cli
+        surface_workload: none
+        channel: none
+        audiences:
+          - "head of CS and the two support agents: read the verify Job log and the escalations table"
+          - "customers: not involved; the replay feeds recorded conversations"
+        hitl_checkpoints:
+          - "escalation-review: a support agent reads the escalation records the replay produced and judges whether transcript and order id are enough to act; no live handoff exists at Crawl"
+        feedback_capture: verify-job-log
+        latency_budget: "replay: 60 conversations within the 15 minute Job budget; no customer waits"
+        streaming: none
+        failure_ux:
+          - "tool error or empty answer: the conversation is dead-lettered with a reason and the replay continues"
+          - "malformed conversation: dead letter plus a handoff message in the transcript, so the customer is never left silent"
+        auth_in_front: none
+        ui_language: en
+        escalation_context: "escalation record: conversation id, customer id, full transcript, order id, reason (refund, cancellation, unknown order, low confidence, anger)"
+        onboarding: none
+      rationale: >-
+        No packs are active, so the factory defaults apply. Crawl replays recorded conversations against
+        the agent API and a stub of the orders API, so there is no customer and no live surface: the
+        support agents read the verify log and the escalations table. What Crawl fixes is the shape of
+        an escalation, because that is what the two agents will live with at Walk: conversation id,
+        customer id, the full transcript, the order id and the reason, asserted by the verify Job on
+        every refund and cancellation in the seed. A chat front-end would demo the model to nobody.
+      alternatives:
+        - { option: Open WebUI to chat with the bot at Crawl, rejected_because: "the stage proves intents and escalations on a recorded set; a live prompt box adds nothing the verify Job does not already assert and invents a user" }
+      risks:
+        - { id: R1, text: "the escalation record is designed without a support agent looking at one", mitigation: "the two agents review the escalation records of the replay before Walk; their notes change the record shape, not the Walk code", severity: low }
+      gate_to_next:
+        - { id: G-UX-2, text: "every escalation record of the replay set carries the full transcript, the order id and the reason", owner: ux, check: { type: verify-job, ref: copilot-validate } }
+    walk:
+      choice: []
+      settings:
+        surface: chat-channel
+        surface_workload: agent-api
+        channel: telegram
+        audiences:
+          - "customers: the Telegram group, answers in the thread, an explicit handoff message when escalated"
+          - "support agents: their existing escalation queue with the transcript and the order id attached; no new tool"
+          - "head of CS: the weekly rate and the Walk report"
+        hitl_checkpoints:
+          - "refund-or-cancellation: always handed to a support agent with the transcript; the bot never promises an outcome [deterministic]"
+          - "two-unresolved-turns: handoff after two turns without resolution, and the customer is told so [deterministic]"
+          - "angry-customer: handoff with the transcript and no further bot replies in that conversation [deterministic]"
+        feedback_capture: in-channel
+        feedback_prompt: "thumbs up and down as an inline keyboard under each bot answer, written to the conversation outcome row; weekly counts to the head of CS"
+        latency_budget: "typing indicator sent immediately, first reply within 5 s, p95 turn under 20 s per the AI-engineering budget; past 20 s the bot says it is still checking and hands over if the lookup fails"
+        streaming: typing-indicator
+        failure_ux:
+          - "orders API down or slow: 'I cannot read your order right now, a colleague will follow up' plus an escalation with reason=lookup-failed; never a guess from a cache"
+          - "model timeout: the same handoff message, escalation with reason=timeout"
+          - "webhook outage: Telegram retries; replies are keyed by message id so the customer never sees a duplicate"
+          - "unknown sender: the bot answers non-account questions only and asks a support agent to link the customer"
+        auth_in_front: api-key
+        identity_provider: none
+        ui_language: en
+        escalation_context: "escalation record: conversation id, customer id, full transcript, order id, reason; delivered into the agents' existing queue"
+        onboarding: "the two support agents shadow the bot for one week with every answer mirrored to their queue before the bot replies in the group on its own"
+      rationale: >-
+        The customers are already in Telegram, so the surface is the channel itself through the webhook
+        the architecture record exposes; the support agents keep their existing queue and get the
+        transcript and the order id attached, which is what the plan's G-UX-1 asks for. auth_in_front is
+        api-key, the same value as the architecture and security records: Telegram is a system, its
+        secret token is the key, and there is no human-facing HTTP surface because no new agent UI exists
+        (Q1 asks whether one should). Every handoff is a deterministic rule and the customer is told
+        when it happens; a bot that goes quiet is the failure customers remember. Feedback is captured
+        where the customer is, an inline keyboard under each answer, written to the outcome row the
+        quality record's KPI query already reads; Formbricks is a web survey tool and would send a
+        Telegram user to a page for one click. Latency is a conversation budget: the typing indicator
+        goes out at once, the first reply within 5 s, and the AI-engineering record's 20 s turn budget
+        is the point where the bot explains itself instead of stalling.
+      alternatives:
+        - { option: Open WebUI for customers, rejected_because: "the customers are in a Telegram group; a second surface would split conversations and the group is where escalations are visible to the agents" }
+        - { option: Formbricks for feedback, rejected_because: "the catalog's feedback component is a web survey; a Telegram customer should not be sent to a page for a thumbs up, and the inline keyboard writes to the same outcome row" }
+        - { option: a review web app for the support agents, rejected_because: "they have a queue; a new tool at Walk would need oauth2-proxy and GoTrue and changes auth_in_front in three records; it is Q1, not a default" }
+      risks:
+        - { id: R2, text: "order details answered in a group thread are visible to every member", mitigation: "only allowed fields are ever emitted, account questions move to a private chat when the group policy says so, and Q2 asks the head of CS which it is", severity: high }
+        - { id: R3, text: "thumbs feedback is ignored or gamed and the rate means nothing", mitigation: "paired with the quality record's weekly human sample of 20 conversations; the two numbers are compared", severity: low }
+      gate_to_next:
+        - { id: G-UX-1, text: every escalation carries the full transcript and the order id, owner: ux, check: { type: verify-job, ref: copilot-validate } }
+        - { id: G-UX-3, text: "customer thumbs-down rate under 20 % over 30 days", owner: ux, check: { type: metric, ref: feedback_negative_rate } }
+        - { id: G-UX-4, text: "the two support agents complete the one-week shadow period and sign the Walk report section on handoff quality, as recorded by the head of CS", owner: ux, check: { type: manual, ref: the Walk report } }
+  open_questions:
+    - { id: Q1, question: "Do the support agents want a review UI of their own at Walk, or does the existing escalation queue suffice? The architecture and security records assume the existing queue with no human HTTP surface; a new UI needs oauth2-proxy and GoTrue and changes auth_in_front in three records. The head of CS decides.", blocks_stage: walk }
+    - { id: Q2, question: "May the bot reply with order details in the group thread, or only in a private chat with the customer? Group replies expose order status to every member. The head of CS decides before the shadow week.", blocks_stage: walk }
+  references:
+    - .builder/decisions/architecture.yaml
+    - .builder/decisions/ai-engineering.yaml
+    - .builder/decisions/security.yaml
+    - .builder/decisions/quality.yaml
+    - wiki/catalog.json

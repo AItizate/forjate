@@ -46,7 +46,7 @@ Catalog components ship a placeholder Secret with the name they mount (`postgres
 
 ## Rotation
 
-Crawl: none, the environment is disposable. Walk: a script re-seals every `.env` and the reloader restarts consumers; rehearsed once before Run (`G-SEC-<n>`, `ci`, ref `rotation-rehearsal`; the devops record operates it, `secret_rotation: scripted`). Run: rotation in the central store, consumers pick it up through External Secrets' refresh interval; the gate is the same rehearsal.
+Crawl: none, the environment is disposable. Walk: a script re-seals every `.env` and the reloader restarts consumers; rehearsed once before Run (`G-SEC-<n>`, `manual`, ref `rotation-rehearsal`, the operator named; the devops record operates it, `secret_rotation: scripted`). Run: rotation in the central store, consumers pick it up through External Secrets' refresh interval; the gate is the same rehearsal.
 
 ## What goes where
 

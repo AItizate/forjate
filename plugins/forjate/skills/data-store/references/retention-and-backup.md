@@ -22,7 +22,7 @@ Regulated data: shortest retention that serves the KPI for operational copies, p
 
 ## The restore gate
 
-A backup that was never restored is a hope. Every Walk and Run record carries a `G-DS-<n>` gate "restore of <store> rehearsed from the last backup into a scratch namespace, row count verified", with `check.type: verify-job` or `ci` and the procedure named, and `restore_tested: false` in settings until it passes. The devops expert operates it; you demand it.
+A backup that was never restored is a hope. Every Walk and Run record carries a `G-DS-<n>` gate "restore of <store> rehearsed from the last backup into a scratch namespace, row count verified", as a `manual` gate with the operator named and the procedure in the text, and `restore_tested: false` in settings until it passes. The devops expert operates it; you demand it.
 
 ## Residency
 

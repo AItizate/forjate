@@ -24,7 +24,7 @@ Read `references/memory-taxonomy.md` before mapping; `references/components-per-
 6. Set **backup** per stage (`settings.backup`): `none` at Crawl, Longhorn snapshots plus a logical dump to MinIO at Walk, Velero plus operator-managed PITR at Run. Name the restore test as a gate.
 7. Set **residency** (`settings.data_residency`) from the brief or the pack. A pack residency that contradicts the brief is unsatisfiable: leave the key unset for the affected stages, state what is blocked in `rationale`, raise an open question with `caused_by_rule`.
 8. Choose catalog components only, checking `stages` and `notes` in `wiki/catalog.json` (licence notes matter: MongoDB is SSPL, Redis 7.4+ changed licence, MinIO is AGPL). `choice` lists every store component for the stage; `apps/databases/postgres` and `apps/minio/*` are the defaults until a reason says otherwise.
-9. Write `risks` (single writer, no HA, licence, growth past the PVC), `gate_to_next` with ids `G-DS-<n>` (retention agreed, backup restored once, residency verified; prefer `verify-job` and `ci`), `alternatives` with the stores rejected and why. Validate, reply with the path and five lines: kinds found, mapping per stage, retention, backup, open questions.
+9. Write `risks` (single writer, no HA, licence, growth past the PVC), `gate_to_next` with ids `G-DS-<n>` (retention agreed, backup restored once, residency verified; `verify-job` and `ci` where a check exists, the restore rehearsal `manual` with the operator named), `alternatives` with the stores rejected and why. Validate, reply with the path and five lines: kinds found, mapping per stage, retention, backup, open questions.
 
 ```bash
 poetry run python ${CLAUDE_PLUGIN_ROOT}/scripts/builder/validate.py <usecase-dir>
@@ -50,7 +50,7 @@ poetry run python ${CLAUDE_PLUGIN_ROOT}/scripts/builder/validate.py <usecase-dir
 - **Postgres is the default long-term store.** JSONB covers most document needs; MongoDB is chosen for genuinely document-shaped chat state when the licence is acceptable and the pack does not deny it. When Postgres is denied, MariaDB is the relational alternative, not MongoDB.
 - **The system of record stays where it is.** You keep references (PO number, order id, invoice number), extracted fields and the audit trail; you do not copy the ERP. Copying it is a sync problem the pipeline expert did not sign up for.
 - **Retention is a decision someone owns.** Crawl data dies with the TTL. Walk retention comes from the business. Run retention on regulated data comes from legal and lands as an open question with `blocks_stage: run` unless the brief gives it.
-- **Backups that were never restored do not exist.** `G-DS-<n>` for the restore test is a `verify-job` or `ci` gate with the procedure named; `restore_tested: false` stays in settings until it passes.
+- **Backups that were never restored do not exist.** `G-DS-<n>` for the restore test is a `manual` gate naming the operator and the procedure; `restore_tested: false` stays in settings until it passes.
 - **Residency is per store, and every store.** An external vector SaaS or a managed database in another region breaks it; the record lists where each component's PVC lives (Longhorn in the cluster) and the residency key states the region.
 
 ## When you push back

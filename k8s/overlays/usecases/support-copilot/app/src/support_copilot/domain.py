@@ -73,7 +73,7 @@ class Subscription(BaseModel):
 ORDER_ID = re.compile(r"\bORD-\d{4,6}\b", re.IGNORECASE)
 ANGER = re.compile(r"\b(furious|unacceptable|ridiculous|angry|worst|scam|disgrace|outrageous)\b|!!!", re.IGNORECASE)
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}")
-PHONE = re.compile(r"\+?\d[\d ().-]{8,}\d")
+PHONE = re.compile(r"(\+\d{1,3}[ -]?)?\(?\d{2,4}\)?[ -]\d{3}[ -]\d{3,4}\b")  # separators a timestamp never has
 
 
 def extract_order_id(text: str) -> str | None:

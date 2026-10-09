@@ -59,6 +59,7 @@ def main() -> int:
           lambda: bool(cfg.allowed_fields) and "address" not in cfg.allowed_fields and not any(d in t for t in all_replies for d in disallowed))
     kpi = round(len(resolved) / len(replay), 4) if replay else 0.0
     print(f"  KPI resolved_without_human_rate={kpi}")
+    print(f"  KPI dead_letter_rate={round(len(dl) / len(replay), 4) if replay else 0.0}")   # the data-pipeline gate G-PIPE-2 reads it
     check("KPI resolved_without_human_rate=<value> printed on one parseable line, computed by rules over the outcome rows", lambda: len(replay) > 0)
     before = (stores.scalar("select count(*) from escalations"), stores.scalar("select count(*) from processed_messages"),
               stores.scalar("select md5(string_agg(replies::text, ',' order by conversation_id)) from conversation_outcomes"))
@@ -77,8 +78,8 @@ def main() -> int:
     customers = stores.query("select name, email, phone from customers")
     payload = {c["email"] for c in customers} | {c["phone"] for c in customers} | {c["name"] for c in customers}
     calls = [l for l in lines if '"model_call"' in l or '"tool_call"' in l]
-    check("model-call and tool-call logs carry the data class and no customer payload (no seed name, email or phone; no email or phone pattern)",
-          lambda: len(calls) >= 60 and all('"data_class": "pii"' in l for l in calls) and not any(p in l for l in calls for p in payload)
+    check("model-call and tool-call logs carry the data class and no customer payload (no seed name, email or phone; no email or phone pattern); one model call per non-empty conversation (58)",
+          lambda: sum('"model_call"' in l for l in calls) >= 58 and all('"data_class": "pii"' in l for l in calls) and not any(p in l for l in calls for p in payload)
           and not any(EMAIL.search(l) or PHONE.search(l) for l in calls))
     check("the stub orders API received read calls only; write calls = 0",
           lambda: stores.scalar("select count(*) from orders_stub_calls where method <> 'GET'") == 0 and stores.scalar("select count(*) from orders_stub_calls") > 0)

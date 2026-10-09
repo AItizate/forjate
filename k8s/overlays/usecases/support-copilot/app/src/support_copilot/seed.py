@@ -88,7 +88,7 @@ def main() -> None:
     cfg = settings()
     customers, orders, subs, convs = generate()
     stores.reset()
-    with stores.connect() as c:
+    with stores.connect() as conn, conn.cursor() as c:  # psycopg 3: executemany lives on the cursor
         c.executemany("insert into customers (customer_id, handle, name, email, phone) values (%s, %s, %s, %s, %s)", [tuple(x.values()) for x in customers])
         c.executemany("insert into orders (order_id, customer_id, status, eta, items_count, total_cents, address) values (%s, %s, %s, %s, %s, %s, %s)", [tuple(x.values()) for x in orders])
         c.executemany("insert into subscriptions (customer_id, plan, status, renews_on, payment_method) values (%s, %s, %s, %s, %s)", [tuple(x.values()) for x in subs])

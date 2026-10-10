@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run a skill's evals with and without the plugin, each in a fresh git worktree.
 # Usage: run.sh <skill> [--iteration N] [--eval <name>] [--only with|without] [--max-turns N] [--model <alias>] [--timeout SECONDS]
-# Default model for eval runs is opus; pass --model to compare. A run that exceeds
+# Default model for eval runs is opus; pass --model to compare. Builders (app-scaffold, kustomize assembly) write
+# dozens of files: run them with --max-turns 120 (FORJATE_EVAL_MAX_TURNS); 40 ends in error_max_turns. A run that exceeds
 # the timeout (default 1800 s, FORJATE_EVAL_TIMEOUT) is killed and recorded as is_error.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,7 +10,7 @@ PLUGIN_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO="$(git -C "$PLUGIN_DIR" rev-parse --show-toplevel)"
 
 skill="${1:?usage: run.sh <skill> [--iteration N] [--eval name] [--only with|without]}"; shift
-iteration=""; only_eval=""; only_cfg=""; max_turns=40; model="${FORJATE_EVAL_MODEL:-opus}"; timeout_s="${FORJATE_EVAL_TIMEOUT:-1800}"
+iteration=""; only_eval=""; only_cfg=""; max_turns="${FORJATE_EVAL_MAX_TURNS:-40}"; model="${FORJATE_EVAL_MODEL:-opus}"; timeout_s="${FORJATE_EVAL_TIMEOUT:-1800}"
 while [[ $# -gt 0 ]]; do
   case $1 in
     --iteration) iteration="$2"; shift ;;

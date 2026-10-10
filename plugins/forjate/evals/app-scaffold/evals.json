@@ -48,8 +48,8 @@
         {
           "type": "not_grep",
           "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
-          "pattern": "docker/build-push-action|docker build|docker push",
-          "text": "no hand-rolled build or push step"
+          "pattern": "(?m)^[^#\\n]*(docker/build-push-action|docker build|docker push)",
+          "text": "no hand-rolled build or push step (comments ignored)"
         },
         {
           "type": "grep",
@@ -77,7 +77,7 @@
         },
         {
           "type": "command",
-          "cmd": "cd k8s/overlays/usecases/invoice-intake/app && python3 -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' >/dev/null 2>&1 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "cmd": "cd k8s/overlays/usecases/invoice-intake/app && PYG=$(command -v python3.12 || command -v python3) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
           "text": "the app's tests pass in a fresh virtualenv"
         },
         {
@@ -200,8 +200,8 @@
         {
           "type": "not_grep",
           "path": "k8s/overlays/usecases/support-copilot/app/.github/workflows",
-          "pattern": "docker/build-push-action|docker build|docker push",
-          "text": "no hand-rolled build or push step"
+          "pattern": "(?m)^[^#\\n]*(docker/build-push-action|docker build|docker push)",
+          "text": "no hand-rolled build or push step (comments ignored)"
         },
         {
           "type": "grep",
@@ -229,7 +229,7 @@
         },
         {
           "type": "command",
-          "cmd": "cd k8s/overlays/usecases/support-copilot/app && python3 -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' >/dev/null 2>&1 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "cmd": "cd k8s/overlays/usecases/support-copilot/app && PYG=$(command -v python3.12 || command -v python3) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
           "text": "the app's tests pass in a fresh virtualenv"
         },
         {
@@ -352,8 +352,8 @@
         {
           "type": "not_grep",
           "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
-          "pattern": "docker/build-push-action|docker build|docker push",
-          "text": "no hand-rolled build or push step"
+          "pattern": "(?m)^[^#\\n]*(docker/build-push-action|docker build|docker push)",
+          "text": "no hand-rolled build or push step (comments ignored)"
         },
         {
           "type": "grep",
@@ -381,7 +381,7 @@
         },
         {
           "type": "command",
-          "cmd": "cd k8s/overlays/usecases/invoice-intake/app && python3 -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' >/dev/null 2>&1 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "cmd": "cd k8s/overlays/usecases/invoice-intake/app && PYG=$(command -v python3.12 || command -v python3) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
           "text": "the app's tests pass in a fresh virtualenv"
         },
         {
@@ -404,7 +404,7 @@
         {
           "type": "not_grep",
           "path": "k8s/overlays/usecases/invoice-intake/app/.github/workflows",
-          "pattern": "(?i)aquasecurity/trivy-action|trivy ",
+          "pattern": "(?mi)^[^#\\n]*(aquasecurity/trivy-action|trivy )",
           "text": "no Trivy by hand: the template's scan is the gate"
         }
       ]
@@ -456,8 +456,8 @@
         {
           "type": "not_grep",
           "path": "k8s/overlays/usecases/support-copilot/app/.github/workflows",
-          "pattern": "docker/build-push-action|docker build|docker push",
-          "text": "no hand-rolled build or push step"
+          "pattern": "(?m)^[^#\\n]*(docker/build-push-action|docker build|docker push)",
+          "text": "no hand-rolled build or push step (comments ignored)"
         },
         {
           "type": "grep",
@@ -485,7 +485,7 @@
         },
         {
           "type": "command",
-          "cmd": "cd k8s/overlays/usecases/support-copilot/app && python3 -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' >/dev/null 2>&1 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "cmd": "cd k8s/overlays/usecases/support-copilot/app && PYG=$(command -v python3.12 || command -v python3) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
           "text": "the app's tests pass in a fresh virtualenv"
         },
         {

@@ -43,6 +43,24 @@ run_one() {  # <eval-name> <prompt> <with|without>
   # The worktree has no virtualenv; share the main checkout's so `poetry run`
   # and the skills' validate/packs commands work inside it.
   [[ -d "$REPO/.venv" ]] && { rm -rf "$wt/.venv"; ln -s "$REPO/.venv" "$wt/.venv"; }
+  # The golden use cases (G1, G2) are committed with their records, apps and overlays: the answers the
+  # evals ask for. Strip them so every run starts from the fixtures; a skill may keep subpaths it needs
+  # as inputs (evals/<skill>/worktree-keep, one path per line relative to the use case directory).
+  local uc keep sub
+  for uc in invoice-intake support-copilot; do
+    [[ -d "$wt/k8s/overlays/usecases/$uc" ]] || continue
+    if [[ -f "${SCRIPT_DIR}/${skill}/worktree-keep" ]]; then
+      keep="$(mktemp -d)"
+      while IFS= read -r sub; do
+        [[ -n "$sub" && -e "$wt/k8s/overlays/usecases/$uc/$sub" ]] || continue
+        mkdir -p "$keep/$(dirname "$sub")"; cp -R "$wt/k8s/overlays/usecases/$uc/$sub" "$keep/$sub"
+      done < "${SCRIPT_DIR}/${skill}/worktree-keep"
+      rm -rf "$wt/k8s/overlays/usecases/$uc"
+      mkdir -p "$wt/k8s/overlays/usecases/$uc"; cp -R "$keep"/. "$wt/k8s/overlays/usecases/$uc/"; rm -rf "$keep"
+    else
+      rm -rf "$wt/k8s/overlays/usecases/$uc"
+    fi
+  done
   # Seed gitignored .env files so overlays build, as CI does.
   find "$wt/k8s/overlays" -name '*.env.example' | while read -r ex; do [[ -f "${ex%.example}" ]] || cp "$ex" "${ex%.example}"; done
   # Evals run in a throwaway worktree, so the build/validate commands the skills
@@ -68,7 +86,7 @@ run_one() {  # <eval-name> <prompt> <with|without>
   while kill -0 "$pid" 2>/dev/null; do
     if (( $(date +%s) - started >= timeout_s )); then
       echo "    TIMEOUT after ${timeout_s}s, killing $pid"
-      kill -TERM "$pid" 2>/dev/null; sleep 5; kill -KILL "$pid" 2>/dev/null
+      kill -TERM "$pid" 2>/dev/null || true; sleep 5; kill -KILL "$pid" 2>/dev/null || true
       break
     fi
     sleep 15

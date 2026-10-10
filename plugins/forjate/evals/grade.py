@@ -147,7 +147,7 @@ def check(a: dict, repo: Path) -> tuple[bool, str]:
     if t == "command":
         # A shell command run in the worktree (the generated service builds, its tests pass).
         rc, out = sh(["bash", "-lc", a["cmd"]], repo)
-        return rc == 0, (out[-400:] or "exit 0") if rc else "exit 0"
+        return rc == 0, "exit 0" if rc == 0 else f"exit {rc}: {out[-400:]}"
     if t == "scaffold_check":
         rc, out = sh([PY, str(BUILDER / "scaffold-check.py"), a["path"]], repo)
         return rc == 0, out[-400:]

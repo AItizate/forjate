@@ -162,8 +162,12 @@ def quality_metrics(repo: Path) -> dict:
     shows when pass rates tie (plan.md §3)."""
     m = {"records": 0, "open_questions": 0, "oq_with_rule": 0, "pack_refs": 0, "alternatives": 0, "risks": 0,
          "gates": 0, "gates_automated": 0, "stages": 0}
+    # Records an eval copied in as fixtures are inputs, not outputs: skip anything byte-identical to a fixture.
+    fixtures = {f.read_bytes() for f in (PLUGIN / "evals" / "fixtures").rglob("*.yaml")}
     for f in sorted(repo.glob("k8s/overlays/usecases/*/.builder/decisions/*.yaml")):
         try:
+            if f.read_bytes() in fixtures:
+                continue
             d = _load_yaml(f)
         except Exception:
             continue

@@ -90,9 +90,19 @@ def _expr_env(d: dict) -> dict:
                 any=any, all=all, str=str, set=set, sum=sum, int=int, float=float, bool=bool, sorted=sorted, isinstance=isinstance, list=list, dict=dict)
 
 
+def seed_env(repo: Path) -> None:
+    """Overlays consume gitignored .env files: seed them from the committed examples, as run.sh and CI do."""
+    for ex in repo.glob("k8s/overlays/**/*.env.example"):
+        real = ex.with_name(ex.name[: -len(".example")])
+        if not real.exists():
+            real.write_bytes(ex.read_bytes())
+
+
 def check(a: dict, repo: Path) -> tuple[bool, str]:
     t = a["type"]
     path = repo / a.get("path", "")
+    if t in {"kustomize_builds", "kubeconform", "command"}:
+        seed_env(repo)
     if t == "file_exists":
         return path.exists(), f"{a['path']} {'exists' if path.exists() else 'missing'}"
     if t == "file_absent":

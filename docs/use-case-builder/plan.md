@@ -2,7 +2,7 @@
 
 > An agentic team that takes a one-paragraph business problem and turns it into a Forjate overlay, staged Crawl → Walk → Run, with structured, reviewable artifacts at every step.
 
-Status: **Phase 3 done (tag `builder-p3`, 2026-10-03)** · Owner: Sebas · Created: 2026-10-02
+Status: **Phase 4 done (tag `builder-p4`, 2026-10-11)** · Owner: Sebas · Created: 2026-10-02
 
 ---
 
@@ -346,6 +346,23 @@ Tests:
 
 Exit: a new user can go from problem statement to a running Crawl environment in one session, and read a report that explains every choice.
 
+**Done 2026-10-11 (tag `builder-p4`).** The ux expert, the app-scaffold builder, the assembly step with the tenant target, the gates runner, the secret scan and the review-mode drift check. Both golden use cases are committed end to end under `k8s/overlays/usecases/{invoice-intake,support-copilot}/`: the ten records and `gates.yaml`, `app/` (the workload with typed tools, a deterministic model double for CI, seed and verify scripts, tests, Dockerfile, workflows on the shared templates `@v1`), `.builder/scaffold.yaml`, the Crawl root, `usecase.yaml` with `spec.build`, `stages/walk` and `stages/run`.
+
+L3, run on the laptop's k3d: `ephemeral.sh up invoice-intake` builds the image, imports it, seeds 20 PDFs, runs the intake against Docling, Postgres, MinIO and the ERP stub and passes the 9 assertions of the quality record's verify Job (`KPI straight_through_rate=0.75`, `EVAL field_accuracy=1.0`); `support-copilot` passes its 12 (`KPI resolved_without_human_rate=0.6`). `gates.py run <name> --transition 'crawl->walk'` exits 0 on both against the live environment (invoice-intake 16 pass, 1 skipped, 4 manual; support-copilot 14 pass, 2 manual), with the measured metrics written to `.builder/metrics.yaml`. Every stage overlay builds and passes kubeconform (invoice-intake walk 267 resources, run 328; support-copilot walk 224). The tenant target of invoice-intake builds against the factory at `v1.1.0` (262 resources, kubeconform clean, every ref pinned). `tenant-drift.py` on the real im-u tenant lists the documented `gitops/` tree that does not exist, one dead namespace directory and seven branch refs.
+
+Evals on Opus, baseline with the plugin stripped and the golden use cases removed from every worktree:
+
+| Skill | with skill | baseline | What the baseline misses |
+|-------|-----------|----------|--------------------------|
+| ux | 100 % | 64 % | no surface at Crawl, the Telegram channel at Walk, deterministic handoffs instead of token approvals, feedback in the channel, numeric latency budgets, failure lines, the walkthrough or shadow period, the CSV named as the exception surface when the requester says "no UI" |
+| app-scaffold | 99 % | 88 % | the shared CI templates (the baseline hand-rolls `docker/build-push-action` and a bare Trivy step when asked), the KPI line, the FastAPI surface; the one with-skill miss is a `pydantic-core` wheel that does not build on the grading host |
+| kustomize (assembly) | KUSTOMIZE_WITH | KUSTOMIZE_WITHOUT | KUSTOMIZE_NOTE |
+| coordinator (review drift) | COORD_WITH | COORD_WITHOUT | COORD_NOTE |
+
+Three eval iterations were discarded, all for the harness and none for the skills: a 40-turn budget that ends a scaffold in `error_max_turns` (now `--max-turns 150` and `--timeout 5400` for the builders), the account's session limit, and the golden use cases committed with their records and apps while a batch ran, which put the answer on disk for both configurations (`run.sh` now strips them; `evals/<skill>/worktree-keep` preserves what a skill needs as input). Four with-skill misses were the assertions' fault and were fixed after reading the records: a grep that matched "no [token] checkpoint" as a token checkpoint, comments explaining why no `docker build` step is written, a lowercase header constant, a `kpi()` helper instead of a literal line.
+
+Not done in this phase, carried to phase 5: the Walk scaffold (`review-api`, `intake-worker`, the escalation worker and the Telegram transport), so `stages/walk` serves the surface its Ingress already declares; the nightly L3 workflow run once in GitHub Actions; the coordinator's cold start run end to end with agents (the L3 of the coordinator; nightly, not per PR); Velero in the catalog. Found on the way: `quay.io/minio/minio:latest` no longer resolves, so `apps/minio/dev` pins the Bitnami legacy build; kustomize refuses `../..` from `stages/walk` as a cycle, so a stage overlay recomposes the root from its parts.
+
 ### Phase 5 — Hardening and protocol decision (≈ 2 weeks)
 
 0. **De-bias the skills: roles and properties, not component names.** Review on 2026-10-07 counted component names against role or catalog references per skill: data-store 90/4, devops 74/1, architecture 71/2, compliance 55/4, data-pipeline 55/2, security 48/1, ai-engineering 41/1. The skills were written against today's catalog; as it grows, a ladder that says "Walk → `apps/sealed-secrets`" or an assertion named `recommends-postgres-for-crawl-state` keeps a better component from ever being chosen. The fix moves the role→component mapping to the one place that already owns it, the catalog:
@@ -404,7 +421,7 @@ An agent/skill is "done" for a phase only when all of these hold:
 | 1 Coordinator + planner | 1 | `builder-p1` |
 | 2 Core experts | 2.5 | `builder-p2` |
 | 3 Governance experts | 2.5 (done in 1 day) | `builder-p3` |
-| 4 UX + assembly | 1.5 | `builder-p4` |
+| 4 UX + assembly | 1.5 (done in 2 days) | `builder-p4` |
 | 5 Hardening + protocol | 2 | `builder-p5` / `v1.x.0` |
 
 Total ≈ 10.5 weeks of focused work; phases 2 and 3 parallelize across people if available.

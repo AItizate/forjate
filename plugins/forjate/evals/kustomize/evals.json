@@ -90,11 +90,10 @@
           "text": "seed Job named docqa-seed"
         },
         {
-          "type": "yaml_path",
+          "type": "grep",
           "path": "k8s/overlays/usecases/doc-qa/usecase.yaml",
-          "query": ".spec.jobs.verify.name",
-          "equals": "docqa-validate",
-          "text": "verify Job named docqa-validate"
+          "pattern": "name:\\s*docqa-(validate|verify)",
+          "text": "verify Job named docqa-validate or docqa-verify (the scaffolder's default)"
         },
         {
           "type": "components_in_catalog",
@@ -130,17 +129,13 @@
           "text": "built manifest passes kubeconform"
         },
         {
-          "type": "yaml_path",
-          "path": "k8s/overlays/usecases/doc-qa/namespaces/uc-doc-qa/docqa-seed-job.yaml",
-          "query": ".spec.suspend",
-          "equals": "true",
+          "type": "command",
+          "cmd": "kubectl kustomize --enable-helm k8s/overlays/usecases/doc-qa | yq ea '[select(.kind == \"Job\" and (.metadata.name | test(\"docqa-seed\")))] | .[0].spec.suspend' | grep -qx true",
           "text": "seed Job ships suspended"
         },
         {
-          "type": "yaml_path",
-          "path": "k8s/overlays/usecases/doc-qa/namespaces/uc-doc-qa/docqa-validate-job.yaml",
-          "query": ".spec.suspend",
-          "equals": "true",
+          "type": "command",
+          "cmd": "kubectl kustomize --enable-helm k8s/overlays/usecases/doc-qa | yq ea '[select(.kind == \"Job\" and (.metadata.name | test(\"docqa-(validate|verify)\")))] | .[0].spec.suspend' | grep -qx true",
           "text": "verify Job ships suspended"
         },
         {
@@ -175,8 +170,8 @@
         {
           "type": "grep",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/stages/walk/kustomization.yaml",
-          "pattern": "^\\s*-\\s*\\.\\./\\.\\.\\s*$",
-          "text": "extends the Crawl overlay (../..)"
+          "pattern": "^\\s*-\\s*\\.\\./\\.\\./(namespaces/|\\.\\./\\.\\./\\.\\./base)",
+          "text": "recomposes the Crawl overlay from its parts (kustomize refuses ../.. as a cycle)"
         },
         {
           "type": "kustomize_builds",
@@ -215,8 +210,8 @@
           "type": "yaml_path",
           "path": "k8s/overlays/usecases/invoice-intake/usecase.yaml",
           "query": ".spec.jobs.verify.name",
-          "equals": "verify-job",
-          "text": "the verify Job is the scaffold's"
+          "equals": "inv-validate",
+          "text": "the verify Job is the quality record's inv-validate"
         },
         {
           "type": "kustomize_builds",

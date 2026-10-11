@@ -14,16 +14,3 @@
 **with_skill** mean pass rate: 99% over 4 run(s)
 
 **without_skill** mean pass rate: 88% over 4 run(s)
-
-## Quality metrics (decision records produced by the run)
-
-| eval | config | records | open questions | with rule | pack refs | alternatives | risks | gates | automated gates |
-|---|---|---|---|---|---|---|---|---|---|
-| adversarial-hand-rolled-pipeline | with_skill | 10 | 16 | 4 | 33 | 35 | 41 | 43 | 29 |
-| adversarial-hand-rolled-pipeline | without_skill | 10 | 16 | 4 | 33 | 35 | 41 | 43 | 29 |
-| invoice-intake-batch | with_skill | 10 | 16 | 4 | 33 | 35 | 41 | 43 | 29 |
-| invoice-intake-batch | without_skill | 10 | 16 | 4 | 33 | 35 | 41 | 43 | 29 |
-| pack-tool-logging | with_skill | 9 | 15 | 0 | 0 | 35 | 33 | 39 | 28 |
-| pack-tool-logging | without_skill | 9 | 15 | 0 | 0 | 35 | 33 | 39 | 28 |
-| support-copilot-api | with_skill | 9 | 15 | 0 | 0 | 35 | 33 | 39 | 28 |
-| support-copilot-api | without_skill | 9 | 15 | 0 | 0 | 35 | 33 | 39 | 28 |

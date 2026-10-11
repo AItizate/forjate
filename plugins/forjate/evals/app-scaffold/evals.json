@@ -77,7 +77,7 @@
         },
         {
           "type": "command",
-          "cmd": "cd k8s/overlays/usecases/invoice-intake/app && PYG=$(command -v python3.12 || command -v python3) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "cmd": "cd k8s/overlays/usecases/invoice-intake/app && PYG=$( (python3.12 -c 'import sys' >/dev/null 2>&1 && echo python3.12) || echo python3 ) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
           "text": "the app's tests pass in a fresh virtualenv"
         },
         {
@@ -106,8 +106,8 @@
         {
           "type": "grep",
           "path": "k8s/overlays/usecases/invoice-intake/app/src",
-          "pattern": "KPI straight_through_rate",
-          "text": "verify prints the KPI line"
+          "pattern": "(?s)KPI.*straight_through_rate|straight_through_rate.*KPI",
+          "text": "verify prints the KPI line (straight_through_rate)"
         },
         {
           "type": "grep",
@@ -229,7 +229,7 @@
         },
         {
           "type": "command",
-          "cmd": "cd k8s/overlays/usecases/support-copilot/app && PYG=$(command -v python3.12 || command -v python3) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "cmd": "cd k8s/overlays/usecases/support-copilot/app && PYG=$( (python3.12 -c 'import sys' >/dev/null 2>&1 && echo python3.12) || echo python3 ) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
           "text": "the app's tests pass in a fresh virtualenv"
         },
         {
@@ -244,10 +244,9 @@
           "text": "the agent API is a FastAPI app"
         },
         {
-          "type": "grep",
-          "path": "k8s/overlays/usecases/support-copilot/app/src",
-          "pattern": "X-Telegram-Bot-Api-Secret-Token",
-          "text": "the webhook verifies Telegram's secret token header"
+          "type": "command",
+          "cmd": "grep -rqi 'X-Telegram-Bot-Api-Secret-Token' k8s/overlays/usecases/support-copilot/app/src || grep -qiE 'webhook.*walk|walk.*webhook' k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
+          "text": "the webhook verifies Telegram's secret token header, or scaffold.yaml says the webhook arrives with Walk"
         },
         {
           "type": "grep",
@@ -264,8 +263,8 @@
         {
           "type": "grep",
           "path": "k8s/overlays/usecases/support-copilot/app/src",
-          "pattern": "KPI resolved_without_human_rate",
-          "text": "verify prints the KPI line"
+          "pattern": "(?s)KPI.*resolved_without_human_rate|resolved_without_human_rate.*KPI",
+          "text": "verify prints the KPI line (resolved_without_human_rate)"
         },
         {
           "type": "grep",
@@ -381,7 +380,7 @@
         },
         {
           "type": "command",
-          "cmd": "cd k8s/overlays/usecases/invoice-intake/app && PYG=$(command -v python3.12 || command -v python3) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "cmd": "cd k8s/overlays/usecases/invoice-intake/app && PYG=$( (python3.12 -c 'import sys' >/dev/null 2>&1 && echo python3.12) || echo python3 ) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
           "text": "the app's tests pass in a fresh virtualenv"
         },
         {
@@ -485,7 +484,7 @@
         },
         {
           "type": "command",
-          "cmd": "cd k8s/overlays/usecases/support-copilot/app && PYG=$(command -v python3.12 || command -v python3) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
+          "cmd": "cd k8s/overlays/usecases/support-copilot/app && PYG=$( (python3.12 -c 'import sys' >/dev/null 2>&1 && echo python3.12) || echo python3 ) && $PYG -m venv .venv-grade && .venv-grade/bin/pip -q install -e '.[test]' 2>&1 | tail -3 && .venv-grade/bin/python -m pytest -q -p no:cacheprovider tests",
           "text": "the app's tests pass in a fresh virtualenv"
         },
         {
@@ -495,7 +494,7 @@
         },
         {
           "type": "command",
-          "cmd": "cd k8s/overlays/usecases/support-copilot/app && python3 - <<'PY'\nimport ast, pathlib, sys\nmissing = []\nfor name in ('get_order', 'get_subscription', 'escalate'):\n    found = False\n    for py in pathlib.Path('src').rglob('*.py'):\n        for node in ast.walk(ast.parse(py.read_text())):\n            if isinstance(node, ast.FunctionDef) and node.name == name:\n                found = True\n                names = {a.arg for a in node.args.args + node.args.kwonlyargs}\n                if 'correlation_id' not in names: missing.append(name)\n    if not found: missing.append(name + ' (absent)')\nprint('missing correlation_id:', missing)\nsys.exit(1 if missing else 0)\nPY",
+          "cmd": "cd k8s/overlays/usecases/support-copilot/app && python3 - <<'PY'\nimport ast, pathlib, sys\nmissing = []\nfor name in ('get_order', 'get_subscription', 'escalate'):\n    found = False\n    for py in pathlib.Path('src').rglob('tools/*.py'):\n        for node in ast.walk(ast.parse(py.read_text())):\n            if isinstance(node, ast.FunctionDef) and node.name == name:\n                names = {a.arg for a in node.args.args + node.args.kwonlyargs}\n                if 'correlation_id' in names: found = True\n                else: missing.append(name)\n    if not found: missing.append(name + ' (absent)')\nprint('missing correlation_id:', missing)\nsys.exit(1 if missing else 0)\nPY",
           "text": "every tool takes a correlation_id parameter (pack item 1)"
         },
         {

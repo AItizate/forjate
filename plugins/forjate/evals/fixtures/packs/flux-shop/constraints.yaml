@@ -1,0 +1,15 @@
+rules:
+  OPS-1:
+    type: deny_components
+    value: [apps/continuous-delivery/argocd]
+    reason: Flux is the org standard; two GitOps engines are not supported.
+  OPS-2:
+    type: secrets_mechanism
+    value: vault
+    stages: [walk, run]
+    reason: The corporate Vault is the only secret store.
+  OPS-3:
+    type: max_cost_usd_month
+    value: 100
+    stages: [walk]
+    reason: Pilot infrastructure budget.

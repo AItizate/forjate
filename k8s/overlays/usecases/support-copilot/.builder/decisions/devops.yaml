@@ -1,0 +1,319 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: devops, usecase: support-copilot, author: "forjate:devops", version: 1, language: en }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        environment: ephemeral-k3d
+        cluster_shape: k3d-1-node
+        storage_class: local-path
+        deploy_method: ephemeral.sh
+        gitops: none
+        argocd_sync: n/a
+        target_revision: branch
+        remote_refs: n/a
+        argocd_private_refs: []
+        environments_distinct: false
+        image_registry: local-registry
+        image_tag_policy: any
+        image_writeback: none
+        image_signing: none
+        secrets_mechanism: secret-generator
+        secret_rotation: none
+        psa_level: privileged
+        network_policy: none
+        observability: none
+        golden_signals: []
+        alerting: none
+        backup: none
+        restore_rehearsed: false
+        rollback: redeploy-ephemeral
+        rollback_rehearsed: false
+      rationale: >-
+        One k3d node on a laptop or a CI runner, brought up by `ephemeral.sh up support-copilot`, which
+        seeds the `.env` files from their examples, applies the overlay, stamps the TTL and runs
+        seed -> replay -> verify in order; nothing else is installed, because a cluster that dies in four
+        hours has nothing to reconcile, no snapshot worth taking and no dashboard anyone will open.
+        The overlay needs sizing patches, not infrastructure: `patches/ollama-resources.yaml` for
+        qwen2.5:7b on CPU (no GPU on a laptop; 8 GB of RAM and the first token in seconds, not
+        milliseconds), `patches/postgres-resources.yaml` for the single session+episodic database.
+        `local-path` is the k3d default and Longhorn does not run on k3d; the seed Job recreates every
+        row, so `backup: none` matches the data-store record and the rollback is `ephemeral.sh down && up`.
+        Telemetry is the Job logs the runner prints, which is also how the Crawl metric gate is satisfied
+        without a Prometheus: the `copilot-validate` verify Job prints `resolved_without_human_rate` over
+        the replay set as its report, so G-BIZ-1 and G-Q-1 read a number out of a Job artifact rather
+        than a query. PSA stays at the k3d default `privileged` with `warn`/`audit` labels at
+        `restricted` so violations in the use case's own workloads (agent-api, orders-stub, the three
+        Jobs) surface now, while retrofitting them is still free. Secrets are `secretGenerator` from
+        gitignored `.env` files with placeholder values: the Telegram token is not needed, the orders API
+        is a stub and the model is local, so no real credential exists at this stage. Cost shape: 0 on an
+        operator's laptop, ~5 USD/month for the small VPS that runs k3d in CI, against the plan's 5.
+        No packs are active for devops (`packs: []`), so the factory ladder in
+        `docs/lab-to-production.md` and `references/environment-ladder.md` sets every value above.
+      alternatives:
+        - option: ArgoCD on the k3d cluster so Crawl rehearses the Walk delivery path
+          rejected_because: >-
+            a Crawl record that installs ArgoCD has skipped a stage; the TTL is the lifecycle and the
+            working tree is the source. The delivery path is rehearsed by the gates that unlock Walk
+            (stage overlay builds, refs pinned, controller key restorable), not by running the engine
+            against a cluster that will not exist tomorrow.
+        - option: Longhorn at Crawl so storage matches Walk
+          rejected_because: Longhorn does not run on k3d; `local-path` is the default and the seed Job is the recovery path.
+        - option: prometheus+grafana at Crawl to serve the two metric gates
+          rejected_because: >-
+            the verify Job can print the rate it already computes; a monitoring stack on a four-hour
+            cluster costs laptop memory the local model needs and holds no history.
+      risks:
+        - id: R1
+          text: >-
+            Ollama runs qwen2.5:7b on CPU, so Crawl latency per turn is seconds; the figures do not
+            transfer to Walk, where inference is an external API call.
+          mitigation: >-
+            the Crawl gates assert correctness and escalation coverage, never latency; Walk latency is
+            measured against the canary on the shared cluster before the KPI is read.
+          severity: low
+        - id: R2
+          text: >-
+            Index-based env patches (`/spec/template/spec/containers/0/env/3`) on the catalog components
+            break silently when an upstream list is reordered on the next bump.
+          mitigation: >-
+            strategic merge on `name` for every env patch; where an index is unavoidable, a comment on
+            the patch naming the assumed order, as the kustomize skill emits it.
+          severity: medium
+      gate_to_next:
+        - id: G-OPS-1
+          text: >-
+            `kustomize build k8s/overlays/usecases/support-copilot/stages/walk` succeeds and its output
+            differs from the Crawl root, with its own ArgoCD Application
+          owner: devops
+          check: { type: ci, ref: stage-overlay-builds }
+        - id: G-OPS-2
+          text: >-
+            every `ssh://...?ref=` in the Walk overlay resolves to a tag or a commit, no branch refs
+          owner: devops
+          check: { type: ci, ref: ref-pinning-check }
+        - id: G-OPS-3
+          text: >-
+            the platform operator backs the sealed-secrets controller key up encrypted off-cluster and
+            restores it into a scratch cluster once, before the first real Telegram or provider credential is sealed
+          owner: devops
+          check: { type: manual, ref: controller-key-backup }
+        - id: G-OPS-4
+          text: >-
+            the Walk Application tracks a tag with `selfHeal: true` and `prune: false`, and the
+            repo-server can clone every private ref the overlay names
+          owner: devops
+          check: { type: ci, ref: argocd-revision-check }
+      estimated_cost_usd_month: 5
+    walk:
+      choice:
+        - apps/continuous-delivery/argocd
+        - apps/sealed-secrets
+        - apps/storage/longhorn
+        - apps/monitoring/prometheus
+        - apps/monitoring/grafana
+        - apps/monitoring/reloader
+      settings:
+        environment: shared-cluster
+        cluster_shape: k3s-3-node
+        storage_class: longhorn
+        deploy_method: argocd
+        gitops: argocd
+        argocd_sync: auto-selfheal
+        target_revision: tag
+        remote_refs: pinned-tag
+        argocd_private_refs:
+          - "Secret argocd-ssh-keys (deploy key + ssh_config) mounted in the repo-server at /app/ssh-keys"
+          - "GIT_SSH_COMMAND: ssh -F /app/ssh-keys/ssh_config on the repo-server"
+          - "repo-creds credential template Secret for the ssh://git@github.com/<org>/ prefix"
+          - "ARGOCD_EXEC_TIMEOUT and timeout.reconciliation at 600s (one SSH clone per resource entry)"
+          - "reposerver.enable.kustomize.helm: \"true\" in argocd-cmd-params-cm if any referenced component uses helmCharts"
+        environments_distinct: true
+        image_registry: ghcr.io
+        image_tag_policy: sha
+        image_writeback: repository_dispatch+yq
+        image_signing: none
+        secrets_mechanism: sealed-secrets
+        secret_rotation: scripted
+        secret_rotation_script: scripts/rotate-secrets.sh k8s/overlays/usecases/support-copilot/stages/walk
+        psa_level: baseline
+        network_policy: default-deny
+        observability: prometheus+grafana
+        golden_signals:
+          - "agent-api: latency p95 per turn"
+          - "agent-api: error rate (5xx and tool-loop aborts)"
+          - "agent-api: traffic (messages per minute, conversations per day)"
+          - "agent-api: saturation (memory, in-flight turns, Redis connections)"
+          - "escalation-worker: escalation rate, retry depth, dead-lettered escalations"
+          - "tools: failure rate per tool (get_order, get_subscription, escalate)"
+          - "litellm: tokens and cost per conversation"
+          - "canary: copilot-validate pass rate"
+          - "kpi: resolved_without_human_rate"
+        alerting: alertmanager
+        backup: snapshot+dump
+        restore_rehearsed: false
+        rollback: git-revert+argocd-sync
+        rollback_rehearsed: false
+      rationale: >-
+        Three k3s nodes with embedded etcd, Longhorn at 3 replicas for the Redis and Postgres PVCs, one
+        `uc-support-copilot` namespace under a NetworkPolicy. Delivery is ArgoCD with one Application
+        per stage overlay: `uc-support-copilot-walk` on `path: k8s/overlays/usecases/support-copilot/stages/walk`,
+        `targetRevision` a tag, `automated: { selfHeal: true, prune: false }`,
+        `syncOptions: [ServerSideApply=true, CreateNamespace=false]` because the overlay declares the
+        namespace with its PSA labels. `environments_distinct: true` is the point of the stage directory:
+        the real tenant this factory serves has its testing and production write-back targets resolving to
+        one path, so a promotion is a no-op and a bad image reaches both at once; here the Walk overlay
+        builds on its own, differs from the Crawl root and is the only thing the write-back touches.
+        Pinning is `pinned-tag` for every `ssh://` ref in both URL forms (`.git//k8s/...` and
+        `.git/k8s/base`), with a CI grep as the gate: a branch ref is drift waiting for a push, and the
+        tenant survey found five factory versions and three branches in one tree. The iac repo is cloned
+        over SSH, so the repo-server prerequisites in `argocd_private_refs` are not optional — a missing
+        deploy key fails at refresh with a generic error and nothing syncs.
+        Images: the agent repo's CI pushes `ghcr.io/<org>/support-copilot-agent:<full-sha>`, fires
+        `repository_dispatch` (`event_type: app-image-updated`, payload `app_name`, `new_tag`, `tenant`, `namespace`)
+        at the iac repo, whose workflow runs
+        `yq -i '(.images[] | select(.name == "ghcr.io/<org>/support-copilot-agent")).newTag = "<sha>"'`
+        on the Walk kustomization, commits `chore(deploy): update support-copilot-agent to <sha> in walk`
+        under `concurrency: gitops-walk-support-copilot-agent`, and ArgoCD syncs. The image is declared in
+        an `images:` block so the edit is structural, never a `sed` on a line; the pull secret rides on the
+        ServiceAccount through one patch targeting `kind: ServiceAccount` without a name. Signing is
+        `none` here: cosign is a Run step and not a catalog component.
+        Secrets become real at Walk (Telegram bot token and webhook secret, the provider key behind
+        LiteLLM, the orders API credential), so `sealed-secrets` with committed `sealed-*.yaml` and
+        `scripts/rotate-secrets.sh` as the rotation path: regenerate each value per its `.env.example`
+        header, re-seal, commit, and let `apps/monitoring/reloader` restart agent-api and the escalation
+        worker on Secret change. The controller key is backed up and restored once (G-OPS-3) before the
+        first of those is sealed, because a cluster rebuild without it turns every sealed file in git into
+        ciphertext nobody can open.
+        Observability is Prometheus plus Grafana because the Walk gates are metric gates: G-Q-2 and
+        G-BIZ-2 read `resolved_without_human_rate` over 90 days, which no Job log can hold. Alertmanager
+        pages on three and only three conditions — the `copilot-validate` canary failing, agent-api error
+        rate above the response SLA, and cost per conversation above the AI-engineering budget of
+        4 USD/1k requests; everything else in `golden_signals` is a dashboard the two support agents and
+        the head of CS look at on purpose. Backup is the data-store record's `snapshot+dump`, operated as
+        Longhorn recurring snapshots on both PVCs plus a nightly CronJob (`pg_dump` of the escalation and
+        summary tables, Redis RDB) into a MinIO bucket pinned to a third node; `restore_rehearsed` stays
+        false until the dump is restored into a scratch namespace and row counts match (data-store's
+        G-DS-2). Rollback runbook, rehearsed once as G-OPS-6:
+        (1) `argocd app history uc-support-copilot-walk` for the last good revision,
+        (2) `git revert <sha>` or bump the tag back, push to what the Application tracks,
+        (3) `argocd app sync uc-support-copilot-walk` and watch the canary verify Job and the KPI panel,
+        (4) if the escalation table changed shape this is the restore gate, not a rollback.
+        An image-only regression is a write-back with the previous SHA, which is why full SHAs matter.
+        Cost shape, against the plan's 100 and the brief's 150 USD/month ceiling: 3 x 4 vCPU / 8 GB nodes
+        (Hetzner CPX21-class) at ~60, Longhorn on the node disks at 0 extra, no GPU because Walk inference
+        is the external API, and ~24 for that inference (200 messages/day ≈ 6k requests/month at the
+        AI-engineering record's 4 USD/1k) — ~85 USD/month, leaving no room for the 30 to 60 USD offsite
+        dump target, which is Q2 rather than a silent omission. No packs are active for devops, so these
+        are the factory ladder's values; `psa_level`, `secrets_mechanism` and `network_policy` are copied
+        from `decisions/security.yaml` (baseline enforce with restricted warn and audit, sealed secrets,
+        default-deny) and the three agree.
+      alternatives:
+        - option: Flux instead of ArgoCD
+          rejected_because: >-
+            the catalog ships `apps/continuous-delivery/argocd` and the tenants that consume this factory
+            already run it; a second engine buys nothing here and loses the observed repo-server SSH
+            configuration that makes private refs work.
+        - option: kubectl apply from CI
+          rejected_because: >-
+            no drift detection and no reconciliation, so the cluster stops matching git the first time
+            someone fixes something live — the failure mode the Walk gates exist to close.
+        - option: "`latest` or a moving `walk` image tag instead of the full SHA"
+          rejected_because: >-
+            two syncs of the same tag produce different pods, and a rollback has no address to go back to.
+        - option: metallb plus a public LoadBalancer for the Telegram webhook
+          rejected_because: >-
+            the architecture record terminates the webhook through `apps/cloudflare-tunnel`, so no port is
+            opened on the nodes and no address pool has to be managed.
+        - option: "`auto-prune-selfheal` from Walk"
+          rejected_because: >-
+            prune is read-only trust in a tree nobody has diffed yet; it stays `prune: false` until
+            `argocd app diff` has been read once, which is a Run decision.
+      risks:
+        - id: R3
+          text: >-
+            Loss of the sealed-secrets controller key makes every committed `sealed-*.yaml` permanently
+            unreadable, including the Telegram token and the provider key.
+          mitigation: >-
+            G-OPS-3 backs the key up encrypted off-cluster and restores it into a scratch cluster before
+            the first real secret is sealed; the backup is re-verified after any controller upgrade.
+          severity: high
+        - id: R4
+          text: >-
+            An unpinned or branch `ssh://` ref, or an Application left on a branch, turns a push by anyone
+            with write access into a production deploy and makes two builds of one commit differ.
+          mitigation: >-
+            `remote_refs: pinned-tag` with the `ref-pinning-check` CI gate (G-OPS-2) and the
+            `argocd-revision-check` gate (G-OPS-4) asserting a tag with `selfHeal: true`.
+          severity: high
+        - id: R5
+          text: >-
+            A Walk overlay that does not differ from the Crawl root makes the image write-back hit both
+            environments at once, so a bad SHA reaches the real Telegram group with no staging step.
+          mitigation: >-
+            `environments_distinct: true`, one Application per stage overlay, and the
+            `stage-overlay-builds` gate (G-OPS-1) failing when `stages/walk` equals the root.
+          severity: high
+        - id: R6
+          text: >-
+            The nightly dumps and Longhorn snapshots live on the same three nodes as the data, so losing
+            the cluster loses 90 days of escalation transcripts with it.
+          mitigation: >-
+            until the envelope covers an offsite bucket (Q2), the rotation runbook copies the latest dump
+            and the controller key backup off-cluster weekly, and the restore rehearsal (G-DS-2) runs from
+            that copy, not from the in-cluster bucket.
+          severity: medium
+        - id: R7
+          text: >-
+            The Telegram webhook arrives through a single cloudflare-tunnel pod; a sync that restarts it
+            drops inbound messages for the duration.
+          mitigation: >-
+            two tunnel replicas and a rolling update on agent-api with `maxUnavailable: 0`; Telegram
+            retries a failed webhook delivery, and the escalation path is idempotent per the
+            AI-engineering record's `escalate` contract.
+          severity: medium
+      gate_to_next:
+        - id: G-OPS-5
+          text: >-
+            secret rotation rehearsed once end to end by the platform operator: every `.env` re-sealed from
+            its example, reloader restarts agent-api and the escalation worker, and the bot answers a canary conversation after
+          owner: devops
+          check: { type: manual, ref: rotation-rehearsal }
+        - id: G-OPS-6
+          text: >-
+            rollback rehearsed once on Walk by the platform operator: a revert pushed to the tracked tag,
+            synced, and the `copilot-validate` canary green afterwards
+          owner: devops
+          check: { type: manual, ref: rollback-rehearsal }
+        - id: G-OPS-7
+          text: >-
+            the three paging alerts have fired at least once in a drill run by the platform operator (canary
+            failure, error rate over SLA, cost per conversation over budget) and reached the on-call support agent
+          owner: devops
+          check: { type: manual, ref: alert-drill }
+      estimated_cost_usd_month: 85
+  open_questions:
+    - id: Q1
+      question: >-
+        `data_residency` is left unset: the brief names no region, the compliance expert is skipped in the
+        stage plan, and the data-store record sets none — yet at Walk the conversation text leaves the
+        cluster to an external model provider through LiteLLM and Prometheus holds conversation metrics
+        for 90 days. Who fixes the region for the stores, the provider hop and the metrics backend, and
+        does that reopen the compliance expert the plan skipped?
+      blocks_stage: walk
+    - id: Q2
+      question: >-
+        The 100 USD/month Walk envelope buys three nodes plus external inference (~85) and no offsite
+        dump target (30 to 60 more). Does the head of CS accept that 90 days of escalation transcripts are
+        backed up only on the same cluster plus a weekly manual copy, or does the budget grow toward the
+        brief's 150 ceiling?
+      blocks_stage: walk
+  references:
+    - docs/lab-to-production.md
+    - docs/ci-cd.md
+    - docs/ci-write-back-integration.md
+    - docs/use-case-builder/tenant-patterns.md
+    - scripts/ephemeral/README.md
+    - wiki/concepts/remote-references.md

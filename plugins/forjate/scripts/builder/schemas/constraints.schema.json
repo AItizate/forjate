@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AItizate/forjate/plugins/forjate/scripts/builder/schemas/constraints.schema.json",
+  "title": "ContextPackConstraints",
+  "description": "Machine-checkable rules of a context pack. The vocabulary of rule types is fixed so validate.py can test decisions against them.",
+  "type": "object",
+  "required": ["rules"],
+  "additionalProperties": false,
+  "properties": {
+    "rules": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type", "value"],
+        "properties": {
+          "type": {
+            "enum": [
+              "deny_components", "allow_components_only", "require_components",
+              "min_psa_level", "secrets_mechanism", "model_allowlist", "model_denylist",
+              "data_egress", "data_residency", "naming_pattern", "max_cost_usd_month",
+              "require_setting", "deny_setting_value"
+            ]
+          },
+          "value": {},
+          "reason": { "type": "string" },
+          "stages": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/stage" }, "description": "Stages the rule applies to. Absent means all." },
+          "data_classes": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/dataClass" }, "description": "Only enforce when the brief's data classification is one of these." },
+          "target": { "type": "string", "description": "For naming_pattern: namespace | component | image. For require_setting / deny_setting_value: the settings key." }
+        },
+        "allOf": [
+          { "if": { "properties": { "type": { "enum": ["deny_components", "allow_components_only", "require_components"] } } },
+            "then": { "properties": { "value": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/component" } } } } },
+          { "if": { "properties": { "type": { "const": "min_psa_level" } } },
+            "then": { "properties": { "value": { "enum": ["privileged", "baseline", "restricted"] } } } },
+          { "if": { "properties": { "type": { "const": "secrets_mechanism" } } },
+            "then": { "properties": { "value": { "enum": ["secret-generator", "sealed-secrets", "external-secrets", "vault"] } } } },
+          { "if": { "properties": { "type": { "enum": ["model_allowlist", "model_denylist"] } } },
+            "then": { "properties": { "value": { "type": "array", "items": { "type": "string" } } } } },
+          { "if": { "properties": { "type": { "const": "data_egress" } } },
+            "then": { "properties": { "value": { "enum": ["none", "anonymized", "any"] } } } },
+          { "if": { "properties": { "type": { "const": "data_residency" } } },
+            "then": { "properties": { "value": { "type": "string" } } } },
+          { "if": { "properties": { "type": { "const": "naming_pattern" } } },
+            "then": { "required": ["target"], "properties": { "value": { "type": "string", "format": "regex" } } } },
+          { "if": { "properties": { "type": { "const": "max_cost_usd_month" } } },
+            "then": { "properties": { "value": { "type": "number" } } } },
+          { "if": { "properties": { "type": { "enum": ["require_setting", "deny_setting_value"] } } },
+            "then": { "required": ["target"] } }
+        ]
+      }
+    }
+  }
+}

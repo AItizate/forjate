@@ -1,0 +1,18 @@
+apiVersion: forjate.io/v0
+kind: ContextPack
+metadata:
+  name: tool-logging
+  version: 1.0.0
+  scope: team
+  precedence: 30
+  description: Eval fixture for forjate:app-scaffold. A tool-development guideline with three checkable items every tool module must implement.
+spec:
+  applies_to: [app-scaffold, ai-engineering]
+  language: en
+  sources:
+    - id: TOOLS
+      kind: guideline
+      path: guidelines/tool-development.md
+      enforce: must
+      applies_to: [app-scaffold, ai-engineering]
+      summary: Every tool takes a correlation_id, logs it, and returns the source system of its result.

@@ -1,0 +1,126 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: ux, usecase: invoice-intake, author: "forjate:ux", version: 1, language: en }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        surface: cli
+        surface_workload: none
+        channel: none
+        audiences:
+          - "finance ops lead: reads the verify Job log and the review_queue table through kubectl and psql"
+          - "AP clerk: not involved at Crawl; nothing is posted and nothing needs approval"
+        hitl_checkpoints:
+          - "none: the review queue is a table the verify Job asserts on; no human approves anything because the ERP is a stub and no posting is real"
+        feedback_capture: verify-job-log
+        latency_budget: "batch: 20 PDFs within the 10 minute run Job budget; nobody waits on screen"
+        streaming: none
+        failure_ux:
+          - "parse failure: a review_queue row with reason=parse-failed, visible in the verify log"
+          - "extraction timeout: the item is routed to review with reason=extraction-timeout and the batch continues"
+          - "batch failure: ephemeral.sh exits non-zero with the failing assertion named; no partial posting exists to clean up"
+        auth_in_front: none
+        ui_language: en
+        escalation_context: "review_queue row: invoice id, supplier, extracted fields, PO fields side by side, reason, PDF object reference"
+        onboarding: none
+      rationale: >-
+        No packs constrain the surface, so the factory defaults apply. Crawl is a batch over seeded PDFs
+        against a stub ERP, so the right surface is no surface: the finance ops lead reads the verify
+        Job log and the review_queue table, which already carry everything a clerk would see at Walk.
+        A chat UI here would invent a user the stage does not have, and a review web app would be
+        built before anyone has seen what an exception looks like. What Crawl does decide is the shape
+        of the escalation context, because the review queue the clerk uses at Walk is this table plus a
+        page: every exception row carries the reason, the extracted values next to the PO values and a
+        reference to the PDF, and the verify Job asserts that for each of the five seeded exceptions.
+      alternatives:
+        - { option: Open WebUI as a Crawl demo surface, rejected_because: "the use case has no conversation; a chat front-end on a batch would demo the model, not the intake, and the finance ops lead needs the exception list, not a prompt box" }
+        - { option: a review web app already at Crawl, rejected_because: "nothing is approved at Crawl; the page would be designed before the exception shapes are known, and the verify Job already proves the context a clerk needs" }
+      risks:
+        - { id: R1, text: "the verify log is the only surface, so a stakeholder who is not comfortable with kubectl sees nothing", mitigation: "the Job prints a one-screen summary (counts per reason, the KPI line, the three mismatches) that the coordinator pastes into the report", severity: low }
+      gate_to_next:
+        - { id: G-UX-2, text: "every seeded exception has a review_queue row with the fields a clerk needs to decide: reason, extracted values next to the PO values, PDF reference", owner: ux, check: { type: verify-job, ref: inv-validate } }
+    walk:
+      choice: [apps/surveys/formbricks]
+      settings:
+        surface: custom-web
+        surface_workload: review-api
+        channel: none
+        audiences:
+          - "AP clerk: the review queue of exceptions, approve or reject with the PO side by side, one invoice per screen"
+          - "finance ops lead: weekly straight-through and exception report, the feedback summary"
+          - "CFO: the Walk report"
+        hitl_checkpoints:
+          - "mismatch-approval: the AP clerk approves or rejects any invoice whose amount, supplier or PO number differs from the purchase order, in the review queue; approval issues the token post_to_erp requires [token]"
+          - "bank-account-change: a checkpoint even when the amount matches; the clerk confirms the new account against the supplier record [token]"
+          - "parse-failed: the clerk types the four fields from the PDF or rejects the item; it never auto-posts [token]"
+        feedback_capture: formbricks
+        feedback_prompt: "one question after each approval (was the extraction right?) with an optional free-text field; a weekly summary to the finance ops lead; skippable"
+        latency_budget: "queue refresh within 10 minutes of mailbox arrival (the poll interval); the clerk never waits on a model call: extraction is asynchronous and an item appears in the queue when it is ready"
+        streaming: none
+        failure_ux:
+          - "parse failure: the item lands in review with reason=parse-failed and the PDF inline; the clerk types the four fields or rejects it"
+          - "extraction slow or failed: the item shows 'awaiting extraction', then lands in review with its reason; the clerk can type the fields by hand"
+          - "Odoo posting failed: the item returns to the queue with the Odoo error text, the worker retries with the same idempotency key, the clerk sees a status and never a stack trace"
+          - "not signed in: redirect to the identity provider; no anonymous view of any invoice"
+          - "duplicate invoice: shown with the earlier item linked, one click to confirm the duplicate"
+        auth_in_front: oauth2-proxy
+        identity_provider: gotrue
+        ui_language: en
+        escalation_context: "review_queue row: invoice id, supplier, extracted fields, PO fields side by side, reason, PDF rendered inline, the earlier item when duplicate"
+        onboarding: "a 30-minute walkthrough with the two AP clerks on the seeded exception set before real invoices arrive; the clerks' sign-off is a manual gate"
+      rationale: >-
+        At Walk a human approves exceptions and nothing else, so the surface is the review queue the
+        architecture record already names as the review-api workload: a custom web page, one invoice
+        per screen, the extracted fields next to the PO fields, approve or reject. It sits behind
+        oauth2-proxy and GoTrue, the same auth_in_front the architecture and security records carry,
+        because the approval releases a payable and the audit trail needs a clerk, not a shared link.
+        Every checkpoint that issues the approval token post_to_erp requires is listed here so the
+        AI-engineering and security records can point at it. Feedback is captured with Formbricks (the
+        catalog's feedback component, fit from Walk) as one question after each approval, because the
+        extraction's blind spots show up in what the clerk corrects, not in the KPI. Latency is a queue
+        problem, not a spinner: extraction runs asynchronously behind the 10-minute mailbox poll and the
+        clerk sees finished items, so the 40 s CPU extraction the AI-engineering record warns about never
+        blocks a person. Failures are statuses on the item with a next action the clerk can take.
+      alternatives:
+        - { option: Open WebUI as the clerk's surface, rejected_because: "it is a chat front-end; the clerk needs a queue with the PO side by side and an approve button that issues a token, none of which a prompt box gives" }
+        - { option: approval by replying to an email, rejected_because: "no per-clerk identity, no audit of who approved what, and a forwarded email becomes an approval; the IdP in front of a page is what makes the token mean something" }
+        - { option: a Formbricks survey at Crawl, rejected_because: "the catalog marks the component fit from Walk and there is no clerk to ask at Crawl" }
+      risks:
+        - { id: R2, text: "clerks bypass the queue and type into Odoo directly when the queue feels slow, so the approval token path is skipped and the straight-through metric is wrong", mitigation: "the queue is the only path that issues the token; a posting that did not come through it is visible in the straight-through metric and the weekly report names it", severity: medium }
+        - { id: R3, text: "feedback fatigue: one question per approval is ignored after a week", mitigation: "the question is skippable, the response rate is a metric gate rather than a demand, and the weekly summary goes back to the clerks so they see it was read", severity: low }
+      gate_to_next:
+        - { id: G-UX-3, text: "the two AP clerks complete the seeded exception set in the review queue without help in the walkthrough and sign the Walk report section on the queue, as recorded by the finance ops lead", owner: ux, check: { type: manual, ref: the Walk report } }
+        - { id: G-UX-4, text: "feedback captured on at least 80 % of approvals over 30 days", owner: ux, check: { type: metric, ref: feedback_response_rate } }
+    run:
+      choice: [apps/surveys/formbricks]
+      settings:
+        surface: custom-web
+        surface_workload: review-api
+        channel: none
+        audiences:
+          - "AP clerks of every legal entity: the same queue filtered by entity"
+          - "finance ops lead: per-entity report"
+        hitl_checkpoints:
+          - "mismatch-approval, bank-account-change and parse-failed: unchanged, per entity [token]"
+        feedback_capture: formbricks
+        latency_budget: "unchanged; the GPU node, if the envelope allows it, shortens the queue refresh but the clerk still never waits"
+        streaming: none
+        failure_ux:
+          - "unchanged; an entity whose Odoo instance is down sees its items parked with the reason while the other entities continue"
+        auth_in_front: oauth2-proxy
+        identity_provider: gotrue
+        ui_language: en
+        escalation_context: "unchanged, plus the legal entity"
+      rationale: >-
+        The surface does not change shape at Run; it is filtered by legal entity and the clerk's GoTrue
+        groups decide which entities a clerk sees, which the security record enforces in the review API
+        and not only in the page. Feedback stays one question per approval.
+  open_questions:
+    - { id: Q1, question: "Should approvals happen inside Odoo's own UI (a draft payable the clerk validates there) instead of the separate review queue? It saves the clerks a second tool but moves the approval token outside the use case's control and loses the PO side-by-side view. Finance ops decides before the Walk walkthrough.", blocks_stage: walk }
+  references:
+    - .builder/decisions/architecture.yaml
+    - .builder/decisions/ai-engineering.yaml
+    - .builder/decisions/security.yaml
+    - wiki/catalog.json

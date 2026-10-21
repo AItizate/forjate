@@ -1,0 +1,24 @@
+apiVersion: forjate.io/v0
+kind: ContextPack
+metadata:
+  name: no-custom-ui
+  version: 1.0.0
+  scope: team
+  precedence: 30
+  description: Eval fixture (layered over regulated-corp) for forjate:ux. Forbids custom front-ends at the pilot stage and the third-party survey tool.
+spec:
+  applies_to: [ux]
+  language: en
+  sources:
+    - id: UX-1
+      kind: constraint
+      path: constraints.yaml#/rules/UX-1
+      enforce: must
+      applies_to: [ux]
+      summary: No third-party survey or feedback SaaS; feedback stays in the systems we own.
+    - id: UX-2
+      kind: constraint
+      path: constraints.yaml#/rules/UX-2
+      enforce: must
+      applies_to: [ux]
+      summary: No custom front-end at the pilot stage; approvals happen in the ERP's own UI or an existing tool.

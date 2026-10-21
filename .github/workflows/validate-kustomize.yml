@@ -85,6 +85,12 @@ jobs:
           done < /tmp/targets.txt
           exit "$fail"
 
+      - name: Plaintext-credential scan
+        # The security expert's gate (secret-scan): configMapGenerator literals, configs/,
+        # env patches and tracked .env files. A real tenant leaked two LLM API keys next to
+        # 24 correctly sealed secrets; this is what would have caught them.
+        run: python3 plugins/forjate/scripts/builder/secret-scan.py k8s/overlays k8s/components k8s/base
+
       - name: Summary
         if: always()
         run: |

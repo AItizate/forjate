@@ -27,6 +27,8 @@ k8s/
 
 ![Forjate reference architecture](docs/assets/architecture/reference-architecture.png)
 
+For what an agentic system looks like on top of this, layer by layer and request by request, see [`docs/agentic-reference-architecture.md`](docs/agentic-reference-architecture.md).
+
 ## The "anywhere" promise
 
 The same overlay runs on a Raspberry Pi, a rack of bare metal, AWS, GCP, Azure, or any mix of those. **The difference between a hyperscaler and a server in a closet is fifty lines of YAML, not a migration project.**

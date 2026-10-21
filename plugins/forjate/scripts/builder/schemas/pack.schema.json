@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AItizate/forjate/plugins/forjate/scripts/builder/schemas/pack.schema.json",
+  "title": "ContextPack",
+  "description": "Manifest of a context pack: versioned external guidelines that override factory defaults for some or all skills.",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "forjate.io/v0" },
+    "kind": { "const": "ContextPack" },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "version", "scope", "precedence"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "_defs.schema.json#/$defs/name" },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "scope": { "enum": ["org", "team", "usecase", "user"] },
+        "precedence": {
+          "type": "integer", "minimum": 1, "maximum": 100,
+          "description": "Higher wins on conflict. Factory defaults are 0. Convention: org 10-29, team 30-49, usecase 50-69, user 70-89."
+        },
+        "description": { "type": "string" },
+        "owner": { "type": "string" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["applies_to", "sources"],
+      "additionalProperties": false,
+      "properties": {
+        "applies_to": { "$ref": "#/$defs/appliesTo" },
+        "language": { "$ref": "_defs.schema.json#/$defs/language" },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "kind", "path", "enforce"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[A-Z][A-Z0-9]*(-[0-9]+)?$" },
+              "kind": { "enum": ["constraint", "guideline", "reference"] },
+              "path": {
+                "type": "string",
+                "description": "Relative to the pack dir. For constraints: constraints.yaml#/rules/<ID>. For guidelines/references: a markdown file."
+              },
+              "enforce": { "enum": ["must", "should", "may"] },
+              "applies_to": { "$ref": "#/$defs/appliesTo" },
+              "summary": { "type": "string", "description": "One line, shown to skills before they decide whether to open the file." }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "appliesTo": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          { "const": "*" },
+          { "$ref": "_defs.schema.json#/$defs/role" }
+        ]
+      }
+    }
+  }
+}

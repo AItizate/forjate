@@ -1,0 +1,11 @@
+rules:
+  COST-1:
+    type: max_cost_usd_month
+    value: 50
+    stages: [walk, run]
+    reason: Team budget is a fixed 50 USD per month per initiative until the board approves more.
+  COST-2:
+    type: require_setting
+    target: payback_months
+    value: "*"
+    reason: The board compares initiatives by payback period.

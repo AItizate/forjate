@@ -1,0 +1,11 @@
+{
+  "name": "forjate",
+  "version": "0.1.0",
+  "displayName": "Forjate Use-Case Builder",
+  "description": "An agentic team that turns a business problem into a Forjate overlay, staged Crawl → Walk → Run. Coordinator, stage planner and expert skills for business, architecture, AI engineering, data, security, compliance, quality, DevOps and UX, all driven by schema-validated decision records and context packs.",
+  "author": { "name": "AItizate", "url": "https://github.com/AItizate" },
+  "homepage": "https://github.com/AItizate/forjate/tree/main/docs/use-case-builder",
+  "repository": "https://github.com/AItizate/forjate",
+  "license": "Apache-2.0",
+  "keywords": ["kubernetes", "kustomize", "agents", "use-case", "architecture"]
+}

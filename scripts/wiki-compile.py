@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -564,6 +565,60 @@ def render_index(pages: list[Page], compiled_at: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+CATALOG_OVERRIDES = WIKI / "catalog-overrides.yaml"
+CATALOG_OUT = WIKI / "catalog.json"
+
+
+def render_catalog(pages: list[Page], compiled_at: str) -> str:
+    """wiki/catalog.json — one record per component, merged with curated overrides.
+
+    This is the machine-readable catalog the use-case builder experts query
+    (plugins/forjate). Declared facts come from the tree; stage fitness,
+    roles, licence and maturity come from catalog-overrides.yaml.
+    """
+    overrides = {"defaults": {}, "components": {}}
+    if CATALOG_OVERRIDES.exists():
+        overrides = yaml.safe_load(CATALOG_OVERRIDES.read_text(encoding="utf-8")) or overrides
+    defaults = overrides.get("defaults") or {}
+    curated = overrides.get("components") or {}
+
+    comps_root = K8S / "components"
+    records = []
+    for p in pages:
+        if p.kind != "component":
+            continue
+        path = str(p.source.relative_to(comps_root))
+        rec = {
+            "path": path,
+            "name": p.name,
+            "category": p.category,
+            "wiki": rel(p.out),
+            "summary": p.summary,
+            "images": p.images,
+            "kinds": p.kinds,
+            "composes": p.local_refs,
+            "remote_refs": p.remote_refs,
+            "consumed_by": p.consumed_by,
+            "parent": p.parent,
+        }
+        extra = dict(defaults)
+        extra.update(curated.get(path) or {})
+        extra["curated"] = path in curated
+        rec.update(extra)
+        records.append(rec)
+
+    unknown = sorted(set(curated) - {r["path"] for r in records})
+    doc = {
+        "apiVersion": "forjate.io/v0",
+        "kind": "Catalog",
+        "compiled_at": compiled_at,
+        "stages": ["crawl", "walk", "run"],
+        "components": records,
+        "overrides_without_component": unknown,
+    }
+    return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
+
+
 def append_log(entry: str) -> None:
     """Append-only, with the fixed grep-parseable prefix the schema mandates."""
     log = WIKI / "log.md"
@@ -600,6 +655,9 @@ def main() -> int:
     def strip(t):
         return re.sub(r"^compiled_at: .*$", "", t or "", flags=re.MULTILINE)
 
+    def strip_json_date(t):
+        return re.sub(r'"compiled_at": "[^"]*"', "", t or "")
+
     for page in pages:
         content = render_page(page, compiled_at)
         prior = page.out.read_text(encoding="utf-8") if page.out.exists() else None
@@ -626,6 +684,14 @@ def main() -> int:
         changed.append(rel(index_path))
         if not args.check:
             index_path.write_text(index_content, encoding="utf-8")
+            written += 1
+
+    catalog_content = render_catalog(pages, compiled_at)
+    prior_catalog = CATALOG_OUT.read_text(encoding="utf-8") if CATALOG_OUT.exists() else None
+    if strip_json_date(prior_catalog) != strip_json_date(catalog_content):
+        changed.append(rel(CATALOG_OUT))
+        if not args.check:
+            CATALOG_OUT.write_text(catalog_content, encoding="utf-8")
             written += 1
 
     if changed and not args.check:

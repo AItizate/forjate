@@ -1,0 +1,66 @@
+# verify phase (copilot-validate): suspended, the runner un-suspends it in order (seed -> run -> verify).
+# Command and environment from .builder/scaffold.yaml; the image is built by ephemeral.sh from usecase.yaml spec.build.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: copilot-validate
+  namespace: uc-support-copilot
+  labels: &id001
+    app: copilot-validate
+    forjate.io/usecase: support-copilot
+    forjate.io/phase: verify
+spec:
+  suspend: true
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: copilot-validate
+        image: support-copilot
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - -m
+        - support_copilot.verify
+        env:
+        - name: PGHOST
+          value: postgres
+        - name: AGENT_URL
+          value: http://agent-api:8000
+        - name: MODEL_MODE
+          value: rules
+        - name: ALLOWED_ORDER_FIELDS
+          value: status,eta,items_count
+        - name: DATA_CLASS
+          value: pii
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: writable-0
+          mountPath: /tmp
+      volumes:
+      - name: writable-0
+        emptyDir: {}

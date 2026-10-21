@@ -1,0 +1,27 @@
+apiVersion: forjate.io/v0
+kind: Gates
+metadata:
+  usecase: support-copilot
+  version: 1
+spec:
+  transitions:
+    crawl->walk:
+      approver: head of CS
+      gates:
+      - {id: G-BIZ-1, text: resolution rate measured on the seeded set and shown to the head of CS, owner: business, check: {type: metric, ref: resolved_without_human_rate}}
+      - {id: G-ARCH-1, text: the replay set runs end to end and every refund request produces an escalation record with the transcript, owner: architecture, check: {type: verify-job, ref: copilot-validate}}
+      - {id: G-AI-1, text: every refund or cancellation in the replay set is escalated and no order field outside the allowed list is shown, owner: ai-engineering, check: {type: verify-job, ref: copilot-validate}}
+      - {id: G-DS-1, text: session retention and transcript retention agreed with the head of CS, owner: data-store, check: {type: manual, ref: decisions/data-store.yaml}}
+      - {id: G-PIPE-1, text: 'verify Job copilot-validate exits 0: 60 conversations processed, duplicate replies = 0 after a second run, all 12 refund and cancellation conversations escalated with transcript and order id', owner: data-pipeline, check: {type: verify-job, ref: copilot-validate}}
+      - {id: G-PIPE-2, text: 'dead-letter rate on the seeded set equals the 2 intentionally malformed conversations and no others, each with a reason recorded', owner: data-pipeline, check: {type: metric, ref: dead_letter_rate}}
+      - {id: G-SEC-1, text: 'every secret the overlay consumes has a committed .env.example at the same path with the generate and seal commands in its header, and no .env file is tracked', owner: security, check: {type: ci, ref: env-example-check}}
+      - {id: G-SEC-2, text: 'the injection subset of the replay set produces no suppressed escalation and no order field outside the allowed list, and the agent makes no connection outside the namespace during the run', owner: security, check: {type: verify-job, ref: copilot-validate}}
+      - {id: G-SEC-3, text: 'agent-api, replay-job, seed-job and verify-job run with runAsNonRoot, seccompProfile RuntimeDefault, allowPrivilegeEscalation false, readOnlyRootFilesystem and capabilities drop ALL, so the restricted audit shows only the Postgres exception', owner: security, check: {type: ci, ref: psa-check}}
+      - {id: G-Q-1, text: verify Job exits 0 on the seeded conversation set, owner: quality, check: {type: verify-job, ref: copilot-validate}}
+      - {id: G-Q-3, text: the golden set runs in CI on every prompt change and the merge fails below the threshold, owner: quality, check: {type: ci, ref: eval-regression}}
+      - {id: G-OPS-1, text: '`kustomize build k8s/overlays/usecases/support-copilot/stages/walk` succeeds and its output differs from the Crawl root, with its own ArgoCD Application', owner: devops, check: {type: ci, ref: stage-overlay-builds}}
+      - {id: G-OPS-2, text: 'every `ssh://...?ref=` in the Walk overlay resolves to a tag or a commit, no branch refs', owner: devops, check: {type: ci, ref: ref-pinning-check}}
+      - {id: G-OPS-3, text: 'the platform operator backs the sealed-secrets controller key up encrypted off-cluster and restores it into a scratch cluster once, before the first real Telegram or provider credential is sealed', owner: devops, check: {type: manual, ref: controller-key-backup}}
+      - {id: G-OPS-4, text: 'the Walk Application tracks a tag with `selfHeal: true` and `prune: false`, and the repo-server can clone every private ref the overlay names', owner: devops, check: {type: ci, ref: argocd-revision-check}}
+      - {id: G-UX-2, text: 'every escalation record of the replay set carries the full transcript, the order id and the reason', owner: ux, check: {type: verify-job, ref: copilot-validate}}
+  pack_overrides: []

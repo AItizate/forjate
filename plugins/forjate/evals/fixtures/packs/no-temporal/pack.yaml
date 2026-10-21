@@ -1,0 +1,24 @@
+apiVersion: forjate.io/v0
+kind: ContextPack
+metadata:
+  name: no-temporal
+  version: 1.0.0
+  scope: org
+  precedence: 20
+  description: Eval fixture for forjate:architecture. Forbids Temporal and inbound webhooks.
+spec:
+  applies_to: [architecture]
+  language: en
+  sources:
+    - id: ARCH-1
+      kind: constraint
+      path: constraints.yaml#/rules/ARCH-1
+      enforce: must
+      applies_to: [architecture]
+      summary: Temporal is not approved; no new workflow engines until the platform team picks one.
+    - id: ARCH-2
+      kind: constraint
+      path: constraints.yaml#/rules/ARCH-2
+      enforce: should
+      applies_to: [architecture]
+      summary: No inbound webhooks from the internet; integrations pull.

@@ -1,0 +1,15 @@
+# walk: the real model and the real systems (strategic merge on the container name, order-independent).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-stub
+spec:
+  template:
+    spec:
+      containers:
+      - name: orders-stub
+        env:
+        - name: MODEL_MODE
+          value: live
+        - name: ORDERS_URL
+          value: https://orders.corp.example.com

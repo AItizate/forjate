@@ -3,11 +3,12 @@ title: networking-metallb
 kind: component
 sources:
 - k8s/components/apps/networking/metallb
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-09'
 category: networking
 consumed_by:
 - overlays/bare-metal-starter
 - overlays/home-edge-lab
+- overlays/usecases-invoice-intake-stages-walk
 source_last_commit: '2026-04-27'
 summary: vendors `native?ref=v0.15.2`
 summary_source: derived
@@ -33,6 +34,7 @@ summary_source: derived
 
 - [overlays/bare-metal-starter](../overlays/bare-metal-starter.md)
 - [overlays/home-edge-lab](../overlays/home-edge-lab.md)
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md)
 
 <!-- END DECLARED -->
 

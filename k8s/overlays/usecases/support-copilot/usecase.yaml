@@ -1,0 +1,52 @@
+# Contract for the support-copilot ephemeral use-case environment, assembled from .builder/.
+# Schema: scripts/ephemeral/usecase.schema.json. Design: docs/ephemeral-use-cases.md
+# spec.build: Crawl has no registry; ephemeral.sh builds app/ and imports <image>:dev into k3d before applying.
+apiVersion: forjate.io/v0
+kind: UseCase
+metadata:
+  name: support-copilot
+  description: Customers write to a Telegram group with questions about their orders and subscriptions
+spec:
+  isolation: shared
+  ttl: 4h
+  components:
+  - apps/ai-models/ollama
+  - apps/databases/postgres
+  jobs:
+    seed:
+      name: copilot-seed
+      timeout: 600
+    run:
+      name: replay-job
+      timeout: 900
+    verify:
+      name: copilot-validate
+      timeout: 600
+  outputs:
+    endpoints:
+    - name: ollama
+      service: ollama-service
+      port: 11434
+      protocol: http
+    - name: postgres
+      service: postgres
+      port: 5432
+      protocol: postgresql
+    - name: agent-api
+      service: agent-api
+      port: 8000
+      protocol: http
+    - name: orders-stub
+      service: orders-stub
+      port: 8001
+      protocol: http
+    secrets:
+    - name: postgres-credentials
+      secretRef: postgres-secret
+      keys:
+      - POSTGRES_DB
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+  build:
+  - image: support-copilot
+    context: app

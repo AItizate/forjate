@@ -1,0 +1,23 @@
+# ArgoCD Application for run: tracks a tag (devops: target_revision tag, auto-prune-selfheal); CreateNamespace=false keeps the PSA labels of namespace.yaml.
+# targetRevision is the tag that carries this overlay; bump it on release (the write-back never edits it).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: uc-invoice-intake-run
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ssh://git@github.com/AItizate/forjate.git
+    targetRevision: v1.2.0
+    path: k8s/overlays/usecases/invoice-intake/stages/run
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: uc-invoice-intake
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+    - ServerSideApply=true
+    - CreateNamespace=false

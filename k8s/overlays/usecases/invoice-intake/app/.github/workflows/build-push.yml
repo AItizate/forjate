@@ -1,0 +1,41 @@
+name: Build, scan, push and write back
+# The shared template builds, scans with Trivy and pushes; this repo never writes its own build job
+# (plugins/forjate/skills/devops/references/ci-templates.md). The write-back is a repository_dispatch
+# into the IaC repo's sync-app-image.yml, which edits the images: block with yq.
+on:
+  push:
+    branches: [main]
+jobs:
+  build-scan-push:
+    uses: AItizate/gh-actions-templates/.github/workflows/build-push-generic-template.yml@v1
+    with:
+      branch: ${{ github.ref_name }}
+      registry_url: ghcr.io
+      repository_name: aitizate/invoice-intake
+      image_tag: ${{ github.sha }}
+      docker_file: ./Dockerfile
+    secrets:
+      registry_username: ${{ github.actor }}
+      registry_password: ${{ secrets.GITHUB_TOKEN }}
+  write-back:
+    needs: build-scan-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch app-image-updated to the IaC repo
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.IAC_FACTORY_TOKEN }}
+          repository: AItizate/forjate
+          event-type: app-image-updated
+          client-payload: '{"app_name": "invoice-intake", "new_tag": "${{ github.sha }}", "tenant": "usecases/invoice-intake/stages/walk", "namespace": "uc-invoice-intake"}'
+  notify-on-failure:
+    needs: [build-scan-push, write-back]
+    if: always() && contains(needs.*.result, 'failure')
+    uses: AItizate/gh-actions-templates/.github/workflows/webhook-notification-template.yml@v1
+    with:
+      repository: ${{ github.repository }}
+      ref: ${{ github.ref }}
+      run_id: ${{ github.run_id }}
+      server_url: ${{ github.server_url }}
+    secrets:
+      NOTIFY_WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}

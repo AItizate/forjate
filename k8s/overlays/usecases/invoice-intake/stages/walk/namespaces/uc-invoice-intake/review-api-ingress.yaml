@@ -1,0 +1,26 @@
+# The human surface (ux: review-api) behind oauth2-proxy and GoTrue (security/architecture: auth_in_front). Patch the host.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: review-api
+  namespace: uc-invoice-intake
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: uc-invoice-intake-gotrue-chain@kubernetescrd
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: invoice-intake.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: review-api
+            port:
+              number: 8000
+  tls:
+  - hosts:
+    - invoice-intake.example.com
+    secretName: review-api-tls

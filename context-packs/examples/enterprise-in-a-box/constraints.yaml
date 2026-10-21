@@ -1,0 +1,53 @@
+rules:
+  AUT-1:
+    type: require_setting
+    target: autonomy
+    value: assistive
+    stages: [crawl]
+    reason: A PoC proves the reasoning, not the right to act; autonomy grows with evidence and a gate.
+  AUT-2:
+    type: require_setting
+    target: write_actions
+    value: approval-required
+    stages: [crawl, walk]
+    reason: Writes outside registered tools, or without a human gate, are the failure mode regulators ask about first.
+  EXE-1:
+    type: require_setting
+    target: execution_bounds
+    value: "*"
+    reason: Loops and cascades terminate deterministically only when steps, timeouts and delegation depth are bounded.
+  EXE-2:
+    type: require_setting
+    target: intent_validation
+    value: enabled
+    reason: A judge step between proposed tool call and execution blocks hallucinated or out-of-policy actions.
+  EXE-3:
+    type: require_setting
+    target: auth_in_front
+    value: "*"
+    reason: Access control enforced at the ingress for every agent call is the single choke point and the kill switch.
+  MOD-1:
+    type: require_setting
+    target: model_pinning
+    value: pinned
+    reason: A floating model version is a silent behaviour change nobody approved.
+  MOD-2:
+    type: deny_setting_value
+    target: fallback_policy
+    value: [lower-tier, any]
+    reason: Fallback to a less trusted model routes sensitive work where it was never approved to go.
+  AUD-1:
+    type: require_setting
+    target: audit_artifacts
+    value: "*"
+    reason: Without a per-action record there is no decision trace for a claim, an order or an incident.
+  STD-1:
+    type: require_setting
+    target: open_standards
+    value: "*"
+    reason: Portability is a design property, not an exit plan; the tenant must be able to rebuild everything from its own repo.
+  MEM-1:
+    type: require_setting
+    target: memory_scopes
+    value: "*"
+    reason: Leakage across users or tenants starts with memory that has no scope.

@@ -1,0 +1,9 @@
+rules:
+  RES-1:
+    type: data_residency
+    value: us
+    reason: Group policy; all workloads run in the US region.
+  LIC-1:
+    type: deny_components
+    value: [apps/minio/dev, apps/minio/single-server]
+    reason: Legal bans AGPL-licensed software in any environment.

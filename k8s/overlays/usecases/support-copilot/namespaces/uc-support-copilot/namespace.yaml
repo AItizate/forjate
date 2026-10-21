@@ -1,0 +1,9 @@
+# PSA: the security record's Crawl level; warn and audit at restricted so violations are visible before Walk enforces.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uc-support-copilot
+  labels:
+    forjate.io/usecase: support-copilot
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

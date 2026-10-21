@@ -1,0 +1,63 @@
+# Contract for the invoice-intake ephemeral use-case environment, assembled from .builder/.
+# Schema: scripts/ephemeral/usecase.schema.json. Design: docs/ephemeral-use-cases.md
+# spec.build: Crawl has no registry; ephemeral.sh builds app/ and imports <image>:dev into k3d before applying.
+apiVersion: forjate.io/v0
+kind: UseCase
+metadata:
+  name: invoice-intake
+  description: Supplier invoices arrive as PDF attachments in a shared mailbox
+spec:
+  isolation: shared
+  ttl: 4h
+  components:
+  - apps/ai-models/ollama
+  - apps/document-processing/docling
+  - apps/databases/postgres
+  - apps/minio/dev
+  jobs:
+    seed:
+      name: inv-seed
+      timeout: 600
+    run:
+      name: intake-job
+      timeout: 900
+    verify:
+      name: inv-validate
+      timeout: 600
+  outputs:
+    endpoints:
+    - name: ollama
+      service: ollama-service
+      port: 11434
+      protocol: http
+    - name: docling
+      service: docling
+      port: 5001
+      protocol: http
+    - name: postgres
+      service: postgres
+      port: 5432
+      protocol: postgresql
+    - name: dev
+      service: minio
+      port: 9000
+      protocol: s3
+    - name: erp-stub
+      service: erp-stub
+      port: 8001
+      protocol: http
+    secrets:
+    - name: postgres-credentials
+      secretRef: postgres-secret
+      keys:
+      - POSTGRES_DB
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+    - name: dev-credentials
+      secretRef: minio-secret
+      keys:
+      - MINIO_ROOT_USER
+      - MINIO_ROOT_PASSWORD
+  build:
+  - image: invoice-intake
+    context: app

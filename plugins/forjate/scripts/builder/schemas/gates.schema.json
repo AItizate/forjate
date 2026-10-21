@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AItizate/forjate/plugins/forjate/scripts/builder/schemas/gates.schema.json",
+  "title": "Gates",
+  "description": "Consolidated stage-transition checklist, owned by forjate:quality. Also records context-pack overrides so reviewers see them.",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "forjate.io/v0" },
+    "kind": { "const": "Gates" },
+    "metadata": {
+      "type": "object",
+      "required": ["usecase", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "usecase": { "$ref": "_defs.schema.json#/$defs/name" },
+        "version": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["transitions"],
+      "additionalProperties": false,
+      "properties": {
+        "transitions": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(crawl->walk|walk->run)$": {
+              "type": "object",
+              "required": ["gates"],
+              "additionalProperties": false,
+              "properties": {
+                "gates": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/gate" } },
+                "approver": { "type": "string", "description": "Human role that signs the transition." }
+              }
+            }
+          }
+        },
+        "pack_overrides": {
+          "description": "A higher-precedence layer overrode a lower-layer must. Visible on purpose.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["rule", "overridden_by"],
+            "additionalProperties": false,
+            "properties": {
+              "rule": { "$ref": "_defs.schema.json#/$defs/ruleRef" },
+              "overridden_by": { "type": "string", "description": "pack:<name>#<ID> or 'user-instruction'." },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

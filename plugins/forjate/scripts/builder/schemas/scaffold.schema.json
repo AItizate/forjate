@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AItizate/forjate/plugins/forjate/scripts/builder/schemas/scaffold.schema.json",
+  "title": "Scaffold",
+  "description": "What forjate:app-scaffold generated under <usecase>/app/: the contract the assembly reads to wire Jobs and Deployments, and scaffold-check verifies against the records.",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "forjate.io/v0"
+    },
+    "kind": {
+      "const": "Scaffold"
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "usecase",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "usecase": {
+          "$ref": "_defs.schema.json#/$defs/name"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "author": {
+          "type": "string",
+          "pattern": "^forjate:[a-z-]+$"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": [
+        "package",
+        "image",
+        "workloads",
+        "tools"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "package": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Python package under app/src/."
+        },
+        "image": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+          "description": "Image name the overlay's images: block pins (Crawl: <image>:dev via spec.build; Walk: the registry path with a SHA tag)."
+        },
+        "model_modes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Values of MODEL_MODE the app accepts; the deterministic test double first."
+        },
+        "workloads": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "kind",
+              "command"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z0-9-]+$",
+                "description": "The architecture record's workload name."
+              },
+              "kind": {
+                "enum": [
+                  "job",
+                  "deployment",
+                  "cronjob"
+                ]
+              },
+              "phase": {
+                "enum": [
+                  "seed",
+                  "run",
+                  "verify"
+                ],
+                "description": "For Jobs: the lifecycle phase of usecase.yaml it serves."
+              },
+              "command": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Container command, e.g. [python, -m, invoice_intake.batch]."
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "health_path": {
+                "type": "string"
+              },
+              "env": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Environment variables the workload reads (NAME or NAME=default); secrets by their Secret name are listed in secrets."
+              },
+              "secrets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Secret names mounted with envFrom (the component-mounted names)."
+              },
+              "writable_paths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Paths that need an emptyDir under readOnlyRootFilesystem."
+              }
+            }
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "module"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "module": {
+                "type": "string",
+                "description": "Module path relative to app/src, e.g. invoice_intake/tools/lookup_po.py."
+              },
+              "flags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The flags from the AI-engineering record's tool line: read-only, idempotent, requires approval token."
+              }
+            }
+          }
+        },
+        "constrained_by": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^pack:[a-z0-9]([-a-z0-9]*[a-z0-9])?#[A-Z][A-Z0-9-]*$"
+          },
+          "description": "Pack refs that shaped the code; guideline ids (TOOLS) have no numeric suffix, unlike constraint ids."
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "What the scaffold refused or assumed, one line each."
+        }
+      }
+    }
+  }
+}

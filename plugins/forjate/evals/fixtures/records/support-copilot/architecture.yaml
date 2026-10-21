@@ -1,0 +1,38 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: architecture, usecase: support-copilot, author: "forjate:architecture", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        topology: request-response
+        workloads: [agent-api, replay-job, seed-job, verify-job, orders-stub]
+        integrations: ["Telegram Bot API: replay", "orders API: stub"]
+        integration_patterns: [batch]
+        durable_execution: none
+        broker: none
+        api_surface: none
+        auth_in_front: none
+        trigger: chat
+      rationale: Recorded conversations replayed against the agent API and a stub of the orders API; nothing public.
+      gate_to_next:
+        - { id: G-ARCH-1, text: the replay set runs end to end and every refund request produces an escalation record with the transcript, owner: architecture, check: { type: verify-job, ref: copilot-validate } }
+    walk:
+      choice: [apps/cloudflare-tunnel]
+      settings:
+        topology: request-response
+        workloads: [agent-api, escalation-worker, verify-job]
+        integrations: ["Telegram Bot API: webhook", "orders API: rest-pull", "support queue: rest-push"]
+        integration_patterns: [webhook, rest-pull, rest-push]
+        durable_execution: job
+        broker: none
+        api_surface: external
+        auth_in_front: api-key
+        trigger: chat
+      rationale: Telegram calls a webhook through the tunnel, verified by the bot's secret token; the escalation worker posts to the agents' queue with the transcript and the order id.
+      alternatives:
+        - { option: Temporal for the escalation handoff, rejected_because: "200 messages a day; a Postgres status row with a retrying Job is enough and is revisited if handoffs get multi-step" }
+      gate_to_next:
+        - { id: G-ARCH-2, text: webhook rejects requests without the Telegram secret token and the escalation worker retries safely, owner: architecture, check: { type: verify-job, ref: copilot-validate } }
+  references: [docs/service-integration.md]

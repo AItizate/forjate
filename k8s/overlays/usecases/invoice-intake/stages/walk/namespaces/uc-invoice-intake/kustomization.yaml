@@ -1,0 +1,25 @@
+# walk: what the records add inside uc-invoice-intake (components fit for walk, NetworkPolicies, the secrets mechanism, the surface).
+namespace: uc-invoice-intake
+resources:
+- netpols.yaml
+- ../../../../../../../components/apps/ai-models/litellm
+- ../../../../../../../components/apps/auth/gotrue-auth
+- ../../../../../../../components/apps/minio/single-server
+- ../../../../../../../components/apps/surveys/formbricks
+- secrets/sealed-postgres-secret.yaml
+- secrets/sealed-minio-secret.yaml
+- secrets/sealed-approval-secret.yaml
+- secrets/sealed-litellm-secret.yaml
+- secrets/sealed-gotrue-secret.yaml
+- secrets/sealed-minio-storage-configuration.yaml
+- secrets/sealed-formbricks-secret.yaml
+- secrets/sealed-imap-mailbox-secret.yaml
+- secrets/sealed-odoo-rest-api-secret.yaml
+- review-api-ingress.yaml
+configMapGenerator:
+- name: formbricks-config
+  literals:
+  - WEBAPP_URL=http://formbricks:3000
+  - NEXTAUTH_URL=http://formbricks:3000
+  options:
+    disableNameSuffixHash: true

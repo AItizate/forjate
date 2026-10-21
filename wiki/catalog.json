@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-10-09",
+  "compiled_at": "2026-10-21",
   "stages": [
     "crawl",
     "walk",
@@ -2151,11 +2151,8 @@
       "name": "security-external-secrets",
       "category": "security",
       "wiki": "wiki/components/security-external-secrets.md",
-      "summary": "deploys `repository:`",
-      "images": [
-        "repository:",
-        "{{"
-      ],
+      "summary": "declares `Namespace`",
+      "images": [],
       "kinds": [
         "Namespace"
       ],

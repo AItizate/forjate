@@ -3,12 +3,12 @@ title: security-external-secrets
 kind: component
 sources:
 - k8s/components/apps/security/external-secrets
-compiled_at: '2026-10-09'
+compiled_at: '2026-10-21'
 category: security
 consumed_by:
 - overlays/usecases-invoice-intake-stages-run
 source_last_commit: '2026-04-27'
-summary: deploys `repository:`
+summary: declares `Namespace`
 summary_source: derived
 ---
 
@@ -25,11 +25,6 @@ summary_source: derived
 ### Kubernetes kinds
 
 `Namespace`
-
-### Container images
-
-- `repository:`
-- `{{`
 
 ### Labels
 

@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-10-09'
+compiled_at: '2026-10-21'
 ---
 
 # Forjate wiki — index
@@ -160,7 +160,7 @@ The foundation every tenant inherits.
 
 ### security
 
-- [security-external-secrets](components/security-external-secrets.md) — deploys `repository:` · used by 1
+- [security-external-secrets](components/security-external-secrets.md) — declares `Namespace` · used by 1
 - [security-vault](components/security-vault.md) — deploys `hashicorp/vault:1.19` · unused in this repo
 
 ### standalone

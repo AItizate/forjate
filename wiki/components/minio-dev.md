@@ -3,9 +3,9 @@ title: minio-dev
 kind: component
 sources:
 - k8s/components/apps/minio/dev
-compiled_at: '2026-10-09'
+compiled_at: '2026-10-21'
 category: minio
-source_last_commit: '2026-04-27'
+source_last_commit: '2026-10-09'
 summary: deploys `docker.io/bitnamilegacy/minio:2025.7.23`
 summary_source: derived
 ---

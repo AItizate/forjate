@@ -193,7 +193,7 @@ class Assembly:
         return "\n".join(lines)
 
     def sealed_placeholder(self, name: str, keys: list[str]) -> str:
-        enc = "\n".join(f"    {k}: {'AgA' + 'x' * 40}  # placeholder: run the seal command from {name}.env.example" for k in keys if k != "config.env")
+        enc = "\n".join(f"    {k}: {'AgA' + 'x' * 40}  # placeholder: run the seal command from {name}.env.example" for k in keys) or "    {}"
         return (f"# Placeholder SealedSecret for {name}: encryptedData is not valid until the recipe in {name}.env.example has been run\n"
                 f"# against the target cluster's sealed-secrets controller (the env-example-check and secrets-check gates read this file).\n"
                 "apiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n"

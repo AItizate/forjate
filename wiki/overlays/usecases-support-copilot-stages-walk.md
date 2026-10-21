@@ -3,9 +3,10 @@ title: usecases-support-copilot-stages-walk
 kind: overlay
 sources:
 - k8s/overlays/usecases/support-copilot/stages/walk
-compiled_at: '2026-10-09'
+compiled_at: '2026-10-21'
 category: usecases
 parent: overlays/usecases-support-copilot
+source_last_commit: '2026-10-09'
 summary: 'walk stage of support-copilot: recomposes the Crawl root (base, Crawl components,
   the namespace child) and adds what the records require for walk, nothing the plan
   put out of scope'
@@ -64,9 +65,9 @@ summary_source: derived
 - `patches/namespace-psa-patch.yaml → Namespace/uc-support-copilot`
 - `patches/agent-api-env-patch.yaml → Deployment/agent-api (ns: uc-support-copilot)`
 - `patches/orders-stub-env-patch.yaml → Deployment/orders-stub (ns: uc-support-copilot)`
-- `patches/seed-job-env-patch.yaml → Job/seed-job (ns: uc-support-copilot)`
+- `patches/copilot-seed-env-patch.yaml → Job/copilot-seed (ns: uc-support-copilot)`
 - `patches/replay-job-env-patch.yaml → Job/replay-job (ns: uc-support-copilot)`
-- `patches/verify-job-env-patch.yaml → Job/verify-job (ns: uc-support-copilot)`
+- `patches/copilot-validate-env-patch.yaml → Job/copilot-validate (ns: uc-support-copilot)`
 - `inline → Secret/postgres-secret (ns: uc-support-copilot)`
 - `inline → Secret/litellm-secret (ns: uc-support-copilot)`
 - `argocd/repo-server-ssh-patch.yaml → Deployment/argocd-repo-server (ns: argocd)`

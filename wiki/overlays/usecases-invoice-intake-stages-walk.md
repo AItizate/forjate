@@ -3,11 +3,12 @@ title: usecases-invoice-intake-stages-walk
 kind: overlay
 sources:
 - k8s/overlays/usecases/invoice-intake/stages/walk
-compiled_at: '2026-10-09'
+compiled_at: '2026-10-21'
 category: usecases
 parent: overlays/usecases-invoice-intake
 consumed_by:
 - overlays/usecases-invoice-intake-stages-run
+source_last_commit: '2026-10-09'
 summary: 'walk stage of invoice-intake: recomposes the Crawl root (base, Crawl components,
   the namespace child) and adds what the records require for walk, nothing the plan
   put out of scope'
@@ -64,9 +65,9 @@ summary_source: derived
 ### Patches
 
 - `patches/namespace-psa-patch.yaml → Namespace/uc-invoice-intake`
-- `patches/seed-job-env-patch.yaml → Job/seed-job (ns: uc-invoice-intake)`
+- `patches/inv-seed-env-patch.yaml → Job/inv-seed (ns: uc-invoice-intake)`
 - `patches/intake-job-env-patch.yaml → Job/intake-job (ns: uc-invoice-intake)`
-- `patches/verify-job-env-patch.yaml → Job/verify-job (ns: uc-invoice-intake)`
+- `patches/inv-validate-env-patch.yaml → Job/inv-validate (ns: uc-invoice-intake)`
 - `patches/erp-stub-env-patch.yaml → Deployment/erp-stub (ns: uc-invoice-intake)`
 - `inline → Secret/postgres-secret (ns: uc-invoice-intake)`
 - `inline → Secret/minio-secret (ns: uc-invoice-intake)`

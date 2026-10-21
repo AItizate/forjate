@@ -32,7 +32,7 @@ PLACEHOLDER = re.compile(
 # A value that says it is not a real credential, wherever it says it.
 SELF_DECLARED = re.compile(r"(?i)(local[-_]?only|localdev|local-dev|example|placeholder|change[-_]?me|dummy|test[-_]?only|not-a-secret|quickstart|sample)")
 # Indirections that resolve at runtime, never a value in git.
-INDIRECT = ("os.environ/", "$", "{{", "valueFrom", "secretKeyRef", "/", "vault:", "ref+")
+INDIRECT = ("os.environ/", "$", "{{", "%{", "valueFrom", "secretKeyRef", "/", "vault:", "ref+")
 # Patterns that identify a credential by shape alone, independent of the key name.
 SHAPES = [
     ("openai-style key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b")),
@@ -61,6 +61,8 @@ def mask(value: str) -> str:
 
 def is_placeholder(value: str) -> bool:
     v = str(value).strip()
+    if "(" in v:  # a function call in code (extractToken(req.headers)), not a value
+        return True
     return PLACEHOLDER.match(v) is not None or SELF_DECLARED.search(v) is not None or v.startswith(INDIRECT)
 
 
@@ -87,6 +89,8 @@ def scan_text(text: str, path: Path, findings: list[dict], *, keyed: bool = True
                 val = m.group("pw") if "pw" in rx.groupindex else m.group(0)
                 if rule != "private key block" and is_placeholder(val):
                     continue
+                if rule in ("openai-style key", "anthropic key") and not re.search(r"[0-9]", val):
+                    continue  # sk-fantastic-people-alive: words without a digit are a placeholder, real keys carry digits
                 findings.append({"path": str(path), "line": lineno, "rule": rule, "value": mask(val)})
         if keyed:
             for m in KEYED.finditer(line):

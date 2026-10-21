@@ -21,3 +21,4 @@ Types: `compile`, `concept`, `lint`, `query`.
 
 ## [2026-10-02] catalog | wiki/catalog.json added — compiled from k8s/components + catalog-overrides.yaml
 ## [2026-10-09] compile | 19 page(s) changed — 5 base, 74 component, 17 overlay
+## [2026-10-21] compile | 4 page(s) changed — 5 base, 74 component, 17 overlay

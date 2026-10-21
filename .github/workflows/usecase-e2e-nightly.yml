@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       usecase:
-        description: One use case to run (default: every use case with app/)
+        description: "One use case to run (default: every use case with app/)"
         required: false
         type: string
 

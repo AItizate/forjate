@@ -48,7 +48,8 @@ k8s/components/apps/security/openbao/
 ├── policies/                # HCL policy templates, applied by scripts/openbao/bootstrap.sh
 │   ├── admin.hcl
 │   ├── external-secrets.hcl # read kv/data/workloads/*
-│   └── agent.hcl            # read kv/data/agents/{{identity}}/*, update ssh-client/sign/agent
+│   ├── agent.hcl            # read kv/data/agents/{{identity.entity.name}}/*, update ssh-client/sign/agent
+│   └── raft-snapshot.hcl    # read sys/storage/raft/snapshot (raft-snapshot token)
 ├── seal-static/             # optional sub-component
 │   ├── kustomization.yaml
 │   └── patch-seal.yaml      # adds seal "static" to the config, mounts the key Secret
@@ -81,6 +82,8 @@ storage "raft" {
 
 api_addr     = "http://openbao.security.svc:8200"
 cluster_addr = "http://openbao-0.openbao-internal.security.svc:8201"
+
+audit "file" "stdout" { options { file_path = "stdout" } }   # declarative: the API refuses to create audit devices
 
 telemetry { prometheus_retention_time = "30s", disable_hostname = true }
 ```
@@ -141,7 +144,7 @@ manifest. The script is idempotent and run once by a human after `init`:
 1. enable `kv-v2` at `kv/`
 2. enable `kubernetes` auth and create role `external-secrets`, bound to ESO's ServiceAccount
 3. enable `ssh` at `ssh-client/`, generate the CA and create role `agent` (TTL 30m, max 1h, principals passed as arguments)
-4. enable the `file` audit device to stdout
+4. check that an audit device is enabled (it is declared in `openbao.hcl`; OpenBao refuses to create one through the API) and fail loudly at the end if not
 5. write every file under `policies/`
 
 It prints nothing secret except the SSH CA **public** key that hosts need.
@@ -164,10 +167,32 @@ It prints nothing secret except the SSH CA **public** key that hosts need.
 | 3 | `raft-snapshot` | Snapshot written → PVC wiped → `bao operator raft snapshot restore` → data back |
 | 4 | `bootstrap.sh` + `policies/` | Running it twice changes nothing the second time; the `agent` token can read only its path and sign a cert that expires |
 | 5 | `eso-store` | On k3d with `security/external-secrets`: an ExternalSecret on `v1` syncs from `kv/workloads/demo` |
-| 6 | Docs + wiki | `scripts/wiki-compile.py` run; `wiki-lint.py` clean; no secret value anywhere under `wiki/` |
-| 7 | Release `v1.2.0-rc.1` | Tag pushed per `docs/release-process.md`; a consumer validates it before `v1.2.0` |
+| 6 | Ephemeral use case `openbao-secrets` + CI | `ephemeral.sh up openbao-secrets` exits 0 from a clean machine and `validate-usecases.yml` runs it (see below) |
+| 7 | Docs + wiki | `scripts/wiki-compile.py` run; `wiki-lint.py` clean; no secret value anywhere under `wiki/` |
+| 8 | Release `v1.2.0-rc.1` | Tag pushed per `docs/release-process.md`; a consumer validates it before `v1.2.0` |
 
-Steps 1–6 make up this branch's PR.
+Steps 1–7 make up this branch's PR.
+
+### Step 6 — the full environment test is part of `validate`
+
+Steps 1–5 are proved by hand on a k3d. That does not survive the branch: nothing in CI
+would notice if `bootstrap.sh`, a policy or `eso-store` broke. Forjate already has the
+mechanism (`docs/ephemeral-use-cases.md`), so the proof becomes a use case:
+
+`k8s/overlays/usecases/openbao-secrets/` with a `usecase.yaml` contract, composing
+`security/openbao` + `seal-static` + `raft-snapshot` + `eso-store` + `security/external-secrets`.
+
+| Job | Does |
+|---|---|
+| `seed` | `bao operator init`, creates the seal key and the snapshot token, runs `bootstrap.sh`, writes `kv/workloads/demo` and `kv/agents/<agent>/…` |
+| `run` | runs `bootstrap.sh` a second time and compares the configuration before and after |
+| `verify` | exits 0 only if: an `ExternalSecret` on `v1` syncs `kv/workloads/demo`; the agent token reads its own path, is denied another agent's path and `workloads/`, and gets a certificate whose validity is ≤ 1h (a `ttl=24h` request is refused); a snapshot is taken, the data PVC is wiped, the restore brings the data back |
+
+CI: add `openbao-secrets` to the `e2e-smoke` job of `validate-usecases.yml`, which today
+only brings up `db-migration-a-to-b`. The contract lint, `shellcheck` (add
+`scripts/openbao/bootstrap.sh`, with `-s sh`) and `validate-kustomize.yml` already pick the
+new files up by path. Adjacent fixes on `main` (ESO `v1beta1`, ArgoCD `--enable-helm`) are
+not needed: the use case builds its own manifests.
 
 ## Adjacent fixes on `main` (separate PRs, not part of this component)
 

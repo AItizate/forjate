@@ -25,6 +25,16 @@ data:
     api_addr     = "http://openbao.security.svc:8200"
     cluster_addr = "https://openbao-0.openbao-internal.security.svc:8201"
 
+    # Declared here because OpenBao refuses to create audit devices through the API.
+    # Config is read at start: changing this needs a pod restart.
+    audit "file" "stdout" {
+      description = "Audit log to stdout, collected with the pod logs"
+
+      options {
+        file_path = "stdout"
+      }
+    }
+
     telemetry {
       prometheus_retention_time = "30s"
       disable_hostname          = true

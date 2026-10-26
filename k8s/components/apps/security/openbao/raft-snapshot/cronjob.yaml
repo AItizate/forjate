@@ -1,0 +1,84 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: openbao-raft-snapshot
+spec:
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: openbao-raft-snapshot
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 100
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: snapshot
+              image: quay.io/openbao/openbao:2.7.1
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  # A fresh pod can be refused for a few seconds by the NetworkPolicy
+                  # controller (seen on k3s). `bao status` exits 1 on connection errors,
+                  # 2 when sealed, 0 when fine: only 1 means "not reachable yet".
+                  n=0
+                  while [ "$n" -lt 15 ]; do
+                    rc=0; bao status > /dev/null 2>&1 || rc=$?
+                    [ "$rc" -ne 1 ] && break
+                    n=$((n + 1)); sleep 2
+                  done
+                  # Periodic token: renewing resets it to the full period
+                  bao token renew > /dev/null
+                  out="/snapshots/openbao-$(date -u +%Y%m%dT%H%M%SZ).snap"
+                  bao operator raft snapshot save "${out}.tmp"
+                  mv "${out}.tmp" "${out}"
+                  echo "saved ${out} ($(wc -c < "${out}") bytes)"
+                  # Keep the newest SNAPSHOT_KEEP, drop the rest
+                  ls -1t /snapshots/openbao-*.snap | tail -n +$((SNAPSHOT_KEEP + 1)) | xargs -r rm -f --
+              env:
+                # Short name: resolves in whichever namespace the tenant deploys to
+                - name: BAO_ADDR
+                  value: "http://openbao:8200"
+                - name: SNAPSHOT_KEEP
+                  value: "28"
+                - name: BAO_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: openbao-snapshot-token
+                      key: token
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+                - name: snapshots
+                  mountPath: /snapshots
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: snapshots
+              persistentVolumeClaim:
+                claimName: openbao-snapshots
+            - name: tmp
+              emptyDir: {}

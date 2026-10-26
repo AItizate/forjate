@@ -8,14 +8,18 @@ kind: Kustomization
 #
 # Resources: StatefulSet (openbao), Services (openbao, openbao-internal),
 #            ServiceAccount + ClusterRoleBinding (system:auth-delegator for
-#            kubernetes auth), ConfigMap (openbao-config), NetworkPolicy, Ingress
+#            kubernetes auth), ConfigMap (openbao-config, with an audit device
+#            to stdout), NetworkPolicy, Ingress
 #
 # Unseal modes
 #   - Shamir (default): a human runs `bao operator init` once and
 #     `bao operator unseal` after every restart.
 #       kubectl -n security exec openbao-0 -- bao operator init
 #       kubectl -n security exec -it openbao-0 -- bao operator unseal
-#   - Static key: planned as the optional sub-component seal-static/.
+#   - Static key: optional sub-component seal-static/.
+#
+# After init, configure it once with scripts/openbao/bootstrap.sh (kv-v2, kubernetes
+# auth for External Secrets, SSH CA for agents, policies/). Idempotent.
 #
 # Who may reach port 8200 (NetworkPolicy)
 #   - pods in the same namespace

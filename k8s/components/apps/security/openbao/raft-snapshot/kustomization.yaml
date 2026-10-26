@@ -13,11 +13,10 @@ kind: Component
 # A snapshot on the volume it protects is not a backup.
 #
 # This component never ships the token. The tenant supplies Secret
-# openbao-snapshot-token with key `token`. Least privilege, as a periodic token
-# the job renews on every run (so it never expires while the job keeps running):
-#   bao policy write raft-snapshot - <<'HCL'
-#   path "sys/storage/raft/snapshot" { capabilities = ["read"] }
-#   HCL
+# openbao-snapshot-token with key `token`. scripts/openbao/bootstrap.sh writes the
+# least-privilege policy `raft-snapshot` (policies/raft-snapshot.hcl: read
+# sys/storage/raft/snapshot). Create a periodic token the job renews on every run,
+# so it never expires while the job keeps running:
 #   bao token create -policy=raft-snapshot -orphan -period=720h -field=token
 #   kubectl -n security create secret generic openbao-snapshot-token --from-literal=token=<token>
 #

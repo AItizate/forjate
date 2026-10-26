@@ -1,0 +1,30 @@
+# JSON6902 (not strategic merge): `args` has no merge key, so a strategic merge
+# would replace the base's args instead of extending them.
+- op: add
+  path: /spec/template/spec/containers/0/args/-
+  value: -config=/openbao/seal-config/seal.hcl
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: seal-config
+    mountPath: /openbao/seal-config
+    readOnly: true
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: seal-key
+    mountPath: /openbao/seal
+    readOnly: true
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: seal-config
+    configMap:
+      name: openbao-seal-config
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: seal-key
+    secret:
+      secretName: openbao-seal-key
+      defaultMode: 0440

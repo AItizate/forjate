@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# OpenBao — secret store (MPL-2.0, Linux Foundation). API-compatible with Vault.
+#
+# Single node, raft integrated storage, TLS terminated at Traefik. Replaces
+# security/vault (BUSL-1.1, file storage, no unseal story).
+#
+# Resources: StatefulSet (openbao), Services (openbao, openbao-internal),
+#            ServiceAccount + ClusterRoleBinding (system:auth-delegator for
+#            kubernetes auth), ConfigMap (openbao-config), NetworkPolicy, Ingress
+#
+# Unseal modes
+#   - Shamir (default): a human runs `bao operator init` once and
+#     `bao operator unseal` after every restart.
+#       kubectl -n security exec openbao-0 -- bao operator init
+#       kubectl -n security exec -it openbao-0 -- bao operator unseal
+#   - Static key: planned as the optional sub-component seal-static/.
+#
+# Who may reach port 8200 (NetworkPolicy)
+#   - pods in the same namespace
+#   - the traefik namespace (Ingress)
+#   - any namespace labelled  ait.aitizate.com/openbao-access=true
+#       kubectl label ns external-secrets ait.aitizate.com/openbao-access=true
+#
+# Storage: raft needs block or local storage. Do NOT put the PVC on NFS.
+# The PVC has no storageClassName: the tenant picks one (patch the volumeClaimTemplate).
+#
+# Tenant overlay can patch:
+#   - Ingress hostname (placeholder: openbao.example.com)
+#   - Storage class and size of the data PVC
+#   - Resources (defaults fit an edge node: 50m/64Mi requests)
+#   - api_addr / cluster_addr in openbao-config if the namespace is not `security`
+#   - Replicas (HA needs retry_join in the config, see docs/apps/openbao.md)
+#
+# Pod Security: runs under the `restricted` profile.
+
+namespace: security
+
+resources:
+  - serviceaccount.yaml
+  - rbac.yaml
+  - configmap.yaml
+  - service.yaml
+  - service-internal.yaml
+  - statefulset.yaml
+  - networkpolicy.yaml
+  - ingress.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: openbao

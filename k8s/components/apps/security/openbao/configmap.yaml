@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openbao-config
+data:
+  openbao.hcl: |
+    ui = true
+
+    listener "tcp" {
+      address         = "[::]:8200"
+      cluster_address = "[::]:8201"
+      # TLS terminates at Traefik; the NetworkPolicy limits who can reach 8200
+      tls_disable     = 1
+
+      telemetry {
+        unauthenticated_metrics_access = true
+      }
+    }
+
+    storage "raft" {
+      path    = "/openbao/data"
+      node_id = "openbao-0"
+    }
+
+    api_addr     = "http://openbao.security.svc:8200"
+    cluster_addr = "https://openbao-0.openbao-internal.security.svc:8201"
+
+    telemetry {
+      prometheus_retention_time = "30s"
+      disable_hostname          = true
+    }

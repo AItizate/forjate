@@ -1,8 +1,9 @@
 """Importable view of scripts/wiki-compile.py.
 
 The compiler is named with a hyphen so it reads as a command, which makes it
-un-importable. This shim loads it by path so wiki-lint.py can reuse discover()
-instead of duplicating the traversal rules.
+un-importable. This shim loads it by path so wiki-lint.py can reuse its
+traversal, backlinks, frontmatter reading and git lookups instead of
+duplicating them.
 """
 
 import importlib.util
@@ -20,4 +21,7 @@ _spec.loader.exec_module(_mod)
 REPO = _mod.REPO
 WIKI = _mod.WIKI
 discover = _mod.discover
+compile_pages = _mod.compile_pages
+read_frontmatter = _mod.read_frontmatter
+source_last_commit = _mod.source_last_commit
 rel = _mod.rel

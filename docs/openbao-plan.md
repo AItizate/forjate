@@ -209,6 +209,16 @@ Found while reading the tree. Both get in the way of the `eso-store` path in pra
 
 ## Pending, decided
 
+- **The component does not follow an overlay's `namespace:` all the way.** Found in step 5
+  (build of `openbao` + all three sub-components with `namespace: otro-ns`): every namespaced
+  resource moves, but four things stay on `security`: the subject of ClusterRoleBinding
+  `openbao-auth-delegator` (so kubernetes auth breaks in another namespace), `api_addr` /
+  `cluster_addr` inside `openbao.hcl`, and the ClusterSecretStore `server:`. The CRB and
+  store names are fixed too, so two instances in one cluster collide. Fix later: move the
+  addresses out of the HCL into `BAO_API_ADDR` / `BAO_CLUSTER_ADDR` built from the pod's
+  namespace (untested), and document that an overlay in another namespace uses the builtin
+  `NamespaceTransformer` with `setRoleBindingSubjects: allServiceAccounts` (verified by build:
+  it moves the CRB subject) plus a patch for the store `server:`.
 - **Ephemeral use case with OIDC login for human admins.** Admins log in with `userpass` today. OIDC needs an identity provider in the k3d cluster to prove that someone who logs in through it lands in `admins` and can run `bootstrap.sh`. Not part of this branch's steps; documented in `docs/tenant-onboarding/openbao-admins.md`.
 
 ## Follow-up after `feat/use-case-builder` merges

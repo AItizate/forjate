@@ -193,10 +193,17 @@ mechanism (`docs/ephemeral-use-cases.md`), so the proof becomes a use case:
 | `verify` | exits 0 only if: an `ExternalSecret` on `v1` syncs `kv/workloads/demo`; a k8s agent (ServiceAccount in `agents`, from a pod in a namespace labelled `openbao-access`) and an AppRole agent each read their own path, are denied another agent's path and `workloads/`, and get a certificate whose validity is ≤ 1h (a `ttl=24h` request is refused); `agent-onboarding` cannot create a role with another policy; a snapshot is taken, the data PVC is wiped, the restore brings the data back |
 
 CI: add `openbao-secrets` to the `e2e-smoke` job of `validate-usecases.yml`, which today
-only brings up `db-migration-a-to-b`. The contract lint, `shellcheck` (add
-`scripts/openbao/bootstrap.sh`, with `-s sh`) and `validate-kustomize.yml` already pick the
-new files up by path. Adjacent fixes on `main` (ESO `v1beta1`, ArgoCD `--enable-helm`) are
-not needed: the use case builds its own manifests.
+only brings up `db-migration-a-to-b`. `validate-kustomize.yml` and the contract lint pick the
+new overlay up by path. Two things did not, found while doing it: `shellcheck` lists its
+files (add `scripts/openbao/bootstrap.sh` and the use case's scripts, with `-s sh`), and the
+workflow's `paths:` filter only watched `usecases/**` and `scripts/ephemeral/**`, so a change
+to the component or to `bootstrap.sh` would not have run the use case (now added). Adjacent
+fixes on `main` (ESO `v1beta1`, ArgoCD `--enable-helm`) are not needed: the use case builds
+its own manifests. The runner, though, did not build with `--enable-helm` and applied
+client-side once with a 3 s retry, which fails on ESO's CRDs (annotation size) and on its
+webhook; it now builds with `--enable-helm` and applies `--server-side`, retrying until the
+apply converges. `bootstrap.sh` and `policies/` sit outside the overlay's kustomize root, so
+the contract gained `spec.files`: repo paths the runner ships as ConfigMaps.
 
 ## Adjacent fixes on `main` (separate PRs, not part of this component)
 

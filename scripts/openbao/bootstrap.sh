@@ -43,7 +43,10 @@
 
 set -eu
 
-[ $# -eq 2 ] && [ -n "$1" ] && [ -n "$2" ] || { sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+if [ $# -ne 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
+  sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' >&2
+  exit 2
+fi
 PRINCIPALS="$1"
 ADMINS="$2"
 : "${BAO_ADDR:?BAO_ADDR is required}"

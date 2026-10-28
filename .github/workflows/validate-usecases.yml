@@ -10,12 +10,19 @@ on:
     paths:
       - 'k8s/overlays/usecases/**'
       - 'scripts/ephemeral/**'
+      # openbao-secrets runs these: a change to them must re-run the use case
+      - 'k8s/components/apps/security/openbao/**'
+      - 'k8s/components/apps/security/external-secrets/**'
+      - 'scripts/openbao/**'
       - '.github/workflows/validate-usecases.yml'
   push:
     branches: [main]
     paths:
       - 'k8s/overlays/usecases/**'
       - 'scripts/ephemeral/**'
+      - 'k8s/components/apps/security/openbao/**'
+      - 'k8s/components/apps/security/external-secrets/**'
+      - 'scripts/openbao/**'
 
 jobs:
   lint-contracts:
@@ -73,6 +80,17 @@ jobs:
               fail=1
             fi
 
+            # spec.files: repo paths the runner ships as ConfigMaps must exist.
+            while IFS= read -r path; do
+              [ -n "$path" ] || continue
+              if [ -e "$path" ]; then
+                echo "  file -> $path"
+              else
+                echo "::error file=$contract::spec.files path '$path' does not exist"
+                fail=1
+              fi
+            done < <(yq -r '(.spec.files // [])[].paths[]' "$contract")
+
             kustomize build --enable-helm "$dir" > /tmp/manifest.yaml
 
             for phase in seed run verify; do
@@ -119,11 +137,17 @@ jobs:
             scripts/ephemeral/ephemeral.sh \
             scripts/ephemeral/create-usecase.sh \
             scripts/ephemeral/lib/*.sh
+          # POSIX sh: these run inside the openbao and alpine/k8s images.
+          shellcheck -s sh scripts/openbao/bootstrap.sh
+          uc=k8s/overlays/usecases/openbao-secrets/namespaces
+          shellcheck -s sh -x -P "$uc/uc-openbao-secrets/scripts" \
+            "$uc"/uc-openbao-secrets/scripts/*.sh \
+            "$uc/agents/agent-check.sh"
 
   e2e-smoke:
     name: Lifecycle end-to-end
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v7
 
@@ -172,9 +196,29 @@ jobs:
         if: always()
         run: ./scripts/ephemeral/ephemeral.sh down db-migration-a-to-b || true
 
+      # OpenBao, configured by scripts/openbao/bootstrap.sh and run by an admin,
+      # with External Secrets and both kinds of agent. Proves docs/openbao-plan.md
+      # step 6: verify exits 0 only if every claim holds. Its own k3d cluster.
+      # The Job logs are public: the Jobs never print a token, key or password.
+      - name: OpenBao secrets (seed, bootstrap twice, verify)
+        run: ./scripts/ephemeral/ephemeral.sh up openbao-secrets
+
       - name: Diagnostics on failure
         if: failure()
+        # Pod states and events only. Not the OpenBao or Job pod logs beyond what
+        # the runner already printed.
         run: |
           export KUBECONFIG="${HOME}/.kube/forjate-uc-shared.yaml"
           kubectl get pods -A || true
           kubectl -n uc-db-migration-a-to-b describe pods || true
+          export KUBECONFIG="${HOME}/.kube/forjate-uc-openbao-secrets.yaml"
+          [ -f "$KUBECONFIG" ] || exit 0
+          kubectl get pods,pvc -A || true
+          kubectl get clustersecretstores,externalsecrets -A || true
+          kubectl -n security describe pods || true
+          kubectl -n uc-openbao-secrets describe pods || true
+          kubectl get events -A --sort-by=.lastTimestamp | tail -n 60 || true
+
+      - name: Tear down OpenBao secrets
+        if: always()
+        run: ./scripts/ephemeral/ephemeral.sh down openbao-secrets || true

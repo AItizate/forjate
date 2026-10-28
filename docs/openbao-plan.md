@@ -148,6 +148,7 @@ manifest. The script is idempotent and run once by a human after `init`:
 3. enable `ssh` at `ssh-client/`, generate the CA and create role `agent` (TTL 30m, max 1h, principals passed as arguments)
 4. check that an audit device is enabled (it is declared in `openbao.hcl`; OpenBao refuses to create one through the API) and fail loudly at the end if not
 5. write every file under `policies/`
+6. human administrators: enable `userpass`, create an identity and an account (no usable password) per admin given as an argument, and the group `admins` (policy `admin`); the group only gains members. Decided: `userpass` + group now, OIDC later
 
 It prints nothing secret except the SSH CA **public** key that hosts need.
 
@@ -156,6 +157,7 @@ It prints nothing secret except the SSH CA **public** key that hosts need.
 | File | Change |
 |---|---|
 | `docs/apps/openbao.md` | Install, init, both unseal modes, bootstrap, backup/restore, HA patch, rotation |
+| `docs/tenant-onboarding/openbao-admins.md` | **Written** (with step 4): human administrators, first setup, revoking root, OIDC pending |
 | `docs/tenant-onboarding/agent-secrets.md` | **Written** (with step 4): agents inside and outside the cluster, scoped kv reads, short-lived SSH certificates, lifecycle |
 | `wiki/concepts/secret-strategy.md` | Add the store as a fifth entry and state the recommended pairing (external-secrets syncing from openbao) |
 | `security/vault` | Header comment and docs: deprecated in favour of `openbao`. Removal is decided after the builder integration (open points) |
@@ -186,7 +188,7 @@ mechanism (`docs/ephemeral-use-cases.md`), so the proof becomes a use case:
 
 | Job | Does |
 |---|---|
-| `seed` | `bao operator init`, creates the seal key and the snapshot token, runs `bootstrap.sh`, writes `kv/workloads/demo` and `kv/agents/<agent>/…` |
+| `seed` | `bao operator init`, creates the seal key and the snapshot token, runs `bootstrap.sh` (with an admin), sets that admin's password, revokes the root token and continues with the admin's, writes `kv/workloads/demo` and `kv/agents/<agent>/…` |
 | `run` | runs `bootstrap.sh` a second time and compares the configuration before and after |
 | `verify` | exits 0 only if: an `ExternalSecret` on `v1` syncs `kv/workloads/demo`; a k8s agent (ServiceAccount in `agents`, from a pod in a namespace labelled `openbao-access`) and an AppRole agent each read their own path, are denied another agent's path and `workloads/`, and get a certificate whose validity is ≤ 1h (a `ttl=24h` request is refused); `agent-onboarding` cannot create a role with another policy; a snapshot is taken, the data PVC is wiped, the restore brings the data back |
 
@@ -204,6 +206,10 @@ Found while reading the tree. Both get in the way of the `eso-store` path in pra
   `external-secrets.io/v1beta1`, which ESO ≥ 0.17 (chart 2.3.0 here) no longer serves.
 - `continuous-delivery/argocd`: no `kustomize.buildOptions: --enable-helm`, so an ArgoCD
   from this component cannot render `external-secrets`.
+
+## Pending, decided
+
+- **Ephemeral use case with OIDC login for human admins.** Admins log in with `userpass` today. OIDC needs an identity provider in the k3d cluster to prove that someone who logs in through it lands in `admins` and can run `bootstrap.sh`. Not part of this branch's steps; documented in `docs/tenant-onboarding/openbao-admins.md`.
 
 ## Follow-up after `feat/use-case-builder` merges
 

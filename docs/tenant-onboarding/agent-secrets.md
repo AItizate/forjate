@@ -139,4 +139,4 @@ The SSH certificate's `Key ID` differs by login method. For a Kubernetes agent i
 
 - **One namespace of names.** An agent called `x` in Kubernetes and an AppRole with `role_id=x` read the same path, `kv/agents/x/`. Give each agent one name.
 - **Identity records accumulate.** Agents that logged in once leave an identity record behind. They weigh little, but a periodic clean-up of identities that no longer log in belongs to your operations. This guide does not cover it.
-- **The `admin` policy has no owner yet.** `bootstrap.sh` does not create an admin identity; today you use the root token to create one and then revoke the root token. How humans authenticate (OIDC, userpass, ...) is a tenant decision.
+- **Who holds `admin`.** The group `admins`, created by `bootstrap.sh` with `userpass` accounts; see [openbao-admins.md](openbao-admins.md). OIDC login is pending.

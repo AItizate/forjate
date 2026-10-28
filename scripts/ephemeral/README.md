@@ -14,7 +14,9 @@ lib/                  log, deps, cluster, usecase, job
 ## Requirements
 
 `k3d`, `kubectl`, `yq` (v4, mikefarah), `docker`. `kustomize` is used when
-present; otherwise the runner falls back to `kubectl kustomize`. Missing
+present; otherwise the runner falls back to `kubectl kustomize`. Builds pass
+`--enable-helm`, like CI, so `helm` is needed when a use case composes a
+component that renders a chart (`security/external-secrets`). Missing
 dependencies are reported with install hints on first run.
 
 ## Commands

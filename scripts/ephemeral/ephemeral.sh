@@ -35,12 +35,56 @@ source "${SCRIPT_DIR}/lib/job.sh"
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 # Prefer standalone kustomize; fall back to the copy embedded in kubectl.
+# --enable-helm matches CI (validate-kustomize.yml): components such as
+# security/external-secrets render a chart through helmCharts. It needs helm
+# only when the overlay actually has one.
 kustomize_build() {
   if command -v kustomize >/dev/null 2>&1; then
-    kustomize build "$1"
+    kustomize build --enable-helm "$1"
   else
-    kubectl kustomize "$1"
+    kubectl kustomize --enable-helm "$1"
   fi
+}
+
+# Apply a built manifest until it goes through.
+# Server-side, because some CRDs (External Secrets) exceed the annotation size
+# that client-side apply writes. Retried, because resources that depend on a
+# CRD or on an admission webhook are rejected until the operator behind them
+# is up; every attempt applies whatever already can be. The last error is
+# shown only if it never converges.
+apply_manifest() {
+  local manifest="$1" attempt=1 max="${UC_APPLY_ATTEMPTS:-40}" err
+  err="$(mktemp -t forjate-uc-apply-XXXXXX)"
+  until kubectl apply --server-side --force-conflicts -f "$manifest" >/dev/null 2>"$err"; do
+    if [ "$attempt" -ge "$max" ]; then
+      cat "$err" >&2
+      rm -f "$err"
+      return 1
+    fi
+    [ "$attempt" -eq 1 ] && info "Apply incomplete (CRDs or webhooks not ready yet) — retrying..."
+    attempt=$(( attempt + 1 ))
+    sleep 5
+  done
+  rm -f "$err"
+}
+
+# Ship the repo files a use case's Jobs need (spec.files) as ConfigMaps in its
+# namespace. kustomize refuses to load a file above the overlay's root, so a
+# Job that runs a repo script (scripts/...) cannot get it through a generator.
+ship_files() {
+  local name="$1" ns="$2" cm paths path list args
+  while IFS='|' read -r cm paths; do
+    [ -n "$cm" ] || continue
+    IFS=',' read -r -a list <<< "$paths"
+    args=()
+    for path in "${list[@]}"; do
+      [ -e "${REPO_ROOT}/${path}" ] || error "spec.files: '${path}' does not exist in the repo"
+      args+=("--from-file=${REPO_ROOT}/${path}")
+    done
+    kubectl -n "$ns" create configmap "$cm" "${args[@]}" --dry-run=client -o yaml \
+      | kubectl apply --server-side --force-conflicts -f - >/dev/null
+    log "ConfigMap ${cm} <- ${paths//,/, }"
+  done < <(yq -r '(.spec.files // [])[] | .configMap + "|" + (.paths | join(","))' "$(uc_file "$name")")
 }
 
 # Seed gitignored .env files from their committed examples, the same way CI
@@ -101,17 +145,9 @@ cmd_up() {
     kubectl -n "$ns" delete job "$job" --ignore-not-found --wait >/dev/null 2>&1 || true
   done
 
-  # Two passes: the first establishes CRDs and namespaces, the second
-  # reconciles resources that depend on them.
-  if ! kubectl apply -f "$manifest" >/dev/null 2>&1; then
-    info "First apply incomplete (CRD establishment) — retrying..."
-    sleep 3
-    kubectl apply -f "$manifest" >/dev/null
-  else
-    sleep 3
-    kubectl apply -f "$manifest" >/dev/null
-  fi
+  apply_manifest "$manifest" || error "The overlay did not apply"
   log "Overlay applied to namespace ${ns}"
+  ship_files "$name" "$ns"
 
   # Stamp ownership and expiry so `ls` and `gc` need no local state file.
   local expires
@@ -162,6 +198,8 @@ cmd_run_phase() {
   # shellcheck disable=SC2064
   trap "rm -f '$manifest'" EXIT
   kustomize_build "$(uc_dir "$name")" > "$manifest"
+  # Refresh shipped repo files, so a re-run picks up an edited script.
+  ship_files "$name" "$ns"
 
   run_job "$ns" "$job" "$(uc_job_timeout "$name" "$phase")" "$manifest" \
     || error "Job '${job}' did not complete"

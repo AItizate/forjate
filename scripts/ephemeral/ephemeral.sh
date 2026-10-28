@@ -229,6 +229,46 @@ cmd_down() {
   fi
 }
 
+# What went wrong, without logs: CI output is public, and the runner already
+# printed every lifecycle Job's log. Pod states, events and the description of
+# every pod that is not ready, in any namespace (a use case may run parts of
+# itself outside its own).
+cmd_diagnose() {
+  local name="${1:?use case name required}"
+  require_cmds k3d kubectl yq
+  uc_require "$name"
+
+  local isolation cluster ns
+  isolation="$(uc_get "$name" '.spec.isolation')"
+  cluster="$(cluster_name_for "$name" "$isolation")"
+  ns="$(uc_namespace "$name")"
+
+  if ! cluster_exists "$cluster"; then
+    warn "Cluster '${cluster}' does not exist — nothing to diagnose"
+    return 0
+  fi
+  use_cluster "$cluster"
+
+  section "Pods, Jobs and volumes"
+  kubectl get pods,jobs,pvc -A -o wide || true
+
+  section "Pods not ready"
+  local pns pod ready status
+  while read -r pns pod ready status _; do
+    [ "$status" = "Completed" ] && continue
+    [ "${ready%/*}" = "${ready#*/}" ] && [ "$status" = "Running" ] && continue
+    echo "--- ${pns}/${pod} (${status})"
+    kubectl -n "$pns" describe pod "$pod" || true
+  done < <(kubectl get pods -A --no-headers 2>/dev/null)
+
+  section "Events in ${ns}"
+  kubectl -n "$ns" get events --sort-by=.lastTimestamp 2>/dev/null | tail -n 40 || true
+
+  section "Warning events, all namespaces"
+  kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp 2>/dev/null \
+    | tail -n 60 || true
+}
+
 cmd_ls() {
   require_cmds k3d kubectl yq docker
   printf '%-28s %-10s %-32s %-10s %s\n' "USE CASE" "ISOLATION" "CLUSTER" "STATUS" "EXPIRES IN"
@@ -334,6 +374,7 @@ Usage:
   ./ephemeral.sh seed <use-case>        Re-run only the seed Job
   ./ephemeral.sh validate <use-case>    Re-run only the verify Job
   ./ephemeral.sh down <use-case>        Tear the environment down
+  ./ephemeral.sh diagnose <use-case>    Pod states, events, not-ready pods (no logs)
   ./ephemeral.sh ls                     List live environments and time remaining
   ./ephemeral.sh gc [--dry-run]         Reclaim environments past their TTL
   ./ephemeral.sh help                   This message
@@ -365,6 +406,7 @@ case "${1:-help}" in
   seed)     cmd_run_phase seed "${2:-}" ;;
   validate) cmd_run_phase verify "${2:-}" ;;
   down)     cmd_down "${2:-}" ;;
+  diagnose) cmd_diagnose "${2:-}" ;;
   ls)       cmd_ls ;;
   gc)       cmd_gc "${2:-}" ;;
   help|-h|--help) show_help ;;

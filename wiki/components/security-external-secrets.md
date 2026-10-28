@@ -3,8 +3,10 @@ title: security-external-secrets
 kind: component
 sources:
 - k8s/components/apps/security/external-secrets
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: security
+consumed_by:
+- overlays/usecases-openbao-secrets
 source_last_commit: '2026-04-27'
 summary: declares `Namespace`
 summary_source: derived
@@ -30,7 +32,7 @@ summary_source: derived
 
 ### Consumed by
 
-_No overlay in this repo references this component._
+- [overlays/usecases-openbao-secrets](../overlays/usecases-openbao-secrets.md)
 
 <!-- END DECLARED -->
 

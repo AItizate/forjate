@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-09-02'
+compiled_at: '2026-10-28'
 ---
 
 # Forjate wiki — index
@@ -17,7 +17,7 @@ Conventions and maintenance rules: [SCHEMA.md](SCHEMA.md) · History: [log.md](l
 - [component-anatomy](concepts/component-anatomy.md) — what a component is made of, local vs vendored, and how nesting shows up in the wiki
 - [multi-tenant-recursion](concepts/multi-tenant-recursion.md) — base to org to client composition, and how the tree demonstrates it
 - [remote-references](concepts/remote-references.md) — how tenants consume the factory by SSH ref, and where pinning is inconsistent
-- [secret-strategy](concepts/secret-strategy.md) — four mechanisms coexist; which overlays use which, and what is declared but unused
+- [secret-strategy](concepts/secret-strategy.md) — five mechanisms coexist; external-secrets syncing from openbao is the recommended store pairing; who uses what
 
 ## Base
 
@@ -31,7 +31,7 @@ The foundation every tenant inherits.
 
 ## Components
 
-74 pages. Optional building blocks an overlay can activate.
+79 pages. Optional building blocks an overlay can activate.
 
 ### agents
 
@@ -160,8 +160,13 @@ The foundation every tenant inherits.
 
 ### security
 
-- [security-external-secrets](components/security-external-secrets.md) — declares `Namespace` · unused in this repo
-- [security-vault](components/security-vault.md) — deploys `hashicorp/vault:1.19` · unused in this repo
+- [security-external-secrets](components/security-external-secrets.md) — declares `Namespace` · used by 1
+- [security-openbao](components/security-openbao.md) — secret store (MPL-2.0, Vault API): raft, audit to stdout, kubernetes/approle/userpass auth and an SSH CA after bootstrap.sh · used by 1
+  - [security-openbao-eso-store](components/security-openbao-eso-store.md) — declares `ClusterSecretStore` · unused in this repo
+  - [security-openbao-follow-namespace](components/security-openbao-follow-namespace.md) — transformer, not a component: makes security-openbao follow an overlay's namespace: (CRB subject, eso-store server) · unused in this repo
+  - [security-openbao-raft-snapshot](components/security-openbao-raft-snapshot.md) — deploys `quay.io/openbao/openbao:2.7.1` · unused in this repo
+  - [security-openbao-seal-static](components/security-openbao-seal-static.md) — declares `ConfigMap` · unused in this repo
+- [security-vault](components/security-vault.md) — deprecated in favour of security-openbao: `hashicorp/vault:1.19` (BUSL-1.1), file storage, no unseal story · unused in this repo
 
 ### standalone
 
@@ -201,3 +206,5 @@ Concrete environments assembled from base + components.
 - [multi-tenant-pattern-tenants-client-b](overlays/multi-tenant-pattern-tenants-client-b.md) — declares `Namespace` · 1 local reference
 - [quickstart](overlays/quickstart.md) — deploys `curlimages/curl:8.10.1` · 2 local references
 - [usecases-db-migration-a-to-b](overlays/usecases-db-migration-a-to-b.md) — deploys `busybox:1.36` · 2 local references
+- [usecases-openbao-secrets](overlays/usecases-openbao-secrets.md) — deploys `alpine/k8s:1.31.4` · 4 local references
+- [usecases-openbao-secrets-openbao](overlays/usecases-openbao-secrets-openbao.md) — composes `openbao` · 1 local reference

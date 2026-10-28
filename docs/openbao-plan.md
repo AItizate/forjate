@@ -48,7 +48,8 @@ k8s/components/apps/security/openbao/
 ├── policies/                # HCL policy templates, applied by scripts/openbao/bootstrap.sh
 │   ├── admin.hcl
 │   ├── external-secrets.hcl # read kv/data/workloads/*
-│   ├── agent.hcl            # read kv/data/agents/{{identity.entity.name}}/*, update ssh-client/sign/agent
+│   ├── agent.hcl            # one template for every agent (k8s ServiceAccount or AppRole): read kv/data/agents/<name>/*, update ssh-client/sign/agent; bootstrap.sh renders the mount accessors in
+│   ├── agent-onboarding.hcl # registers agents: writes kv/agents/*, manages approle roles agent-* that can only carry the agent policy
 │   └── raft-snapshot.hcl    # read sys/storage/raft/snapshot (raft-snapshot token)
 ├── seal-static/             # optional sub-component
 │   ├── kustomization.yaml
@@ -143,6 +144,7 @@ manifest. The script is idempotent and run once by a human after `init`:
 
 1. enable `kv-v2` at `kv/`
 2. enable `kubernetes` auth and create role `external-secrets`, bound to ESO's ServiceAccount
+2b. enable `approle` auth for agents outside the cluster, and a kubernetes role `agent` for any ServiceAccount of the agents namespace (no per-agent setup)
 3. enable `ssh` at `ssh-client/`, generate the CA and create role `agent` (TTL 30m, max 1h, principals passed as arguments)
 4. check that an audit device is enabled (it is declared in `openbao.hcl`; OpenBao refuses to create one through the API) and fail loudly at the end if not
 5. write every file under `policies/`
@@ -154,7 +156,7 @@ It prints nothing secret except the SSH CA **public** key that hosts need.
 | File | Change |
 |---|---|
 | `docs/apps/openbao.md` | Install, init, both unseal modes, bootstrap, backup/restore, HA patch, rotation |
-| `docs/tenant-onboarding/agent-secrets.md` | The `agent` policy and SSH role: what a tenant enables to give an agent short-lived SSH certificates and scoped kv reads |
+| `docs/tenant-onboarding/agent-secrets.md` | **Written** (with step 4): agents inside and outside the cluster, scoped kv reads, short-lived SSH certificates, lifecycle |
 | `wiki/concepts/secret-strategy.md` | Add the store as a fifth entry and state the recommended pairing (external-secrets syncing from openbao) |
 | `security/vault` | Header comment and docs: deprecated in favour of `openbao`. Removal is decided after the builder integration (open points) |
 
@@ -186,7 +188,7 @@ mechanism (`docs/ephemeral-use-cases.md`), so the proof becomes a use case:
 |---|---|
 | `seed` | `bao operator init`, creates the seal key and the snapshot token, runs `bootstrap.sh`, writes `kv/workloads/demo` and `kv/agents/<agent>/…` |
 | `run` | runs `bootstrap.sh` a second time and compares the configuration before and after |
-| `verify` | exits 0 only if: an `ExternalSecret` on `v1` syncs `kv/workloads/demo`; the agent token reads its own path, is denied another agent's path and `workloads/`, and gets a certificate whose validity is ≤ 1h (a `ttl=24h` request is refused); a snapshot is taken, the data PVC is wiped, the restore brings the data back |
+| `verify` | exits 0 only if: an `ExternalSecret` on `v1` syncs `kv/workloads/demo`; a k8s agent (ServiceAccount in `agents`, from a pod in a namespace labelled `openbao-access`) and an AppRole agent each read their own path, are denied another agent's path and `workloads/`, and get a certificate whose validity is ≤ 1h (a `ttl=24h` request is refused); `agent-onboarding` cannot create a role with another policy; a snapshot is taken, the data PVC is wiped, the restore brings the data back |
 
 CI: add `openbao-secrets` to the `e2e-smoke` job of `validate-usecases.yml`, which today
 only brings up `db-migration-a-to-b`. The contract lint, `shellcheck` (add

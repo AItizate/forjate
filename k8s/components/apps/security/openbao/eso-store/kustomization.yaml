@@ -56,7 +56,8 @@ kind: Component
 #
 # Tenant overlay can patch:
 #   - metadata.name (e.g. a use case that expects "corporate-store")
-#   - spec.provider.vault.server if OpenBao does not run in namespace `security`
+#   - nothing for the namespace: if OpenBao does not run in `security`, the
+#     follow-namespace/ transformer rewrites spec.provider.vault.server (see there)
 #   - serviceAccountRef / role if ESO runs under another ServiceAccount or namespace
 #     (run bootstrap.sh with the same ESO_SA_NAME / ESO_SA_NAMESPACE)
 #

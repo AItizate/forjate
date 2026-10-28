@@ -51,7 +51,11 @@ renders its chart.
    the admin logs in with the old password, `kv/workloads/demo` is back, a marker
    written after the snapshot is gone and the fresh init's root token is dead.
 
-`security`, `agents` and `uc-openbao-secrets` enforce Pod Security `restricted`,
+OpenBao runs in namespace `openbao`, not the component's default `security`: the
+use case moves it the way a tenant does (`namespace:` plus the `follow-namespace`
+transformer), so CI also proves that the component follows a namespace.
+
+`openbao`, `agents` and `uc-openbao-secrets` enforce Pod Security `restricted`,
 so OpenBao, the snapshot CronJob and every pod the Jobs start must fit it.
 
 ## Nothing secret in the logs
@@ -66,18 +70,15 @@ the root token is revoked by the seed.
 
 | Role | Address | Credentials |
 |------|---------|-------------|
-| openbao | `openbao.uc-openbao-secrets.svc.cluster.local:8200` (an `ExternalName` for `openbao.security.svc`) | Secret `openbao-admin` (`username`, `password`) |
+| openbao | `openbao.uc-openbao-secrets.svc.cluster.local:8200` (an `ExternalName` for `openbao.openbao.svc`) | Secret `openbao-admin` (`username`, `password`) |
 
 The admin's token lasts 8 hours (userpass tuning from `bootstrap.sh`).
 
 ## How it is put together
 
-- **No `namespace:` at the top**: OpenBao stays in `security` (the component pins
-  it there, see "Pending, decided" in the plan) and External Secrets in its own.
-- **OpenBao in its own kustomization** ([`openbao/`](openbao/kustomization.yaml)):
-  `seal-static` and `raft-snapshot` declare `namespace: security`, and a
-  Component's namespace applies to everything the consuming kustomization holds.
-  Next to External Secrets and the Jobs, they would move them all to `security`.
+- **OpenBao in its own kustomization** ([`openbao/`](openbao/kustomization.yaml)),
+  with `namespace: openbao` and the `follow-namespace` transformer. No
+  `namespace:` at the top: External Secrets and the use-case namespace keep theirs.
 - **No base**: nothing here uses Traefik, cert-manager or MinIO.
 - **`bootstrap.sh` and the policies are the repo's own**: `spec.files` in
   [`usecase.yaml`](usecase.yaml) makes the runner ship them as ConfigMaps, since

@@ -37,6 +37,20 @@ spec:
           env:
             - name: BAO_ADDR
               value: "http://127.0.0.1:8200"
+            # api_addr / cluster_addr follow the namespace the pod runs in (a tenant
+            # overlay's `namespace:`), instead of being fixed in openbao.hcl.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: BAO_API_ADDR
+              value: "http://openbao.$(POD_NAMESPACE).svc:8200"
+            - name: BAO_CLUSTER_ADDR
+              value: "https://$(POD_NAME).openbao-internal.$(POD_NAMESPACE).svc:8201"
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

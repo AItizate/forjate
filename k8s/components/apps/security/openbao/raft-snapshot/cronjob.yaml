@@ -2,6 +2,8 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: openbao-raft-snapshot
+  # Explicit, not a Component `namespace:` (see kustomization.yaml)
+  namespace: security
 spec:
   schedule: "0 */6 * * *"
   concurrencyPolicy: Forbid

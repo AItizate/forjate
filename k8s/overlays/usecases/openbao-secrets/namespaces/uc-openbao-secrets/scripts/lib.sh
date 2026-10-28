@@ -8,7 +8,7 @@
 #
 # Env (set by the Jobs): BAO_ADDR (Service openbao, ready pods only),
 # BAO_HEADLESS (openbao-0 directly, also while uninitialised or sealed),
-# ADMIN_USER, NS.
+# ADMIN_USER, NS (this namespace), OPENBAO_NAMESPACE (where OpenBao runs).
 
 WORK="${WORK:-/work}"
 umask 077

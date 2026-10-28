@@ -49,10 +49,12 @@ spec:
             - { name: WORK, value: /work }
             - name: NS
               valueFrom: { fieldRef: { fieldPath: metadata.namespace } }
+            # Where OpenBao runs: not `security`, to prove the component follows a namespace
+            - { name: OPENBAO_NAMESPACE, value: openbao }
             # Service openbao of this namespace (ExternalName): ready pods only
             - { name: BAO_ADDR, value: "http://openbao:8200" }
             # openbao-0 itself, reachable while uninitialised or sealed
-            - { name: BAO_HEADLESS, value: "http://openbao-0.openbao-internal.security.svc:8200" }
+            - { name: BAO_HEADLESS, value: "http://openbao-0.openbao-internal.$(OPENBAO_NAMESPACE).svc:8200" }
             - { name: ADMIN_USER, value: uc-admin }
             - { name: PRINCIPALS, value: agent }
             - { name: K8S_AGENT, value: uc-agent-k8s }

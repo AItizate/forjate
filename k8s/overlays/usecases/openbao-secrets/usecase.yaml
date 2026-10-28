@@ -13,7 +13,8 @@ spec:
   ttl: 2h
 
   # Also composed: security/openbao sub-components seal-static, raft-snapshot and
-  # eso-store (the schema lists component roots only).
+  # eso-store, and its follow-namespace transformer (the schema lists component
+  # roots only).
   components:
     - apps/security/openbao
     - apps/security/external-secrets
@@ -40,7 +41,7 @@ spec:
         - k8s/components/apps/security/openbao/policies
 
   # Service openbao in uc-openbao-secrets is an ExternalName for
-  # openbao.security.svc: the server itself runs in `security`.
+  # openbao.openbao.svc: the server itself runs in namespace `openbao`.
   outputs:
     endpoints:
       - name: openbao

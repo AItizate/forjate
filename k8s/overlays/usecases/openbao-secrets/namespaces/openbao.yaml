@@ -1,0 +1,10 @@
+# Where OpenBao runs: deliberately not the component's default `security`, so the
+# use case proves that an overlay's `namespace:` plus the follow-namespace
+# transformer is all it takes. Enforcing the restricted profile proves that the
+# server, the snapshot CronJob and the restore pod all fit in it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openbao
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

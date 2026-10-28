@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# OpenBao in a namespace other than `security` — not a Component: a transformer.
+#
+# An overlay's `namespace:` moves every namespaced resource of security/openbao and its
+# sub-components (api_addr and cluster_addr follow on their own: the pod builds them
+# from its namespace). Two references to the namespace are values, not metadata, and
+# `namespace:` does not touch them:
+#   - the subject of ClusterRoleBinding openbao-auth-delegator (kubernetes auth breaks
+#     without it: OpenBao cannot call TokenReview)
+#   - spec.provider.vault.server of ClusterSecretStore openbao (eso-store)
+# This transformer copies the namespace of ServiceAccount openbao into both.
+#
+# Usage — in the SAME kustomization that sets `namespace:`:
+#   namespace: my-namespace
+#   resources:
+#     - path/to/security/openbao
+#   components:
+#     - path/to/security/openbao/eso-store        # optional, also followed
+#   transformers:
+#     - path/to/security/openbao/follow-namespace
+#
+# Why not a Component: a Component runs before the consuming kustomization's own
+# `namespace:`, so it would still read `security`. A transformer listed under
+# `transformers:` runs after it. An overlay further up that changes the namespace again
+# needs this line too. Without `namespace:` it changes nothing (everything stays in
+# `security`).
+
+resources:
+  - replacements.yaml

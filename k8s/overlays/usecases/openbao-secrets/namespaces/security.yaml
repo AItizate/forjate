@@ -1,8 +1,0 @@
-# Where OpenBao runs. Enforcing the restricted profile makes the use case prove
-# that the server, the snapshot CronJob and the restore pod all fit in it.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: security
-  labels:
-    pod-security.kubernetes.io/enforce: restricted

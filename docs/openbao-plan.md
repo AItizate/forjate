@@ -58,9 +58,12 @@ k8s/components/apps/security/openbao/
 │   ├── kustomization.yaml
 │   ├── cronjob.yaml         # bao operator raft snapshot save → PVC, every 6 h
 │   └── pvc.yaml             # tenants patch the storage class or the volume
-└── eso-store/               # optional sub-component, requires security/external-secrets
+├── eso-store/               # optional sub-component, requires security/external-secrets
+│   ├── kustomization.yaml
+│   └── clustersecretstore.yaml
+└── follow-namespace/        # transformer (not a Component) for overlays that set namespace:
     ├── kustomization.yaml
-    └── clustersecretstore.yaml
+    └── replacements.yaml    # CRB subject + store server: <- ServiceAccount namespace
 ```
 
 ### `openbao.hcl`
@@ -81,8 +84,8 @@ storage "raft" {
   node_id = "openbao-0"
 }
 
-api_addr     = "http://openbao.security.svc:8200"
-cluster_addr = "http://openbao-0.openbao-internal.security.svc:8201"
+# api_addr / cluster_addr: not here. The StatefulSet sets BAO_API_ADDR / BAO_CLUSTER_ADDR
+# from the pod's name and namespace, so the component can live in any namespace.
 
 audit "file" "stdout" { options { file_path = "stdout" } }   # declarative: the API refuses to create audit devices
 
@@ -216,16 +219,19 @@ Found while reading the tree. Both get in the way of the `eso-store` path in pra
 
 ## Pending, decided
 
-- **The component does not follow an overlay's `namespace:` all the way.** Found in step 5
-  (build of `openbao` + all three sub-components with `namespace: otro-ns`): every namespaced
-  resource moves, but four things stay on `security`: the subject of ClusterRoleBinding
-  `openbao-auth-delegator` (so kubernetes auth breaks in another namespace), `api_addr` /
-  `cluster_addr` inside `openbao.hcl`, and the ClusterSecretStore `server:`. The CRB and
-  store names are fixed too, so two instances in one cluster collide. Fix later: move the
-  addresses out of the HCL into `BAO_API_ADDR` / `BAO_CLUSTER_ADDR` built from the pod's
-  namespace (untested), and document that an overlay in another namespace uses the builtin
-  `NamespaceTransformer` with `setRoleBindingSubjects: allServiceAccounts` (verified by build:
-  it moves the CRB subject) plus a patch for the store `server:`.
+- **The component follows an overlay's `namespace:`** — fixed in this branch (it was "fix
+  later"). Found in step 5: four values stayed on `security` (the ClusterRoleBinding subject,
+  `api_addr` / `cluster_addr` in `openbao.hcl`, the ClusterSecretStore `server:`), and found in
+  step 6: `seal-static` and `raft-snapshot` declared `namespace: security` as Components, which
+  moves *every* resource of the consuming kustomization into `security`. Now the sub-components
+  set the namespace on their own resources, the pod builds `BAO_API_ADDR` / `BAO_CLUSTER_ADDR`
+  from its name and namespace (verified: OpenBao 2.7.1 honours both), and a new
+  `follow-namespace/` transformer (a `ReplacementTransformer`, listed under `transformers:` in
+  the overlay that sets `namespace:`) points the CRB subject and the store `server:` at the
+  ServiceAccount's namespace. It cannot be a Component: Components run before their consumer's
+  `namespace:` (verified by build). `openbao-secrets` runs OpenBao in namespace `openbao` to
+  keep this covered. Still open: two instances in one cluster (fixed CRB and store names;
+  `namePrefix` renames them but not the hostname in `server:`).
 - **Ephemeral use case with OIDC login for human admins.** Admins log in with `userpass` today. OIDC needs an identity provider in the k3d cluster to prove that someone who logs in through it lands in `admins` and can run `bootstrap.sh`. Not part of this branch's steps; documented in `docs/tenant-onboarding/openbao-admins.md`.
 
 ## Follow-up after `feat/use-case-builder` merges

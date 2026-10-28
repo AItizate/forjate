@@ -25,13 +25,13 @@ subjects:
     name: openbao-usecase
     namespace: uc-openbao-secrets
 ---
-# security: the seal key and snapshot token (seed), the snapshot Job, the PVC
+# openbao (where OpenBao runs): the seal key and snapshot token (seed), the snapshot Job, the PVC
 # wipe and the restore pod (verify).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: uc-openbao-secrets
-  namespace: security
+  namespace: openbao
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -59,7 +59,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: uc-openbao-secrets
-  namespace: security
+  namespace: openbao
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

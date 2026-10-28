@@ -30,11 +30,19 @@ kind: Kustomization
 # Storage: raft needs block or local storage. Do NOT put the PVC on NFS.
 # The PVC has no storageClassName: the tenant picks one (patch the volumeClaimTemplate).
 #
+# Namespace: `security` by default. A tenant overlay's `namespace:` moves the component
+# and its sub-components; api_addr / cluster_addr follow on their own (BAO_API_ADDR and
+# BAO_CLUSTER_ADDR are built from the pod's namespace). Add the follow-namespace/
+# transformer to the same overlay so the ClusterRoleBinding subject and the eso-store
+# server follow too:
+#   namespace: my-namespace
+#   transformers:
+#     - path/to/security/openbao/follow-namespace
+#
 # Tenant overlay can patch:
 #   - Ingress hostname (placeholder: openbao.example.com)
 #   - Storage class and size of the data PVC
 #   - Resources (defaults fit an edge node: 50m/64Mi requests)
-#   - api_addr / cluster_addr in openbao-config if the namespace is not `security`
 #   - Replicas (HA needs retry_join in the config, see docs/apps/openbao.md)
 #
 # Pod Security: runs under the `restricted` profile.

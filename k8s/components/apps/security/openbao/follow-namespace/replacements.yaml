@@ -1,0 +1,24 @@
+apiVersion: builtin
+kind: ReplacementTransformer
+metadata:
+  name: openbao-follow-namespace
+replacements:
+  - source:
+      kind: ServiceAccount
+      name: openbao
+      fieldPath: metadata.namespace
+    targets:
+      - select:
+          kind: ClusterRoleBinding
+          name: openbao-auth-delegator
+        fieldPaths:
+          - subjects.[name=openbao].namespace
+      # http://openbao.<namespace>.svc:8200 — the second dot-separated field
+      - select:
+          kind: ClusterSecretStore
+          name: openbao
+        fieldPaths:
+          - spec.provider.vault.server
+        options:
+          delimiter: "."
+          index: 1

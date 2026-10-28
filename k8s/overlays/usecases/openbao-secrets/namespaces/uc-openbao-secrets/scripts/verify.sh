@@ -18,7 +18,7 @@ retry 60 2 unsealed "$BAO_ADDR" || die "OpenBao is not unsealed"
 retry 10 2 admin_login || die "the admin cannot log in"
 
 WORKLOAD_SHA="$(sha "$FIXTURE_WORKLOAD")"
-OPENBAO_IMAGE="$(kubectl -n security get statefulset openbao -o jsonpath='{.spec.template.spec.containers[0].image}')"
+OPENBAO_IMAGE="$(kubectl -n "$OPENBAO_NAMESPACE" get statefulset openbao -o jsonpath='{.spec.template.spec.containers[0].image}')"
 
 # ── 1. External Secrets ──────────────────────────────────────────────────────
 step "1. External Secrets"
@@ -81,7 +81,7 @@ spec:
       image: $OPENBAO_IMAGE
       command: ["sh", "/check/agent-check.sh"]
       env:
-        - { name: BAO_ADDR, value: "http://openbao.security.svc:8200" }
+        - { name: BAO_ADDR, value: "http://openbao.$OPENBAO_NAMESPACE.svc:8200" }
         - { name: HOME, value: /tmp }
         - { name: AUTH, value: "$2" }
         - { name: AGENT, value: "$3" }
@@ -172,7 +172,7 @@ demo_restored() {
   _v="$(as admin bao kv get -mount=kv -field=value workloads/demo 2> /dev/null)"
   [ -n "$_v" ] && [ "$(sha "$_v")" = "$WORKLOAD_SHA" ]
 }
-pvc_gone()      { ! kubectl -n security get pvc data-openbao-0 > /dev/null 2>&1; }
+pvc_gone()      { ! kubectl -n "$OPENBAO_NAMESPACE" get pvc data-openbao-0 > /dev/null 2>&1; }
 uninitialized() { [ "$(initialized "$BAO_HEADLESS")" = "false" ]; }
 
 # A marker written after the snapshot must be gone after the restore. A run that
@@ -181,20 +181,20 @@ as admin bao kv metadata delete -mount=kv "$MARKER" > /dev/null 2>&1 || true
 
 # The CronJob's own template, credentials and all: what runs every 6 hours.
 SNAP_JOB="openbao-raft-snapshot-uc-$(date +%s)"
-kubectl -n security create job "$SNAP_JOB" --from=cronjob/openbao-raft-snapshot > /dev/null
-_st="$(wait_job security "$SNAP_JOB" 240)"
-kubectl -n security logs "job/$SNAP_JOB" 2>&1 | indent
+kubectl -n "$OPENBAO_NAMESPACE" create job "$SNAP_JOB" --from=cronjob/openbao-raft-snapshot > /dev/null
+_st="$(wait_job "$OPENBAO_NAMESPACE" "$SNAP_JOB" 240)"
+kubectl -n "$OPENBAO_NAMESPACE" logs "job/$SNAP_JOB" 2>&1 | indent
 if [ "$_st" = Complete ]; then pass "snapshot saved by a Job from CronJob openbao-raft-snapshot"; else fail "snapshot Job: $_st"; fi
-kubectl -n security delete job "$SNAP_JOB" --wait=false > /dev/null 2>&1
+kubectl -n "$OPENBAO_NAMESPACE" delete job "$SNAP_JOB" --wait=false > /dev/null 2>&1
 
 printf '{"value":"written after the snapshot"}' | as admin bao kv put -mount=kv "$MARKER" - > /dev/null
 
 # Wipe: no pod, no PVC, then a new pod on a new, empty volume.
-kubectl -n security scale statefulset openbao --replicas=0 > /dev/null
-kubectl -n security wait --for=delete pod/openbao-0 --timeout=180s > /dev/null 2>&1
-kubectl -n security delete pvc data-openbao-0 --wait=true --timeout=180s > /dev/null 2>&1
+kubectl -n "$OPENBAO_NAMESPACE" scale statefulset openbao --replicas=0 > /dev/null
+kubectl -n "$OPENBAO_NAMESPACE" wait --for=delete pod/openbao-0 --timeout=180s > /dev/null 2>&1
+kubectl -n "$OPENBAO_NAMESPACE" delete pvc data-openbao-0 --wait=true --timeout=180s > /dev/null 2>&1
 check "data PVC data-openbao-0 deleted" pvc_gone
-kubectl -n security scale statefulset openbao --replicas=1 > /dev/null
+kubectl -n "$OPENBAO_NAMESPACE" scale statefulset openbao --replicas=1 > /dev/null
 retry 150 2 reachable "$BAO_HEADLESS" || fail "openbao-0 did not come back"
 check "the new openbao-0 starts uninitialised (the data is really gone)" retry 10 2 uninitialized
 
@@ -205,15 +205,15 @@ if init_openbao "$BAO_HEADLESS" fresh && retry 60 2 unsealed "$BAO_ADDR"; then
 else
   fail "empty instance initialised and unsealed by the same static key"
 fi
-kubectl -n security delete secret openbao-restore-token --ignore-not-found > /dev/null
-kubectl -n security create secret generic openbao-restore-token --from-file=token="$WORK/fresh.token" > /dev/null
-kubectl -n security delete pod openbao-restore --ignore-not-found --wait=true > /dev/null 2>&1
-sed "s|__IMAGE__|$OPENBAO_IMAGE|" <<'EOF' | kubectl apply -f - > /dev/null
+kubectl -n "$OPENBAO_NAMESPACE" delete secret openbao-restore-token --ignore-not-found > /dev/null
+kubectl -n "$OPENBAO_NAMESPACE" create secret generic openbao-restore-token --from-file=token="$WORK/fresh.token" > /dev/null
+kubectl -n "$OPENBAO_NAMESPACE" delete pod openbao-restore --ignore-not-found --wait=true > /dev/null 2>&1
+sed -e "s|__IMAGE__|$OPENBAO_IMAGE|" -e "s|__NAMESPACE__|$OPENBAO_NAMESPACE|" <<'EOF' | kubectl apply -f - > /dev/null
 apiVersion: v1
 kind: Pod
 metadata:
   name: openbao-restore
-  namespace: security
+  namespace: __NAMESPACE__
 spec:
   restartPolicy: Never
   securityContext:
@@ -260,11 +260,11 @@ spec:
     - name: tmp
       emptyDir: {}
 EOF
-_phase="$(wait_pod security openbao-restore 240)"
-kubectl -n security logs openbao-restore 2>&1 | indent
+_phase="$(wait_pod "$OPENBAO_NAMESPACE" openbao-restore 240)"
+kubectl -n "$OPENBAO_NAMESPACE" logs openbao-restore 2>&1 | indent
 if [ "$_phase" = Succeeded ]; then pass "restore -force from the newest snapshot"; else fail "restore pod: $_phase"; fi
-kubectl -n security delete pod openbao-restore --ignore-not-found --wait=false > /dev/null 2>&1
-kubectl -n security delete secret openbao-restore-token --ignore-not-found > /dev/null 2>&1
+kubectl -n "$OPENBAO_NAMESPACE" delete pod openbao-restore --ignore-not-found --wait=false > /dev/null 2>&1
+kubectl -n "$OPENBAO_NAMESPACE" delete secret openbao-restore-token --ignore-not-found > /dev/null 2>&1
 
 retry 60 2 unsealed "$BAO_ADDR" || fail "OpenBao is not unsealed after the restore"
 check "the admin from the snapshot logs in again (same password)" retry 15 2 admin_login

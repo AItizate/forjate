@@ -1,10 +1,10 @@
 #!/bin/sh
 # seed.sh — bring OpenBao to where a tenant leaves it after day one:
-#   1. seal key for seal-static: 32 random bytes in Secret security/openbao-seal-key
+#   1. seal key for seal-static: 32 random bytes in Secret $OPENBAO_NAMESPACE/openbao-seal-key
 #   2. bao operator init: root token kept in a file, recovery key discarded
 #   3. bootstrap.sh with the root token, admin $ADMIN_USER
 #   4. the admin's password (Secret openbao-admin), the snapshot token
-#      (Secret security/openbao-snapshot-token), then the root token is revoked
+#      (Secret $OPENBAO_NAMESPACE/openbao-snapshot-token), then the root token is revoked
 #   5. as the admin: kv/workloads/demo. As agent-onboarding: AppRole
 #      agent-$APPROLE_AGENT and kv/agents/<agent>/creds for both agents
 #
@@ -17,17 +17,17 @@ set -eu
 . /scripts/lib.sh
 
 step "Seal key"
-if kubectl -n security get secret openbao-seal-key > /dev/null 2>&1; then
-  echo "  Secret security/openbao-seal-key present"
+if kubectl -n "$OPENBAO_NAMESPACE" get secret openbao-seal-key > /dev/null 2>&1; then
+  echo "  Secret $OPENBAO_NAMESPACE/openbao-seal-key present"
 else
   head -c 32 /dev/urandom > "$WORK/seal.key"
-  kubectl -n security create secret generic openbao-seal-key \
+  kubectl -n "$OPENBAO_NAMESPACE" create secret generic openbao-seal-key \
     --from-file=current.key="$WORK/seal.key" > /dev/null
   rm -f "$WORK/seal.key"
-  echo "  Secret security/openbao-seal-key created (32 random bytes)"
+  echo "  Secret $OPENBAO_NAMESPACE/openbao-seal-key created (32 random bytes)"
   # openbao-0 has been waiting for the Secret: recreate it instead of waiting out
   # the kubelet's mount backoff.
-  kubectl -n security delete pod openbao-0 --ignore-not-found --wait=false > /dev/null
+  kubectl -n "$OPENBAO_NAMESPACE" delete pod openbao-0 --ignore-not-found --wait=false > /dev/null
 fi
 
 step "OpenBao"
@@ -70,10 +70,10 @@ else
   as root bao token create -policy=raft-snapshot -orphan -period=720h -field=token \
     | tr -d '\n' > "$WORK/snapshot.token"
   [ -s "$WORK/snapshot.token" ] || die "cannot create the snapshot token"
-  kubectl -n security create secret generic openbao-snapshot-token \
+  kubectl -n "$OPENBAO_NAMESPACE" create secret generic openbao-snapshot-token \
     --from-file=token="$WORK/snapshot.token" --dry-run=client -o yaml | kubectl apply -f - > /dev/null
   rm -f "$WORK/snapshot.token"
-  echo "  periodic orphan token, policy raft-snapshot, in Secret security/openbao-snapshot-token"
+  echo "  periodic orphan token, policy raft-snapshot, in Secret $OPENBAO_NAMESPACE/openbao-snapshot-token"
 
   step "Root token"
   as root bao token revoke -self > /dev/null

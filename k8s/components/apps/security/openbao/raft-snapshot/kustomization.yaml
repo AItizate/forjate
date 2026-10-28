@@ -46,9 +46,11 @@ kind: Component
 #
 # Pod Security: runs under the `restricted` profile.
 
-# Same namespace as the base: a Component's resources do not inherit it from the base.
-# A tenant overlay with its own `namespace:` overrides this one.
-namespace: security
+# No `namespace:` here on purpose. A Component's namespace applies to everything the
+# consuming kustomization holds, not only to its own resources: it would move a
+# tenant's other resources into `security`. The resources below carry
+# `namespace: security` themselves, like the base, and a tenant overlay's
+# `namespace:` moves them along with it.
 
 resources:
   - pvc.yaml

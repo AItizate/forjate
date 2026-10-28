@@ -13,7 +13,7 @@ kind: Kustomization
 # Tenant overlay must patch:
 #   - affine-ingress: real hostname
 #   - postgres-secret or SealedSecret: real DB credentials
-#   - affine-secret: DATABASE_URL pointing to postgres:5432
+#   - affine-secret, with DATABASE_URL pointing to postgres:5432
 #   - affine deployment: AFFINE_SERVER_HOST
 #   - postgres StatefulSet image: pgvector/pgvector:pg16 (if pgvector needed)
 

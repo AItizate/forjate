@@ -1,0 +1,86 @@
+# Run phase: bootstrap.sh a second time, as the admin, and compare the
+# configuration before and after. See scripts/run.sh.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openbao-bootstrap-again
+  labels:
+    app: openbao-bootstrap-again
+    forjate.io/usecase: openbao-secrets
+    forjate.io/phase: run
+spec:
+  # Applied suspended; the runner starts seed -> run -> verify in order.
+  suspend: true
+  # One attempt: init, a revoked root token or a wiped PVC cannot be retried blindly.
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: openbao-bootstrap-again
+    spec:
+      serviceAccountName: openbao-usecase
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        # The bao CLI, copied from the server's own image (keep the tag equal to
+        # the StatefulSet's) next to kubectl and jq.
+        - name: bao-cli
+          image: quay.io/openbao/openbao:2.7.1
+          command: ["cp", "/usr/bin/bao", "/tools/bao"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tools, mountPath: /tools }
+      containers:
+        - name: run
+          image: alpine/k8s:1.31.4
+          command: ["sh", "/scripts/run.sh"]
+          env:
+            - { name: PATH, value: "/tools:/usr/local/bin:/usr/bin:/bin" }
+            - { name: HOME, value: /work }
+            - { name: WORK, value: /work }
+            - name: NS
+              valueFrom: { fieldRef: { fieldPath: metadata.namespace } }
+            # Service openbao of this namespace (ExternalName): ready pods only
+            - { name: BAO_ADDR, value: "http://openbao:8200" }
+            # openbao-0 itself, reachable while uninitialised or sealed
+            - { name: BAO_HEADLESS, value: "http://openbao-0.openbao-internal.security.svc:8200" }
+            - { name: ADMIN_USER, value: uc-admin }
+            - { name: PRINCIPALS, value: agent }
+            - { name: K8S_AGENT, value: uc-agent-k8s }
+            - { name: APPROLE_AGENT, value: uc-agent-approle }
+            - name: ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: openbao-admin, key: password } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          volumeMounts:
+            - { name: tools, mountPath: /tools, readOnly: true }
+            - { name: work, mountPath: /work }
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+            - { name: bootstrap, mountPath: /bootstrap, readOnly: true }
+            - { name: policies, mountPath: /policies, readOnly: true }
+      volumes:
+        - name: tools
+          emptyDir: {}
+        - name: work
+          emptyDir: { medium: Memory }
+        - name: scripts
+          configMap: { name: openbao-usecase-scripts }
+        # Shipped by the runner from spec.files (usecase.yaml)
+        - name: bootstrap
+          configMap: { name: openbao-bootstrap }
+        - name: policies
+          configMap: { name: openbao-policies }

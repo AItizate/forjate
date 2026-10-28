@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: uc-openbao-secrets
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - service-openbao.yaml
+  - externalsecrets.yaml
+  - openbao-seed-job.yaml
+  - openbao-bootstrap-again-job.yaml
+  - openbao-verify-job.yaml
+
+# The lifecycle scripts. bootstrap.sh and the policies come from the repo itself
+# (spec.files in usecase.yaml), shipped by the runner as openbao-bootstrap and
+# openbao-policies.
+configMapGenerator:
+  - name: openbao-usecase-scripts
+    files:
+      - scripts/lib.sh
+      - scripts/seed.sh
+      - scripts/run.sh
+      - scripts/verify.sh

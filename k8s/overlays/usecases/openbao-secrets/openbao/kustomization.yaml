@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# OpenBao with every sub-component, in a kustomization of its own on purpose.
+# seal-static and raft-snapshot declare `namespace: security`, and a Component's
+# namespace applies to everything the consuming kustomization holds, not only to
+# its own resources: composed next to External Secrets and the use-case
+# namespace, it would move them all into `security`.
+
+resources:
+  - ../../../../components/apps/security/openbao
+
+components:
+  - ../../../../components/apps/security/openbao/seal-static
+  - ../../../../components/apps/security/openbao/raft-snapshot
+  - ../../../../components/apps/security/openbao/eso-store

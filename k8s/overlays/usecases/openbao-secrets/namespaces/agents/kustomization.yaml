@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The agents namespace of docs/tenant-onboarding/agent-secrets.md: any ServiceAccount
+# here is an agent (auth/kubernetes role agent). The verify Job starts one pod per
+# login method in it and runs agent-check.sh there.
+
+namespace: agents
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+
+configMapGenerator:
+  - name: agent-check
+    files:
+      - agent-check.sh
+      - test-agent.pub
+    options:
+      # verify.sh creates the agent pods at run time and refers to it by name.
+      disableNameSuffixHash: true

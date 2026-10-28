@@ -12,12 +12,22 @@
 #   3. ssh at ssh-client/, signing CA, role "agent" (TTL 30m, max 1h)
 #   4. checks that an audit device is enabled (declared in openbao.hcl, not creatable by API)
 #   5. every policy under k8s/components/apps/security/openbao/policies/
+#   6. human administrators: userpass auth, one identity per admin, group "admins"
+#      (policy admin). With this in place the root token can be revoked
 #
 # Usage:
 #   BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=<admin or root token> \
-#     scripts/openbao/bootstrap.sh <principal>[,<principal>...]
+#     scripts/openbao/bootstrap.sh <principal>[,<principal>...] <admin>[,<admin>...]
 #
 #   <principal>   unix users the SSH CA may put in a certificate (role "agent")
+#   <admin>       human administrators. Each gets an identity and a userpass account that
+#                 NOBODY can log in to yet: the script sets a random password it never
+#                 shows. An operator then sets the person's own password (see
+#                 docs/tenant-onboarding/openbao-admins.md). Existing accounts and their
+#                 passwords are never touched, and the group only ever gains members.
+#                 Names: letters, digits . _ -
+#
+# Works with the root token and, once an admin exists, with that admin's token.
 #
 # Environment:
 #   BAO_ADDR, BAO_TOKEN   required (the token is never printed)
@@ -33,8 +43,9 @@
 
 set -eu
 
-[ $# -eq 1 ] && [ -n "$1" ] || { sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+[ $# -eq 2 ] && [ -n "$1" ] && [ -n "$2" ] || { sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 PRINCIPALS="$1"
+ADMINS="$2"
 : "${BAO_ADDR:?BAO_ADDR is required}"
 : "${BAO_TOKEN:?BAO_TOKEN is required}"
 export BAO_ADDR BAO_TOKEN
@@ -155,6 +166,55 @@ for f in "$POLICY_DIR"/*.hcl; do
       -e "s/__ACCESSOR_APPROLE__/$ACC_APPROLE/g" "$f" | bao policy write "$name" - > /dev/null
   say "policy: $name"
 done
+
+# 6. Human administrators. The group is what carries the admin policy, so the login
+# method can change later (OIDC) without touching policies: only the alias differs.
+case "$ADMINS" in
+  *[!A-Za-z0-9._,-]*) say "admin names may only contain letters, digits . _ - and commas" >&2; exit 2 ;;
+esac
+if has_auth userpass; then
+  say "auth/userpass: present"
+else
+  bao auth enable userpass > /dev/null
+  say "auth/userpass: enabled"
+fi
+# Admin tokens are short-lived: the default (32 days) is far too long for this policy.
+bao auth tune -default-lease-ttl=8h -max-lease-ttl=24h userpass/ > /dev/null
+say "auth/userpass: token TTL 8h, max 24h"
+ACC_USERPASS="$(bao read -field=accessor sys/auth/userpass)"
+
+# Current members, so the group only ever gains people. Removing one is deliberate.
+MEMBERS="$(bao read -field=member_entity_ids identity/group/name/admins 2> /dev/null | tr -d '[]' | tr ' ' ',')"
+[ "$MEMBERS" != "<nil>" ] || MEMBERS=""
+
+for h in $(printf '%s' "$ADMINS" | tr ',' ' '); do
+  if ID="$(bao read -field=id "identity/entity/name/$h" 2> /dev/null)"; then
+    say "admin $h: identity present"
+  else
+    ID="$(bao write -field=id "identity/entity" name="$h")"
+    say "admin $h: identity created"
+  fi
+  if bao read -format=json "identity/entity/name/$h" | grep -q "\"mount_accessor\": \"$ACC_USERPASS\""; then
+    say "admin $h: userpass alias present"
+  else
+    bao write identity/entity-alias name="$h" canonical_id="$ID" mount_accessor="$ACC_USERPASS" > /dev/null
+    say "admin $h: userpass alias created"
+  fi
+  if bao read "auth/userpass/users/$h" > /dev/null 2>&1; then
+    say "admin $h: userpass account present (password untouched)"
+  else
+    # Nobody knows this password: the account is unusable until an operator sets one.
+    pw="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')"
+    printf '{"password":"%s"}' "$pw" | bao write "auth/userpass/users/$h" - > /dev/null
+    say "admin $h: userpass account created, NO usable password yet"
+  fi
+  case ",$MEMBERS," in
+    *",$ID,"*) ;;
+    *) MEMBERS="${MEMBERS:+$MEMBERS,}$ID" ;;
+  esac
+done
+bao write identity/group/name/admins type=internal policies=admin member_entity_ids="$MEMBERS" > /dev/null
+say "group admins: policy admin, members: $(printf '%s' "$MEMBERS" | tr ',' '\n' | grep -c .)"
 
 say ""
 say "SSH CA public key (TrustedUserCAKeys on every host the agent logs in to):"

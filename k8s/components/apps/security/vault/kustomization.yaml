@@ -3,6 +3,13 @@ kind: Kustomization
 
 # HashiCorp Vault — centralized secret management
 #
+# DEPRECATED in favour of security/openbao (docs/apps/openbao.md). Vault 1.19 is
+# BUSL-1.1, and this component ships file storage, plain-HTTP ingress, no audit device
+# and no unseal story. OpenBao has the same API (MPL-2.0, Linux Foundation), raft
+# storage, static-key unseal, snapshots, an External Secrets store and a tested
+# bootstrap. Nothing in this repo consumes this component; whether it is removed is
+# decided after the use-case builder integration (docs/openbao-plan.md).
+#
 # Deploys Vault in standalone mode with file storage backend.
 # For production, tenants should patch to use raft or an external
 # storage backend (consul, postgres, etc.).

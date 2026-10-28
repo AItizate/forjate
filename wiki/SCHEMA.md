@@ -99,8 +99,10 @@ Rules:
 - `sources` is **required** for `component`, `overlay` and `base` pages, and
   **must be empty or absent** for `concept` pages. A concept page that claims a
   source path is really a component page in the wrong folder.
-- `consumed_by` is computed by the compiler from actual `resources:` references.
-  Never write it by hand; it will be overwritten.
+- `consumed_by` is computed by the compiler from actual references: `resources:`,
+  `components:`, `transformers:`, `generators:` and `validators:`, including those
+  made from a structural sub-kustomization (`namespaces/x`), which count for the
+  page that owns it. Never write it by hand; it will be overwritten.
 - `compiled_at` is only advanced when the page was genuinely reconciled against
   its sources. Advancing it to silence the linter defeats the entire mechanism.
 - `summary` is the one-liner the page contributes to `index.md`. The compiler
@@ -139,9 +141,10 @@ pattern: **good answers get filed back into the wiki** as `concepts/` pages
 rather than evaporating into chat history. A question worth asking twice is a
 page.
 
-**Lint.** `scripts/wiki-lint.py` checks source drift, dangling sources, broken
+**Lint.** `scripts/wiki-lint.py` checks source drift, stale `consumed_by`
+backlinks (a consumer changed, not the page's sources), dangling sources, broken
 links, orphan concept pages, schema violations, and components present in the
-tree but missing a page. Drift, schema and dangling are hard failures; the rest
+tree but missing a page. Drift, backlinks, schema and dangling are hard failures; the rest
 are warnings unless `--strict`. It reuses the compiler's traversal through
 `scripts/wiki_compile_api.py` rather than duplicating it, so the two can never
 disagree about what counts as a page. Run it in CI and before releases.

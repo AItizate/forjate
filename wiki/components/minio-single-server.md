@@ -3,10 +3,11 @@ title: minio-single-server
 kind: component
 sources:
 - k8s/components/apps/minio/single-server
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: minio
 consumed_by:
 - overlays/agentic-simple-workflow
+- overlays/ai-dev-stack
 - overlays/home-edge-lab
 - overlays/multi-cloud-portable
 - overlays/multi-tenant-pattern-org
@@ -39,6 +40,7 @@ summary_source: derived
 ### Consumed by
 
 - [overlays/agentic-simple-workflow](../overlays/agentic-simple-workflow.md)
+- [overlays/ai-dev-stack](../overlays/ai-dev-stack.md) — resource, via namespaces/dev
 - [overlays/home-edge-lab](../overlays/home-edge-lab.md)
 - [overlays/multi-cloud-portable](../overlays/multi-cloud-portable.md)
 - [overlays/multi-tenant-pattern-org](../overlays/multi-tenant-pattern-org.md)

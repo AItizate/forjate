@@ -3,7 +3,7 @@ title: databases-mariadb
 kind: component
 sources:
 - k8s/components/apps/databases/mariadb
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: databases
 source_last_commit: '2026-04-27'
 summary: deploys `linuxserver/mariadb`
@@ -24,7 +24,7 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`ConfigMap`, `Deployment`, `PersistentVolumeClaim`, `Secret`, `Service`, `StatefulSet`
+`ConfigMap`, `Service`, `StatefulSet`
 
 ### Container images
 

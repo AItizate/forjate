@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uc-openbao-secrets
+  labels:
+    # The runner adds app.kubernetes.io/managed-by=forjate-ephemeral and
+    # forjate.io/usecase at deploy time, along with the expiry annotation.
+    forjate.io/usecase: openbao-secrets
+    # The lifecycle Jobs talk to OpenBao, so they go through its NetworkPolicy too.
+    ait.aitizate.com/openbao-access: "true"
+    pod-security.kubernetes.io/enforce: restricted

@@ -8,6 +8,8 @@ outdated facts with the authority of a curated page.
 
 Checks:
   drift          source path changed in git after the page's compiled_at
+  backlinks      consumed_by differs from what the tree references now (a
+                 consumer changed, not the page's own sources)
   missing        a kustomization exists in k8s/ with no page in the wiki
   dangling       a page whose source directory no longer exists
   broken-link    a markdown link to a wiki file that is not there
@@ -24,43 +26,16 @@ from __future__ import annotations
 
 import argparse
 import re
-import subprocess
 import sys
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:
-    sys.exit("pyyaml is required. Run: poetry install")
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from wiki_compile_api import REPO, WIKI, discover, rel  # noqa: E402
+from wiki_compile_api import (  # noqa: E402
+    REPO, WIKI, compile_pages, read_frontmatter, rel, source_last_commit,
+)
 
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+\.md)\)")
-HARD_FAIL = {"drift", "schema", "dangling"}
-
-
-def frontmatter(path: Path) -> dict:
-    text = path.read_text(encoding="utf-8")
-    if not text.startswith("---"):
-        return {}
-    end = text.find("\n---", 3)
-    if end == -1:
-        return {}
-    try:
-        fm = yaml.safe_load(text[3:end])
-    except yaml.YAMLError:
-        return {}
-    return fm if isinstance(fm, dict) else {}
-
-
-def last_commit(rel_path: str) -> str | None:
-    try:
-        out = subprocess.run(["git", "log", "-1", "--format=%cs", "--", rel_path],
-                             cwd=REPO, capture_output=True, text=True, timeout=15)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return out.stdout.strip() or None
+HARD_FAIL = {"drift", "schema", "dangling", "backlinks"}
 
 
 def main() -> int:
@@ -77,7 +52,7 @@ def main() -> int:
     inbound: dict[str, int] = {}
 
     for page in pages:
-        fm = frontmatter(page)
+        fm = read_frontmatter(page)
         rp = rel(page)
         kind = fm.get("kind")
 
@@ -107,7 +82,7 @@ def main() -> int:
                 findings.append(("dangling", f"{rp}: source `{s}` no longer exists "
                                              f"— mark the page kind: retired"))
                 continue
-            commit = last_commit(str(s))
+            commit = source_last_commit(str(s))
             if commit and compiled_at and commit > compiled_at:
                 findings.append(("drift", f"{rp}: `{s}` changed {commit}, "
                                           f"page compiled {compiled_at}"))
@@ -127,11 +102,18 @@ def main() -> int:
         if inbound.get(rel(page), 0) == 0:
             findings.append(("orphan", f"{rel(page)}: no inbound links"))
 
-    # Anything in the tree the compiler would produce but that is not on disk.
-    for p in discover():
+    # Anything in the tree the compiler would produce but that is not on disk,
+    # and backlinks that went stale because a consumer changed: drift only
+    # looks at a page's own sources, so it cannot see those.
+    for p in compile_pages():
         if not p.out.exists():
             findings.append(("missing", f"{rel(p.out)}: not compiled "
                                         f"(source {p.rel_source})"))
+            continue
+        recorded = read_frontmatter(p.out).get("consumed_by") or []
+        if sorted(recorded) != p.consumed_by:
+            findings.append(("backlinks", f"{rel(p.out)}: consumed_by is {recorded}, "
+                                          f"the tree says {p.consumed_by}"))
 
     if not findings:
         print(f"wiki-lint: clean ({len(pages)} pages checked)")

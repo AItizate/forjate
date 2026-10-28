@@ -1,0 +1,11 @@
+# The endpoint the contract advertises (openbao.uc-openbao-secrets.svc:8200),
+# pointing at the server in namespace `openbao`. Routes only to a ready pod: initialised,
+# unsealed and active. The seed Job reaches the uninitialised pod through the
+# headless openbao-internal Service instead.
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao
+spec:
+  type: ExternalName
+  externalName: openbao.openbao.svc.cluster.local

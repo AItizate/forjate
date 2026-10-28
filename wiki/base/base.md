@@ -3,7 +3,7 @@ title: base
 kind: base
 sources:
 - k8s/base
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 consumed_by:
 - overlays/agentic-orchestration
 - overlays/agentic-simple-workflow
@@ -16,7 +16,7 @@ consumed_by:
 - overlays/quickstart
 - overlays/usecases-db-migration-a-to-b
 source_last_commit: '2026-06-07'
-summary: deploys `docker.io/traefik:v3.5.2`
+summary: declares `Certificate`, `Namespace`
 summary_source: derived
 ---
 
@@ -36,19 +36,14 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`Certificate`, `ClusterRole`, `ClusterRoleBinding`, `Deployment`, `Ingress`, `IngressClass`, `Middleware`, `Namespace`, `Service`, `ServiceAccount`
-
-### Container images
-
-- `docker.io/traefik:v3.5.2`
+`Certificate`, `Namespace`
 
 ### Depends on
 
+- [base/cert-manager](../base/cert-manager.md) — resource, via namespaces/cert-manager
+- [base/oauth2-proxy](../base/oauth2-proxy.md) — resource, via namespaces/security
+- [base/traefik](../base/traefik.md) — resource, via namespaces/traefik
 - [base/minio](../base/minio.md)
-- `k8s/base/namespaces/security`
-- `k8s/base/namespaces/traefik`
-- `k8s/base/namespaces/ai-tools`
-- `k8s/base/apps/minio`
 
 ### Labels
 

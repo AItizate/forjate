@@ -3,9 +3,12 @@ title: ai-models-litellm-postgres
 kind: component
 sources:
 - k8s/components/apps/ai-models/litellm/postgres
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: ai-models
 parent: components/ai-models-litellm
+consumed_by:
+- overlays/agentic-orchestration
+- overlays/ai-dev-stack
 source_last_commit: '2026-06-07'
 summary: composes `postgres`
 summary_source: derived
@@ -33,7 +36,8 @@ summary_source: derived
 
 ### Consumed by
 
-_No overlay in this repo references this component._
+- [overlays/agentic-orchestration](../overlays/agentic-orchestration.md) — resource, via namespaces/ai-tools
+- [overlays/ai-dev-stack](../overlays/ai-dev-stack.md) — resource, via namespaces/ai-tools
 
 <!-- END DECLARED -->
 

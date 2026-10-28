@@ -61,6 +61,7 @@ Field by field:
 | `spec.ttl` | Consumed by `gc`. `<N>m`, `<N>h`, or `<N>d`. Ephemeral is a promise the tooling has to keep. |
 | `spec.components` | Declarative inventory of which catalog components the use case pulls in. Not consumed by the runner — it's for reviewers and for the catalog. |
 | `spec.jobs` | The lifecycle. `seed` and `verify` are mandatory; `run` is the optional middle step where the use case's actual work happens. Names must match Jobs in the built manifest (CI asserts this too). |
+| `spec.files` | Optional. Repo files the Jobs run that live outside the overlay (a script under `scripts/`, a component's policy files). kustomize refuses to load a file above the overlay's root, so the runner ships each entry as a ConfigMap in the use-case namespace before the lifecycle starts. The Jobs run the repo's own copies, not duplicates. CI asserts the paths exist. |
 | `spec.outputs` | **The agent-facing part.** Endpoints and credential references, so nothing has to be discovered by trial and error. |
 
 **Endpoint DNS is derivable, never guessed.** Given a use case named `<name>` and an endpoint with `service: <svc>` and `port: <port>`, the in-cluster address is always:
@@ -85,7 +86,9 @@ ephemeral.sh up <name>
   ├─ preflight        deps (k3d, kubectl, kustomize, yq), contract schema, name == dir
   ├─ ensure cluster   shared: reuse forjate-uc-shared   dedicated: create forjate-uc-<name>
   ├─ seed secrets     cp secrets/*.env.example → *.env when missing (same as CI does)
-  ├─ apply overlay    kustomize build | kubectl apply   (retry once after 3s — CRD establishment)
+  ├─ apply overlay    kustomize build --enable-helm | kubectl apply --server-side
+  │                   (retried every 5s until CRDs are established and webhooks answer)
+  ├─ ship files       spec.files → ConfigMaps in the use-case namespace
   ├─ stamp TTL        annotate ns forjate.io/expires-at=<now + spec.ttl>
   ├─ run seed  ──┐
   ├─ run run   ──┤    delete Job (immutable) → apply → wait Complete|Failed|Timeout → print logs
@@ -146,8 +149,8 @@ The pattern validates itself in CI (`.github/workflows/validate-usecases.yml`):
 | Gate | What it proves |
 |------|----------------|
 | **Contract lint** | Every `usecase.yaml` matches the schema, `metadata.name` equals its directory, and every Job named in `spec.jobs` actually exists in the built manifest. Catches contract drift before it reaches a runner. |
-| **Shellcheck** | The runner and scaffolder are statically sound. |
-| **End-to-end smoke** | A real k3d cluster on the runner: `up` → `ls` → `down`, asserting the namespace is gone. The lifecycle is proven unattended, on every change. |
+| **Shellcheck** | The runner and scaffolder are statically sound, and so are the scripts use cases run in their Jobs (`scripts/openbao/bootstrap.sh` and `openbao-secrets`, as POSIX `sh`). |
+| **End-to-end smoke** | A real k3d cluster on the runner: `up` → `ls` → `down`, asserting the namespace is gone. The lifecycle is proven unattended, on every change. Then `openbao-secrets` on its own cluster, whose verify is the end-to-end proof of `security/openbao`. |
 
 The existing `validate-kustomize.yml` gate covers the overlay manifests themselves — it discovers any directory with a `kustomization.yaml` under `k8s/overlays` recursively, so use cases are picked up with no workflow changes.
 

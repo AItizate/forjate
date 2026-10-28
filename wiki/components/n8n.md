@@ -3,10 +3,10 @@ title: n8n
 kind: component
 sources:
 - k8s/components/apps/n8n
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: standalone
 source_last_commit: '2026-04-27'
-summary: deploys `busybox:1.36`
+summary: composes `postgres`, `n8n`
 summary_source: derived
 ---
 
@@ -20,16 +20,6 @@ summary_source: derived
 
 - `./postgres/`
 - `./n8n/`
-
-### Kubernetes kinds
-
-`ConfigMap`, `Deployment`, `Ingress`, `IngressRoute`, `Middleware`, `PersistentVolumeClaim`, `Secret`, `ServersTransport`, `Service`
-
-### Container images
-
-- `busybox:1.36`
-- `n8nio/n8n`
-- `postgres:15`
 
 ### Depends on
 

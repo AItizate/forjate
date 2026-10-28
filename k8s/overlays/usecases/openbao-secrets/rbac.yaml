@@ -1,0 +1,130 @@
+# What the lifecycle Jobs (ServiceAccount uc-openbao-secrets/openbao-usecase) may
+# do outside their own namespace. Everything here exists for one step of
+# scripts/seed.sh or scripts/verify.sh, named next to it.
+#
+# Cluster-scoped only: re-validate ClusterSecretStore openbao (force-sync annotation).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: uc-openbao-secrets
+rules:
+  - apiGroups: ["external-secrets.io"]
+    resources: ["clustersecretstores"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: uc-openbao-secrets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: uc-openbao-secrets
+subjects:
+  - kind: ServiceAccount
+    name: openbao-usecase
+    namespace: uc-openbao-secrets
+---
+# openbao (where OpenBao runs): the seal key and snapshot token (seed), the snapshot Job, the PVC
+# wipe and the restore pod (verify).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: uc-openbao-secrets
+  namespace: openbao
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "statefulsets/scale"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["get"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: uc-openbao-secrets
+  namespace: openbao
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: uc-openbao-secrets
+subjects:
+  - kind: ServiceAccount
+    name: openbao-usecase
+    namespace: uc-openbao-secrets
+---
+# agents: the agent pods and the AppRole agent's secret-id (verify).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: uc-openbao-secrets
+  namespace: agents
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: uc-openbao-secrets
+  namespace: agents
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: uc-openbao-secrets
+subjects:
+  - kind: ServiceAccount
+    name: openbao-usecase
+    namespace: uc-openbao-secrets
+---
+# Its own namespace: Secrets openbao-admin and openbao-fixtures (seed), the
+# ExternalSecrets and their target Secrets (verify).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openbao-usecase
+  namespace: uc-openbao-secrets
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "patch"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openbao-usecase
+  namespace: uc-openbao-secrets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openbao-usecase
+subjects:
+  - kind: ServiceAccount
+    name: openbao-usecase
+    namespace: uc-openbao-secrets

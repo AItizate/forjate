@@ -47,7 +47,7 @@ jobs:
       - name: Lint the wiki
         run: |
           poetry run python scripts/wiki-lint.py || {
-            echo "::error::wiki-lint found hard failures (drift, schema or dangling sources)"
+            echo "::error::wiki-lint found hard failures (drift, stale backlinks, schema or dangling sources)"
             exit 1
           }
 

@@ -1,0 +1,56 @@
+# Contract for the openbao-secrets ephemeral use-case environment.
+# Schema: scripts/ephemeral/usecase.schema.json
+# Design: docs/ephemeral-use-cases.md · what it proves: docs/openbao-plan.md (step 6)
+apiVersion: forjate.io/v0
+kind: UseCase
+metadata:
+  name: openbao-secrets
+  description: OpenBao with static-key unseal, raft snapshots and an External Secrets store, configured by bootstrap.sh and run by an admin, with a Kubernetes agent and an AppRole agent.
+spec:
+  # External Secrets brings CRDs, webhooks and cluster-scoped RBAC, and openbao a
+  # ClusterRoleBinding and a ClusterSecretStore: its own cluster.
+  isolation: dedicated
+  ttl: 2h
+
+  # Also composed: security/openbao sub-components seal-static, raft-snapshot and
+  # eso-store, and its follow-namespace transformer (the schema lists component
+  # roots only).
+  components:
+    - apps/security/openbao
+    - apps/security/external-secrets
+
+  jobs:
+    seed:
+      name: openbao-seed
+      timeout: 600
+    run:
+      name: openbao-bootstrap-again
+      timeout: 300
+    verify:
+      name: openbao-verify
+      timeout: 900
+
+  # bootstrap.sh and the policies live outside this overlay; the Jobs run the
+  # repo's own copies, not duplicates.
+  files:
+    - configMap: openbao-bootstrap
+      paths:
+        - scripts/openbao/bootstrap.sh
+    - configMap: openbao-policies
+      paths:
+        - k8s/components/apps/security/openbao/policies
+
+  # Service openbao in uc-openbao-secrets is an ExternalName for
+  # openbao.openbao.svc: the server itself runs in namespace `openbao`.
+  outputs:
+    endpoints:
+      - name: openbao
+        service: openbao
+        port: 8200
+        protocol: http
+    secrets:
+      - name: admin-credentials
+        secretRef: openbao-admin
+        keys:
+          - username
+          - password

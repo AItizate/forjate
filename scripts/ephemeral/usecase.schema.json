@@ -72,6 +72,32 @@
             }
           }
         },
+        "files": {
+          "type": "array",
+          "description": "Repo files the Jobs need that live outside the overlay (kustomize cannot load a file above the overlay's root). The runner ships each entry as a ConfigMap in the use-case namespace before the lifecycle starts, and again before a single-phase re-run. A directory contributes every file directly inside it.",
+          "items": {
+            "type": "object",
+            "required": ["configMap", "paths"],
+            "additionalProperties": false,
+            "properties": {
+              "configMap": {
+                "type": "string",
+                "description": "Name of the ConfigMap the Jobs mount.",
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+              },
+              "paths": {
+                "type": "array",
+                "minItems": 1,
+                "description": "Files or directories, relative to the repo root. CI asserts they exist.",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
+                  "not": { "pattern": "(^|/)\\.\\.(/|$)" }
+                }
+              }
+            }
+          }
+        },
         "outputs": {
           "type": "object",
           "description": "The agent-facing contract: what this environment exposes once it is up.",

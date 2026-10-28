@@ -3,7 +3,7 @@ title: monitoring-prometheus
 kind: component
 sources:
 - k8s/components/apps/monitoring/prometheus
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: monitoring
 consumed_by:
 - overlays/bare-metal-starter
@@ -36,7 +36,7 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`ClusterRole`, `ClusterRoleBinding`, `ConfigMap`, `Deployment`, `Ingress`, `Namespace`, `PersistentVolumeClaim`, `Service`, `ServiceAccount`
+`ClusterRole`, `ClusterRoleBinding`, `ConfigMap`, `Deployment`, `Ingress`, `PersistentVolumeClaim`, `Service`, `ServiceAccount`
 
 ### Container images
 

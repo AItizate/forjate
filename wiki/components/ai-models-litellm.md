@@ -3,8 +3,12 @@ title: ai-models-litellm
 kind: component
 sources:
 - k8s/components/apps/ai-models/litellm
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: ai-models
+consumed_by:
+- overlays/agentic-orchestration
+- overlays/ai-dev-stack
+- overlays/quickstart
 source_last_commit: '2026-06-07'
 summary: deploys `ghcr.io/berriai/litellm:main-stable`
 summary_source: derived
@@ -25,7 +29,7 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`ConfigMap`, `Deployment`, `PersistentVolumeClaim`, `Secret`, `Service`
+`ConfigMap`, `Deployment`, `PersistentVolumeClaim`, `Service`
 
 ### Container images
 
@@ -33,7 +37,9 @@ summary_source: derived
 
 ### Consumed by
 
-_No overlay in this repo references this component._
+- [overlays/agentic-orchestration](../overlays/agentic-orchestration.md) — resource, via namespaces/ai-tools
+- [overlays/ai-dev-stack](../overlays/ai-dev-stack.md) — resource, via namespaces/ai-tools
+- [overlays/quickstart](../overlays/quickstart.md) — resource, via namespaces/ai-tools
 
 <!-- END DECLARED -->
 

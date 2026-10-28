@@ -3,13 +3,13 @@ title: minio
 kind: base
 sources:
 - k8s/base/apps/minio
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: base-app
 parent: base/base
 consumed_by:
 - base/base
 source_last_commit: '2026-04-27'
-summary: composes `operator`
+summary: vendors `operator`
 summary_source: derived
 ---
 
@@ -25,9 +25,9 @@ summary_source: derived
 
 - `./operator`
 
-### Depends on
+### Remote references
 
-- `k8s/base/apps/minio/operator`
+- `github.com/minio/operator`
 
 ### Consumed by
 

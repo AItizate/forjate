@@ -3,7 +3,7 @@ title: usecases-db-migration-a-to-b
 kind: overlay
 sources:
 - k8s/overlays/usecases/db-migration-a-to-b
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: usecases
 source_last_commit: '2026-08-26'
 summary: deploys `busybox:1.36`
@@ -23,7 +23,7 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`Job`, `Namespace`, `StatefulSet`, `UseCase`
+`Job`, `Namespace`
 
 ### Container images
 
@@ -33,7 +33,8 @@ summary_source: derived
 ### Depends on
 
 - [base/base](../base/base.md)
-- `k8s/overlays/usecases/db-migration-a-to-b/namespaces/uc-db-migration-a-to-b`
+- [components/databases-postgres](../components/databases-postgres.md) — resource, via namespaces/uc-db-migration-a-to-b
+- [components/databases-mongodb](../components/databases-mongodb.md) — resource, via namespaces/uc-db-migration-a-to-b
 
 ### Labels
 

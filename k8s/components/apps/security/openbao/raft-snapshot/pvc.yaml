@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openbao-snapshots
+  # Explicit, not a Component `namespace:` (see kustomization.yaml)
+  namespace: security
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi

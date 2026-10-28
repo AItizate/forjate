@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openbao
+spec:
+  replicas: 1
+  serviceName: openbao-internal
+  selector:
+    matchLabels:
+      app: openbao
+  template:
+    metadata:
+      labels:
+        app: openbao
+    spec:
+      serviceAccountName: openbao
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+        # Do not re-chmod the raft files on every restart (OpenBao wants 0600)
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: openbao
+          image: quay.io/openbao/openbao:2.7.1
+          # Bypass the image entrypoint (it injects -dev flags when run bare)
+          command: ["bao"]
+          args: ["server", "-config=/openbao/config/openbao.hcl"]
+          ports:
+            - containerPort: 8200
+              name: http
+            - containerPort: 8201
+              name: cluster
+          env:
+            - name: BAO_ADDR
+              value: "http://127.0.0.1:8200"
+            # api_addr / cluster_addr follow the namespace the pod runs in (a tenant
+            # overlay's `namespace:`), instead of being fixed in openbao.hcl.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: BAO_API_ADDR
+              value: "http://openbao.$(POD_NAMESPACE).svc:8200"
+            - name: BAO_CLUSTER_ADDR
+              value: "https://$(POD_NAME).openbao-internal.$(POD_NAMESPACE).svc:8201"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 192Mi
+          # Not ready while sealed or uninitialized: the Service must not route there.
+          readinessProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          # Sealed and uninitialized are alive: a sealed pod must not be restart-looped.
+          livenessProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            failureThreshold: 4
+          volumeMounts:
+            - name: config
+              mountPath: /openbao/config
+              readOnly: true
+            - name: data
+              mountPath: /openbao/data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: openbao-config
+        - name: tmp
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

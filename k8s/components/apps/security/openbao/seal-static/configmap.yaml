@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openbao-seal-config
+  # Explicit, not a Component `namespace:` (see kustomization.yaml)
+  namespace: security
+data:
+  seal.hcl: |
+    seal "static" {
+      current_key_id = "key-1"
+      current_key    = "file:///openbao/seal/current.key"
+    }

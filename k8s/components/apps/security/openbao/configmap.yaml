@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openbao-config
+data:
+  openbao.hcl: |
+    ui = true
+
+    listener "tcp" {
+      address         = "[::]:8200"
+      cluster_address = "[::]:8201"
+      # TLS terminates at Traefik; the NetworkPolicy limits who can reach 8200
+      tls_disable     = 1
+
+      telemetry {
+        unauthenticated_metrics_access = true
+      }
+    }
+
+    storage "raft" {
+      path    = "/openbao/data"
+      node_id = "openbao-0"
+    }
+
+    # api_addr and cluster_addr come from BAO_API_ADDR / BAO_CLUSTER_ADDR (statefulset.yaml),
+    # built from the pod's own name and namespace so the component can live in any namespace.
+
+    # Declared here because OpenBao refuses to create audit devices through the API.
+    # Config is read at start: changing this needs a pod restart.
+    audit "file" "stdout" {
+      description = "Audit log to stdout, collected with the pod logs"
+
+      options {
+        file_path = "stdout"
+      }
+    }
+
+    telemetry {
+      prometheus_retention_time = "30s"
+      disable_hostname          = true
+    }

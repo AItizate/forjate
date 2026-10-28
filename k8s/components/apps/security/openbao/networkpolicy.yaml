@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: openbao
+spec:
+  podSelector:
+    matchLabels:
+      app: openbao
+  policyTypes:
+    - Ingress
+  ingress:
+    # raft peers and in-namespace clients (bootstrap Job, snapshot CronJob)
+    - from:
+        - podSelector: {}
+      ports:
+        - port: 8200
+          protocol: TCP
+        - port: 8201
+          protocol: TCP
+    # Traefik (Ingress)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - port: 8200
+          protocol: TCP
+    # opted-in client namespaces (External Secrets, agents, ...)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              ait.aitizate.com/openbao-access: "true"
+      ports:
+        - port: 8200
+          protocol: TCP

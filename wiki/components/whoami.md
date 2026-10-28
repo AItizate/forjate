@@ -3,8 +3,10 @@ title: whoami
 kind: component
 sources:
 - k8s/components/apps/whoami
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: standalone
+consumed_by:
+- overlays/ai-dev-stack
 source_last_commit: '2026-04-27'
 summary: deploys `traefik/whoami`
 summary_source: derived
@@ -32,7 +34,7 @@ summary_source: derived
 
 ### Consumed by
 
-_No overlay in this repo references this component._
+- [overlays/ai-dev-stack](../overlays/ai-dev-stack.md) — resource, via namespaces/security
 
 <!-- END DECLARED -->
 

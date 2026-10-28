@@ -4,7 +4,7 @@
 The Kustomize tree under k8s/ is the source of truth. This script derives one
 page per component, overlay and base app, filling the "Declared" zone with facts
 read straight out of the YAML and computing consumed_by backlinks from real
-resource references.
+references (resources:, components:, transformers:, generators:, validators:).
 
 The "Notes" zone of every page is preserved verbatim across runs, so prose
 written by a human or an agent survives recompilation.
@@ -48,6 +48,12 @@ NOTES_PLACEHOLDER = (
 IMAGE_RE = re.compile(r"^\s*(?:-\s+)?image:\s*[\"']?([^\"'\s]+)", re.MULTILINE)
 REMOTE_RE = re.compile(r"^(https?://|ssh://|git@|github\.com/)")
 
+# Kustomization fields whose entries can name another kustomization, and how the
+# consumer pulls it in. `bases:` is the deprecated spelling of `resources:`.
+REF_FIELDS = (("resources", "resource"), ("bases", "resource"),
+              ("components", "component"), ("transformers", "transformer"),
+              ("generators", "generator"), ("validators", "validator"))
+
 
 @dataclass
 class Page:
@@ -62,7 +68,9 @@ class Page:
 
     header: str = ""               # leading comment block of kustomization.yaml
     resources: list[str] = field(default_factory=list)
+    declared: dict = field(default_factory=dict)          # components:/transformers:/... verbatim
     local_refs: list[str] = field(default_factory=list)   # resolved sibling dirs
+    ref_how: dict = field(default_factory=dict)           # local ref -> "component", "resource, via ..."
     remote_refs: list[str] = field(default_factory=list)
     images: list[str] = field(default_factory=list)
     kinds: list[str] = field(default_factory=list)        # k8s kinds declared
@@ -74,7 +82,8 @@ class Page:
     parent: str | None = None      # set when nested inside another kustomization
     summary: str = ""             # one-liner used by index.md
     consumed_by: list[str] = field(default_factory=list)  # computed backlinks
-    depends_links: list[str] = field(default_factory=list)  # local_refs resolved to pages
+    consumed_how: dict = field(default_factory=dict)      # consumer link -> how it consumes
+    depends_on: dict = field(default_factory=dict)        # local ref -> link of its page
     warnings: list[str] = field(default_factory=list)
 
 
@@ -88,6 +97,7 @@ def load_kustomization(path: Path) -> tuple[dict, str, list[str]]:
     text = path.read_text(encoding="utf-8")
 
     header_lines = []
+    after_keys = False
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("#"):
@@ -95,7 +105,18 @@ def load_kustomization(path: Path) -> tuple[dict, str, list[str]]:
         elif not stripped:
             if header_lines:
                 header_lines.append("")
-        elif header_lines or stripped.startswith(("apiVersion:", "kind:", "resources:")):
+        elif header_lines:
+            # Below apiVersion/kind, a comment glued to the next key labels that
+            # key ("# Set the namespace" over namespace:), it does not describe
+            # the kustomization: keep only the paragraphs before it.
+            if after_keys and header_lines[-1] != "":
+                cut = max((i for i, l in enumerate(header_lines) if l == ""), default=0)
+                header_lines = header_lines[:cut]
+            break
+        elif stripped.startswith(("apiVersion:", "kind:")):
+            # The descriptive comment may sit above or below these two.
+            after_keys = True
+        else:
             break
     header = "\n".join(header_lines).strip()
 
@@ -110,12 +131,14 @@ def load_kustomization(path: Path) -> tuple[dict, str, list[str]]:
     return doc, header, warnings
 
 
-def scan_manifests(directory: Path) -> tuple[list[str], list[str]]:
-    """Collect container images and Kubernetes kinds declared in a directory."""
+def scan_manifests(files: list[Path]) -> tuple[list[str], list[str]]:
+    """Collect container images and Kubernetes kinds from the files a
+    kustomization lists. Only listed files: patches, a sub-page's manifests and
+    a `kustomize build --enable-helm` charts/ cache are not declared here."""
     images: set[str] = set()
     kinds: set[str] = set()
-    for f in sorted(directory.rglob("*.yaml")):
-        if f.name == "kustomization.yaml":
+    for f in sorted(set(files)):
+        if f.suffix not in (".yaml", ".yml"):
             continue
         try:
             text = f.read_text(encoding="utf-8")
@@ -127,12 +150,41 @@ def scan_manifests(directory: Path) -> tuple[list[str], list[str]]:
                 if isinstance(doc, dict) and isinstance(doc.get("kind"), str):
                     kinds.add(doc["kind"])
         except yaml.YAMLError:
-            # Overlay patch fragments are often not standalone documents.
             pass
     return sorted(images), sorted(kinds)
 
 
-def extract(page: Page) -> None:
+def collect_refs(page: Page, directory: Path, doc: dict, page_dirs: set[Path],
+                 files: list[Path], via: str | None = None) -> None:
+    """Record what a kustomization references. A directory inside the page that
+    is not a page of its own (namespaces/x) is part of the page: it is walked,
+    and what it references counts as referenced by the page."""
+    for key, how in REF_FIELDS:
+        for r in doc.get(key, []) or []:
+            # transformers:/generators: also take inline objects, which name nothing.
+            if not isinstance(r, str):
+                continue
+            if REMOTE_RE.match(r):
+                page.remote_refs.append(r)
+                continue
+            target = (directory / r).resolve()
+            if target.is_file():
+                files.append(target)
+            elif target.is_dir() and K8S in target.parents:
+                sub = target / "kustomization.yaml"
+                if target not in page_dirs and page.source in target.parents and sub.exists():
+                    subdoc, _, warnings = load_kustomization(sub)
+                    page.warnings.extend(f"{rel(sub)}: {w}" for w in warnings)
+                    collect_refs(page, target, subdoc, page_dirs, files,
+                                 via=str(target.relative_to(page.source)))
+                    continue
+                ref = rel(target)
+                if ref not in page.ref_how:
+                    page.local_refs.append(ref)
+                    page.ref_how[ref] = how + (f", via {via}" if via else "")
+
+
+def extract(page: Page, page_dirs: set[Path]) -> None:
     kfile = page.source / "kustomization.yaml"
     if not kfile.exists():
         page.warnings.append("no kustomization.yaml in this directory")
@@ -144,16 +196,15 @@ def extract(page: Page) -> None:
 
     page.namespace = doc.get("namespace")
 
-    for r in doc.get("resources", []) or []:
-        if not isinstance(r, str):
-            continue
-        page.resources.append(r)
-        if REMOTE_RE.match(r):
-            page.remote_refs.append(r)
-        else:
-            target = (page.source / r).resolve()
-            if target.is_dir() and K8S in target.parents:
-                page.local_refs.append(rel(target))
+    for key, _ in REF_FIELDS:
+        entries = [r for r in doc.get(key, []) or [] if isinstance(r, str)]
+        if key in ("resources", "bases"):
+            page.resources.extend(entries)
+        elif entries:
+            page.declared[key] = entries
+
+    files: list[Path] = []
+    collect_refs(page, page.source, doc, page_dirs, files)
 
     for lbl in doc.get("labels", []) or []:
         if isinstance(lbl, dict):
@@ -178,7 +229,7 @@ def extract(page: Page) -> None:
                 ns = entry.get("namespace")
                 bucket.append(f"{entry['name']}" + (f" (ns: {ns})" if ns else ""))
 
-    page.images, page.kinds = scan_manifests(page.source)
+    page.images, page.kinds = scan_manifests(files)
 
 
 # Directories that are structural parts of a kustomization, never pages of their own.
@@ -272,16 +323,49 @@ def link_for(page: Page) -> str:
 
 
 def compute_backlinks(pages: list[Page]) -> None:
-    """consumed_by is derived from real resources: references, never hand-written."""
+    """consumed_by is derived from real references (resources:, components:,
+    transformers:, ...), never hand-written."""
     by_source = {p.rel_source: p for p in pages}
     for page in pages:
         for ref in page.local_refs:
             target = by_source.get(ref)
             if target and target is not page:
-                target.consumed_by.append(link_for(page))
-                page.depends_links.append(link_for(target))
+                target.consumed_how.setdefault(link_for(page), page.ref_how[ref])
+                page.depends_on[ref] = link_for(target)
     for page in pages:
-        page.consumed_by = sorted(set(page.consumed_by))
+        page.consumed_by = sorted(page.consumed_how)
+
+
+def compile_pages() -> list[Page]:
+    """Discover every page and fill in its facts and backlinks."""
+    pages = discover()
+    page_dirs = {p.source for p in pages}
+    for page in pages:
+        extract(page, page_dirs)
+    compute_backlinks(pages)
+    return pages
+
+
+def read_frontmatter(path: Path) -> dict:
+    """The YAML frontmatter of a wiki page, or {} when it has none."""
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---"):
+        return {}
+    end = text.find("\n---", 3)
+    if end == -1:
+        return {}
+    try:
+        fm = yaml.safe_load(text[3:end])
+    except yaml.YAMLError:
+        return {}
+    return fm if isinstance(fm, dict) else {}
+
+
+def how_note(how: str) -> str:
+    """Plain resources are the default and go unlabelled."""
+    return "" if how == "resource" else f" — {how}"
 
 
 def source_last_commit(rel_path: str) -> str | None:
@@ -320,6 +404,13 @@ def render_declared(page: Page) -> str:
 
     lines += ["### Declared resources", "", bullets(page.resources), ""]
 
+    for key, heading in (("components", "Declared components"),
+                         ("transformers", "Transformers"),
+                         ("generators", "Generators"),
+                         ("validators", "Validators")):
+        if page.declared.get(key):
+            lines += [f"### {heading}", "", bullets(page.declared[key]), ""]
+
     if page.kinds:
         lines += ["### Kubernetes kinds", "",
                   ", ".join(f"`{k}`" for k in page.kinds), ""]
@@ -331,13 +422,13 @@ def render_declared(page: Page) -> str:
         lines += ["### Remote references", "", bullets(page.remote_refs), ""]
 
     if page.local_refs:
-        resolved = dict(zip(page.local_refs, page.depends_links))
         entries = []
         for r in page.local_refs:
-            link = resolved.get(r)
+            link = page.depends_on.get(r)
+            note = how_note(page.ref_how[r])
             # Linked when the dependency has a page of its own; bare path when
             # it is a directory the compiler does not turn into a page.
-            entries.append(f"- [{link}](../{link}.md)" if link else f"- `{r}`")
+            entries.append(f"- [{link}](../{link}.md){note}" if link else f"- `{r}`{note}")
         lines += ["### Depends on", "", "\n".join(entries), ""]
 
     if page.patches:
@@ -358,7 +449,8 @@ def render_declared(page: Page) -> str:
 
     if page.consumed_by:
         lines += ["### Consumed by", "",
-                  "\n".join(f"- [{c}](../{c}.md)" for c in page.consumed_by), ""]
+                  "\n".join(f"- [{c}](../{c}.md){how_note(page.consumed_how[c])}"
+                            for c in page.consumed_by), ""]
     elif page.kind == "component":
         lines += ["### Consumed by", "",
                   "_No overlay in this repo references this component._", ""]
@@ -373,20 +465,7 @@ def render_declared(page: Page) -> str:
 def existing_summary(path: Path) -> str | None:
     """A one-line summary an agent wrote into frontmatter. Preserved across
     recompiles and used as the page's line in index.md."""
-    if not path.exists():
-        return None
-    text = path.read_text(encoding="utf-8")
-    if not text.startswith("---"):
-        return None
-    end = text.find("\n---", 3)
-    if end == -1:
-        return None
-    try:
-        fm = yaml.safe_load(text[3:end]) or {}
-    except yaml.YAMLError:
-        return None
-    if not isinstance(fm, dict):
-        return None
+    fm = read_frontmatter(path)
     # Only a summary explicitly marked as authored survives; a derived one is
     # regenerated, otherwise a bad early guess would be frozen forever.
     if fm.get("summary_source") != "authored":
@@ -472,18 +551,9 @@ def read_concepts() -> list[tuple[str, str, str]]:
     if not concepts.is_dir():
         return out
     for f in sorted(concepts.glob("*.md")):
-        title, summary = f.stem, ""
-        text = f.read_text(encoding="utf-8")
-        if text.startswith("---"):
-            end = text.find("\n---", 3)
-            if end != -1:
-                try:
-                    fm = yaml.safe_load(text[3:end]) or {}
-                    if isinstance(fm, dict):
-                        title = str(fm.get("title") or title)
-                        summary = str(fm.get("summary") or "")
-                except yaml.YAMLError:
-                    pass
+        fm = read_frontmatter(f)
+        title = str(fm.get("title") or f.stem)
+        summary = str(fm.get("summary") or "")
         out.append((title, f"concepts/{f.stem}.md", summary))
     return out
 
@@ -541,7 +611,9 @@ def render_index(pages: list[Page], compiled_at: str) -> str:
             lines += [f"### {cat}", ""]
             for pg in sorted(by_cat[cat], key=lambda x: x.name):
                 used = len(pg.consumed_by)
-                tail = f" · used by {used}" if used else " · unused in this repo"
+                hows = sorted({h.split(",")[0] for h in pg.consumed_how.values()})
+                as_ = f" as {'/'.join(hows)}" if hows and hows != ["resource"] else ""
+                tail = f" · used by {used}{as_}" if used else " · unused in this repo"
                 indent = "  " if pg.parent else ""
                 lines.append(
                     f"{indent}- [{pg.name}](components/{pg.out.stem}.md) — "
@@ -588,10 +660,7 @@ def main() -> int:
                     help="report changes without writing (CI mode)")
     args = ap.parse_args()
 
-    pages = discover()
-    for page in pages:
-        extract(page)
-    compute_backlinks(pages)
+    pages = compile_pages()
 
     compiled_at = date.today().isoformat()
     written, changed, unchanged = 0, [], 0

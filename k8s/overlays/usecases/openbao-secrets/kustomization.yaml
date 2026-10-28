@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# No `namespace:` here: every part lives in its own namespace. OpenBao runs in
+# `openbao` (set in openbao/kustomization.yaml), External Secrets in its own.
+#
+# No ../../../base either: nothing here uses Traefik, cert-manager or MinIO, and
+# the base would only slow `up` down.
+
+resources:
+  - namespaces/openbao.yaml
+  - openbao
+  - ../../../components/apps/security/external-secrets
+  - namespaces/agents
+  - namespaces/uc-openbao-secrets
+  - rbac.yaml
+
+patches:
+  # The store logs in from ESO's pods: they must be allowed through openbao's NetworkPolicy.
+  - path: patches/external-secrets-namespace.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/overlay: openbao-secrets

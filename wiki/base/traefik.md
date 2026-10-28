@@ -3,9 +3,11 @@ title: traefik
 kind: base
 sources:
 - k8s/base/apps/traefik
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: base-app
 parent: base/base
+consumed_by:
+- base/base
 source_last_commit: '2026-04-27'
 summary: deploys `docker.io/traefik:v3.5.2`
 summary_source: derived
@@ -40,6 +42,10 @@ summary_source: derived
 ### Remote references
 
 - `https://raw.githubusercontent.com/traefik/traefik/v3.5/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml`
+
+### Consumed by
+
+- [base/base](../base/base.md) — resource, via namespaces/traefik
 
 <!-- END DECLARED -->
 

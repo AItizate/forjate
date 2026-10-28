@@ -3,9 +3,9 @@ title: ai-dev-stack
 kind: overlay
 sources:
 - k8s/overlays/ai-dev-stack
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 source_last_commit: '2026-06-07'
-summary: declares `Certificate`, `ClusterIssuer`, `Deployment`
+summary: declares `ClusterIssuer`, `Namespace`
 summary_source: derived
 ---
 
@@ -30,15 +30,21 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`Certificate`, `ClusterIssuer`, `Deployment`, `Ingress`, `Middleware`, `Namespace`, `Secret`, `Setting`
+`ClusterIssuer`, `Namespace`
 
 ### Depends on
 
 - [base/base](../base/base.md)
 - [components/storage-longhorn](../components/storage-longhorn.md)
-- `k8s/overlays/ai-dev-stack/namespaces/security`
-- `k8s/overlays/ai-dev-stack/namespaces/dev`
-- `k8s/overlays/ai-dev-stack/namespaces/ai-tools`
+- [components/whoami](../components/whoami.md) — resource, via namespaces/security
+- [components/minio-single-server](../components/minio-single-server.md) — resource, via namespaces/dev
+- [components/node-red](../components/node-red.md) — resource, via namespaces/dev
+- [components/databases-etcd](../components/databases-etcd.md) — resource, via namespaces/dev
+- [components/databases-milvus](../components/databases-milvus.md) — resource, via namespaces/dev
+- [components/ai-models-litellm](../components/ai-models-litellm.md) — resource, via namespaces/ai-tools
+- [components/ai-models-litellm-postgres](../components/ai-models-litellm-postgres.md) — resource, via namespaces/ai-tools
+- [components/ai-models-open-webui](../components/ai-models-open-webui.md) — resource, via namespaces/ai-tools
+- [components/ai-models-vllm](../components/ai-models-vllm.md) — resource, via namespaces/ai-tools
 
 ### Patches
 

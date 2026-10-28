@@ -3,10 +3,11 @@ title: ai-models-ollama
 kind: component
 sources:
 - k8s/components/apps/ai-models/ollama
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: ai-models
 consumed_by:
 - overlays/agentic-simple-workflow
+- overlays/quickstart
 source_last_commit: '2026-04-27'
 summary: deploys `ollama/ollama:latest`
 summary_source: derived
@@ -35,6 +36,7 @@ summary_source: derived
 ### Consumed by
 
 - [overlays/agentic-simple-workflow](../overlays/agentic-simple-workflow.md)
+- [overlays/quickstart](../overlays/quickstart.md) — resource, via namespaces/ai-tools
 
 <!-- END DECLARED -->
 

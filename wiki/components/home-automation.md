@@ -3,12 +3,12 @@ title: home-automation
 kind: component
 sources:
 - k8s/components/apps/home-automation
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: standalone
 consumed_by:
 - overlays/home-edge-lab
 source_last_commit: '2026-04-27'
-summary: deploys `esphome/esphome:latest`
+summary: composes `esphome`, `hass`
 summary_source: derived
 ---
 
@@ -22,15 +22,6 @@ summary_source: derived
 
 - `./esphome`
 - `./hass`
-
-### Kubernetes kinds
-
-`Deployment`, `Ingress`, `PersistentVolumeClaim`, `Service`
-
-### Container images
-
-- `esphome/esphome:latest`
-- `homeassistant/raspberrypi4-homeassistant:latest`
 
 ### Depends on
 

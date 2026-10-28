@@ -3,7 +3,7 @@ title: n8n-n8n
 kind: component
 sources:
 - k8s/components/apps/n8n/n8n
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: n8n
 parent: components/n8n
 consumed_by:
@@ -32,7 +32,7 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`Deployment`, `Ingress`, `IngressRoute`, `Middleware`, `PersistentVolumeClaim`, `ServersTransport`, `Service`
+`Deployment`, `Ingress`, `Middleware`, `PersistentVolumeClaim`, `ServersTransport`, `Service`
 
 ### Container images
 

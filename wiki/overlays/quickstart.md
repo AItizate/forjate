@@ -3,7 +3,7 @@ title: quickstart
 kind: overlay
 sources:
 - k8s/overlays/quickstart
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 source_last_commit: '2026-06-07'
 summary: deploys `curlimages/curl:8.10.1`
 summary_source: derived
@@ -31,7 +31,8 @@ summary_source: derived
 ### Depends on
 
 - [base/base](../base/base.md)
-- `k8s/overlays/quickstart/namespaces/ai-tools`
+- [components/ai-models-ollama](../components/ai-models-ollama.md) — resource, via namespaces/ai-tools
+- [components/ai-models-litellm](../components/ai-models-litellm.md) — resource, via namespaces/ai-tools
 
 ### Labels
 

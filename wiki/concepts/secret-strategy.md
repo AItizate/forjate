@@ -59,8 +59,8 @@ keeps external-secrets and points it there instead.
 
 ## Who actually uses what
 
-Derived from references in the tree (`resources:`, plus the `components:` and
-`transformers:` the compiler does not count yet), not from intent:
+Derived from references in the tree (`resources:`, `components:` and
+`transformers:`), not from intent:
 
 | Mechanism | Overlays |
 |---|---|

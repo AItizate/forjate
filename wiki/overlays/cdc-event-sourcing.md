@@ -3,7 +3,7 @@ title: cdc-event-sourcing
 kind: overlay
 sources:
 - k8s/overlays/cdc-event-sourcing
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 source_last_commit: '2026-06-07'
 summary: deploys `mongo:7`
 summary_source: derived
@@ -24,7 +24,7 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`Certificate`, `ClusterIssuer`, `ConfigMap`, `Ingress`, `Job`, `Middleware`, `Namespace`, `Setting`
+`ClusterIssuer`, `Job`, `Namespace`
 
 ### Container images
 
@@ -34,7 +34,10 @@ summary_source: derived
 
 - [base/base](../base/base.md)
 - [components/storage-longhorn](../components/storage-longhorn.md)
-- `k8s/overlays/cdc-event-sourcing/namespaces/event-sourcing`
+- [components/databases-mongodb](../components/databases-mongodb.md) — resource, via namespaces/event-sourcing
+- [components/brokers-rabbitmq](../components/brokers-rabbitmq.md) — resource, via namespaces/event-sourcing
+- [components/cdc-debezium-mongo-rabbitmq](../components/cdc-debezium-mongo-rabbitmq.md) — resource, via namespaces/event-sourcing
+- [components/databases-mongodb-replica-set](../components/databases-mongodb-replica-set.md) — component, via namespaces/event-sourcing
 
 ### Patches
 

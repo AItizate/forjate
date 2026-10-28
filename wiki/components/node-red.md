@@ -3,9 +3,10 @@ title: node-red
 kind: component
 sources:
 - k8s/components/apps/node-red
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: standalone
 consumed_by:
+- overlays/ai-dev-stack
 - overlays/home-edge-lab
 source_last_commit: '2026-04-27'
 summary: deploys `busybox:1.36`
@@ -37,6 +38,7 @@ summary_source: derived
 
 ### Consumed by
 
+- [overlays/ai-dev-stack](../overlays/ai-dev-stack.md) — resource, via namespaces/dev
 - [overlays/home-edge-lab](../overlays/home-edge-lab.md)
 
 <!-- END DECLARED -->

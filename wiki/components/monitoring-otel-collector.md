@@ -3,10 +3,10 @@ title: monitoring-otel-collector
 kind: component
 sources:
 - k8s/components/apps/monitoring/otel-collector
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: monitoring
 source_last_commit: '2026-04-27'
-summary: deploys `otel/opentelemetry-collector-contrib:0.98.0`
+summary: composes `agent`, `cluster`
 summary_source: derived
 ---
 
@@ -20,14 +20,6 @@ summary_source: derived
 
 - `agent/`
 - `cluster/`
-
-### Kubernetes kinds
-
-`ClusterRole`, `ClusterRoleBinding`, `ConfigMap`, `DaemonSet`, `Deployment`, `Secret`, `Service`, `ServiceAccount`
-
-### Container images
-
-- `otel/opentelemetry-collector-contrib:0.98.0`
 
 ### Depends on
 

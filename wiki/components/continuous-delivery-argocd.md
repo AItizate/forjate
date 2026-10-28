@@ -3,7 +3,7 @@ title: continuous-delivery-argocd
 kind: component
 sources:
 - k8s/components/apps/continuous-delivery/argocd
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-28'
 category: continuous-delivery
 consumed_by:
 - overlays/bare-metal-starter

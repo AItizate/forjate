@@ -105,6 +105,7 @@ Other subcommands:
 | `up <name>` | The full flow above. Idempotent — re-running redeploys and re-runs all Jobs. |
 | `seed <name>` / `validate <name>` | Re-run just that Job against a live environment. The tight inner loop while developing a use case. |
 | `down <name>` | Delete the namespace (shared) or the whole cluster (dedicated). |
+| `diagnose <name>` | Pods, Jobs, volumes, events and the description of every pod that is not ready. No logs. What CI prints on failure. |
 | `ls` | Everything currently alive, with time remaining. |
 | `gc [--dry-run]` | Reclaim everything past its TTL. |
 
@@ -149,8 +150,18 @@ The pattern validates itself in CI (`.github/workflows/validate-usecases.yml`):
 | Gate | What it proves |
 |------|----------------|
 | **Contract lint** | Every `usecase.yaml` matches the schema, `metadata.name` equals its directory, and every Job named in `spec.jobs` actually exists in the built manifest. Catches contract drift before it reaches a runner. |
-| **Shellcheck** | The runner and scaffolder are statically sound, and so are the scripts use cases run in their Jobs (`scripts/openbao/bootstrap.sh` and `openbao-secrets`, as POSIX `sh`). |
-| **End-to-end smoke** | A real k3d cluster on the runner: `up` → `ls` → `down`, asserting the namespace is gone. The lifecycle is proven unattended, on every change. Then `openbao-secrets` on its own cluster, whose verify is the end-to-end proof of `security/openbao`. |
+| **Shellcheck** | The runner and scaffolder are statically sound, and so are the scripts use cases run: every `*.sh` under a use case and every one a contract ships through `spec.files`. Each file's shebang says whether it is bash or POSIX `sh`. |
+| **Runner lifecycle** | On what `create-usecase.sh` generates, not on a committed example: `up` → `ls` → `up` again (idempotent) → `gc` of an expired namespace → `down`. Runs when the runner, the schema, the scaffolding template or the workflow change. |
+| **Use cases end to end** | Every affected use case, each on its own runner: `up` until verify exits 0, `diagnose` on failure, `down`. The workflow names none of them. |
+
+Which use cases a change affects is computed, not listed:
+[`scripts/ephemeral/affected.py`](../scripts/ephemeral/affected.py) follows each
+overlay's references (`resources:`, `components:`, `transformers:`, `namespaces/`
+sub-kustomizations) through the tree with the wiki compiler's graph, adds the
+contract's `spec.files`, and selects the use cases whose dependencies the diff
+touches. A change to the runner or the compiler selects all of them; so do a push
+to `main` and a manual run (`workflow_dispatch`). A new use case is in CI the
+moment its `usecase.yaml` lands.
 
 The existing `validate-kustomize.yml` gate covers the overlay manifests themselves — it discovers any directory with a `kustomization.yaml` under `k8s/overlays` recursively, so use cases are picked up with no workflow changes.
 

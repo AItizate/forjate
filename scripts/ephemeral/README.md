@@ -27,6 +27,7 @@ dependencies are reported with install hints on first run.
 | `seed <use-case>` | Re-run only the seed Job against a live environment. |
 | `validate <use-case>` | Re-run only the verify Job. |
 | `down <use-case>` | Delete the namespace (shared) or the whole cluster (dedicated). |
+| `diagnose <use-case>` | Pods, Jobs, volumes, events and every pod that is not ready, described. No logs. |
 | `ls` | Live environments with time remaining. |
 | `gc [--dry-run]` | Reclaim everything past its TTL. |
 

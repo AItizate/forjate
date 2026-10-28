@@ -6,9 +6,10 @@
 
 The end-to-end proof of `apps/security/openbao` (step 6 of
 [`docs/openbao-plan.md`](../../../../docs/openbao-plan.md)). CI runs it on every
-change to the component, its sub-components, `security/external-secrets` or
-`scripts/openbao/`, so the guarantees of steps 1–5 do not depend on someone
-repeating them by hand.
+change to anything it composes or runs — the component, its sub-components,
+`security/external-secrets`, `bootstrap.sh` and the policies, found by following
+the overlay's references — so the guarantees of steps 1–5 do not depend on
+someone repeating them by hand.
 
 ## Run it
 

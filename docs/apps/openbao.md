@@ -192,4 +192,4 @@ Initialise `openbao-0` only; the others join it. With Shamir each pod is unseale
 
 ## Proof
 
-`k8s/overlays/usecases/openbao-secrets` is the end-to-end test of everything above, run by `validate-usecases.yml` whenever the component, `security/external-secrets` or `scripts/openbao/` change. Its [README](../../k8s/overlays/usecases/openbao-secrets/README.md) lists every check.
+`k8s/overlays/usecases/openbao-secrets` is the end-to-end test of everything above, run by `validate-usecases.yml` whenever a change touches anything it composes or runs (the component and its sub-directories, `security/external-secrets`, `scripts/openbao/bootstrap.sh`). Its [README](../../k8s/overlays/usecases/openbao-secrets/README.md) lists every check.

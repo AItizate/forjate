@@ -6,7 +6,9 @@
 # every step checks before it creates, so running it again changes nothing.
 #
 #   1. kv-v2 at kv/
-#   2. kubernetes auth + role "external-secrets" (bound to ESO's ServiceAccount)
+#   2. kubernetes auth + roles "external-secrets" (bound to ESO's ServiceAccount) and
+#      "agent" (any ServiceAccount of the agents namespace); approle auth for agents
+#      outside the cluster
 #   3. ssh at ssh-client/, signing CA, role "agent" (TTL 30m, max 1h)
 #   4. checks that an audit device is enabled (declared in openbao.hcl, not creatable by API)
 #   5. every policy under k8s/components/apps/security/openbao/policies/
@@ -21,6 +23,7 @@
 #   BAO_ADDR, BAO_TOKEN   required (the token is never printed)
 #   ESO_SA_NAME           ServiceAccount of External Secrets   (default external-secrets)
 #   ESO_SA_NAMESPACE      its namespace                        (default external-secrets)
+#   AGENT_NAMESPACE       namespace whose ServiceAccounts are agents (default agents)
 #   K8S_HOST              API server as seen from OpenBao      (default https://kubernetes.default.svc:443)
 #   POLICY_DIR            policy files                         (default: next to the component)
 #
@@ -38,6 +41,7 @@ export BAO_ADDR BAO_TOKEN
 
 ESO_SA_NAME="${ESO_SA_NAME:-external-secrets}"
 ESO_SA_NAMESPACE="${ESO_SA_NAMESPACE:-external-secrets}"
+AGENT_NAMESPACE="${AGENT_NAMESPACE:-agents}"
 K8S_HOST="${K8S_HOST:-https://kubernetes.default.svc:443}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 POLICY_DIR="${POLICY_DIR:-$HERE/../../k8s/components/apps/security/openbao/policies}"
@@ -77,6 +81,26 @@ bao write auth/kubernetes/role/external-secrets \
   policies=external-secrets \
   ttl=1h > /dev/null
 say "auth/kubernetes: role external-secrets -> $ESO_SA_NAMESPACE/$ESO_SA_NAME"
+
+# Agents inside the cluster: no per-agent setup. Any ServiceAccount of the agents
+# namespace may log in, and its name becomes the identity alias (and the kv path).
+# Whoever can create ServiceAccounts there can mint agents: guard that namespace.
+bao write auth/kubernetes/role/agent \
+  bound_service_account_names='*' \
+  bound_service_account_namespaces="$AGENT_NAMESPACE" \
+  alias_name_source=serviceaccount_name \
+  policies=agent \
+  ttl=30m \
+  max_ttl=1h > /dev/null
+say "auth/kubernetes: role agent -> any ServiceAccount in $AGENT_NAMESPACE"
+
+# Agents outside the cluster: one AppRole per agent, created by agent-onboarding.
+if has_auth approle; then
+  say "auth/approle: present"
+else
+  bao auth enable approle > /dev/null
+  say "auth/approle: enabled"
+fi
 
 # 3. SSH CA. Generating a second key would replace the CA every host trusts, so
 # only generate when none exists.
@@ -121,10 +145,14 @@ else
   say "audit: NO AUDIT DEVICE (declare one in openbao.hcl and restart the pod)" >&2
 fi
 
-# 5. policies
+# 5. policies. Templates may carry __ACCESSOR_<METHOD>__ placeholders: the identity
+# templates in policies need the mount accessor, which only exists after step 2.
+ACC_KUBERNETES="$(bao read -field=accessor sys/auth/kubernetes)"
+ACC_APPROLE="$(bao read -field=accessor sys/auth/approle)"
 for f in "$POLICY_DIR"/*.hcl; do
   name="$(basename "$f" .hcl)"
-  bao policy write "$name" "$f" > /dev/null
+  sed -e "s/__ACCESSOR_KUBERNETES__/$ACC_KUBERNETES/g" \
+      -e "s/__ACCESSOR_APPROLE__/$ACC_APPROLE/g" "$f" | bao policy write "$name" - > /dev/null
   say "policy: $name"
 done
 

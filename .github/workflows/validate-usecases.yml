@@ -24,6 +24,10 @@ on:
       - 'k8s/components/apps/security/external-secrets/**'
       - 'scripts/openbao/**'
 
+env:
+  KUSTOMIZE_VERSION: 5.8.3
+  K3D_VERSION: 5.9.0
+
 jobs:
   lint-contracts:
     name: Contracts
@@ -33,7 +37,9 @@ jobs:
 
       - name: Install tools
         run: |
-          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          # A pinned release by direct URL: install_kustomize.sh asks the GitHub API
+          # for the latest one and fails when the runner is rate-limited.
+          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz kustomize
           sudo mv kustomize /usr/local/bin/
           sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
@@ -153,8 +159,11 @@ jobs:
 
       - name: Install tools
         run: |
-          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          # TAG pinned for the same reason: without it install.sh resolves "latest" through the API.
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG="v${K3D_VERSION}" bash
+          # A pinned release by direct URL: install_kustomize.sh asks the GitHub API
+          # for the latest one and fails when the runner is rate-limited.
+          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz kustomize
           sudo mv kustomize /usr/local/bin/
           sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq

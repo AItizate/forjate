@@ -86,6 +86,10 @@ git push
 
 ### 3. Tag a release candidate
 
+First run **Validate Use Cases** by hand on `main` (Actions → *Validate Use Cases* →
+*Run workflow*). A manual run brings up every use case, not only the ones a PR
+touched, so the rc starts from a commit where all of them pass.
+
 ```bash
 git tag v1.8.0-rc.1
 git push origin v1.8.0-rc.1

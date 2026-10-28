@@ -4,31 +4,72 @@ name: Validate Use Cases
 # The overlay manifests themselves are covered by validate-kustomize.yml,
 # which discovers k8s/overlays recursively. What is validated here is the
 # contract, the runner, and the lifecycle those two implement together.
+#
+# Nothing below names a use case. `plan` lists the ones a change affects
+# (scripts/ephemeral/affected.py follows each overlay's references through the
+# tree) and every one of them runs end to end, each on its own runner.
 
 on:
   pull_request:
     paths:
-      - 'k8s/overlays/usecases/**'
-      - 'scripts/ephemeral/**'
-      # openbao-secrets runs these: a change to them must re-run the use case
-      - 'k8s/components/apps/security/openbao/**'
-      - 'k8s/components/apps/security/external-secrets/**'
-      - 'scripts/openbao/**'
+      # Broad on purpose: a use case can compose anything in k8s/ or run any
+      # script. `plan` narrows it down, and an empty plan starts no cluster.
+      - 'k8s/**'
+      - 'scripts/**'
+      - '.ait/templates/usecase/**'
       - '.github/workflows/validate-usecases.yml'
   push:
     branches: [main]
     paths:
-      - 'k8s/overlays/usecases/**'
-      - 'scripts/ephemeral/**'
-      - 'k8s/components/apps/security/openbao/**'
-      - 'k8s/components/apps/security/external-secrets/**'
-      - 'scripts/openbao/**'
+      - 'k8s/**'
+      - 'scripts/**'
+      - '.ait/templates/usecase/**'
+      - '.github/workflows/validate-usecases.yml'
+  # Every use case, the runner included: before tagging a release, for one.
+  workflow_dispatch:
 
 env:
   KUSTOMIZE_VERSION: 5.8.3
   K3D_VERSION: 5.9.0
+  YQ_VERSION: 4.44.3
 
 jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      usecases: ${{ steps.plan.outputs.usecases }}
+      runner: ${{ steps.plan.outputs.runner }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The diff against the PR base needs history.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Affected use cases
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # A pull request runs what it affects; main and a manual run, everything.
+          if [ "$EVENT" = "pull_request" ]; then
+            plan="$(python scripts/ephemeral/affected.py --base "$BASE")"
+          else
+            plan="$(python scripts/ephemeral/affected.py --all)"
+          fi
+          echo "$plan"
+          echo "usecases=$(jq -c .usecases <<< "$plan")" >> "$GITHUB_OUTPUT"
+          echo "runner=$(jq -r .runner <<< "$plan")" >> "$GITHUB_OUTPUT"
+
   lint-contracts:
     name: Contracts
     runs-on: ubuntu-latest
@@ -41,7 +82,7 @@ jobs:
           # for the latest one and fails when the runner is rate-limited.
           curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz kustomize
           sudo mv kustomize /usr/local/bin/
-          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
           pipx install check-jsonschema
 
@@ -137,97 +178,112 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Run shellcheck
+        # The runner, the scaffolder, every script a use case carries and every
+        # script a contract ships through spec.files. Each file's shebang (or
+        # `# shellcheck shell=`) says whether it is bash or POSIX sh.
         run: |
+          set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
-          shellcheck --external-sources \
-            scripts/ephemeral/ephemeral.sh \
-            scripts/ephemeral/create-usecase.sh \
-            scripts/ephemeral/lib/*.sh
-          # POSIX sh: these run inside the openbao and alpine/k8s images.
-          shellcheck -s sh scripts/openbao/bootstrap.sh
-          uc=k8s/overlays/usecases/openbao-secrets/namespaces
-          shellcheck -s sh -x -P "$uc/uc-openbao-secrets/scripts" \
-            "$uc"/uc-openbao-secrets/scripts/*.sh \
-            "$uc/agents/agent-check.sh"
+          sudo curl -sSL -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+          {
+            git ls-files 'scripts/ephemeral/*.sh' 'k8s/overlays/usecases/*.sh'
+            for contract in k8s/overlays/usecases/*/usecase.yaml; do
+              yq -r '(.spec.files // [])[].paths[]' "$contract" | while IFS= read -r listed; do
+                git ls-files "$listed" | grep '\.sh$' || true
+              done
+            done
+          } | sort -u > /tmp/scripts.txt
+          cat /tmp/scripts.txt
+          xargs shellcheck --external-sources --source-path=SCRIPTDIR < /tmp/scripts.txt
 
-  e2e-smoke:
-    name: Lifecycle end-to-end
+  runner:
+    name: Runner lifecycle
+    needs: plan
+    if: needs.plan.outputs.runner == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 20
+    # The runner proven on what the scaffolder generates, not on a committed
+    # example: up, ls, idempotent up, gc of an expired environment, down.
+    env:
+      PROBE: ci-runner-probe
     steps:
       - uses: actions/checkout@v7
 
       - name: Install tools
-        run: |
-          # TAG pinned for the same reason: without it install.sh resolves "latest" through the API.
+        run: &install |
+          # Pinned releases by direct URL: the install scripts ask the GitHub API
+          # for the latest one and fail when the runner is rate-limited.
           curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG="v${K3D_VERSION}" bash
-          # A pinned release by direct URL: install_kustomize.sh asks the GitHub API
-          # for the latest one and fails when the runner is rate-limited.
           curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz kustomize
           sudo mv kustomize /usr/local/bin/
-          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo curl -sSL -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
           sudo chmod +x /usr/local/bin/yq
           k3d version && yq --version
 
-      - name: Scaffolder produces a buildable use case
-        # The generic path, independent of any committed example.
-        run: |
-          set -euo pipefail
-          ./scripts/ephemeral/create-usecase.sh --name ci-scaffold-probe --ttl 1h --prefix probe
-          kustomize build k8s/overlays/usecases/ci-scaffold-probe > /dev/null
-          rm -rf k8s/overlays/usecases/ci-scaffold-probe
-          echo "Scaffolded use case builds cleanly."
+      - name: Scaffold a use case
+        run: ./scripts/ephemeral/create-usecase.sh --name "$PROBE" --ttl 1h --prefix probe
 
-      - name: Bring the example environment up
-        run: ./scripts/ephemeral/ephemeral.sh up db-migration-a-to-b
+      - name: Bring it up
+        run: ./scripts/ephemeral/ephemeral.sh up "$PROBE"
 
       - name: List live environments
         run: ./scripts/ephemeral/ephemeral.sh ls
 
       - name: Re-running up is idempotent
-        run: ./scripts/ephemeral/ephemeral.sh up db-migration-a-to-b
+        run: ./scripts/ephemeral/ephemeral.sh up "$PROBE"
 
       - name: Expired environments are reclaimed
         run: |
           set -euo pipefail
           export KUBECONFIG="${HOME}/.kube/forjate-uc-shared.yaml"
-          kubectl annotate ns uc-db-migration-a-to-b \
+          kubectl annotate ns "uc-${PROBE}" \
             forjate.io/expires-at=2020-01-01T00:00:00Z --overwrite
           ./scripts/ephemeral/ephemeral.sh gc --dry-run
           ./scripts/ephemeral/ephemeral.sh gc
-          if kubectl get ns uc-db-migration-a-to-b >/dev/null 2>&1; then
+          if kubectl get ns "uc-${PROBE}" >/dev/null 2>&1; then
             echo "::error::gc did not reclaim the expired namespace"
             exit 1
           fi
           echo "Expired namespace reclaimed."
 
+      - name: Diagnostics on failure
+        if: failure()
+        run: ./scripts/ephemeral/ephemeral.sh diagnose "$PROBE" || true
+
       - name: Tear down
         if: always()
-        run: ./scripts/ephemeral/ephemeral.sh down db-migration-a-to-b || true
+        run: ./scripts/ephemeral/ephemeral.sh down "$PROBE" || true
 
-      # OpenBao, configured by scripts/openbao/bootstrap.sh and run by an admin,
-      # with External Secrets and both kinds of agent. Proves docs/openbao-plan.md
-      # step 6: verify exits 0 only if every claim holds. Its own k3d cluster.
-      # The Job logs are public: the Jobs never print a token, key or password.
-      - name: OpenBao secrets (seed, bootstrap twice, verify)
-        run: ./scripts/ephemeral/ephemeral.sh up openbao-secrets
+  e2e:
+    name: Use case ${{ matrix.usecase }}
+    needs: plan
+    if: needs.plan.outputs.usecases != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        usecase: ${{ fromJSON(needs.plan.outputs.usecases) }}
+    env:
+      # Through the environment, never interpolated into a script.
+      UC: ${{ matrix.usecase }}
+    # Each use case on its own runner, so `dedicated` and `shared` ones never
+    # meet. Verify exits 0 only if every claim the use case makes holds. The
+    # Job logs are public: use-case Jobs must never print a token, key or password.
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install tools
+        run: *install
+
+      - name: Up (seed, run, verify)
+        run: ./scripts/ephemeral/ephemeral.sh up "$UC"
 
       - name: Diagnostics on failure
         if: failure()
-        # Pod states and events only. Not the OpenBao or Job pod logs beyond what
-        # the runner already printed.
-        run: |
-          export KUBECONFIG="${HOME}/.kube/forjate-uc-shared.yaml"
-          kubectl get pods -A || true
-          kubectl -n uc-db-migration-a-to-b describe pods || true
-          export KUBECONFIG="${HOME}/.kube/forjate-uc-openbao-secrets.yaml"
-          [ -f "$KUBECONFIG" ] || exit 0
-          kubectl get pods,pvc -A || true
-          kubectl get clustersecretstores,externalsecrets -A || true
-          kubectl -n security describe pods || true
-          kubectl -n uc-openbao-secrets describe pods || true
-          kubectl get events -A --sort-by=.lastTimestamp | tail -n 60 || true
+        run: ./scripts/ephemeral/ephemeral.sh diagnose "$UC" || true
 
-      - name: Tear down OpenBao secrets
+      - name: Tear down
         if: always()
-        run: ./scripts/ephemeral/ephemeral.sh down openbao-secrets || true
+        run: ./scripts/ephemeral/ephemeral.sh down "$UC" || true

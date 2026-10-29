@@ -3,12 +3,12 @@ title: usecases-invoice-intake-stages-walk
 kind: overlay
 sources:
 - k8s/overlays/usecases/invoice-intake/stages/walk
-compiled_at: '2026-10-21'
+compiled_at: '2026-10-29'
 category: usecases
 parent: overlays/usecases-invoice-intake
 consumed_by:
 - overlays/usecases-invoice-intake-stages-run
-source_last_commit: '2026-10-21'
+source_last_commit: '2026-10-29'
 summary: 'walk stage of invoice-intake: recomposes the Crawl root (base, Crawl components,
   the namespace child) and adds what the records require for walk, nothing the plan
   put out of scope'
@@ -47,11 +47,12 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`Application`, `ConfigMap`, `Deployment`, `Ingress`, `Job`, `Namespace`, `NetworkPolicy`, `SealedSecret`
+`Application`, `Ingress`, `NetworkPolicy`, `SealedSecret`
 
 ### Depends on
 
 - [base/base](../base/base.md)
+- `k8s/overlays/usecases/invoice-intake/namespaces/uc-invoice-intake`
 - [components/continuous-delivery-argocd](../components/continuous-delivery-argocd.md)
 - [components/sealed-secrets](../components/sealed-secrets.md)
 - [components/storage-longhorn](../components/storage-longhorn.md)
@@ -59,8 +60,10 @@ summary_source: derived
 - [components/monitoring-prometheus](../components/monitoring-prometheus.md)
 - [components/monitoring-grafana](../components/monitoring-grafana.md)
 - [components/monitoring-reloader](../components/monitoring-reloader.md)
-- `k8s/components/apps/monitoring/reloader`
-- `k8s/overlays/usecases/invoice-intake/stages/walk/namespaces/uc-invoice-intake`
+- [components/ai-models-litellm](../components/ai-models-litellm.md) — resource, via namespaces/uc-invoice-intake
+- [components/auth-gotrue-auth](../components/auth-gotrue-auth.md) — resource, via namespaces/uc-invoice-intake
+- [components/minio-single-server](../components/minio-single-server.md) — resource, via namespaces/uc-invoice-intake
+- [components/surveys-formbricks](../components/surveys-formbricks.md) — resource, via namespaces/uc-invoice-intake
 
 ### Patches
 

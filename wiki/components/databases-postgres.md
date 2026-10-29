@@ -3,7 +3,7 @@ title: databases-postgres
 kind: component
 sources:
 - k8s/components/apps/databases/postgres
-compiled_at: '2026-10-28'
+compiled_at: '2026-10-29'
 category: databases
 consumed_by:
 - components/ai-models-litellm-postgres
@@ -13,6 +13,8 @@ consumed_by:
 - overlays/multi-cloud-portable
 - overlays/multi-tenant-pattern-org
 - overlays/usecases-db-migration-a-to-b
+- overlays/usecases-invoice-intake
+- overlays/usecases-support-copilot
 source_last_commit: '2026-04-27'
 summary: "PostgreSQL 16 \u2014 generic reusable database component"
 summary_source: derived
@@ -67,6 +69,8 @@ summary_source: derived
 - [overlays/multi-cloud-portable](../overlays/multi-cloud-portable.md)
 - [overlays/multi-tenant-pattern-org](../overlays/multi-tenant-pattern-org.md)
 - [overlays/usecases-db-migration-a-to-b](../overlays/usecases-db-migration-a-to-b.md) — resource, via namespaces/uc-db-migration-a-to-b
+- [overlays/usecases-invoice-intake](../overlays/usecases-invoice-intake.md) — resource, via namespaces/uc-invoice-intake
+- [overlays/usecases-support-copilot](../overlays/usecases-support-copilot.md) — resource, via namespaces/uc-support-copilot
 
 <!-- END DECLARED -->
 

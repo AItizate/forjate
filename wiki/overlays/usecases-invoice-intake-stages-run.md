@@ -3,10 +3,10 @@ title: usecases-invoice-intake-stages-run
 kind: overlay
 sources:
 - k8s/overlays/usecases/invoice-intake/stages/run
-compiled_at: '2026-10-21'
+compiled_at: '2026-10-29'
 category: usecases
 parent: overlays/usecases-invoice-intake
-source_last_commit: '2026-10-09'
+source_last_commit: '2026-10-29'
 summary: 'run stage of invoice-intake: extends ../walk and adds what the records require
   for run, nothing the plan put out of scope'
 summary_source: derived
@@ -36,14 +36,14 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`Application`, `ExternalSecret`, `Namespace`
+`Application`, `ExternalSecret`
 
 ### Depends on
 
 - [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md)
 - [components/security-external-secrets](../components/security-external-secrets.md)
 - [components/monitoring-otel-collector](../components/monitoring-otel-collector.md)
-- `k8s/overlays/usecases/invoice-intake/stages/run/namespaces/uc-invoice-intake`
+- [components/ai-models-vllm](../components/ai-models-vllm.md) — resource, via namespaces/uc-invoice-intake
 
 ### Patches
 

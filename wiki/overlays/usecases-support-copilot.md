@@ -3,9 +3,9 @@ title: usecases-support-copilot
 kind: overlay
 sources:
 - k8s/overlays/usecases/support-copilot
-compiled_at: '2026-10-09'
+compiled_at: '2026-10-29'
 category: usecases
-source_last_commit: '2026-10-09'
+source_last_commit: '2026-10-29'
 summary: 'Crawl root of support-copilot, assembled from .builder/ by forjate:kustomize.
   Stages extend it: stages/walk, stages/run'
 summary_source: derived
@@ -28,7 +28,7 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`ActivePacks`, `Application`, `ConfigMap`, `Decision`, `Deployment`, `Gates`, `Job`, `Namespace`, `NetworkPolicy`, `Scaffold`, `SealedSecret`, `Service`, `StagePlan`, `StatefulSet`, `UseCase`, `UseCaseBrief`
+`Deployment`, `Job`, `Namespace`, `Service`
 
 ### Container images
 
@@ -37,7 +37,8 @@ summary_source: derived
 ### Depends on
 
 - [base/base](../base/base.md)
-- `k8s/overlays/usecases/support-copilot/namespaces/uc-support-copilot`
+- [components/ai-models-ollama](../components/ai-models-ollama.md) — resource, via namespaces/uc-support-copilot
+- [components/databases-postgres](../components/databases-postgres.md) — resource, via namespaces/uc-support-copilot
 
 ### Labels
 

@@ -3,10 +3,10 @@ title: usecases-support-copilot-stages-walk
 kind: overlay
 sources:
 - k8s/overlays/usecases/support-copilot/stages/walk
-compiled_at: '2026-10-21'
+compiled_at: '2026-10-29'
 category: usecases
 parent: overlays/usecases-support-copilot
-source_last_commit: '2026-10-09'
+source_last_commit: '2026-10-29'
 summary: 'walk stage of support-copilot: recomposes the Crawl root (base, Crawl components,
   the namespace child) and adds what the records require for walk, nothing the plan
   put out of scope'
@@ -45,11 +45,12 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`Application`, `ConfigMap`, `Deployment`, `Job`, `Namespace`, `NetworkPolicy`, `SealedSecret`
+`Application`, `NetworkPolicy`, `SealedSecret`
 
 ### Depends on
 
 - [base/base](../base/base.md)
+- `k8s/overlays/usecases/support-copilot/namespaces/uc-support-copilot`
 - [components/cloudflare-tunnel](../components/cloudflare-tunnel.md)
 - [components/continuous-delivery-argocd](../components/continuous-delivery-argocd.md)
 - [components/sealed-secrets](../components/sealed-secrets.md)
@@ -57,8 +58,8 @@ summary_source: derived
 - [components/monitoring-prometheus](../components/monitoring-prometheus.md)
 - [components/monitoring-grafana](../components/monitoring-grafana.md)
 - [components/monitoring-reloader](../components/monitoring-reloader.md)
-- `k8s/components/apps/monitoring/reloader`
-- `k8s/overlays/usecases/support-copilot/stages/walk/namespaces/uc-support-copilot`
+- [components/ai-models-litellm](../components/ai-models-litellm.md) — resource, via namespaces/uc-support-copilot
+- [components/databases-redis](../components/databases-redis.md) — resource, via namespaces/uc-support-copilot
 
 ### Patches
 

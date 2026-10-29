@@ -3,7 +3,7 @@ title: minio-single-server
 kind: component
 sources:
 - k8s/components/apps/minio/single-server
-compiled_at: '2026-10-28'
+compiled_at: '2026-10-29'
 category: minio
 consumed_by:
 - overlays/agentic-simple-workflow
@@ -11,6 +11,7 @@ consumed_by:
 - overlays/home-edge-lab
 - overlays/multi-cloud-portable
 - overlays/multi-tenant-pattern-org
+- overlays/usecases-invoice-intake-stages-walk
 source_last_commit: '2026-04-27'
 summary: deploys `quay.io/minio/minio:latest`
 summary_source: derived
@@ -44,6 +45,7 @@ summary_source: derived
 - [overlays/home-edge-lab](../overlays/home-edge-lab.md)
 - [overlays/multi-cloud-portable](../overlays/multi-cloud-portable.md)
 - [overlays/multi-tenant-pattern-org](../overlays/multi-tenant-pattern-org.md)
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via namespaces/uc-invoice-intake
 
 <!-- END DECLARED -->
 

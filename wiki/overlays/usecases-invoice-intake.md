@@ -3,9 +3,9 @@ title: usecases-invoice-intake
 kind: overlay
 sources:
 - k8s/overlays/usecases/invoice-intake
-compiled_at: '2026-10-21'
+compiled_at: '2026-10-29'
 category: usecases
-source_last_commit: '2026-10-21'
+source_last_commit: '2026-10-29'
 summary: 'Crawl root of invoice-intake, assembled from .builder/ by forjate:kustomize.
   Stages extend it: stages/walk, stages/run'
 summary_source: derived
@@ -28,7 +28,7 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`ActivePacks`, `Application`, `ConfigMap`, `Decision`, `Deployment`, `ExternalSecret`, `Gates`, `Ingress`, `Job`, `Namespace`, `NetworkPolicy`, `Pod`, `Scaffold`, `SealedSecret`, `Service`, `StagePlan`, `StatefulSet`, `UseCase`, `UseCaseBrief`
+`Deployment`, `Job`, `Namespace`, `Service`
 
 ### Container images
 
@@ -37,7 +37,10 @@ summary_source: derived
 ### Depends on
 
 - [base/base](../base/base.md)
-- `k8s/overlays/usecases/invoice-intake/namespaces/uc-invoice-intake`
+- [components/ai-models-ollama](../components/ai-models-ollama.md) — resource, via namespaces/uc-invoice-intake
+- [components/document-processing-docling](../components/document-processing-docling.md) — resource, via namespaces/uc-invoice-intake
+- [components/databases-postgres](../components/databases-postgres.md) — resource, via namespaces/uc-invoice-intake
+- [components/minio-dev](../components/minio-dev.md) — resource, via namespaces/uc-invoice-intake
 
 ### Labels
 

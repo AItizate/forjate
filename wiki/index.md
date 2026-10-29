@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-10-28'
+compiled_at: '2026-10-29'
 ---
 
 # Forjate wiki — index
@@ -39,11 +39,11 @@ The foundation every tenant inherits.
 
 ### ai-models
 
-- [ai-models-litellm](components/ai-models-litellm.md) — deploys `ghcr.io/berriai/litellm:main-stable` · used by 3
+- [ai-models-litellm](components/ai-models-litellm.md) — deploys `ghcr.io/berriai/litellm:main-stable` · used by 5
   - [ai-models-litellm-postgres](components/ai-models-litellm-postgres.md) — composes `postgres` · used by 2
-- [ai-models-ollama](components/ai-models-ollama.md) — deploys `ollama/ollama:latest` · used by 2
+- [ai-models-ollama](components/ai-models-ollama.md) — deploys `ollama/ollama:latest` · used by 4
 - [ai-models-open-webui](components/ai-models-open-webui.md) — deploys `ghcr.io/open-webui/open-webui:main` · used by 1
-- [ai-models-vllm](components/ai-models-vllm.md) — deploys `vllm/vllm-openai:latest` · used by 1
+- [ai-models-vllm](components/ai-models-vllm.md) — deploys `vllm/vllm-openai:latest` · used by 2
 
 ### analytics
 
@@ -51,7 +51,7 @@ The foundation every tenant inherits.
 
 ### auth
 
-- [auth-gotrue-auth](components/auth-gotrue-auth.md) — Gotrue Auth — Google OAuth authentication and authorization with per-app RBAC · used by 3
+- [auth-gotrue-auth](components/auth-gotrue-auth.md) — Gotrue Auth — Google OAuth authentication and authorization with per-app RBAC · used by 4
   - [auth-gotrue-auth-authz](components/auth-gotrue-auth-authz.md) — deploys `node:20.18-alpine` · used by 1
   - [auth-gotrue-auth-gotrue](components/auth-gotrue-auth-gotrue.md) — deploys `busybox:1.36` · used by 1
   - [auth-gotrue-auth-middlewares](components/auth-gotrue-auth-middlewares.md) — declares `Middleware` · used by 1
@@ -82,7 +82,7 @@ The foundation every tenant inherits.
 
 ### continuous-delivery
 
-- [continuous-delivery-argocd](components/continuous-delivery-argocd.md) — vendors `install.yaml` · used by 2
+- [continuous-delivery-argocd](components/continuous-delivery-argocd.md) — vendors `install.yaml` · used by 4
 
 ### databases
 
@@ -92,12 +92,12 @@ The foundation every tenant inherits.
 - [databases-milvus](components/databases-milvus.md) — deploys `milvusdb/milvus:v2.5.4` · used by 1
 - [databases-mongodb](components/databases-mongodb.md) — MongoDB 7 — base standalone (without replica set) · used by 3
   - [databases-mongodb-replica-set](components/databases-mongodb-replica-set.md) — MongoDB replica set enabler — applied on top of databases/mongodb via components: · used by 1 as component
-- [databases-postgres](components/databases-postgres.md) — PostgreSQL 16 — generic reusable database component · used by 7
-- [databases-redis](components/databases-redis.md) — deploys `redis:7-alpine` · unused in this repo
+- [databases-postgres](components/databases-postgres.md) — PostgreSQL 16 — generic reusable database component · used by 9
+- [databases-redis](components/databases-redis.md) — deploys `redis:7-alpine` · used by 1
 
 ### document-processing
 
-- [document-processing-docling](components/document-processing-docling.md) — deploys `ghcr.io/docling-project/docling-serve-cpu:latest` · unused in this repo
+- [document-processing-docling](components/document-processing-docling.md) — deploys `ghcr.io/docling-project/docling-serve-cpu:latest` · used by 1
 
 ### home-automation
 
@@ -110,18 +110,18 @@ The foundation every tenant inherits.
 
 ### minio
 
-- [minio-dev](components/minio-dev.md) — deploys `quay.io/minio/minio:latest` · unused in this repo
-- [minio-single-server](components/minio-single-server.md) — deploys `quay.io/minio/minio:latest` · used by 5
+- [minio-dev](components/minio-dev.md) — deploys `docker.io/bitnamilegacy/minio:2025.7.23` · used by 1
+- [minio-single-server](components/minio-single-server.md) — deploys `quay.io/minio/minio:latest` · used by 6
 
 ### monitoring
 
-- [monitoring-grafana](components/monitoring-grafana.md) — deploys `grafana/grafana:11.6.0` · used by 2
+- [monitoring-grafana](components/monitoring-grafana.md) — deploys `grafana/grafana:11.6.0` · used by 4
 - [monitoring-kubernetes-dashboard](components/monitoring-kubernetes-dashboard.md) — declares `ClusterRoleBinding`, `Ingress`, `Secret` · unused in this repo
-- [monitoring-otel-collector](components/monitoring-otel-collector.md) — composes `agent`, `cluster` · unused in this repo
+- [monitoring-otel-collector](components/monitoring-otel-collector.md) — composes `agent`, `cluster` · used by 1
   - [monitoring-otel-collector-agent](components/monitoring-otel-collector-agent.md) — deploys `otel/opentelemetry-collector-contrib:0.98.0` · used by 1
   - [monitoring-otel-collector-cluster](components/monitoring-otel-collector-cluster.md) — deploys `otel/opentelemetry-collector-contrib:0.98.0` · used by 1
-- [monitoring-prometheus](components/monitoring-prometheus.md) — deploys `prom/prometheus:v3.2.1` · used by 4
-- [monitoring-reloader](components/monitoring-reloader.md) — Stakater Reloader — auto-restarts Deployments/StatefulSets on Secret/ConfigMap changes · unused in this repo
+- [monitoring-prometheus](components/monitoring-prometheus.md) — deploys `prom/prometheus:v3.2.1` · used by 6
+- [monitoring-reloader](components/monitoring-reloader.md) — Stakater Reloader — auto-restarts Deployments/StatefulSets on Secret/ConfigMap changes · used by 2
 
 ### n8n
 
@@ -130,7 +130,7 @@ The foundation every tenant inherits.
 
 ### networking
 
-- [networking-metallb](components/networking-metallb.md) — vendors `native?ref=v0.15.2` · used by 2
+- [networking-metallb](components/networking-metallb.md) — vendors `native?ref=v0.15.2` · used by 3
 
 ### productivity
 
@@ -160,7 +160,7 @@ The foundation every tenant inherits.
 
 ### security
 
-- [security-external-secrets](components/security-external-secrets.md) — External Secrets Operator (ESO) — syncs secrets from external stores · used by 1
+- [security-external-secrets](components/security-external-secrets.md) — External Secrets Operator (ESO) — syncs secrets from external stores · used by 2
 - [security-openbao](components/security-openbao.md) — secret store (MPL-2.0, Vault API): raft, audit to stdout, kubernetes/approle/userpass auth and an SSH CA after bootstrap.sh · used by 1
   - [security-openbao-eso-store](components/security-openbao-eso-store.md) — OpenBao as an External Secrets store — applied on top of security/openbao via components: · used by 1 as component
   - [security-openbao-follow-namespace](components/security-openbao-follow-namespace.md) — transformer, not a component: makes security-openbao follow an overlay's namespace: (CRB subject, eso-store server) · used by 1 as transformer
@@ -170,21 +170,21 @@ The foundation every tenant inherits.
 
 ### standalone
 
-- [cloudflare-tunnel](components/cloudflare-tunnel.md) — deploys `cloudflare/cloudflared:latest` · used by 2
+- [cloudflare-tunnel](components/cloudflare-tunnel.md) — deploys `cloudflare/cloudflared:latest` · used by 3
 - [docker-registry](components/docker-registry.md) — deploys `registry:2` · unused in this repo
 - [home-automation](components/home-automation.md) — composes `esphome`, `hass` · used by 1
 - [n8n](components/n8n.md) — composes `postgres`, `n8n` · unused in this repo
 - [node-red](components/node-red.md) — deploys `busybox:1.36` · used by 2
-- [sealed-secrets](components/sealed-secrets.md) — vendors `controller.yaml` · used by 5
+- [sealed-secrets](components/sealed-secrets.md) — vendors `controller.yaml` · used by 7
 - [whoami](components/whoami.md) — deploys `traefik/whoami` · used by 1
 
 ### storage
 
-- [storage-longhorn](components/storage-longhorn.md) — vendors `longhorn.yaml` · used by 2
+- [storage-longhorn](components/storage-longhorn.md) — vendors `longhorn.yaml` · used by 4
 
 ### surveys
 
-- [surveys-formbricks](components/surveys-formbricks.md) — deploys `ghcr.io/formbricks/formbricks:latest` · unused in this repo
+- [surveys-formbricks](components/surveys-formbricks.md) — deploys `ghcr.io/formbricks/formbricks:latest` · used by 1
 
 ### workflows
 
@@ -206,5 +206,10 @@ Concrete environments assembled from base + components.
 - [multi-tenant-pattern-tenants-client-b](overlays/multi-tenant-pattern-tenants-client-b.md) — declares `Namespace` · 1 local reference
 - [quickstart](overlays/quickstart.md) — deploys `curlimages/curl:8.10.1` · 3 local references
 - [usecases-db-migration-a-to-b](overlays/usecases-db-migration-a-to-b.md) — deploys `busybox:1.36` · 3 local references
+- [usecases-invoice-intake](overlays/usecases-invoice-intake.md) — Crawl root of invoice-intake, assembled from .builder/ by forjate:kustomize. Stages extend it: stages/walk, stages/run · 5 local references
+- [usecases-invoice-intake-stages-run](overlays/usecases-invoice-intake-stages-run.md) — run stage of invoice-intake: extends ../walk and adds what the records require for run, nothing the plan put out of scope · 4 local references
+- [usecases-invoice-intake-stages-walk](overlays/usecases-invoice-intake-stages-walk.md) — walk stage of invoice-intake: recomposes the Crawl root (base, Crawl components, the namespace child) and adds what the records require for walk, nothing the plan put out of scope · 13 local references
 - [usecases-openbao-secrets](overlays/usecases-openbao-secrets.md) — ephemeral end-to-end proof of security-openbao: static unseal, raft snapshots, External Secrets store, a Kubernetes and an AppRole agent; run in CI · 2 local references
 - [usecases-openbao-secrets-openbao](overlays/usecases-openbao-secrets-openbao.md) — security-openbao with all four sub-directories, moved to namespace `openbao` the way a tenant does it · 5 local references
+- [usecases-support-copilot](overlays/usecases-support-copilot.md) — Crawl root of support-copilot, assembled from .builder/ by forjate:kustomize. Stages extend it: stages/walk, stages/run · 3 local references
+- [usecases-support-copilot-stages-walk](overlays/usecases-support-copilot-stages-walk.md) — walk stage of support-copilot: recomposes the Crawl root (base, Crawl components, the namespace child) and adds what the records require for walk, nothing the plan put out of scope · 11 local references

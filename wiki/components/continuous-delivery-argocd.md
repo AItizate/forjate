@@ -3,11 +3,13 @@ title: continuous-delivery-argocd
 kind: component
 sources:
 - k8s/components/apps/continuous-delivery/argocd
-compiled_at: '2026-10-28'
+compiled_at: '2026-10-29'
 category: continuous-delivery
 consumed_by:
 - overlays/bare-metal-starter
 - overlays/multi-tenant-pattern-org
+- overlays/usecases-invoice-intake-stages-walk
+- overlays/usecases-support-copilot-stages-walk
 source_last_commit: '2026-05-24'
 summary: vendors `install.yaml`
 summary_source: derived
@@ -40,6 +42,8 @@ summary_source: derived
 
 - [overlays/bare-metal-starter](../overlays/bare-metal-starter.md)
 - [overlays/multi-tenant-pattern-org](../overlays/multi-tenant-pattern-org.md)
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md)
+- [overlays/usecases-support-copilot-stages-walk](../overlays/usecases-support-copilot-stages-walk.md)
 
 <!-- END DECLARED -->
 

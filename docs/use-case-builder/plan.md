@@ -2,7 +2,7 @@
 
 > An agentic team that takes a one-paragraph business problem and turns it into a Forjate overlay, staged Crawl → Walk → Run, with structured, reviewable artifacts at every step.
 
-Status: **Phase 4 done (tag `builder-p4`, 2026-10-11)** · Owner: Sebas · Created: 2026-10-02
+Status: **Phase 4 done (tag `builder-p4`, 2026-10-11); phase 5 planned as issues labelled `builder-p5` (2026-10-29)** · Owner: Sebas · Created: 2026-10-02
 
 ---
 
@@ -375,15 +375,34 @@ Not done in this phase, carried to phase 5: the Walk scaffold (`review-api`, `in
    - Evals assert roles, not names: new assertion type `choice_has_role`; names remain only for single-option roles. Re-run every suite after the rewrite.
    - `scripts/builder/skill-lint.py` in CI flags component names in `SKILL.md` and references outside snapshot files.
    Rules of judgement that use a component as an illustration ("session memory is a TTL key-value problem") are not the target; stage→component tables and assertions are.
-0b. **PSA level at Walk on shared clusters.** Human review of the phase 3 security record (2026-10-07): Walk could enforce `restricted`, but shared infrastructure (operators, storage, inference) needs exceptions and the rule for them is not settled. Today the skill enforces `baseline` at Walk with `restricted` as warn/audit, a pack raises it, and shared components are exceptions in their own namespaces. Decide the rule with one real cluster (im-u) and fold it into the security skill and `stage-defaults.md`. Same review: the egress allow-list was cut to external hostnames at Walk, with the per-workload matrix as a Run recommendation; Crawl without NetworkPolicy confirmed.
+0b. **PSA level at Walk on shared clusters.** Human review of the phase 3 security record (2026-10-07): Walk could enforce `restricted`, but shared infrastructure (operators, storage, inference) needs exceptions. **Decided 2026-10-29**: `restricted` at Walk is too strict for now. Walk enforces `baseline` with `restricted` as warn and audit, Run enforces `restricted`, a pack can raise Walk, and shared components run in their own namespaces at their own level as recorded exceptions that never lower the use case's namespace. No real cluster is needed to decide it; what remains is the mechanics in the security reference and the kustomize assembly. Same review: the egress allow-list was cut to external hostnames at Walk, with the per-workload matrix as a Run recommendation; Crawl without NetworkPolicy confirmed.
 0c. **Fold the enterprise governance posture into the skills' judgement.** `context-packs/examples/enterprise-in-a-box` and `docs/agentic-reference-architecture.md` (2026-10-09) carry the posture as rules and prose; the brief now has `autonomy`, `risk_profile`, `isolation` and `constraints.open_standards_required`. While the skills are rewritten for 0, add the rules those documents imply: ai-engineering (execution bounds, intent validation, kill switch, semantic-memory strategy as compiled knowledge vs runtime retrieval vs API lookup); data-store (memory scopes); quality (audit artifacts per action as a gate, the seven evaluation dimensions); ux (review that validates, control levels by persona, disclosure); business (RACI, operating model, the three adoption frictions); devops (severities, shadow-agent structure); stage-planner (autonomy ceiling per stage, security in week one). Each as a rule with its reason, not a checklist; the pack stays the way an organisation turns the posture on.
 1. **Description optimization** for all thirteen skills with the trigger-eval loop (L4). Experts should not fire on general k8s questions; the coordinator should fire on "automate", "use case", "PoC", "I want an agent that…".
 2. **`forjate-catalog` MCP server** (`mcp-builder` skill): tools `search_catalog`, `get_component`, `list_overlays`, `validate_decision`, `kustomize_dry_run`. Replace file-grepping in the skills with MCP calls; keep the file fallback.
 3. **Protocol checkpoint**: measure whether any expert needs to run outside Claude Code (Agent SDK service, Cowork). If yes, write an ADR on A2A vs MCP-tools for that boundary. If no, record "not needed yet" and move on.
 4. **Memory across runs**: the coordinator appends outcome notes (what shipped, what gate failed) to `.builder/log.md`, and `wiki-compile` indexes `.builder/` decisions so future runs can cite precedent ("G1 chose Docling for PDFs because…").
-5. Release the plugin: bump `plugin.json` version, tag the factory `v1.x.0`, and install it in the im-u tenant as the first remote consumer.
+5. Release the plugin: bump `plugin.json` version, tag the factory `v1.x.0`, and install it in one real tenant as the first remote consumer (globant/iac, the homelab or im-u, chosen at release time).
 
 Tests: L4 on every skill; MCP server contract tests; full L1–L3 re-run as regression.
+
+**Backlog (2026-10-29).** Phase 5 runs as GitHub issues labelled `builder-p5`, one PR each against `main`, each with its kick-off prompt, model and acceptance criteria; the shared rules and the model guidance are in `next-phase-prompt.md`. Items 0 and 0c are one task because they rewrite the same files. Item 2 starts with an ADR on what to reuse, which language and how to deploy; the server, if one is written, lives in its own AItizate repository and is deployed with forjate.
+
+| Issue | Task | Blocked by | Model |
+|-------|------|-----------|-------|
+| #21 | L3 nightly run once in GitHub Actions, runtime recorded | — | Sonnet |
+| #22 | PSA exceptions for shared components at Walk (0b) | — | Opus |
+| #23 | Catalog roles and properties, `skill-lint`, `choice_has_role` (0, infrastructure) | — | Fable 5.1 |
+| #27 | Every skill rewritten to ask by role, governance posture folded in (0 + 0c) | #23, #22 | Fable 5.1 writes, Opus evals |
+| #24 | Walk scaffold for invoice-intake | — | Opus |
+| #25 | Walk scaffold for support-copilot | — | Opus |
+| #28 | Coordinator cold start end to end (L3) | #27 | Opus |
+| #6 | Velero in the catalog | — | Sonnet |
+| #29 | Trigger evals and description optimisation (1) | #27 | Opus |
+| #26 | ADR: catalog MCP server, reuse, language, A2A (2 and 3) | — | Fable 5.1 |
+| #30 | Catalog MCP server in its own repository | #26, #23 | Opus |
+| #31 | Skills query the MCP server with a file fallback | #30, #27 | Opus |
+| #32 | Memory across runs (4) | #27 | Opus |
+| #33 | Release v1.2.0, first remote consumer, `builder-p5` (5) | all | Sonnet |
 
 ---
 

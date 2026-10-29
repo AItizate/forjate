@@ -1,0 +1,335 @@
+{
+  "skill_name": "business",
+  "evals": [
+    {
+      "name": "regulated-invoice-intake",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the business expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area business, metadata.author forjate:business, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Three stages, one KPI name across them, cost per stage within the lab/mvp/production envelopes, as-is exceptions, Odoo as system of record, a metric gate at Crawl, at least one open question (cost of a wrong amount, exception SLA).",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "text": "business.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "len(stages) == 3",
+          "text": "decides for all three in-scope stages"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "all(not choices(s) for s in stages)",
+          "text": "choice is empty: business picks no components"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "len(set(setting('kpi_metric'))) == 1 and setting('kpi_metric')[0]",
+          "text": "one KPI name shared by every stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "all(st(s).get('estimated_cost_usd_month') is not None for s in stages)",
+          "text": "cost estimated for every stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "st('crawl').get('estimated_cost_usd_month', 99) <= 20 and st('run').get('estimated_cost_usd_month', 0) >= 150",
+          "text": "crawl is lab-cheap and run carries the production envelope"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "any(has('odoo', x) for x in listed(setting('systems_of_record', 'crawl')))",
+          "text": "Odoo named as a system of record"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "len(listed(setting('as_is_exceptions', 'crawl'))) >= 2",
+          "text": "at least two as-is exceptions reconstructed"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "has(r'[0-9]', setting('value_hypothesis', 'crawl'))",
+          "text": "value hypothesis carries a number"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "all(setting('go_no_go', s) in ('go', 'conditional', 'no-go') for s in stages)",
+          "text": "go/no-go stated per stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "any(((g.get('check') or {}).get('type')) == 'metric' for g in gates('crawl'))",
+          "text": "crawl gate measures the KPI (metric check)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "len(oq()) >= 1",
+          "text": "raises at least one open question the brief cannot answer"
+        }
+      ]
+    },
+    {
+      "name": "chat-copilot-no-packs",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the business expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area business, metadata.author forjate:business, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Crawl and Walk only, KPI resolved_without_human_rate with the 60% target at Walk, head of CS as approver, orders API as system of record, exceptions and risks, rationale states factory defaults apply.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "text": "business.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "len(set(setting('kpi_metric'))) == 1",
+          "text": "one KPI name across stages"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "has('60', setting('kpi_target', 'walk'))",
+          "text": "walk target carries the brief's 60%"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "has('head of cs', setting('approver', 'crawl')) or has('head of cs', setting('approver', 'walk'))",
+          "text": "approver is the head of CS"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "any(has('order', x) for x in listed(setting('systems_of_record', 'crawl')))",
+          "text": "orders API named as system of record"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "len(listed(setting('as_is_exceptions', 'crawl'))) >= 2",
+          "text": "at least two as-is exceptions"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "len(risks()) >= 1",
+          "text": "risks recorded with mitigations"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "pattern": "(?i)no (context )?packs|factory defaults",
+          "text": "rationale says no packs are active and factory defaults apply"
+        }
+      ]
+    },
+    {
+      "name": "migration-regulated",
+      "prompt": "Set up k8s/overlays/usecases/db-migration-a-to-b/.builder/ by copying plugins/forjate/evals/fixtures/briefs/db-migration-a-to-b.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/db-migration-a-to-b.yaml to stage-plan.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the business expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/business.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area business, metadata.author forjate:business, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Crawl and Walk only, a rows-based KPI, crawl at near-zero cost, as-is process, go/no-go per stage, existing usecase.yaml untouched.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/business.yaml",
+          "text": "business.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/business.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/business.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "text": "existing contract untouched"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/business.yaml",
+          "expr": "has('row', setting('kpi_metric', 'crawl'))",
+          "text": "KPI is about rows migrated and verified"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/business.yaml",
+          "expr": "has('mismatch', setting('kpi_target', 'walk'))",
+          "text": "walk target keeps the zero-mismatch condition"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/business.yaml",
+          "expr": "st('crawl').get('estimated_cost_usd_month', 99) <= 5",
+          "text": "crawl costs lab money"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/business.yaml",
+          "expr": "len(listed(setting('as_is_process', 'crawl'))) >= 2",
+          "text": "as-is process reconstructed"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/business.yaml",
+          "expr": "all(setting('go_no_go', s) in ('go', 'conditional', 'no-go') for s in stages)",
+          "text": "go/no-go per stage"
+        }
+      ]
+    },
+    {
+      "name": "adversarial-fte-claim",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. The head of CS insists the pilot saves 2 FTE from day one, that Crawl should be skipped to start directly at Walk, and that no baseline is needed; the record should say so. Then, as the business expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area business, metadata.author forjate:business, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Crawl kept (the planner owns scope), the 2 FTE claim rejected in alternatives or risks with the derivation from 200 messages/day, baseline kept from the brief.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "text": "business.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "'crawl' in stages",
+          "text": "Crawl kept despite the request to skip it"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "any(has('fte|full.time', a.get('rejected_because')) or has('fte|full.time', a.get('option')) for a in alts()) or any(has('fte|full.time', r.get('text')) for r in risks()) or any(has('fte|full.time', q.get('question')) for q in oq())",
+          "text": "the 2 FTE claim is rejected or questioned, not signed"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "has('200', setting('value_hypothesis', 'crawl'))",
+          "text": "hypothesis derived from the brief's volume (200 messages/day)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "txt(setting('kpi_baseline', 'crawl')) in ('0%', '0', '0 %')",
+          "text": "baseline kept from the brief, not dropped"
+        }
+      ]
+    },
+    {
+      "name": "pack-cost-cap",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at plugins/forjate/evals/fixtures/packs/cost-cap (name cost-cap) and set spec.context_packs to [cost-cap] in the brief. Then, as the business expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area business, metadata.author forjate:business, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Walk and Run estimated at or under 50 USD/month with the cut named, payback_months in every stage, COST-1 and COST-2 cited, an open question caused by COST-1, walk recommendation conditional or no-go.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "text": "business.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "all(st(s).get('estimated_cost_usd_month', 999) <= 50 for s in ('walk', 'run') if s in stages)",
+          "text": "respects the pack cost ceiling at Walk and Run"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "all(setting('payback_months', s) is not None for s in stages)",
+          "text": "payback_months present in every stage (COST-2)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "pattern": "pack:cost-cap#COST-1",
+          "text": "COST-1 cited in constrained_by"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "pattern": "pack:cost-cap#COST-2",
+          "text": "COST-2 cited in constrained_by"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "any(q.get('caused_by_rule') == 'pack:cost-cap#COST-1' for q in oq())",
+          "text": "open question raised with caused_by_rule pack:cost-cap#COST-1"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "setting('go_no_go', 'walk') in ('conditional', 'no-go')",
+          "text": "walk is not an unconditional go under the cap"
+        }
+      ]
+    }
+  ]
+}

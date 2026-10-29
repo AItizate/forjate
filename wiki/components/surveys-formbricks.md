@@ -3,8 +3,10 @@ title: surveys-formbricks
 kind: component
 sources:
 - k8s/components/apps/surveys/formbricks
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-29'
 category: surveys
+consumed_by:
+- overlays/usecases-invoice-intake-stages-walk
 source_last_commit: '2026-04-27'
 summary: deploys `ghcr.io/formbricks/formbricks:latest`
 summary_source: derived
@@ -37,7 +39,7 @@ summary_source: derived
 
 ### Consumed by
 
-_No overlay in this repo references this component._
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via namespaces/uc-invoice-intake
 
 <!-- END DECLARED -->
 

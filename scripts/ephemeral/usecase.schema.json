@@ -4,7 +4,12 @@
   "title": "Forjate UseCase contract",
   "description": "Declarative contract for an ephemeral use-case environment. Consumed by scripts/ephemeral/ephemeral.sh and by AI agents that need to discover the environment without probing it. See docs/ephemeral-use-cases.md.",
   "type": "object",
-  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
   "additionalProperties": false,
   "properties": {
     "apiVersion": {
@@ -15,12 +20,14 @@
     },
     "metadata": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
         "name": {
           "type": "string",
-          "description": "Identity of the use case. Must equal the directory name under k8s/overlays/usecases/ — CI asserts this.",
+          "description": "Identity of the use case. Must equal the directory name under k8s/overlays/usecases/ \u2014 CI asserts this.",
           "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
           "maxLength": 50
         },
@@ -32,12 +39,19 @@
     },
     "spec": {
       "type": "object",
-      "required": ["isolation", "ttl", "jobs"],
+      "required": [
+        "isolation",
+        "ttl",
+        "jobs"
+      ],
       "additionalProperties": false,
       "properties": {
         "isolation": {
-          "enum": ["shared", "dedicated"],
-          "description": "shared: a namespace on the reused forjate-uc-shared cluster. dedicated: its own k3d cluster — mandatory when the use case installs CRDs, operators or StorageClasses."
+          "enum": [
+            "shared",
+            "dedicated"
+          ],
+          "description": "shared: a namespace on the reused forjate-uc-shared cluster. dedicated: its own k3d cluster \u2014 mandatory when the use case installs CRDs, operators or StorageClasses."
         },
         "ttl": {
           "type": "string",
@@ -55,7 +69,10 @@
         "jobs": {
           "type": "object",
           "description": "The lifecycle. Executed in order: seed, run, verify.",
-          "required": ["seed", "verify"],
+          "required": [
+            "seed",
+            "verify"
+          ],
           "additionalProperties": false,
           "properties": {
             "seed": {
@@ -64,7 +81,7 @@
             },
             "run": {
               "$ref": "#/$defs/job",
-              "description": "Optional. The use case's actual work — the mechanism-agnostic slot."
+              "description": "Optional. The use case's actual work \u2014 the mechanism-agnostic slot."
             },
             "verify": {
               "$ref": "#/$defs/job",
@@ -107,7 +124,11 @@
               "type": "array",
               "items": {
                 "type": "object",
-                "required": ["name", "service", "port"],
+                "required": [
+                  "name",
+                  "service",
+                  "port"
+                ],
                 "additionalProperties": false,
                 "properties": {
                   "name": {
@@ -134,7 +155,10 @@
               "type": "array",
               "items": {
                 "type": "object",
-                "required": ["name", "secretRef"],
+                "required": [
+                  "name",
+                  "secretRef"
+                ],
                 "additionalProperties": false,
                 "properties": {
                   "name": {
@@ -147,10 +171,36 @@
                   },
                   "keys": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                      "type": "string"
+                    },
                     "description": "Keys the consumer should expect inside that Secret."
                   }
                 }
+              }
+            }
+          }
+        },
+        "build": {
+          "type": "array",
+          "description": "Images the runner builds locally and imports into the k3d cluster before applying the overlay (Crawl has no registry). Each entry: image name as the overlay's images[].name, build context relative to the use case directory, optional dockerfile. The tag is always `dev`.",
+          "items": {
+            "type": "object",
+            "required": [
+              "image",
+              "context"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "image": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$"
+              },
+              "context": {
+                "type": "string"
+              },
+              "dockerfile": {
+                "type": "string"
               }
             }
           }
@@ -161,7 +211,9 @@
   "$defs": {
     "job": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
         "name": {

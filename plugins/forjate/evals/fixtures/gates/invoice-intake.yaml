@@ -1,0 +1,57 @@
+apiVersion: forjate.io/v0
+kind: Gates
+metadata:
+  usecase: invoice-intake
+  version: 1
+spec:
+  transitions:
+    crawl->walk:
+      approver: CFO
+      gates:
+      - {id: G-BIZ-1, text: straight-through rate measured on the sample and the CFO has seen the number, owner: business, check: {type: metric, ref: straight_through_rate}}
+      - {id: G-ARCH-1, text: the intake Job processes the seeded set end to end and the stub records every would-be posting, owner: architecture, check: {type: verify-job, ref: inv-validate}}
+      - {id: G-AI-1, text: 95 % field accuracy and 0 wrong amounts on the seeded set, owner: ai-engineering, check: {type: metric, ref: field_accuracy}}
+      - {id: G-DS-1, text: retention of Walk data agreed with finance ops, owner: data-store, check: {type: manual, ref: decisions/data-store.yaml}}
+      - {id: G-PIPE-1, text: verify Job passes the four assertions on the synthetic seed, owner: data-pipeline, check: {type: verify-job, ref: inv-validate}}
+      - {id: G-SEC-1, text: namespace default-deny with egress allow-list to Odoo and IMAP only, owner: security, check: {type: ci, ref: netpol-check}}
+      - {id: G-SEC-2, text: 'PSA restricted enforced (pack:regulated-corp#SEC-1)', owner: security, check: {type: ci, ref: psa-check}}
+      - {id: G-SEC-4, text: 'secret scan finds no credential in configMapGenerator literals, configs/, patches/, env values or non-gitignored .env files', owner: security, check: {type: ci, ref: secret-scan}}
+      - {id: G-SEC-5, text: every secret the overlay consumes has a committed .env.example at the same path with the generate and seal commands in its header, owner: security, check: {type: ci, ref: env-example-check}}
+      - {id: G-SEC-6, text: 'the review API is unreachable without oauth2-proxy and a GoTrue session, proven by an unauthenticated request returning 302 to the IdP', owner: security, check: {type: ci, ref: auth-check}}
+      - {id: G-SEC-7, text: 'audit log entries carry the data class and never the payload: no IBAN, no bank account number and no invoice line text in any log line of the canary run', owner: security, check: {type: ci, ref: log-content-scan}}
+      - {id: G-SEC-8, text: the ArgoCD Application points at a tag and selfHeal is true, owner: security, check: {type: ci, ref: argocd-revision-check}}
+      - {id: G-SEC-12, text: 'model egress documented and empty: the LiteLLM config declares only the in-cluster Ollama endpoint and no external provider key exists in the overlay', owner: security, check: {type: ci, ref: litellm-egress-check}}
+      - {id: G-COMP-2, text: 'The processing region of the IMAP mailbox provider and of the Odoo instance is documented, and every hop outside the EU is covered by an adequacy decision or signed SCCs; the DPO records the mechanism before the first real invoice is read.', owner: compliance, check: {type: manual, ref: decisions/compliance.yaml}}
+      - {id: G-COMP-3, text: 'The subject-rights procedure for supplier contact data is signed by the DPO, naming what access and erasure do to the operational record and what is kept on the legal copy.', owner: compliance, check: {type: manual, ref: decisions/compliance.yaml}}
+      - {id: G-COMP-4, text: 'The licence inventory in decisions/compliance.yaml matches the components every record chooses for Walk, and the Qwen model-weights licence is attached to it.', owner: compliance, check: {type: ci, ref: licence-inventory}}
+      - {id: G-Q-1, text: verify Job exits 0 on the seeded invoice set of 20 PDFs with 3 mismatches, owner: quality, check: {type: verify-job, ref: inv-validate}}
+      - {id: G-Q-3, text: 'no plaintext secret in git: secret-scan clean over the overlay and .env.example present for every generator', owner: quality, check: {type: ci, ref: secret-scan}}
+      - {id: G-OPS-1, text: 'the platform operator backs the sealed-secrets controller key up offsite, encrypted, and restores it into a scratch k3d cluster that successfully decrypts a test SealedSecret, before the first real invoice-intake secret is sealed at Walk', owner: devops, check: {type: manual, ref: controller-key-backup}}
+      - {id: G-OPS-2, text: 'every `ssh://...?ref=` in the Walk overlay resolves to a tag or a commit SHA; the check fails on `main`, `develop` or any feature-branch ref', owner: devops, check: {type: ci, ref: ref-pinning-check}}
+      - {id: G-UX-2, text: 'every seeded exception has a review_queue row with the fields a clerk needs to decide: reason, extracted values next to the PO values, PDF reference', owner: ux, check: {type: verify-job, ref: inv-validate}}
+    walk->run:
+      approver: CFO
+      gates:
+      - {id: G-BIZ-2, text: CFO signs the Walk report with the 30-day number, owner: business, check: {type: manual}}
+      - {id: G-ARCH-2, text: 'posting to Odoo is idempotent on invoice number plus supplier, proven by a double submission in the canary', owner: architecture, check: {type: verify-job, ref: inv-validate}}
+      - {id: G-AI-2, text: injection suite of 20 adversarial invoices all ignored and eval pass rate held for 30 days, owner: ai-engineering, check: {type: ci, ref: eval-regression}}
+      - {id: G-DS-2, text: restore of Postgres and the audit bucket rehearsed from the last backup into a scratch namespace with row and object counts verified, owner: data-store, check: {type: manual, ref: restore-rehearsal}}
+      - {id: G-PIPE-2, text: '30 days with every mailbox item accounted for (processed, reviewed or dead-lettered)', owner: data-pipeline, check: {type: metric, ref: items_unaccounted}}
+      - {id: G-SEC-3, text: 'secrets via External Secrets (pack:regulated-corp#SEC-2)', owner: security, check: {type: ci, ref: secrets-check}}
+      - {id: G-SEC-9, text: 'secret rotation rehearsed end to end by the platform operator: every secret re-sealed from its .env.example recipe, consumers restarted by the reloader, the use case still posts to Odoo afterwards', owner: security, check: {type: manual, ref: rotation-rehearsal}}
+      - {id: G-SEC-10, text: 'per-workload, per-port egress matrix written and applied, with namespace isolation from every other tenant on the cluster', owner: security, check: {type: ci, ref: netpol-matrix-check}}
+      - {id: G-SEC-11, text: 'every image the use case runs is referenced by digest and verified by signature, or the absence of org signing is accepted in writing', owner: security, check: {type: ci, ref: image-policy-check}}
+      - {id: G-COMP-1, text: compliance record signed; residency eu and zero model egress documented, owner: compliance, check: {type: manual, ref: decisions/compliance.yaml}}
+      - {id: G-COMP-5, text: 'Finance and legal confirm in writing the statutory retention for invoice documents and for the posting decision, and decisions/data-store.yaml is updated so every operational retention sits at or below it with one immutable audit copy at the legal figure.', owner: compliance, check: {type: manual, ref: decisions/data-store.yaml}}
+      - {id: G-COMP-6, text: 'The DPIA is approved by the DPO, covering purpose, data classes and volumes, the model''s role and its untrusted inputs, the AP clerk in the loop, retention and the erasure path, residency with every hop, and the risks and controls from decisions/security.yaml.', owner: compliance, check: {type: manual, ref: dpia}}
+      - {id: G-COMP-7, text: 'Prompt and tool-call logs carry the data class and contain no invoice payload and no bank account number, proven by a scan over a day of logs.', owner: compliance, check: {type: ci, ref: log-dataclass-scan}}
+      - {id: G-Q-2, text: 80% straight-through over 30 days with 0 wrong amounts, owner: quality, check: {type: metric, ref: straight_through_rate}}
+      - {id: G-Q-4, text: 'every HTTP surface is behind oauth2-proxy and GoTrue in the built manifest, with no Ingress reaching the review API directly', owner: quality, check: {type: ci, ref: validate-kustomize}}
+      - {id: G-Q-5, text: 'the 100-item golden set runs in CI on every prompt change and the merge fails below 95 % field accuracy, any wrong amount, or any injection item obeyed', owner: quality, check: {type: ci, ref: eval-regression}}
+      - {id: G-OPS-3, text: 'backup restore rehearsed end to end by the platform operator from the offsite copy, not only from the on-cluster snapshot: Postgres dump and the audit bucket restored into a scratch namespace with row and object counts compared against the source', owner: devops, check: {type: manual, ref: restore-rehearsal}}
+      - {id: G-OPS-4, text: 'secret rotation rehearsed once by the platform operator: scripts/rotate-secrets.sh re-seals every .env, the committed sealed-*.yaml change, reloader restarts the consumers and the inv-validate canary passes afterwards', owner: devops, check: {type: manual, ref: rotation-rehearsal}}
+      - {id: G-OPS-5, text: 'rollback rehearsed once on Walk by the platform operator: a deliberate bad commit reverted, the tag moved back, argocd app sync run and the canary verify Job green again, with the elapsed time recorded in the runbook', owner: devops, check: {type: manual, ref: rollback-rehearsal}}
+      - {id: G-OPS-6, text: stages/walk and stages/run each build on their own with kustomize build and each differs from the Crawl root; the check fails if any stage overlay equals the root or if two stages resolve to the same directory, owner: devops, check: {type: ci, ref: stage-overlay-builds}}
+      - {id: G-UX-3, text: 'the two AP clerks complete the seeded exception set in the review queue without help in the walkthrough and sign the Walk report section on the queue, as recorded by the finance ops lead', owner: ux, check: {type: manual, ref: the Walk report}}
+      - {id: G-UX-4, text: feedback captured on at least 80 % of approvals over 30 days, owner: ux, check: {type: metric, ref: feedback_response_rate}}
+  pack_overrides: []

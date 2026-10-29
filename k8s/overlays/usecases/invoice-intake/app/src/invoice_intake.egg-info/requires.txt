@@ -1,0 +1,10 @@
+pydantic<3,>=2.9
+httpx<0.29,>=0.27
+psycopg[binary]<4,>=3.2
+minio<8,>=7.2
+fastapi<0.120,>=0.115
+uvicorn<0.36,>=0.30
+
+[test]
+pytest<9,>=8
+pyyaml<7,>=6

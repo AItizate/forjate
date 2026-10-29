@@ -3,9 +3,10 @@ title: security-external-secrets
 kind: component
 sources:
 - k8s/components/apps/security/external-secrets
-compiled_at: '2026-10-28'
+compiled_at: '2026-10-29'
 category: security
 consumed_by:
+- overlays/usecases-invoice-intake-stages-run
 - overlays/usecases-openbao-secrets
 source_last_commit: '2026-04-27'
 summary: "External Secrets Operator (ESO) \u2014 syncs secrets from external stores"
@@ -64,6 +65,7 @@ summary_source: derived
 
 ### Consumed by
 
+- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md)
 - [overlays/usecases-openbao-secrets](../overlays/usecases-openbao-secrets.md)
 
 <!-- END DECLARED -->

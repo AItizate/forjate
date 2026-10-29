@@ -1,0 +1,10 @@
+rules:
+  ARCH-1:
+    type: deny_components
+    value: [apps/workflows/temporal, bundles/temporal-stack]
+    reason: Workflow engine selection is pending at the platform team; nothing durable is approved yet.
+  ARCH-2:
+    type: deny_setting_value
+    target: integration_patterns
+    value: [webhook]
+    reason: The perimeter team does not open inbound routes for pilots; poll instead.

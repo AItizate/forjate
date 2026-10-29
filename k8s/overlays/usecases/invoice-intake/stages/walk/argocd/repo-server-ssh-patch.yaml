@@ -1,0 +1,25 @@
+# devops argocd_private_refs: the repo-server clones ssh:// refs with the deploy key in argocd-ssh-keys (strategic merge on the container name).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-repo-server
+  namespace: argocd
+spec:
+  template:
+    spec:
+      containers:
+      - name: argocd-repo-server
+        env:
+        - name: GIT_SSH_COMMAND
+          value: ssh -F /app/ssh-keys/ssh_config
+        - name: ARGOCD_EXEC_TIMEOUT
+          value: 600s
+        volumeMounts:
+        - name: argocd-ssh-keys
+          mountPath: /app/ssh-keys
+          readOnly: true
+      volumes:
+      - name: argocd-ssh-keys
+        secret:
+          secretName: argocd-ssh-keys
+          defaultMode: 256

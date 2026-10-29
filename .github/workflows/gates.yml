@@ -1,0 +1,90 @@
+name: Gates
+
+# Reusable workflow: run a use case's stage-transition gates (scripts/gates/gates.py).
+# Tenants call it by tag:
+#
+#   jobs:
+#     gates:
+#       uses: AItizate/forjate/.github/workflows/gates.yml@v1.2.0
+#       with: { usecase: invoice-intake, transition: crawl->walk }
+#
+# The caller's repository is checked out as the working tree (the use case lives there);
+# the factory is checked out next to it so the runner and the check scripts exist.
+# ci gates run here; verify-job and metric gates need a live environment and report
+# skipped / pending, which never fails the job. manual gates are listed, never run.
+
+on:
+  workflow_call:
+    inputs:
+      usecase:
+        description: Use case name (directory under k8s/overlays/usecases/)
+        required: true
+        type: string
+      transition:
+        description: crawl->walk or walk->run
+        required: true
+        type: string
+      usecase_dir:
+        description: Override the use case directory (relative to the caller's checkout)
+        required: false
+        type: string
+        default: ''
+      factory_ref:
+        description: Factory ref to check out for the runner and the check scripts
+        required: false
+        type: string
+        default: main
+  workflow_dispatch:
+    inputs:
+      usecase: { description: Use case name, required: true, type: string }
+      transition: { description: "crawl->walk or walk->run", required: true, type: string }
+
+jobs:
+  gates:
+    name: ${{ inputs.usecase }} ${{ inputs.transition }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check out the factory (runner and checks)
+        if: github.repository != 'AItizate/forjate'
+        uses: actions/checkout@v7
+        with:
+          repository: AItizate/forjate
+          ref: ${{ inputs.factory_ref || 'main' }}
+          path: .forjate
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install tools
+        run: |
+          set -euo pipefail
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          curl -sSLO https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar xzf kubeconform-linux-amd64.tar.gz && sudo mv kubeconform /usr/local/bin/
+          pip install -q pyyaml jsonschema referencing
+
+      - name: Stage placeholder secrets
+        run: |
+          set -euo pipefail
+          find k8s -type f -name '*.env.example' 2>/dev/null | while IFS= read -r ex; do
+            real="${ex%.example}"; [ -f "$real" ] || cp "$ex" "$real"
+          done
+
+      - name: Run the gates
+        run: |
+          set -euo pipefail
+          factory="."; [ -d .forjate ] && factory=".forjate"
+          dir="${{ inputs.usecase_dir }}"
+          args=(run "${{ inputs.usecase }}" --transition "${{ inputs.transition }}")
+          [ -n "$dir" ] && args+=(--usecase-dir "$dir")
+          [ "$factory" = ".forjate" ] && [ -z "$dir" ] && args+=(--usecase-dir "k8s/overlays/usecases/${{ inputs.usecase }}")
+          export FORJATE_ROOT="$(cd "$factory" && pwd)"
+          python3 "$factory/scripts/gates/gates.py" "${args[@]}" | tee gates-report.md
+          echo "## Gates: ${{ inputs.usecase }} ${{ inputs.transition }}" >> "$GITHUB_STEP_SUMMARY"
+          cat gates-report.md >> "$GITHUB_STEP_SUMMARY"

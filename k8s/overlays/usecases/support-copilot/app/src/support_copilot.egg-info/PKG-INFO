@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: support-copilot
+Version: 0.1.0
+Summary: Support copilot: answers order and subscription questions from a Telegram group, keeps the conversation context, hands refunds and cancellations to a human with the full transcript.
+Requires-Python: >=3.11
+Requires-Dist: pydantic<3,>=2.9
+Requires-Dist: httpx<0.29,>=0.27
+Requires-Dist: psycopg[binary]<4,>=3.2
+Requires-Dist: fastapi<0.120,>=0.115
+Requires-Dist: uvicorn<0.36,>=0.30
+Provides-Extra: test
+Requires-Dist: pytest<9,>=8; extra == "test"
+Requires-Dist: pyyaml<7,>=6; extra == "test"

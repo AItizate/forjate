@@ -1,0 +1,13 @@
+{
+  "name": "forjate",
+  "owner": { "name": "AItizate", "url": "https://github.com/AItizate" },
+  "description": "Plugins shipped with the Forjate Kubernetes factory.",
+  "plugins": [
+    {
+      "name": "forjate",
+      "source": "./plugins/forjate",
+      "description": "Use-case builder: coordinator, stage planner and expert skills that turn a business problem into a staged Forjate overlay.",
+      "version": "0.1.0"
+    }
+  ]
+}

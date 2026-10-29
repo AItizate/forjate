@@ -1,0 +1,70 @@
+# seed phase (inv-seed): suspended, the runner un-suspends it in order (seed -> run -> verify).
+# Command and environment from .builder/scaffold.yaml; the image is built by ephemeral.sh from usecase.yaml spec.build.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: inv-seed
+  namespace: uc-invoice-intake
+  labels: &id001
+    app: inv-seed
+    forjate.io/usecase: invoice-intake
+    forjate.io/phase: seed
+spec:
+  suspend: true
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: inv-seed
+        image: invoice-intake
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - -m
+        - invoice_intake.seed
+        env:
+        - name: PGHOST
+          value: postgres
+        - name: MINIO_ENDPOINT
+          value: minio:9000
+        - name: BUCKET_INBOX
+          value: inbox
+        - name: BUCKET_PARSED
+          value: parsed
+        - name: SEED_SIZE
+          value: '20'
+        - name: DATA_CLASS
+          value: financial
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        - secretRef:
+            name: minio-secret
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: writable-0
+          mountPath: /tmp
+      volumes:
+      - name: writable-0
+        emptyDir: {}

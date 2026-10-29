@@ -1,0 +1,9 @@
+# PSA at walk from decisions/security.yaml (psa_level: baseline); restricted stays on warn and audit.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uc-support-copilot
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

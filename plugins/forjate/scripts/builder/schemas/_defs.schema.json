@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AItizate/forjate/plugins/forjate/scripts/builder/schemas/_defs.schema.json",
+  "title": "Shared definitions for use-case builder contracts",
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 50
+    },
+    "stage": { "enum": ["crawl", "walk", "run"] },
+    "role": {
+      "description": "A skill of the forjate plugin, by role name (forjate:<role>).",
+      "enum": [
+        "coordinator", "stage-planner", "kustomize", "context-pack", "app-scaffold",
+        "business", "architecture", "ai-engineering", "data-store", "data-pipeline",
+        "security", "compliance", "quality", "devops", "ux"
+      ]
+    },
+    "component": {
+      "description": "Catalog component path relative to k8s/components/.",
+      "type": "string",
+      "pattern": "^[a-z0-9-]+(/[a-z0-9-]+)*$"
+    },
+    "ruleRef": {
+      "description": "Reference to a context-pack rule: pack:<pack-name>#<RULE-ID>.",
+      "type": "string",
+      "pattern": "^pack:[a-z0-9]([-a-z0-9]*[a-z0-9])?#[A-Z][A-Z0-9]*-[0-9]+$"
+    },
+    "dataClass": { "enum": ["none", "internal", "pii", "financial", "health", "secret"] },
+    "language": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$", "default": "en" },
+    "risk": {
+      "type": "object",
+      "required": ["id", "text", "mitigation"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^R[0-9]+$" },
+        "text": { "type": "string" },
+        "mitigation": { "type": "string" },
+        "severity": { "enum": ["low", "medium", "high"] }
+      }
+    },
+    "gate": {
+      "description": "An observable condition that must hold to unlock the next stage.",
+      "type": "object",
+      "required": ["id", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^G-[A-Z]+-[0-9]+$" },
+        "text": { "type": "string" },
+        "owner": { "$ref": "#/$defs/role" },
+        "check": {
+          "description": "How the gate is verified. Absent means manual sign-off.",
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "enum": ["verify-job", "ci", "metric", "manual"] },
+            "ref": { "type": "string", "description": "Job name, workflow name, metric query or document to review." }
+          }
+        }
+      }
+    }
+  }
+}

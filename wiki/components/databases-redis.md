@@ -3,8 +3,10 @@ title: databases-redis
 kind: component
 sources:
 - k8s/components/apps/databases/redis
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-29'
 category: databases
+consumed_by:
+- overlays/usecases-support-copilot-stages-walk
 source_last_commit: '2026-04-27'
 summary: deploys `redis:7-alpine`
 summary_source: derived
@@ -35,7 +37,7 @@ summary_source: derived
 
 ### Consumed by
 
-_No overlay in this repo references this component._
+- [overlays/usecases-support-copilot-stages-walk](../overlays/usecases-support-copilot-stages-walk.md) — resource, via namespaces/uc-support-copilot
 
 <!-- END DECLARED -->
 

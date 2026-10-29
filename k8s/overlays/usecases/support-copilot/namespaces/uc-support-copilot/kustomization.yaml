@@ -1,0 +1,36 @@
+# uc-support-copilot: the use case's namespace at Crawl. Components from the records' choices, the scaffold's workloads,
+# secretGenerators from gitignored .env files seeded from the committed .env.example (the runner and CI copy them),
+# the image built by ephemeral.sh from usecase.yaml spec.build and pinned to :dev here (Walk replaces the tag by write-back).
+namespace: uc-support-copilot
+resources:
+- namespace.yaml
+- ../../../../../components/apps/ai-models/ollama
+- ../../../../../components/apps/databases/postgres
+- agent-api.yaml
+- orders-stub.yaml
+- copilot-seed.yaml
+- replay-job.yaml
+- copilot-validate.yaml
+secretGenerator:
+- name: postgres-secret
+  envs:
+  - secrets/postgres-secret.env
+  options:
+    disableNameSuffixHash: true
+patches:
+- path: patches/ollama-resources-patch.yaml
+  target:
+    kind: StatefulSet
+    name: ollama
+- target:
+    kind: StatefulSet
+    name: ollama
+  patch: "# assumes containers[0] is ollama (upstream statefulset.yaml); drops the GPU limit a laptop cannot satisfy\n- op:\
+    \ remove\n  path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu\n"
+- path: patches/postgres-resources-patch.yaml
+  target:
+    kind: StatefulSet
+    name: postgres
+images:
+- name: support-copilot
+  newTag: dev

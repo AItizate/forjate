@@ -1,0 +1,17 @@
+# Laptop sizing for apps/ai-models/ollama (catalog defaults are sized for tenants).
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ollama
+spec:
+  template:
+    spec:
+      containers:
+      - name: ollama
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1Gi
+          limits:
+            cpu: '2'
+            memory: 4Gi

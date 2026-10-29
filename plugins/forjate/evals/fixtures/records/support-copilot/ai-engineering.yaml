@@ -1,0 +1,43 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: ai-engineering, usecase: support-copilot, author: "forjate:ai-engineering", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: [apps/ai-models/ollama]
+      settings:
+        data_egress: none
+        model: ollama/qwen2.5:7b
+        inference: ollama
+        gateway: none
+        agent_pattern: tool-loop
+        structured_output: true
+        tools: ["get_order: read order by id [read-only]", "get_subscription: read subscription by customer [read-only]", "escalate: write escalation with transcript [idempotent]"]
+        untrusted_inputs: [customer messages]
+        memory_needs: [session, episodic]
+        eval_strategy: 40 recorded conversations labelled by the two support agents, rules for escalation and order id, human sample for tone
+        estimated_cost_per_1k_requests_usd: 0
+      rationale: Local model for the replay PoC so no customer data leaves while intents are proven.
+      gate_to_next:
+        - { id: G-AI-1, text: every refund or cancellation in the replay set is escalated and no order field outside the allowed list is shown, owner: ai-engineering, check: { type: verify-job, ref: copilot-validate } }
+    walk:
+      choice: [apps/ai-models/litellm]
+      settings:
+        data_egress: anonymized
+        model: claude-sonnet-4-5
+        inference: api
+        gateway: litellm
+        agent_pattern: tool-loop
+        structured_output: true
+        tools: ["get_order: read order by id [read-only]", "get_subscription: read subscription by customer [read-only]", "escalate: write escalation with transcript [idempotent]"]
+        guardrails: ["input: customer text delimited as data", "output: allowed order fields only", "budget: 6 tool calls, 20 s per turn", "escalation: refund, cancellation, anger, or two unresolved turns"]
+        untrusted_inputs: [customer messages]
+        memory_needs: [session, episodic]
+        eval_strategy: 150 anonymised conversations, rules plus weekly human sample, 60 % resolved without a human, 100 % refunds escalated
+        estimated_cost_per_1k_requests_usd: 4
+      rationale: The brief allows egress; names, emails and phone numbers are redacted before the call and the provider sees the order id, not the customer record.
+      gate_to_next:
+        - { id: G-AI-2, text: redaction verified on the canary set and the provider DPA signed before real traffic, owner: ai-engineering, check: { type: ci, ref: redaction-check } }
+  open_questions:
+    - { id: Q1, question: "Which order fields may be shown to a customer in chat? The allowed list bounds the tools.", blocks_stage: walk }
+  references: [docs/apps/litellm.md]

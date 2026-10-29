@@ -1,0 +1,14 @@
+rules:
+  COST-1:
+    type: max_cost_usd_month
+    value: 20
+    reason: Hobby budget.
+  SEC-1:
+    type: min_psa_level
+    value: baseline
+    stages: [walk, run]
+    reason: Single node, single user; restricted adds friction without a threat model to justify it.
+  PREF-1:
+    type: model_allowlist
+    value: ["ollama/*"]
+    reason: No API spend, data stays on the box.

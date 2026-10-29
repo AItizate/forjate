@@ -3,11 +3,13 @@ title: storage-longhorn
 kind: component
 sources:
 - k8s/components/apps/storage/longhorn
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-09'
 category: storage
 consumed_by:
 - overlays/ai-dev-stack
 - overlays/cdc-event-sourcing
+- overlays/usecases-invoice-intake-stages-walk
+- overlays/usecases-support-copilot-stages-walk
 source_last_commit: '2026-06-07'
 summary: vendors `longhorn.yaml`
 summary_source: derived
@@ -31,6 +33,8 @@ summary_source: derived
 
 - [overlays/ai-dev-stack](../overlays/ai-dev-stack.md)
 - [overlays/cdc-event-sourcing](../overlays/cdc-event-sourcing.md)
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md)
+- [overlays/usecases-support-copilot-stages-walk](../overlays/usecases-support-copilot-stages-walk.md)
 
 <!-- END DECLARED -->
 

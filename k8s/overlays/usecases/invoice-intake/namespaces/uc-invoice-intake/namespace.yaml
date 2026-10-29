@@ -1,0 +1,9 @@
+# PSA: the security record's Crawl level; warn and audit at restricted so violations are visible before Walk enforces.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uc-invoice-intake
+  labels:
+    forjate.io/usecase: invoice-intake
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

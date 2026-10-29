@@ -100,6 +100,32 @@ seed_env_files() {
   done < <(find "$dir" -type f -name '*.env.example')
 }
 
+# Crawl has no registry: images the contract lists under spec.build are built with
+# docker from the use case directory and imported into the k3d cluster as <image>:dev,
+# so the overlay's images: block can pin newTag: dev and imagePullPolicy IfNotPresent
+# finds them. Walk builds the same Dockerfile through the shared CI template instead.
+build_images() {
+  local name="$1" cluster="$2" dir
+  dir="$(uc_dir "$name")"
+  local count
+  count="$(uc_get "$name" '.spec.build | length' 0)"
+  if [ "$count" -eq 0 ]; then
+    info "No spec.build entries - nothing to build"
+    return 0
+  fi
+  local i image context dockerfile
+  for (( i=0; i<count; i++ )); do
+    image="$(uc_get "$name" ".spec.build[$i].image")"
+    context="$(uc_get "$name" ".spec.build[$i].context")"
+    dockerfile="$(uc_get "$name" ".spec.build[$i].dockerfile" "Dockerfile")"
+    info "Building ${image}:dev from ${context}"
+    docker build -q -t "${image}:dev" -f "${dir}/${context}/${dockerfile}" "${dir}/${context}" >/dev/null \
+      || error "docker build failed for ${image}"
+    k3d image import "${image}:dev" -c "$cluster" >/dev/null || error "k3d image import failed for ${image}"
+    log "Imported ${image}:dev into ${cluster}"
+  done
+}
+
 # Namespaces in the current cluster that this runner manages.
 managed_namespaces() {
   kubectl get ns -l "$UC_LABEL_MANAGED" \
@@ -124,6 +150,9 @@ cmd_up() {
 
   section "Cluster (${isolation})"
   ensure_cluster "$cluster"
+
+  section "Images"
+  build_images "$name" "$cluster"
 
   section "Overlay"
   seed_env_files "$dir"

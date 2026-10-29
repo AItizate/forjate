@@ -3,10 +3,12 @@ title: minio-dev
 kind: component
 sources:
 - k8s/components/apps/minio/dev
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-29'
 category: minio
-source_last_commit: '2026-04-27'
-summary: deploys `quay.io/minio/minio:latest`
+consumed_by:
+- overlays/usecases-invoice-intake
+source_last_commit: '2026-10-29'
+summary: deploys `docker.io/bitnamilegacy/minio:2025.7.23`
 summary_source: derived
 ---
 
@@ -28,11 +30,11 @@ summary_source: derived
 
 ### Container images
 
-- `quay.io/minio/minio:latest`
+- `docker.io/bitnamilegacy/minio:2025.7.23`
 
 ### Consumed by
 
-_No overlay in this repo references this component._
+- [overlays/usecases-invoice-intake](../overlays/usecases-invoice-intake.md) — resource, via namespaces/uc-invoice-intake
 
 <!-- END DECLARED -->
 

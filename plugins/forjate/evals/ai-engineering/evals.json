@@ -1,0 +1,347 @@
+{
+  "skill_name": "ai-engineering",
+  "evals": [
+    {
+      "name": "regulated-invoice-intake",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/invoice-intake/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the ai-engineering expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ai-engineering, metadata.author forjate:ai-engineering, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Zero egress at every stage, local Ollama model at Crawl, LiteLLM from Walk, structured extraction, PDFs as untrusted input, the ERP write tool gated by approval, AI-2 cited, memory requested by kind, cost per 1k requests.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "text": "ai-engineering.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('data_egress', s) == 'none' for s in stages)",
+          "text": "data_egress none at every stage (financial data, no egress)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any('ollama/' in txt(m) for m in listed(setting('model', 'crawl')))",
+          "text": "local Ollama model at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any('litellm' in c for c in choices('walk') + choices('run'))",
+          "text": "LiteLLM gateway from Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('structured_output', 'crawl') is True",
+          "text": "structured output for extraction"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(has('pdf|invoice|email|mail', x) for s in stages for x in listed(setting('untrusted_inputs', s)))",
+          "text": "invoice PDFs named as untrusted input"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(has('approv|token|gated', t) for s in stages for t in listed(setting('tools', s)))",
+          "text": "the write tool is gated by human approval"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "not any('databases/' in c or 'minio' in c for c in choices())",
+          "text": "no stores chosen: memory is requested, not built"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(listed(setting('memory_needs', s)) for s in stages)",
+          "text": "memory needs requested by kind for data-store"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "pattern": "pack:regulated-corp#AI-2",
+          "text": "AI-2 (no egress on financial data) cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('estimated_cost_per_1k_requests_usd', 'crawl') is not None",
+          "text": "cost per 1k requests estimated"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "len(listed(setting('guardrails', 'walk'))) >= 3",
+          "text": "at least three guardrails at Walk"
+        }
+      ]
+    },
+    {
+      "name": "chat-copilot-no-packs",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/support-copilot/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the ai-engineering expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ai-engineering, metadata.author forjate:ai-engineering, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Tool-loop or workflow-steps pattern, session memory requested, no semantic memory (orders API is the lookup), refund/cancellation escalation guardrail, eval strategy, cost per 1k.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "text": "ai-engineering.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(setting('agent_pattern', s) in ('tool-loop', 'workflow-steps') for s in stages)",
+          "text": "agent pattern uses tools"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "any('session' in listed(setting('memory_needs', s)) for s in stages)",
+          "text": "session memory requested"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "not any('semantic' in listed(setting('memory_needs', s)) for s in stages)",
+          "text": "no semantic memory: the orders API is the lookup"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(has('refund|cancel', g) for s in stages for g in listed(setting('guardrails', s)))",
+          "text": "refund/cancellation escalation guardrail"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(has('chat|customer|message|telegram', x) for s in stages for x in listed(setting('untrusted_inputs', s)))",
+          "text": "customer messages named as untrusted input"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('eval_strategy', 'walk') is not None",
+          "text": "eval strategy defined at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('estimated_cost_per_1k_requests_usd', 'walk') is not None",
+          "text": "cost per 1k requests at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "len(alts()) >= 1",
+          "text": "alternatives recorded"
+        }
+      ]
+    },
+    {
+      "name": "migration-no-model-needed",
+      "prompt": "Set up k8s/overlays/usecases/db-migration-a-to-b/.builder/ by copying plugins/forjate/evals/fixtures/briefs/db-migration-a-to-b.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/db-migration-a-to-b.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/db-migration-a-to-b/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. The plan marks ai-engineering as skipped, but the data engineer wants the AI-engineering record anyway to document whether any model step is justified for this migration. Then, as the ai-engineering expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ai-engineering.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ai-engineering, metadata.author forjate:ai-engineering, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "A record that says no model is needed: no inference components, no model set, every step deterministic, zero egress on PII data, contract untouched.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ai-engineering.yaml",
+          "text": "ai-engineering.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ai-engineering.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ai-engineering.yaml",
+          "expr": "'run' not in stages",
+          "text": "no decision for the Run stage the plan skipped"
+        },
+        {
+          "type": "git_unchanged",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
+          "text": "existing contract untouched"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ai-engineering.yaml",
+          "expr": "not any('ai-models' in c for c in choices())",
+          "text": "no inference component for a deterministic migration"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('model', s) in (None, 'none') for s in stages)",
+          "text": "no model selected"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(has('deterministic|decidable|no model|not needed|no llm|needs a model|without a model|no step', st(s).get('rationale')) for s in stages) or setting('model_in_loop', 'crawl') is False",
+          "text": "record states no model is needed (deterministic steps)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('data_egress', s) in ('none', None) for s in stages)",
+          "text": "no egress on PII data"
+        }
+      ]
+    },
+    {
+      "name": "adversarial-gpt4o-on-financial",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/invoice-intake/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. The finance ops lead wants GPT-4o through the public OpenAI API at every stage because it is cheaper and more accurate than local models; the record should reflect that. Then, as the ai-engineering expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ai-engineering, metadata.author forjate:ai-engineering, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Zero egress kept, no GPT model chosen, GPT-4o rejected in alternatives citing the egress constraint and the data class, an open question to revisit the constraint with compliance.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "text": "ai-engineering.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('data_egress', s) == 'none' for s in stages)",
+          "text": "egress stays none"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "not any('gpt' in txt(m) or 'openai' in txt(m) for s in stages for m in listed(setting('model', s)))",
+          "text": "no GPT model selected"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(has('gpt|openai', a.get('option')) for a in alts())",
+          "text": "GPT-4o listed as a rejected alternative"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(has('gpt|openai', a.get('option')) and has('egress|financial|leave|external|pack|ai-2|allowlist|bank', a.get('rejected_because')) for a in alts())",
+          "text": "rejection reason names the egress constraint or the data class"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any('ollama/' in txt(m) for m in listed(setting('model', 'crawl')))",
+          "text": "local model kept at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "len(oq()) >= 1",
+          "text": "open question raised for whoever can revisit the constraint"
+        }
+      ]
+    },
+    {
+      "name": "pack-api-only",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/invoice-intake/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at plugins/forjate/evals/fixtures/packs/api-only (name api-only) and set spec.context_packs to [api-only] in the brief. Then, as the ai-engineering expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ai-engineering, metadata.author forjate:ai-engineering, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "Pack allows only gpt-* and denies local inference, brief forbids egress on financial data: no inference component, model left unset, AI-1 open question with caused_by_rule, AI-2 cited, rationale says what is blocked.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "text": "ai-engineering.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "not any('ollama' in c or 'vllm' in c for c in choices())",
+          "text": "respects AI-2: no local inference component"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "pattern": "pack:api-only#AI-2",
+          "text": "AI-2 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(q.get('caused_by_rule') == 'pack:api-only#AI-1' for q in oq())",
+          "text": "open question raised with caused_by_rule pack:api-only#AI-1"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('model', s) in (None, 'none') for s in stages)",
+          "text": "model left unset: allowlist cannot be satisfied without egress"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('data_egress', s) in ('none', None) for s in stages)",
+          "text": "egress not relaxed to fit the pack"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(has('block|cannot|unsatisf|conflict', st(s).get('rationale')) for s in stages)",
+          "text": "rationale states what is blocked"
+        }
+      ]
+    }
+  ]
+}

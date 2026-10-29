@@ -3,8 +3,10 @@ title: document-processing-docling
 kind: component
 sources:
 - k8s/components/apps/document-processing/docling
-compiled_at: '2026-08-27'
+compiled_at: '2026-10-29'
 category: document-processing
+consumed_by:
+- overlays/usecases-invoice-intake
 source_last_commit: '2026-04-27'
 summary: deploys `ghcr.io/docling-project/docling-serve-cpu:latest`
 summary_source: derived
@@ -31,7 +33,7 @@ summary_source: derived
 
 ### Consumed by
 
-_No overlay in this repo references this component._
+- [overlays/usecases-invoice-intake](../overlays/usecases-invoice-intake.md) — resource, via namespaces/uc-invoice-intake
 
 <!-- END DECLARED -->
 

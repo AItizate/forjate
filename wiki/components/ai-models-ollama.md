@@ -3,11 +3,13 @@ title: ai-models-ollama
 kind: component
 sources:
 - k8s/components/apps/ai-models/ollama
-compiled_at: '2026-10-28'
+compiled_at: '2026-10-29'
 category: ai-models
 consumed_by:
 - overlays/agentic-simple-workflow
 - overlays/quickstart
+- overlays/usecases-invoice-intake
+- overlays/usecases-support-copilot
 source_last_commit: '2026-04-27'
 summary: deploys `ollama/ollama:latest`
 summary_source: derived
@@ -37,6 +39,8 @@ summary_source: derived
 
 - [overlays/agentic-simple-workflow](../overlays/agentic-simple-workflow.md)
 - [overlays/quickstart](../overlays/quickstart.md) — resource, via namespaces/ai-tools
+- [overlays/usecases-invoice-intake](../overlays/usecases-invoice-intake.md) — resource, via namespaces/uc-invoice-intake
+- [overlays/usecases-support-copilot](../overlays/usecases-support-copilot.md) — resource, via namespaces/uc-support-copilot
 
 <!-- END DECLARED -->
 

@@ -3,10 +3,11 @@ title: ai-models-vllm
 kind: component
 sources:
 - k8s/components/apps/ai-models/vllm
-compiled_at: '2026-10-28'
+compiled_at: '2026-10-29'
 category: ai-models
 consumed_by:
 - overlays/ai-dev-stack
+- overlays/usecases-invoice-intake-stages-run
 source_last_commit: '2026-04-27'
 summary: deploys `vllm/vllm-openai:latest`
 summary_source: derived
@@ -36,6 +37,7 @@ summary_source: derived
 ### Consumed by
 
 - [overlays/ai-dev-stack](../overlays/ai-dev-stack.md) — resource, via namespaces/ai-tools
+- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md) — resource, via namespaces/uc-invoice-intake
 
 <!-- END DECLARED -->
 

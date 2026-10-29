@@ -1,0 +1,15 @@
+# walk: the real model and the real systems (strategic merge on the container name, order-independent).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: inv-validate
+spec:
+  template:
+    spec:
+      containers:
+      - name: inv-validate
+        env:
+        - name: MODEL_MODE
+          value: live
+        - name: ERP_URL
+          value: https://odoo.corp.example.com

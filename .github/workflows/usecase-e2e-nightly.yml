@@ -1,0 +1,72 @@
+name: Use-case E2E (nightly)
+
+# L3 of the use-case builder (docs/use-case-builder/plan.md §3): every use case that ships an app/
+# and a usecase.yaml is brought up on k3d with ephemeral.sh, which builds the scaffold's image,
+# seeds, runs and blocks on the verify Job; then the ci gates of crawl->walk run against the Walk
+# overlay. Nightly, not per PR: the images (Docling, Ollama, Postgres, MinIO) are large.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      usecase:
+        description: "One use case to run (default: every use case with app/)"
+        required: false
+        type: string
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: list
+        run: |
+          if [ -n "${{ inputs.usecase }}" ]; then
+            echo "matrix=[\"${{ inputs.usecase }}\"]" >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix=$(for d in k8s/overlays/usecases/*/app; do basename "$(dirname "$d")"; done | jq -R . | jq -cs .)" >> "$GITHUB_OUTPUT"
+          fi
+
+  e2e:
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        usecase: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install tools
+        run: |
+          set -euo pipefail
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          curl -sSLO https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar xzf kubeconform-linux-amd64.tar.gz && sudo mv kubeconform /usr/local/bin/
+          pipx install poetry && poetry install --no-root
+
+      - name: Crawl on k3d (ephemeral.sh up blocks on the verify Job)
+        run: ./scripts/ephemeral/ephemeral.sh up "${{ matrix.usecase }}"
+
+      - name: Gates crawl->walk
+        run: |
+          set -euo pipefail
+          find k8s -type f -name '*.env.example' | while IFS= read -r ex; do real="${ex%.example}"; [ -f "$real" ] || cp "$ex" "$real"; done
+          poetry run python scripts/gates/gates.py run "${{ matrix.usecase }}" --transition 'crawl->walk' | tee gates.md
+          { echo "## ${{ matrix.usecase }} crawl->walk"; cat gates.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Tear down
+        if: always()
+        run: ./scripts/ephemeral/ephemeral.sh down "${{ matrix.usecase }}" || true

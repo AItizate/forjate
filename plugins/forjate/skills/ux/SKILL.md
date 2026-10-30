@@ -87,4 +87,4 @@ Full rules: `forjate:context-pack`. For you the rules that matter are `deny_comp
 - `references/surfaces-per-stage.md`: the surfaces, when each fits, the stage ladder, what each needs from the other records.
 - `references/human-in-the-loop.md`: checkpoints, tokens versus deterministic handoffs, the escalation context, the walkthrough.
 - `references/feedback-latency-failure.md`: feedback channels per surface, latency budgets with numbers, the failure catalogue.
-- `wiki/catalog.json` (`roles: chat-ui`, `feedback`), `docs/apps/open-webui.md`, `plugins/forjate/skills/ai-engineering/references/tools-and-guardrails.md`.
+- `wiki/catalog.json` (capabilities `chat-ui`, `feedback`; `references/catalog-snapshot.md`), `docs/apps/open-webui.md`, `plugins/forjate/skills/ai-engineering/references/tools-and-guardrails.md`.

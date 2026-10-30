@@ -65,33 +65,75 @@ def ci_ref_errors(gates: list[dict], where: str) -> list[str]:
     return out
 PSA_RANK = {"privileged": 0, "baseline": 1, "restricted": 2}
 
-# Cross-record consistency (check 6). Components in one group are mutually exclusive
-# within a use case; a setting in SHARED_SETTINGS must have one value per stage across
-# every record that states it. Settings that name a component map onto the group so
-# "broker: nats" in one record and apps/brokers/rabbitmq in another is one conflict.
-EXCLUSIVE_GROUPS = {
-    "broker": {"apps/brokers/nats", "apps/brokers/rabbitmq"},
-    "vector store": {"apps/databases/lancedb", "apps/databases/milvus"},
-    "inference server": {"apps/ai-models/ollama", "apps/ai-models/vllm"},
-    "object storage": {"apps/minio/dev", "apps/minio/single-server"},
-    "secrets mechanism": {"apps/sealed-secrets", "apps/security/external-secrets", "apps/security/vault"},
-}
-SETTING_TO_GROUP = {
-    "broker": ("broker", {"nats": "apps/brokers/nats", "rabbitmq": "apps/brokers/rabbitmq"}),
-    "inference": ("inference server", {"ollama": "apps/ai-models/ollama", "vllm": "apps/ai-models/vllm"}),
-    # secret-generator has no component: it maps to nothing and conflicts with nothing.
-    "secrets_mechanism": ("secrets mechanism", {"sealed-secrets": "apps/sealed-secrets",
-                                                "external-secrets": "apps/security/external-secrets",
-                                                "vault": "apps/security/vault"}),
-}
+# Cross-record consistency (check 6) and the secrets ladder (check 4) are read from the
+# catalog, not from tables in this file: a capability marked `exclusive` in
+# wiki/catalog-capabilities.yaml is a group of mutually exclusive components, its
+# `setting` names the record key whose value picks one of them (by component name, or
+# by secrets.mechanism), and secrets-mechanism components carry their rank. A better
+# component added to the catalog is ranked and grouped without touching the validator.
+SECRETS_CAPABILITY = "secrets-mechanism"
 # Settings two experts both emit and must agree on per stage (contracts.md lists the owners):
 # security/devops share the hardening keys, data-store/devops the backup ladder,
 # architecture/security the auth surface, and three experts the egress and residency facts.
 SHARED_SETTINGS = ("psa_level", "secrets_mechanism", "data_residency", "data_egress",
                    "network_policy", "backup", "auth_in_front")
 TRANSITION_OUT_OF = {"crawl": "crawl->walk", "walk": "walk->run"}
-CDC_BROKER = {"-nats": "apps/brokers/nats", "-rabbitmq": "apps/brokers/rabbitmq"}
-SECRETS_RANK = {"secret-generator": 0, "sealed-secrets": 1, "external-secrets": 2, "vault": 2}
+# A CDC connector is named debezium-<source>-<broker>; its suffix implies a message-broker choice.
+CDC_PREFIX = "apps/cdc/"
+
+
+class CatalogRules:
+    """Exclusive groups, setting→component maps and the secrets ranking, derived from wiki/catalog.json."""
+
+    def __init__(self, catalog: dict | None):
+        self.available = catalog is not None
+        self.groups: dict[str, set[str]] = {}
+        self.setting_to_group: dict[str, tuple[str, dict[str, str]]] = {}
+        self.secrets_rank: dict[str, int] = {}
+        if catalog is None:
+            return
+        caps = catalog.get("capabilities") or {}
+        comps = catalog.get("components") or []
+        for name, cap in caps.items():
+            if not cap.get("exclusive"):
+                continue
+            members = [c for c in comps if name in (c.get("capabilities") or [])]
+            self.groups[name] = {c["path"] for c in members}
+            if cap.get("setting"):
+                by_value = {}
+                for c in members:
+                    mech = (c.get("secrets") or {}).get("mechanism")
+                    by_value[mech or c["path"].rsplit("/", 1)[-1]] = c["path"]
+                # The floor (secret-generator) has no component: it maps to nothing and conflicts with nothing.
+                self.setting_to_group[cap["setting"]] = (name, by_value)
+            if name == SECRETS_CAPABILITY:
+                if cap.get("floor"):
+                    self.secrets_rank[cap["floor"]] = 0
+                for c in members:
+                    s = c.get("secrets") or {}
+                    if s.get("mechanism") and isinstance(s.get("rank"), int):
+                        self.secrets_rank[s["mechanism"]] = s["rank"]
+
+
+def load_catalog() -> dict | None:
+    """wiki/catalog.json of the factory: the project, FORJATE_ROOT, or the checkout this plugin lives in."""
+    import os
+    for root in (REPO, Path(os.environ["FORJATE_ROOT"]) if os.environ.get("FORJATE_ROOT") else None,
+                 Path(__file__).resolve().parents[4]):
+        if root and (root / "wiki" / "catalog.json").is_file():
+            import json
+            return json.loads((root / "wiki" / "catalog.json").read_text())
+    return None
+
+
+_RULES: CatalogRules | None = None
+
+
+def catalog_rules() -> CatalogRules:
+    global _RULES
+    if _RULES is None:
+        _RULES = CatalogRules(load_catalog())
+    return _RULES
 
 
 def _glob(pattern: str, s: str) -> bool:
@@ -148,7 +190,12 @@ def check_rule(ref: str, entry: dict, area: str, stage: str, sd: dict, data_clas
             return f"psa_level '{settings['psa_level']}' below required '{v}' ({ref})"
         return None
     if t == "secrets_mechanism" and "secrets_mechanism" in settings:
-        if SECRETS_RANK.get(str(settings["secrets_mechanism"]), -1) < SECRETS_RANK[v]:
+        rank = catalog_rules().secrets_rank
+        if not rank:
+            return None  # no catalog reachable; validate_usecase warns once
+        if v not in rank:
+            return f"rule requires secrets_mechanism '{v}', which no catalog component provides ({ref})"
+        if rank.get(str(settings["secrets_mechanism"]), -1) < rank[v]:
             return f"secrets_mechanism '{settings['secrets_mechanism']}' weaker than required '{v}' ({ref})"
         return None
     if t in {"model_allowlist", "model_denylist"} and "model" in settings:
@@ -225,16 +272,18 @@ def cross_record_conflicts(decisions: dict[str, dict]) -> tuple[list[str], list[
             sd = d["spec"]["stages"].get(stage)
             if not sd:
                 continue
+            rules_from_catalog = catalog_rules()
             for c in sd.get("choice") or []:
-                for group, members in EXCLUSIVE_GROUPS.items():
+                for group, members in rules_from_catalog.groups.items():
                     if c in members:
                         claim(group, c, area)
-                if c.startswith("apps/cdc/"):
-                    for suffix, broker in CDC_BROKER.items():
-                        if c.endswith(suffix):
-                            claim("broker", broker, f"{area} (via {c})")
+                if c.startswith(CDC_PREFIX) and "broker" in rules_from_catalog.setting_to_group:
+                    group, by_name = rules_from_catalog.setting_to_group["broker"]
+                    implied = by_name.get(c.rsplit("-", 1)[-1])
+                    if implied:
+                        claim(group, implied, f"{area} (via {c})")
             settings = sd.get("settings") or {}
-            for key, (group, mapping) in SETTING_TO_GROUP.items():
+            for key, (group, mapping) in rules_from_catalog.setting_to_group.items():
                 v = str(settings.get(key, "")).lower()
                 if v in mapping:
                     claim(group, mapping[v], area)
@@ -268,8 +317,8 @@ def cross_record_conflicts(decisions: dict[str, dict]) -> tuple[list[str], list[
         for area, d in decisions.items():
             sd = d["spec"]["stages"].get(stage) or {}
             for c in sd.get("choice") or []:
-                if c.startswith("apps/cdc/"):
-                    needed = next((b for suf, b in CDC_BROKER.items() if c.endswith(suf)), None)
+                if c.startswith(CDC_PREFIX) and "broker" in rules_from_catalog.setting_to_group:
+                    needed = rules_from_catalog.setting_to_group["broker"][1].get(c.rsplit("-", 1)[-1])
                     present = any(needed in (dd["spec"]["stages"].get(stage) or {}).get("choice", []) for dd in decisions.values())
                     if needed and not present:
                         warnings.append(f"{area}: {stage}: {c} needs {needed} in some record's choice for the same stage")
@@ -412,6 +461,8 @@ def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
         for tr, body in gates["spec"]["transitions"].items():
             errors += ci_ref_errors(body.get("gates") or [], f"{b/'gates.yaml'}: {tr}")
         warnings += [f"{uc}: {w}" for w in gates_consolidation(decisions, gates, skipped)]
+    if not catalog_rules().available:
+        warnings.append(f"{uc}: wiki/catalog.json not reachable (set FORJATE_ROOT); secrets ranking and exclusive-component conflicts not checked")
     return errors, warnings
 
 

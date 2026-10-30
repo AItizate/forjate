@@ -129,7 +129,7 @@ def test_broker_conflict_across_records_is_an_error(usecase: Path):
     _write_decision(usecase, "architecture", {"walk": {"choice": ["apps/brokers/nats"], "settings": {"broker": "nats"}, "rationale": "x"}})
     _write_decision(usecase, "data-pipeline", {"walk": {"choice": ["apps/brokers/rabbitmq"], "settings": {"broker": "rabbitmq"}, "rationale": "y"}})
     errors, _ = validate_usecase(usecase)
-    hits = [e for e in errors if "cross-record conflict (walk, broker)" in e]
+    hits = [e for e in errors if "cross-record conflict (walk, message-broker)" in e]
     assert hits and "nats" in hits[0] and "rabbitmq" in hits[0] and "open question" in hits[0]
 
 
@@ -138,7 +138,7 @@ def test_broker_conflict_via_setting_only(usecase: Path):
     _write_decision(usecase, "architecture", {"walk": {"choice": [], "settings": {"broker": "nats"}, "rationale": "x"}})
     _write_decision(usecase, "data-pipeline", {"walk": {"choice": ["apps/brokers/rabbitmq"], "rationale": "y"}})
     errors, _ = validate_usecase(usecase)
-    assert any("cross-record conflict (walk, broker)" in e for e in errors)
+    assert any("cross-record conflict (walk, message-broker)" in e for e in errors)
 
 
 def test_acknowledged_conflict_is_a_warning_not_a_fix(usecase: Path):
@@ -147,7 +147,7 @@ def test_acknowledged_conflict_is_a_warning_not_a_fix(usecase: Path):
                     open_questions=[{"id": "Q1", "question": "Architecture chose NATS but the Debezium connector needs RabbitMQ; which broker does the organisation operate?", "blocks_stage": "walk"}])
     errors, warnings = validate_usecase(usecase)
     assert not any("cross-record conflict" in e for e in errors)
-    assert any("cross-record conflict (walk, broker)" in w and "acknowledged by open question data-pipeline/Q1" in w for w in warnings)
+    assert any("cross-record conflict (walk, message-broker)" in w and "acknowledged by open question data-pipeline/Q1" in w for w in warnings)
     # The records are untouched: both brokers are still there for the user to decide.
     arch = yaml.safe_load((usecase / ".builder/decisions/architecture.yaml").read_text())
     assert arch["spec"]["stages"]["walk"]["choice"] == ["apps/brokers/nats"]
@@ -171,7 +171,7 @@ def test_cdc_connector_implies_its_broker(usecase: Path):
     _write_decision(usecase, "architecture", {"walk": {"choice": ["apps/brokers/nats"], "rationale": "x"}})
     _write_decision(usecase, "data-pipeline", {"walk": {"choice": ["apps/cdc/debezium-postgres-rabbitmq"], "rationale": "y"}})
     errors, warnings = validate_usecase(usecase)
-    assert any("cross-record conflict (walk, broker)" in e and "debezium-postgres-rabbitmq" in e for e in errors)
+    assert any("cross-record conflict (walk, message-broker)" in e and "debezium-postgres-rabbitmq" in e for e in errors)
     assert any("needs apps/brokers/rabbitmq" in w for w in warnings)
 
 
@@ -185,12 +185,12 @@ def test_conflicts_in_different_stages_do_not_collide(usecase: Path):
 # --- phase 3: governance experts share settings and gate ids ----------------------
 
 def test_secrets_setting_conflicts_with_secrets_component(usecase: Path):
-    # security says sealed-secrets in settings, devops picks the vault component: one conflict.
+    # security says sealed-secrets in settings, devops picks the external-secrets component: one conflict.
     _write_decision(usecase, "security", {"walk": {"choice": [], "settings": {"secrets_mechanism": "sealed-secrets"}, "rationale": "x"}})
-    _write_decision(usecase, "devops", {"walk": {"choice": ["apps/security/vault"], "rationale": "y"}})
+    _write_decision(usecase, "devops", {"walk": {"choice": ["apps/security/external-secrets"], "rationale": "y"}})
     errors, _ = validate_usecase(usecase)
-    hits = [e for e in errors if "cross-record conflict (walk, secrets mechanism)" in e]
-    assert hits and "apps/sealed-secrets" in hits[0] and "apps/security/vault" in hits[0]
+    hits = [e for e in errors if "cross-record conflict (walk, secrets-mechanism)" in e]
+    assert hits and "apps/sealed-secrets" in hits[0] and "apps/security/external-secrets" in hits[0]
 
 
 def test_secret_generator_maps_to_no_component(usecase: Path):
@@ -204,7 +204,7 @@ def test_two_secrets_mechanisms_in_one_record_is_a_conflict(usecase: Path):
     _write_decision(usecase, "security", {"walk": {"choice": ["apps/sealed-secrets", "apps/security/external-secrets"], "rationale": "x"}})
     _write_decision(usecase, "devops", {"walk": {"choice": [], "rationale": "y"}})
     errors, _ = validate_usecase(usecase)
-    assert any("cross-record conflict (walk, secrets mechanism)" in e for e in errors)
+    assert any("cross-record conflict (walk, secrets-mechanism)" in e for e in errors)
 
 
 @pytest.mark.parametrize("key,a,b,owner_a,owner_b", [
@@ -378,3 +378,124 @@ def test_secret_scan_finds_literals_patches_and_examples(tmp_path: Path):
 def test_secret_scan_is_clean_on_the_repo_overlays():
     r = run(str(BUILDER / "secret-scan.py"), str(REPO / "k8s" / "overlays"))
     assert r.returncode == 0, r.stdout
+
+
+# --- phase 5 (#23): capabilities from the catalog, snapshots, grader, skill-lint -------
+
+import json
+import re
+
+import validate as validate_mod  # noqa: E402
+
+REPO_ROOT = BUILDER.parent.parent.parent.parent
+CATALOG = REPO_ROOT / "wiki" / "catalog.json"
+CAPABILITIES = REPO_ROOT / "wiki" / "catalog-capabilities.yaml"
+CONTRACTS = REPO_ROOT / "docs" / "use-case-builder" / "contracts.md"
+
+
+def test_secrets_ranking_comes_from_the_catalog():
+    rules = validate_mod.CatalogRules(json.loads(CATALOG.read_text()))
+    assert rules.available
+    assert rules.secrets_rank["secret-generator"] == 0
+    assert rules.secrets_rank["sealed-secrets"] < rules.secrets_rank["external-secrets"]
+    assert "vault" not in rules.secrets_rank  # deprecated component, no longer curated
+    # Nothing in the validator module names a component.
+    src = (BUILDER / "validate.py").read_text()
+    assert not re.search(r"apps/(databases|brokers|ai-models|minio|sealed-secrets|security)/", src)
+
+
+def test_exclusive_groups_and_setting_maps_come_from_the_catalog():
+    rules = validate_mod.CatalogRules(json.loads(CATALOG.read_text()))
+    assert {"apps/brokers/nats", "apps/brokers/rabbitmq"} <= rules.groups["message-broker"]
+    assert rules.setting_to_group["broker"] == ("message-broker", {"nats": "apps/brokers/nats", "rabbitmq": "apps/brokers/rabbitmq"})
+    assert rules.setting_to_group["secrets_mechanism"][1]["sealed-secrets"] == "apps/sealed-secrets"
+    # openbao is a store, not a mechanism: pairing it with external-secrets is not a conflict.
+    assert "apps/security/openbao" not in rules.groups["secrets-mechanism"]
+
+
+def test_without_a_catalog_the_rules_are_empty_and_marked_unavailable():
+    rules = validate_mod.CatalogRules(None)
+    assert not rules.available and rules.groups == {} and rules.secrets_rank == {}
+
+
+def test_secrets_rule_weaker_mechanism_is_rejected_and_unknown_mechanism_is_named(usecase: Path):
+    rule = {"enforce": "must", "applies_to": ["*"], "rule": {"type": "secrets_mechanism", "value": "external-secrets"}}
+    sd = {"settings": {"secrets_mechanism": "sealed-secrets"}}
+    msg = validate_mod.check_rule("pack:x#SEC-1", rule, "security", "run", sd, "pii")
+    assert msg and "weaker" in msg
+    ok = validate_mod.check_rule("pack:x#SEC-1", rule, "security", "run", {"settings": {"secrets_mechanism": "external-secrets"}}, "pii")
+    assert ok is None
+    bogus = dict(rule, rule={"type": "secrets_mechanism", "value": "vault"})
+    msg = validate_mod.check_rule("pack:x#SEC-2", bogus, "security", "run", sd, "pii")
+    assert msg and "no catalog component provides" in msg
+
+
+def test_openbao_with_external_secrets_is_not_a_conflict(usecase: Path):
+    _write_decision(usecase, "security", {"walk": {"choice": ["apps/security/external-secrets", "apps/security/openbao"],
+                                                   "settings": {"secrets_mechanism": "external-secrets"}, "rationale": "x"}})
+    errors, warnings = validate_usecase(usecase)
+    assert not any("secrets-mechanism" in m for m in errors + warnings)
+
+
+def test_capability_vocabulary_matches_contracts_and_catalog():
+    vocab = yaml.safe_load(CAPABILITIES.read_text())["capabilities"]
+    text = CONTRACTS.read_text()
+    section = text.split("## Catalog capabilities", 1)[1].split("### Component properties", 1)[0]
+    documented = set(re.findall(r"^\| `([a-z0-9-]+)` \|", section, re.MULTILINE))
+    assert documented == set(vocab), f"contracts.md vs catalog-capabilities.yaml: {documented ^ set(vocab)}"
+    catalog = json.loads(CATALOG.read_text())
+    assert set(catalog["capabilities"]) == set(vocab)
+    used = {c for comp in catalog["components"] for c in comp.get("capabilities") or []}
+    assert used <= set(vocab)
+    for comp in catalog["components"]:
+        assert "roles" not in comp
+        assert isinstance(comp["secrets"], dict) and "takes" in comp["secrets"]
+
+
+def test_snapshots_exist_for_every_asking_skill_and_are_labelled():
+    vocab = yaml.safe_load(CAPABILITIES.read_text())
+    skills = {s for c in vocab["capabilities"].values() for s in c["asked_by"]} | set(vocab["snapshot_all"])
+    for skill in skills:
+        snap = BUILDER.parent.parent / "skills" / skill / "references" / "catalog-snapshot.md"
+        assert snap.is_file(), f"{skill} has no catalog snapshot; run scripts/wiki-compile.py"
+        body = snap.read_text()
+        assert "generated by scripts/wiki-compile.py" in body and "snapshot, not a rule" in body
+    devops = (BUILDER.parent.parent / "skills" / "devops" / "references" / "catalog-snapshot.md").read_text()
+    assert "## `backup`" in devops and "No component today" in devops
+    assert not (BUILDER.parent.parent / "skills" / "business" / "references" / "catalog-snapshot.md").exists()
+
+
+def test_grader_choice_has_capability(tmp_path: Path):
+    sys.path.insert(0, str(BUILDER.parent.parent / "evals"))
+    import grade  # noqa: E402
+    (tmp_path / "wiki").mkdir()
+    shutil.copy(CATALOG, tmp_path / "wiki" / "catalog.json")
+    rec = tmp_path / "d.yaml"
+    rec.write_text(yaml.safe_dump({"spec": {"stages": {
+        "crawl": {"choice": ["apps/databases/redis", "apps/databases/postgres"]},
+        "walk": {"choice": ["apps/databases/postgres", "apps/brokers/nats"]}}}}))
+    ok, ev = grade.check({"type": "choice_has_capability", "path": "d.yaml", "capability": "session-memory"}, tmp_path)
+    assert ok and "redis" in ev
+    ok, _ = grade.check({"type": "choice_has_capability", "path": "d.yaml", "capability": "session-memory", "stage": "walk"}, tmp_path)
+    assert not ok
+    ok, _ = grade.check({"type": "choice_lacks_capability", "path": "d.yaml", "capability": "semantic-memory"}, tmp_path)
+    assert ok
+    ok, _ = grade.check({"type": "choice_lacks_capability", "path": "d.yaml", "capability": "message-broker", "stage": "walk"}, tmp_path)
+    assert not ok
+    ok, ev = grade.check({"type": "yaml_expr", "path": "d.yaml", "expr": "'message-broker' in choice_capabilities('walk') and 'working-memory' in choice_capabilities()"}, tmp_path)
+    assert ok, ev
+    ok, ev = grade.check({"type": "choice_has_capability", "path": "missing.yaml", "capability": "cache"}, tmp_path)
+    assert not ok
+
+
+def test_skill_lint_runs_and_allows_single_option_components(tmp_path: Path):
+    r = run(str(BUILDER / "skill-lint.py"), "--quiet")
+    assert r.returncode == 0, r.stdout + r.stderr  # warn mode never fails
+    assert "| ux |" in r.stdout
+    strict = run(str(BUILDER / "skill-lint.py"), "--strict", "--skills", "data-store")
+    assert strict.returncode == 1 and "apps/databases/postgres" in strict.stdout
+    # docling is the only document-parsing option: naming it is allowed.
+    lint = __import__("importlib").util.spec_from_file_location("skill_lint", BUILDER / "skill-lint.py")
+    mod = __import__("importlib").util.module_from_spec(lint); lint.loader.exec_module(mod)
+    single = mod.single_option_components(json.loads(CATALOG.read_text()))
+    assert "apps/document-processing/docling" in single and "apps/databases/postgres" not in single

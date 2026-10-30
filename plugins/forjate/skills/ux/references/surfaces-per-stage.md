@@ -38,4 +38,4 @@ Answer four questions and write the answers into `rationale`:
 
 ## Components
 
-`apps/ai-models/open-webui` (`roles: chat-ui`, fit crawl and walk) and `apps/surveys/formbricks` (`roles: feedback`, fit walk and run) are the only UI-shaped components in the catalog today; check `wiki/catalog.json` for new ones before writing `choice`. A custom page and a chat channel are not components.
+`apps/ai-models/open-webui` (capability `chat-ui`, fit crawl and walk) and `apps/surveys/formbricks` (capability `feedback`, fit walk and run) are the only UI-shaped components in the catalog today; check `wiki/catalog.json` for new ones before writing `choice`. A custom page and a chat channel are not components.

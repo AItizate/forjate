@@ -12,10 +12,10 @@ You are the only skill in the forjate plugin that writes Kubernetes YAML. Expert
 
 ## Find components in the catalog, never by guessing paths
 
-`wiki/catalog.json` is the machine-readable catalog: one record per component with `path` (relative to `k8s/components/`), images, kinds, what it composes, who consumes it, and curated facts (`stages`, `roles`, `licence`, `maturity`, `notes`). Query it instead of walking the tree:
+`wiki/catalog.json` is the machine-readable catalog: one record per component with `path` (relative to `k8s/components/`), images, kinds, what it composes, who consumes it, and curated facts (`stages`, `capabilities`, `gpu_required`, `ha`, `psa_restricted`, `secrets`, `data_classes`, `licence`, `maturity`, `notes`; the vocabulary is `wiki/catalog-capabilities.yaml` and `references/catalog-snapshot.md` is what it resolves today). Query it instead of walking the tree:
 
 ```bash
-python3 -c "import json;[print(c['path'],c['stages'],c['roles']) for c in json.load(open('wiki/catalog.json'))['components'] if 'vector' in c['roles']]"
+python3 -c "import json;[print(c['path'],c['stages'],c['capabilities']) for c in json.load(open('wiki/catalog.json'))['components'] if 'semantic-memory' in c['capabilities']]"
 ```
 
 Then open `wiki/components/<name>.md` for the declared resources and `docs/apps/<name>.md` for how to configure it. A component that is not in the catalog does not exist for you; if an expert asked for one, hand back an open question instead of inventing a directory.

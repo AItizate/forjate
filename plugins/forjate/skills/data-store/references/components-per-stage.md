@@ -1,6 +1,6 @@
 # Components per kind and stage
 
-Catalog paths relative to `k8s/components/`. Check `wiki/catalog.json` `stages`, `roles` and `notes` before choosing; the notes carry the licence caveats.
+Catalog paths relative to `k8s/components/`. Check `wiki/catalog.json` `stages`, `capabilities` and `notes` before choosing (`catalog-snapshot.md` is what it resolves today); the notes carry the licence caveats.
 
 | Kind | Crawl | Walk | Run | Notes |
 |------|-------|------|-----|-------|

@@ -7,6 +7,7 @@ on:
       - 'wiki/**'
       - 'scripts/wiki-*'
       - 'scripts/wiki_compile_api.py'
+      - 'plugins/forjate/skills/*/references/catalog-snapshot.md'
       - '.github/workflows/validate-wiki.yml'
   push:
     branches: [main]
@@ -14,6 +15,7 @@ on:
       - 'k8s/**'
       - 'wiki/**'
       - 'scripts/wiki-*'
+      - 'plugins/forjate/skills/*/references/catalog-snapshot.md'
 
 jobs:
   compile-and-lint:

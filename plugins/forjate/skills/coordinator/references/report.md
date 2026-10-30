@@ -23,6 +23,12 @@ one block per decisions/*.yaml:
 - Risks: <ids and one-liners>
 - Constrained by: <pack refs>
 
+## Posture
+| Stage | Autonomy (plan) | Writes | Intent validation | Kill switch | Audit artifacts |
+one row per stage in scope, from stage-plan.yaml `autonomy` and the ai-engineering, security and quality records; a cell reads "not yet produced" when its record is missing
+Operating model: <business `operating_model`; RACI lines; the three adoption frictions with their owners; devops `severities` when present; `open_standards` with its exceptions>
+Review: <ux `review_mode` and `review_independence` per checkpoint; `control_levels` per persona; `disclosure` lines>
+
 ## Open questions
 <every open_questions entry across records, with the area and the blocking stage; a question caused by a pack rule shows the rule ref>
 Conflicts between experts: <every `cross-record conflict` line validate.py reported, each with the open question that acknowledges it, or "none">

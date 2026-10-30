@@ -37,8 +37,8 @@ patches:
 - target:
     kind: StatefulSet
     name: ollama
-  patch: "# assumes containers[0] is ollama (upstream statefulset.yaml); drops the GPU limit a laptop cannot satisfy\n- op:\
-    \ remove\n  path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu\n"
+  patch: "# assumes containers[0] is ollama (upstream manifest); drops the GPU limit a laptop cannot satisfy (catalog gpu_required:\
+    \ optional)\n- op: remove\n  path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu\n"
 - path: patches/docling-resources-patch.yaml
   target:
     kind: Deployment
@@ -47,6 +47,10 @@ patches:
   target:
     kind: StatefulSet
     name: postgres
+- path: patches/minio-resources-patch.yaml
+  target:
+    kind: Pod
+    name: minio
 - path: patches/minio-env-patch.yaml
   target:
     kind: Pod
@@ -54,8 +58,8 @@ patches:
 - target:
     kind: Pod
     name: minio
-  patch: "# assumes volumes[0] is localvolume (upstream pod.yaml); the hostPath is root-owned on k3d and the image runs as\
-    \ 1001\n- op: replace\n  path: /spec/volumes/0\n  value: {name: localvolume, emptyDir: {}}\n"
+  patch: "# assumes volumes[0] is localvolume (upstream manifest); the hostPath is root-owned on k3d, an emptyDir is the laptop's\
+    \ disk at Crawl\n- op: replace\n  path: /spec/volumes/0\n  value: {name: localvolume, emptyDir: {}}\n"
 images:
 - name: invoice-intake
   newTag: dev

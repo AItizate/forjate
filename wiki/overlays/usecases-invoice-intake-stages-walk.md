@@ -77,7 +77,6 @@ summary_source: derived
 - `inline → Secret/postgres-secret (ns: uc-invoice-intake)`
 - `inline → Secret/minio-secret (ns: uc-invoice-intake)`
 - `inline → Secret/approval-secret (ns: uc-invoice-intake)`
-- `inline → Secret/litellm-secret (ns: uc-invoice-intake-baseline)`
 - `inline → Secret/gotrue-secret (ns: uc-invoice-intake-baseline)`
 - `inline → Ingress/formbricks-ingress (ns: uc-invoice-intake-baseline)`
 - `patches/argocd-psa-patch.yaml → Namespace/argocd`

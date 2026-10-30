@@ -16,7 +16,7 @@ Read `references/workloads.md` before writing an entrypoint; `references/tools-a
 
 ## Procedure
 
-1. Read the records. Fix the facts per stage, starting at Crawl: the `workloads` list and the `topology`, `durable_execution` and `trigger` (architecture); the `tools` lines, `structured_output`, `model`, `inference`, `gateway`, `untrusted_inputs`, `guardrails` (AI-engineering); the stores per memory kind (data-store); `steps`, `seed_strategy`, `seed_size`, `idempotency_key`, `dead_letter`, `verify_assertions` (data-pipeline); `verify_job`, `verify_assertions`, `test_pyramid`, `golden_set`, `injection_suite`, `kpi_metric` (quality); `audit_log_content`, `tool_write_gate`, `security_context` (security); `image_registry`, `image_tag_policy`, `image_writeback` (devops); `hitl_checkpoints`, `escalation_context`, `failure_ux` (ux). Code comments and the README in the brief's language; identifiers in English.
+1. Read the records. Fix the facts per stage, starting at Crawl: the `workloads` list and the `topology`, `durable_execution` and `trigger` (architecture); the `tools` lines, `structured_output`, `model`, `inference`, `gateway`, `untrusted_inputs`, `guardrails`, `write_actions`, `execution_bounds`, `intent_validation` (AI-engineering); `audit_artifacts` (quality); `kill_switch` (security); the stores per memory kind (data-store); `steps`, `seed_strategy`, `seed_size`, `idempotency_key`, `dead_letter`, `verify_assertions` (data-pipeline); `verify_job`, `verify_assertions`, `test_pyramid`, `golden_set`, `injection_suite`, `kpi_metric` (quality); `audit_log_content`, `tool_write_gate`, `security_context` (security); `image_registry`, `image_tag_policy`, `image_writeback` (devops); `hitl_checkpoints`, `escalation_context`, `failure_ux` (ux). Code comments and the README in the brief's language; identifiers in English.
 2. Resolve context packs for `app-scaffold` (section below). A tool-development guideline is a specification: every item in it is implemented in every tool module, and the pack ref goes in `scaffold.yaml` `constrained_by`.
 3. **Layout**: `app/pyproject.toml` (package `<usecase_with_underscores>`, src layout, runtime deps only for what the records need, `[test]` extra with pytest), `app/src/<pkg>/`, `app/tests/`, `app/prompts/` (when a model is in the loop; the file the AI-engineering record's `prompt_versioning` names), `app/Dockerfile`, `app/.github/workflows/`, `app/README.md`, `app/.dockerignore`. Nothing outside `app/` except `scaffold.yaml`.
 4. **Entrypoints** with `references/workloads.md`: one module per architecture workload, run as `python -m <pkg>.<module>`; `api` (FastAPI, `/healthz`, the webhook or review routes) for `request-response` and `chat-durable` surfaces, `worker` (Temporal) when `durable_execution: temporal`, `batch` for `batch`, `seed` and `verify` always, `<system>_stub` for every integration the architecture record marks `stub`. Configuration is environment variables only, read in one `config.py`: endpoints follow `usecase.yaml`'s rule (`<service>.uc-<name>.svc.cluster.local:<port>`), credentials come from the component Secrets by their mounted names, `MODEL_MODE` selects the model client.
@@ -35,6 +35,20 @@ docker build -q -t <image>:dev <usecase-dir>/app                                
 ```
 
 Reply with the paths, the workloads and their commands, the tools and their flags, the model modes, how to run the tests, and what you refused or assumed.
+
+## Governance posture
+
+You own no governance setting; you make four of them true in code, and `scaffold.yaml` `notes` says where each lives:
+
+| setting (owner) | What the scaffold implements |
+|-----------------|------------------------------|
+| `execution_bounds` (ai-engineering) | a step counter and a per-step timeout in the agent loop or the workflow, a delegation-depth guard, a token budget passed to the model client; exceeding any of them stops the run with a typed error and a log line, never a retry |
+| `intent_validation` (ai-engineering) | `schema`: the tool's argument model is validated before the call; `policy-judge`: a `policy.py` hook runs before every write tool with the stage's `write_actions`, the allowed-action list and the item's data, logs its verdict with the call, and refuses out of policy; the double's judge is rule-based so CI exercises the refusal |
+| `audit_artifacts` (quality) | `per-action`: one structured line per model call and per tool call with subject, masked prompt reference, model and version, tool name, argument hash, result status, cost, duration, approval token id; the data class, never the payload |
+| `kill_switch` (security) | the gateway key and every provider credential arrive through the environment and nowhere else, so revoking the Secret stops the agent; `gateway-key-revocation` means there is no direct provider client in the code |
+
+- **A bound that lives in a prompt is not a bound.** `max_steps`, `step_timeout_s`, `delegation_depth` and `budget_tokens` are constants read from `execution_bounds` into `config.py` and enforced by code; a unit test drives the loop past each one and expects the typed error.
+- **The judge is code before it is a model.** `policy-judge` starts as rules (this supplier, this amount, this stage's write policy) that the double runs in CI; a model-backed judge, when the record asks for one, sits behind the same `Protocol` and never replaces the rule check.
 
 ## Judgement calls
 

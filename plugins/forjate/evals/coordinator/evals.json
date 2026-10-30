@@ -77,6 +77,18 @@
           "type": "file_absent",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
           "text": "no expert record fabricated (the coordinator was told to stop at the plan)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml",
+          "pattern": "autonomy:\\s*(assistive|semi-autonomous)",
+          "text": "autonomy recorded from the intake (a person approves: not autonomous)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml",
+          "pattern": "risk_profile:",
+          "text": "risk profile recorded (financial, regulated decision)"
         }
       ]
     },
@@ -162,6 +174,12 @@
           "path": "k8s/overlays/usecases",
           "pattern": "kind:\\s*Decision",
           "text": "no expert decision fabricated"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases",
+          "pattern": "autonomy:\\s*assistive",
+          "text": "autonomy assumed assistive when nobody can answer"
         }
       ]
     },

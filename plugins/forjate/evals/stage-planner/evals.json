@@ -89,6 +89,30 @@
           "query": ".spec.experts | length",
           "equals": "10",
           "text": "all ten expert roles are listed"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "expr": "d['spec']['stages']['crawl'].get('autonomy') == 'assistive'",
+          "text": "Crawl autonomy is assistive"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "expr": "d['spec']['stages']['walk'].get('autonomy') in ('assistive','semi-autonomous') and d['spec']['stages']['run'].get('autonomy') in ('assistive','semi-autonomous')",
+          "text": "no stage exceeds the brief's semi-autonomous; Run stays below autonomous for a regulated decision"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "expr": "any(g.get('owner') == 'security' for g in d['spec']['stages']['crawl'].get('exit_criteria') or [])",
+          "text": "security in week one: a Crawl exit criterion owned by security"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "expr": "any(e['role'] == 'security' and e['run'] for e in d['spec']['experts'])",
+          "text": "the security expert runs"
         }
       ]
     },
@@ -149,6 +173,18 @@
           "query": "[.spec.experts[] | select(.role == \"ai-engineering\")] | .[0].run",
           "equals": "true",
           "text": "ai-engineering runs"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml",
+          "expr": "d['spec']['stages']['crawl'].get('autonomy') == 'assistive' and d['spec']['stages']['walk'].get('autonomy') in ('assistive','semi-autonomous')",
+          "text": "autonomy ceiling: assistive at Crawl, at most semi-autonomous at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml",
+          "expr": "any(g.get('owner') == 'security' for g in d['spec']['stages']['crawl'].get('exit_criteria') or []) or any(e['role'] == 'security' and e['run'] for e in d['spec']['experts'])",
+          "text": "security engaged from Crawl for a customer-facing agent with PII"
         }
       ]
     },
@@ -199,6 +235,12 @@
           "type": "git_unchanged",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/usecase.yaml",
           "text": "existing contract untouched"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/stage-plan.yaml",
+          "expr": "all((d['spec']['stages'][s] or {}).get('autonomy') in (None, 'assistive') for s in d['spec']['stages'] if (d['spec']['stages'][s] or {}).get('in_scope'))",
+          "text": "a migration stays assistive at every stage"
         }
       ]
     }

@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-10-29",
+  "compiled_at": "2026-10-30",
   "stages": [
     "crawl",
     "walk",
@@ -289,7 +289,28 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "cluster-introspector",
+        "port": 18789,
+        "protocol": "http",
+        "label": "cluster-introspector",
+        "workload": {
+          "kind": "Deployment",
+          "name": "cluster-introspector",
+          "container": "agent"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/ai-models/litellm",
@@ -339,6 +360,33 @@
       ],
       "licence": "MIT",
       "notes": "One OpenAI-compatible endpoint in front of local and external models; routing, per-key spend, where egress policy is enforced. Provider API keys arrive as a Secret.",
+      "wiring": {
+        "service": "litellm",
+        "port": 4000,
+        "protocol": "http",
+        "label": "litellm",
+        "workload": {
+          "kind": "Deployment",
+          "name": "litellm",
+          "container": "litellm"
+        },
+        "secret": {
+          "name": "litellm-secret",
+          "keys": [
+            "LITELLM_MASTER_KEY",
+            "LITELLM_SALT_KEY"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -380,7 +428,35 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "postgres",
+        "port": 5432,
+        "protocol": "tcp",
+        "label": "postgres",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "postgres",
+          "container": "postgres"
+        },
+        "secret": {
+          "name": "postgres-secret",
+          "keys": [
+            "POSTGRES_DB",
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/ai-models/ollama",
@@ -427,6 +503,36 @@
       ],
       "licence": "MIT",
       "notes": "Zero-egress inference. CPU is fine for Crawl latency; a GPU node from Walk. Each model has its own licence.",
+      "wiring": {
+        "service": "ollama-service",
+        "port": 11434,
+        "protocol": "http",
+        "label": "ollama",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "ollama",
+          "container": "ollama"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": true,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": {
+          "requests": {
+            "cpu": "250m",
+            "memory": "1Gi"
+          },
+          "limits": {
+            "cpu": "2",
+            "memory": "4Gi"
+          }
+        },
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -476,6 +582,27 @@
       ],
       "licence": "BSD-3 (with branding clause)",
       "notes": "Fastest human-facing surface for a Crawl demo; speaks to LiteLLM or Ollama.",
+      "wiring": {
+        "service": "open-webui-service",
+        "port": 8080,
+        "protocol": "http",
+        "label": "open-webui",
+        "workload": {
+          "kind": "Deployment",
+          "name": "open-webui",
+          "container": "open-webui"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "open-webui-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -525,6 +652,27 @@
       ],
       "licence": "Apache-2.0",
       "notes": "The production-shaped local inference server; concurrency and pinned model versions. Model licence separate.",
+      "wiring": {
+        "service": "vllm-service",
+        "port": 8000,
+        "protocol": "http",
+        "label": "vllm",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "vllm",
+          "container": "vllm"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": true,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -573,7 +721,35 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "metabase",
+        "port": 3000,
+        "protocol": "tcp",
+        "label": "metabase",
+        "workload": {
+          "kind": "Deployment",
+          "name": "metabase",
+          "container": "metabase"
+        },
+        "secret": {
+          "name": "metabase-db-secret",
+          "keys": [
+            "MB_DB_DBNAME",
+            "MB_DB_USER",
+            "MB_DB_PASS"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "metabase-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/auth/gotrue-auth/authz",
@@ -614,7 +790,28 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "gotrue-authz",
+        "port": 8080,
+        "protocol": "tcp",
+        "label": "gotrue-authz",
+        "workload": {
+          "kind": "Deployment",
+          "name": "gotrue-authz",
+          "container": "gotrue-authz"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/auth/gotrue-auth/gotrue",
@@ -658,7 +855,38 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "gotrue-auth",
+        "port": 9999,
+        "protocol": "tcp",
+        "label": "gotrue-auth",
+        "workload": {
+          "kind": "Deployment",
+          "name": "gotrue-auth",
+          "container": "gotrue"
+        },
+        "secret": {
+          "name": "gotrue-secret",
+          "keys": [
+            "GOTRUE_JWT_SECRET",
+            "DATABASE_URL",
+            "GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID",
+            "GOTRUE_EXTERNAL_GOOGLE_SECRET"
+          ]
+        },
+        "placeholder_secrets": [
+          "gotrue-secret"
+        ],
+        "config": null,
+        "ingress": "gotrue-auth-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/auth/gotrue-auth",
@@ -701,6 +929,37 @@
       ],
       "licence": "MIT",
       "notes": "Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature.",
+      "wiring": {
+        "service": "gotrue-auth",
+        "port": 9999,
+        "protocol": "http",
+        "label": "gotrue-auth",
+        "workload": {
+          "kind": "Deployment",
+          "name": "gotrue-auth",
+          "container": "gotrue"
+        },
+        "secret": {
+          "name": "gotrue-secret",
+          "keys": [
+            "GOTRUE_JWT_SECRET",
+            "DATABASE_URL",
+            "GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID",
+            "GOTRUE_EXTERNAL_GOOGLE_SECRET"
+          ]
+        },
+        "placeholder_secrets": [
+          "gotrue-secret"
+        ],
+        "config": null,
+        "ingress": "gotrue-auth-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -741,7 +1000,24 @@
       "curated": false,
       "psa_level": "n/a",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/brokers/mosquitto",
@@ -787,7 +1063,28 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "mosquitto",
+        "port": 1883,
+        "protocol": "mqtt",
+        "label": "mosquitto",
+        "workload": {
+          "kind": "Deployment",
+          "name": "mosquitto",
+          "container": "mosquitto"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/brokers/nats",
@@ -830,6 +1127,33 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Lightweight (20 MB); JetStream gives persistence and replay. Default broker for event-driven use cases. Mounts `nats-secret`.",
+      "wiring": {
+        "service": "nats",
+        "port": 4222,
+        "protocol": "nats",
+        "label": "nats",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "nats",
+          "container": "nats"
+        },
+        "secret": {
+          "name": "nats-secret",
+          "keys": [
+            "NATS_USER",
+            "NATS_PASS"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -880,7 +1204,34 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "rabbitmq",
+        "port": 5672,
+        "protocol": "amqp",
+        "label": "rabbitmq",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "rabbitmq",
+          "container": "rabbitmq"
+        },
+        "secret": {
+          "name": "rabbitmq-secret",
+          "keys": [
+            "RABBITMQ_DEFAULT_USER",
+            "RABBITMQ_DEFAULT_PASS"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/cdc/debezium-mariadb-nats",
@@ -927,7 +1278,34 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "debezium-mariadb-nats",
+        "workload": {
+          "kind": "Deployment",
+          "name": "debezium-mariadb-nats",
+          "container": "debezium-server"
+        },
+        "secret": {
+          "name": "nats-secret",
+          "keys": [
+            "NATS_USER",
+            "NATS_PASS"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/cdc/debezium-mariadb-rabbitmq",
@@ -972,7 +1350,31 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "debezium-mariadb-rabbitmq",
+        "workload": {
+          "kind": "Deployment",
+          "name": "debezium-mariadb-rabbitmq",
+          "container": "debezium-server"
+        },
+        "secret": {
+          "name": "debezium-mariadb-rabbitmq-secret",
+          "keys": []
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/cdc/debezium-mongo-nats",
@@ -1019,7 +1421,34 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "debezium-mongo-nats",
+        "workload": {
+          "kind": "Deployment",
+          "name": "debezium-mongo-nats",
+          "container": "debezium-server"
+        },
+        "secret": {
+          "name": "nats-secret",
+          "keys": [
+            "NATS_USER",
+            "NATS_PASS"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/cdc/debezium-mongo-rabbitmq",
@@ -1066,7 +1495,31 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "debezium-mongo-rabbitmq",
+        "workload": {
+          "kind": "Deployment",
+          "name": "debezium-mongo-rabbitmq",
+          "container": "debezium-server"
+        },
+        "secret": {
+          "name": "debezium-mongo-rabbitmq-secret",
+          "keys": []
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/cdc/debezium-postgres-nats",
@@ -1113,7 +1566,34 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "debezium-postgres-nats",
+        "workload": {
+          "kind": "Deployment",
+          "name": "debezium-postgres-nats",
+          "container": "debezium-server"
+        },
+        "secret": {
+          "name": "nats-secret",
+          "keys": [
+            "NATS_USER",
+            "NATS_PASS"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/cdc/debezium-postgres-rabbitmq",
@@ -1158,7 +1638,31 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "debezium-postgres-rabbitmq",
+        "workload": {
+          "kind": "Deployment",
+          "name": "debezium-postgres-rabbitmq",
+          "container": "debezium-server"
+        },
+        "secret": {
+          "name": "debezium-postgres-rabbitmq-secret",
+          "keys": []
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/cloudflare-tunnel",
@@ -1203,6 +1707,32 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Public ingress without open ports; two replicas. Traffic transits Cloudflare — a hop the compliance record names for residency and for health data.",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "cloudflared",
+        "workload": {
+          "kind": "Deployment",
+          "name": "cloudflared",
+          "container": "cloudflared"
+        },
+        "secret": {
+          "name": "cloudflare-tunnel-secret",
+          "keys": [
+            "TUNNEL_TOKEN"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": "cloudflare-tunnel",
@@ -1246,7 +1776,28 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "snappymail",
+        "port": 8888,
+        "protocol": "http",
+        "label": "snappymail",
+        "workload": {
+          "kind": "Deployment",
+          "name": "snappymail",
+          "container": "snappymail"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/communication/stalwart",
@@ -1289,7 +1840,39 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "stalwart",
+        "port": 25,
+        "protocol": "tcp",
+        "label": "stalwart",
+        "workload": {
+          "kind": "Deployment",
+          "name": "stalwart",
+          "container": "stalwart"
+        },
+        "secret": {
+          "name": "stalwart-secret",
+          "keys": [
+            "STALWART_ADMIN_PASSWORD",
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD",
+            "S3_ACCESS_KEY",
+            "S3_SECRET_KEY"
+          ]
+        },
+        "placeholder_secrets": [
+          "stalwart-secret"
+        ],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/continuous-delivery/argocd",
@@ -1333,7 +1916,24 @@
       "licence": "Apache-2.0",
       "curated": true,
       "namespace": "argocd",
-      "namespace_how": "declares"
+      "namespace_how": "declares",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "argocd-server-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/databases/etcd",
@@ -1376,7 +1976,28 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "etcd",
+        "port": 2379,
+        "protocol": "tcp",
+        "label": "etcd",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "etcd",
+          "container": "etcd"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/databases/lancedb",
@@ -1419,6 +2040,27 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Embedded-style vector store served over HTTP; single writer, so concurrent ingestion is the limit. Cheapest semantic memory for Crawl.",
+      "wiring": {
+        "service": "lancedb",
+        "port": 8000,
+        "protocol": "http",
+        "label": "lancedb",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "lancedb",
+          "container": "lancedb"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -1469,7 +2111,34 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "mariadb",
+        "port": 3306,
+        "protocol": "tcp",
+        "label": "mariadb",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "mariadb",
+          "container": "mariadb"
+        },
+        "secret": {
+          "name": "mariadb-secret",
+          "keys": [
+            "MYSQL_ROOT_PASSWORD",
+            "MYSQL_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/databases/milvus",
@@ -1515,7 +2184,28 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "milvus",
+        "port": 19530,
+        "protocol": "grpc",
+        "label": "milvus",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "milvus",
+          "container": "milvus"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/databases/mongodb",
@@ -1560,6 +2250,42 @@
       ],
       "licence": "SSPL",
       "notes": "Document-shaped chat state; SSPL is often disallowed in corporate packs. `mongodb/replica-set` adds the oplog CDC needs. Mounts `mongodb-secret`.",
+      "wiring": {
+        "service": "mongodb",
+        "port": 27017,
+        "protocol": "mongodb",
+        "label": "mongodb",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "mongodb",
+          "container": "mongodb"
+        },
+        "secret": {
+          "name": "mongodb-secret",
+          "keys": [
+            "MONGO_INITDB_ROOT_USERNAME",
+            "MONGO_INITDB_ROOT_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": {
+          "requests": {
+            "cpu": "100m",
+            "memory": "128Mi"
+          },
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          }
+        },
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -1602,7 +2328,34 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "mongodb-rs-init",
+        "workload": {
+          "kind": "Job",
+          "name": "mongodb-rs-init",
+          "container": "rs-init"
+        },
+        "secret": {
+          "name": "mongodb-secret",
+          "keys": [
+            "MONGO_INITDB_ROOT_USERNAME",
+            "MONGO_INITDB_ROOT_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/databases/postgres",
@@ -1655,6 +2408,43 @@
       ],
       "licence": "PostgreSQL",
       "notes": "Default system of record. Single StatefulSet; move to an operator (CNPG) at Run for HA/PITR. Mounts `postgres-secret`.",
+      "wiring": {
+        "service": "postgres",
+        "port": 5432,
+        "protocol": "postgresql",
+        "label": "postgres",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "postgres",
+          "container": "postgres"
+        },
+        "secret": {
+          "name": "postgres-secret",
+          "keys": [
+            "POSTGRES_DB",
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": {
+          "requests": {
+            "cpu": "100m",
+            "memory": "256Mi"
+          },
+          "limits": {
+            "cpu": "1",
+            "memory": "1Gi"
+          }
+        },
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -1703,6 +2493,36 @@
       ],
       "licence": "BSD-3 (7.2) / RSALv2+SSPL (7.4+)",
       "notes": "Short-term memory, rate limiting and locks; memory-bound, name the eviction policy. Check the image tag against the licence change.",
+      "wiring": {
+        "service": "redis",
+        "port": 6379,
+        "protocol": "redis",
+        "label": "redis",
+        "workload": {
+          "kind": "Deployment",
+          "name": "redis",
+          "container": "redis"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": {
+          "requests": {
+            "cpu": "50m",
+            "memory": "64Mi"
+          },
+          "limits": {
+            "cpu": "500m",
+            "memory": "256Mi"
+          }
+        },
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -1747,7 +2567,28 @@
       "notes": "The local registry for k3d; GHCR or the organisation's registry from Walk.",
       "curated": true,
       "psa_level": "baseline",
-      "namespace_how": "none"
+      "namespace_how": "none",
+      "wiring": {
+        "service": "docker-registry",
+        "port": 5000,
+        "protocol": "tcp",
+        "label": "docker-registry",
+        "workload": {
+          "kind": "Deployment",
+          "name": "docker-registry",
+          "container": "registry"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "docker-registry-app",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/document-processing/docling",
@@ -1791,6 +2632,36 @@
       ],
       "licence": "MIT",
       "notes": "PDF/Office to structured text with tables, layout and OCR. Stateless CPU image; slow but dependable for Crawl.",
+      "wiring": {
+        "service": "docling",
+        "port": 5001,
+        "protocol": "http",
+        "label": "docling",
+        "workload": {
+          "kind": "Deployment",
+          "name": "docling",
+          "container": "docling"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": {
+          "requests": {
+            "cpu": "250m",
+            "memory": "1Gi"
+          },
+          "limits": {
+            "cpu": "2",
+            "memory": "3Gi"
+          }
+        },
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -1836,7 +2707,28 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "esphome",
+        "port": 6052,
+        "protocol": "tcp",
+        "label": "esphome",
+        "workload": {
+          "kind": "Deployment",
+          "name": "esphome",
+          "container": "esphome"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "esphome-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/home-automation/hass",
@@ -1878,7 +2770,28 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "hass",
+        "port": 8123,
+        "protocol": "tcp",
+        "label": "hass",
+        "workload": {
+          "kind": "Deployment",
+          "name": "hass",
+          "container": "hass"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "hass-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/home-automation",
@@ -1916,7 +2829,28 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "esphome",
+        "workload": {
+          "kind": "Deployment",
+          "name": "esphome",
+          "container": "esphome"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "esphome-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/iac/crossplane",
@@ -1951,7 +2885,24 @@
       "curated": true,
       "psa_level": "unknown",
       "namespace": "crossplane-system",
-      "namespace_how": "declares"
+      "namespace_how": "declares",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/minio/dev",
@@ -1993,6 +2944,51 @@
       "namespace": null,
       "licence": "AGPL-3.0",
       "notes": "A bare Pod for k3d; dies with the environment.",
+      "wiring": {
+        "service": "minio",
+        "port": 9000,
+        "protocol": "s3",
+        "label": "minio",
+        "workload": {
+          "kind": "Pod",
+          "name": "minio",
+          "container": "minio"
+        },
+        "secret": {
+          "name": "minio-secret",
+          "keys": [
+            "MINIO_ROOT_USER",
+            "MINIO_ROOT_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": true,
+        "hostpath_volumes": [
+          {
+            "index": 0,
+            "name": "localvolume",
+            "workload": "minio",
+            "kind": "Pod"
+          }
+        ],
+        "secret_mounted": false,
+        "sizing": {
+          "requests": {
+            "cpu": "100m",
+            "memory": "256Mi"
+          },
+          "limits": {
+            "cpu": "1",
+            "memory": "1Gi"
+          }
+        },
+        "extra_ports": {
+          "console": 9090
+        }
+      },
       "curated": true,
       "psa_level": "privileged",
       "namespace_how": null
@@ -2044,6 +3040,28 @@
       "namespace": null,
       "licence": "AGPL-3.0",
       "notes": "A one-server Tenant through the operator in base; no redundancy. Run is the same Tenant with more servers, or an S3 service within residency. Buckets per kind (inbox, parsed, audit, seed).",
+      "wiring": {
+        "service": "minio",
+        "port": 9000,
+        "protocol": "s3",
+        "label": "minio",
+        "workload": null,
+        "secret": {
+          "name": "minio-storage-configuration",
+          "keys": [
+            "config.env"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "restricted",
       "namespace_how": null
@@ -2095,7 +3113,28 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": "monitoring",
-      "namespace_how": "sets"
+      "namespace_how": "sets",
+      "wiring": {
+        "service": "grafana",
+        "port": 3000,
+        "protocol": "http",
+        "label": "grafana",
+        "workload": {
+          "kind": "Deployment",
+          "name": "grafana",
+          "container": "grafana"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "grafana",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/monitoring/kubernetes-dashboard",
@@ -2134,7 +3173,24 @@
       "curated": true,
       "psa_level": "n/a",
       "namespace": "kubernetes-dashboard",
-      "namespace_how": "sets"
+      "namespace_how": "sets",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "kubernetes-dashboard-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/monitoring/otel-collector/agent",
@@ -2179,7 +3235,44 @@
       "curated": false,
       "psa_level": "privileged",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "otel-collector",
+        "port": 4317,
+        "protocol": "tcp",
+        "label": "otel-collector-agent",
+        "workload": {
+          "kind": "DaemonSet",
+          "name": "otel-collector-agent",
+          "container": "otel-collector"
+        },
+        "secret": {
+          "name": "otel-collector-secret",
+          "keys": [
+            "GRAFANA_CLOUD_OTLP_ENDPOINT",
+            "GRAFANA_CLOUD_API_KEY",
+            "CLUSTER_NAME"
+          ]
+        },
+        "placeholder_secrets": [
+          "otel-collector-secret"
+        ],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": true,
+        "hostpath_volumes": [
+          {
+            "index": 1,
+            "name": "varlogpods",
+            "workload": "otel-collector-agent",
+            "kind": "DaemonSet"
+          }
+        ],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/monitoring/otel-collector/cluster",
@@ -2223,7 +3316,35 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "otel-collector-cluster",
+        "port": 8888,
+        "protocol": "tcp",
+        "label": "otel-collector-cluster",
+        "workload": {
+          "kind": "Deployment",
+          "name": "otel-collector-cluster",
+          "container": "otel-collector"
+        },
+        "secret": {
+          "name": "otel-collector-secret",
+          "keys": [
+            "GRAFANA_CLOUD_OTLP_ENDPOINT",
+            "GRAFANA_CLOUD_API_KEY",
+            "CLUSTER_NAME"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/monitoring/otel-collector",
@@ -2265,7 +3386,37 @@
       "notes": "Agent DaemonSet plus a cluster Deployment; the step from metrics-only to metrics+logs+traces, needed for LLM call tracing. Logs can carry pii — scrub at the collector.",
       "curated": true,
       "psa_level": "privileged",
-      "namespace_how": "none"
+      "namespace_how": "none",
+      "wiring": {
+        "service": "otel-collector",
+        "port": 4317,
+        "protocol": "tcp",
+        "label": "otel-collector-agent",
+        "workload": {
+          "kind": "Deployment",
+          "name": "otel-collector-cluster",
+          "container": "otel-collector"
+        },
+        "secret": null,
+        "placeholder_secrets": [
+          "otel-collector-secret"
+        ],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": true,
+        "hostpath_volumes": [
+          {
+            "index": 1,
+            "name": "varlogpods",
+            "workload": "otel-collector-agent",
+            "kind": "DaemonSet"
+          }
+        ],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/monitoring/prometheus",
@@ -2318,7 +3469,28 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": "monitoring",
-      "namespace_how": "sets"
+      "namespace_how": "sets",
+      "wiring": {
+        "service": "prometheus",
+        "port": 9090,
+        "protocol": "http",
+        "label": "prometheus",
+        "workload": {
+          "kind": "Deployment",
+          "name": "prometheus",
+          "container": "prometheus"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "prometheus",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/monitoring/reloader",
@@ -2356,7 +3528,24 @@
       "psa_level": "baseline",
       "licence": "Apache-2.0",
       "curated": true,
-      "namespace_how": "remote"
+      "namespace_how": "remote",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/n8n",
@@ -2396,7 +3585,39 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "n8n",
+        "port": 5678,
+        "protocol": "tcp",
+        "label": "postgres",
+        "workload": {
+          "kind": "Deployment",
+          "name": "postgres",
+          "container": "postgres"
+        },
+        "secret": {
+          "name": "postgres-secret",
+          "keys": [
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD",
+            "POSTGRES_DB",
+            "POSTGRES_NON_ROOT_USER",
+            "POSTGRES_NON_ROOT_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [
+          "postgres-secret"
+        ],
+        "config": null,
+        "ingress": "n8n-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/n8n/n8n",
@@ -2441,7 +3662,34 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "n8n",
+        "port": 5678,
+        "protocol": "tcp",
+        "label": "n8n",
+        "workload": {
+          "kind": "Deployment",
+          "name": "n8n",
+          "container": "n8n"
+        },
+        "secret": {
+          "name": "postgres-secret",
+          "keys": [
+            "POSTGRES_NON_ROOT_USER",
+            "POSTGRES_NON_ROOT_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "n8n-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/n8n/postgres",
@@ -2484,7 +3732,39 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "postgres-service",
+        "port": 5432,
+        "protocol": "tcp",
+        "label": "postgres",
+        "workload": {
+          "kind": "Deployment",
+          "name": "postgres",
+          "container": "postgres"
+        },
+        "secret": {
+          "name": "postgres-secret",
+          "keys": [
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD",
+            "POSTGRES_DB",
+            "POSTGRES_NON_ROOT_USER",
+            "POSTGRES_NON_ROOT_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [
+          "postgres-secret"
+        ],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/networking/metallb",
@@ -2523,7 +3803,24 @@
       "licence": "Apache-2.0",
       "curated": true,
       "namespace": "metallb-system",
-      "namespace_how": "remote"
+      "namespace_how": "remote",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/node-red",
@@ -2572,7 +3869,28 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "node-red",
+        "port": 1880,
+        "protocol": "tcp",
+        "label": "node-red",
+        "workload": {
+          "kind": "Deployment",
+          "name": "node-red",
+          "container": "node-red"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "nodered-app",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/productivity/affine",
@@ -2607,7 +3925,33 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "affine",
+        "port": 3010,
+        "protocol": "tcp",
+        "label": "affine",
+        "workload": {
+          "kind": "Deployment",
+          "name": "affine",
+          "container": "affine"
+        },
+        "secret": {
+          "name": "affine-secret",
+          "keys": [
+            "DATABASE_URL"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/productivity/affine/server",
@@ -2650,7 +3994,33 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "affine",
+        "port": 3010,
+        "protocol": "tcp",
+        "label": "affine",
+        "workload": {
+          "kind": "Deployment",
+          "name": "affine",
+          "container": "affine"
+        },
+        "secret": {
+          "name": "affine-secret",
+          "keys": [
+            "DATABASE_URL"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/productivity/appflowy/admin-frontend",
@@ -2691,7 +4061,28 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "appflowy-admin-frontend",
+        "port": 3000,
+        "protocol": "tcp",
+        "label": "appflowy-admin-frontend",
+        "workload": {
+          "kind": "Deployment",
+          "name": "appflowy-admin-frontend",
+          "container": "admin-frontend"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/productivity/appflowy/ai",
@@ -2732,7 +4123,37 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "appflowy-ai",
+        "port": 5001,
+        "protocol": "tcp",
+        "label": "appflowy-ai",
+        "workload": {
+          "kind": "Deployment",
+          "name": "appflowy-ai",
+          "container": "appflowy-ai"
+        },
+        "secret": {
+          "name": "appflowy-secret",
+          "keys": [
+            "AI_OPENAI_API_KEY",
+            "DATABASE_URL",
+            "APPFLOWY_S3_ACCESS_KEY",
+            "APPFLOWY_S3_SECRET_KEY",
+            "GOTRUE_JWT_SECRET"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/productivity/appflowy/appflowy-cloud",
@@ -2777,7 +4198,47 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "appflowy-cloud",
+        "port": 8000,
+        "protocol": "http",
+        "label": "appflowy-cloud",
+        "workload": {
+          "kind": "Deployment",
+          "name": "appflowy-cloud",
+          "container": "appflowy-cloud"
+        },
+        "secret": {
+          "name": "appflowy-secret",
+          "keys": [
+            "DATABASE_URL",
+            "GOTRUE_DATABASE_URL",
+            "GOTRUE_JWT_SECRET",
+            "APPFLOWY_S3_ACCESS_KEY",
+            "APPFLOWY_S3_SECRET_KEY",
+            "GOTRUE_SMTP_HOST",
+            "GOTRUE_SMTP_PORT",
+            "GOTRUE_SMTP_USER",
+            "GOTRUE_SMTP_PASS",
+            "GOTRUE_SMTP_ADMIN_EMAIL",
+            "GOTRUE_ADMIN_EMAIL",
+            "GOTRUE_ADMIN_PASSWORD",
+            "AI_OPENAI_API_KEY"
+          ]
+        },
+        "placeholder_secrets": [
+          "appflowy-secret"
+        ],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/productivity/appflowy/gotrue",
@@ -2819,7 +4280,41 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "appflowy-gotrue",
+        "port": 9999,
+        "protocol": "tcp",
+        "label": "appflowy-gotrue",
+        "workload": {
+          "kind": "Deployment",
+          "name": "appflowy-gotrue",
+          "container": "gotrue"
+        },
+        "secret": {
+          "name": "appflowy-secret",
+          "keys": [
+            "GOTRUE_JWT_SECRET",
+            "GOTRUE_DATABASE_URL",
+            "GOTRUE_SMTP_HOST",
+            "GOTRUE_SMTP_PORT",
+            "GOTRUE_SMTP_USER",
+            "GOTRUE_SMTP_PASS",
+            "GOTRUE_SMTP_ADMIN_EMAIL",
+            "GOTRUE_ADMIN_EMAIL",
+            "GOTRUE_ADMIN_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/productivity/appflowy",
@@ -2860,7 +4355,47 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "appflowy-gotrue",
+        "workload": {
+          "kind": "Deployment",
+          "name": "appflowy-gotrue",
+          "container": "gotrue"
+        },
+        "secret": {
+          "name": "appflowy-secret",
+          "keys": [
+            "DATABASE_URL",
+            "GOTRUE_DATABASE_URL",
+            "GOTRUE_JWT_SECRET",
+            "APPFLOWY_S3_ACCESS_KEY",
+            "APPFLOWY_S3_SECRET_KEY",
+            "GOTRUE_SMTP_HOST",
+            "GOTRUE_SMTP_PORT",
+            "GOTRUE_SMTP_USER",
+            "GOTRUE_SMTP_PASS",
+            "GOTRUE_SMTP_ADMIN_EMAIL",
+            "GOTRUE_ADMIN_EMAIL",
+            "GOTRUE_ADMIN_PASSWORD",
+            "AI_OPENAI_API_KEY"
+          ]
+        },
+        "placeholder_secrets": [
+          "appflowy-secret"
+        ],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/productivity/appflowy/search",
@@ -2901,7 +4436,35 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "appflowy-search",
+        "port": 4002,
+        "protocol": "tcp",
+        "label": "appflowy-search",
+        "workload": {
+          "kind": "Deployment",
+          "name": "appflowy-search",
+          "container": "appflowy-search"
+        },
+        "secret": {
+          "name": "appflowy-secret",
+          "keys": [
+            "DATABASE_URL",
+            "AI_OPENAI_API_KEY",
+            "GOTRUE_JWT_SECRET"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/productivity/appflowy/web",
@@ -2941,7 +4504,28 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "appflowy-web",
+        "port": 80,
+        "protocol": "tcp",
+        "label": "appflowy-web",
+        "workload": {
+          "kind": "Deployment",
+          "name": "appflowy-web",
+          "container": "appflowy-web"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/productivity/appflowy/worker",
@@ -2981,7 +4565,40 @@
       "curated": false,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "appflowy-worker",
+        "workload": {
+          "kind": "Deployment",
+          "name": "appflowy-worker",
+          "container": "appflowy-worker"
+        },
+        "secret": {
+          "name": "appflowy-secret",
+          "keys": [
+            "DATABASE_URL",
+            "APPFLOWY_S3_ACCESS_KEY",
+            "APPFLOWY_S3_SECRET_KEY",
+            "SMTP_HOST",
+            "SMTP_PORT",
+            "SMTP_USER",
+            "SMTP_ADMIN_EMAIL",
+            "SMTP_PASS"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/sealed-secrets",
@@ -3029,7 +4646,24 @@
       "licence": "Apache-2.0",
       "notes": "Encrypted SealedSecrets committed next to the overlay; the floor for secrets in git from Walk. The controller key is the single point of loss — its backup is a devops gate.",
       "curated": true,
-      "namespace_how": "remote"
+      "namespace_how": "remote",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/security/external-secrets",
@@ -3071,7 +4705,24 @@
       "curated": true,
       "psa_level": "unknown",
       "namespace": "external-secrets",
-      "namespace_how": "declares"
+      "namespace_how": "declares",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/security/openbao/eso-store",
@@ -3108,7 +4759,24 @@
       "curated": false,
       "psa_level": "n/a",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/security/openbao/follow-namespace",
@@ -3145,7 +4813,24 @@
       "curated": false,
       "psa_level": "n/a",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/security/openbao",
@@ -3193,7 +4878,28 @@
       "curated": true,
       "psa_level": "restricted",
       "namespace": "security",
-      "namespace_how": "sets"
+      "namespace_how": "sets",
+      "wiring": {
+        "service": "openbao-internal",
+        "port": 8200,
+        "protocol": "http",
+        "label": "openbao",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "openbao",
+          "container": "openbao"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "openbao-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/security/openbao/raft-snapshot",
@@ -3233,7 +4939,33 @@
       "curated": false,
       "psa_level": "restricted",
       "namespace": "security",
-      "namespace_how": "sets"
+      "namespace_how": "sets",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "openbao-raft-snapshot",
+        "workload": {
+          "kind": "CronJob",
+          "name": "openbao-raft-snapshot",
+          "container": "snapshot"
+        },
+        "secret": {
+          "name": "openbao-snapshot-token",
+          "keys": [
+            "token"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/security/openbao/seal-static",
@@ -3270,7 +5002,24 @@
       "curated": false,
       "psa_level": "n/a",
       "namespace": "security",
-      "namespace_how": "sets"
+      "namespace_how": "sets",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/security/vault",
@@ -3311,7 +5060,28 @@
       "curated": false,
       "psa_level": "privileged",
       "namespace": "security",
-      "namespace_how": "sets"
+      "namespace_how": "sets",
+      "wiring": {
+        "service": "vault",
+        "port": 8200,
+        "protocol": "http",
+        "label": "vault",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "vault",
+          "container": "vault"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "vault-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/storage/longhorn",
@@ -3352,7 +5122,24 @@
       "licence": "Apache-2.0",
       "notes": "Not for k3d; single replica on a Pi, three replicas from Walk. Privileged by design — runs in its own namespace at its own PSA level.",
       "curated": true,
-      "namespace_how": "remote"
+      "namespace_how": "remote",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/surveys/formbricks",
@@ -3395,6 +5182,40 @@
       ],
       "licence": "AGPL-3.0",
       "notes": "In-product feedback capture for forjate:ux. Free-text answers are pii until proven otherwise.",
+      "wiring": {
+        "service": "formbricks",
+        "port": 3000,
+        "protocol": "http",
+        "label": "formbricks",
+        "workload": {
+          "kind": "Deployment",
+          "name": "formbricks",
+          "container": "formbricks"
+        },
+        "secret": {
+          "name": "formbricks-secret",
+          "keys": [
+            "DATABASE_URL",
+            "NEXTAUTH_SECRET",
+            "ENCRYPTION_KEY"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": {
+          "name": "formbricks-config",
+          "literals": [
+            "WEBAPP_URL=http://formbricks:3000",
+            "NEXTAUTH_URL=http://formbricks:3000"
+          ]
+        },
+        "ingress": "formbricks-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -3438,7 +5259,28 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": "whoami-service",
+        "port": 80,
+        "protocol": "tcp",
+        "label": "whoami",
+        "workload": {
+          "kind": "Deployment",
+          "name": "whoami-deployment",
+          "container": "whoami"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "whoami-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "apps/workflows/temporal",
@@ -3486,7 +5328,34 @@
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "temporal-server",
+        "workload": {
+          "kind": "Deployment",
+          "name": "temporal-server",
+          "container": "temporal-server"
+        },
+        "secret": {
+          "name": "postgres-secret",
+          "keys": [
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "temporal-ui-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "bundles/temporal-stack",
@@ -3527,6 +5396,34 @@
       ],
       "licence": "MIT",
       "notes": "Temporal plus its Postgres, wired. The default way to take durable-workflows.",
+      "wiring": {
+        "service": "temporal-server",
+        "port": 7233,
+        "protocol": "grpc",
+        "label": "temporal-server",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "postgres",
+          "container": "postgres"
+        },
+        "secret": {
+          "name": "postgres-secret",
+          "keys": [
+            "POSTGRES_DB",
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "temporal-ui-ingress",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      },
       "curated": true,
       "psa_level": "baseline",
       "namespace": null,
@@ -3563,7 +5460,24 @@
       "curated": true,
       "psa_level": "n/a",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "pvs/local-storage",
@@ -3596,7 +5510,24 @@
       "curated": true,
       "psa_level": "n/a",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "pvs/nfs-storage",
@@ -3630,7 +5561,24 @@
       "curated": true,
       "psa_level": "n/a",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "rbac",
@@ -3668,7 +5616,24 @@
       "curated": true,
       "psa_level": "n/a",
       "namespace": null,
-      "namespace_how": null
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
     }
   ],
   "overrides_without_component": []

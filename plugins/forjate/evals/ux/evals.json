@@ -55,14 +55,14 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
-          "expr": "'apps/surveys/formbricks' not in choices('crawl') and setting('feedback_capture','crawl') in ('verify-job-log','none')",
+          "expr": "'feedback' not in choice_capabilities('crawl') and setting('feedback_capture','crawl') in ('verify-job-log','none')",
           "text": "no feedback widget at Crawl"
         },
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
-          "expr": "setting('feedback_capture','walk') in ('formbricks','review-queue-flag') and (setting('feedback_capture','walk') != 'formbricks' or 'apps/surveys/formbricks' in choices('walk'))",
-          "text": "feedback captured on the page from Walk, Formbricks listed when chosen"
+          "expr": "setting('feedback_capture','walk') in ('formbricks','review-queue-flag') and (setting('feedback_capture','walk') == 'review-queue-flag' or 'feedback' in choice_capabilities('walk'))",
+          "text": "feedback captured on the page from Walk, the feedback component listed when chosen"
         },
         {
           "type": "yaml_expr",
@@ -99,6 +99,30 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
           "expr": "any(has('open-webui|open webui|chat', a.get('option')) for a in alts())",
           "text": "a chat front-end is a rejected alternative, with a reason"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "setting('review_mode','walk') == 'evidence-first'",
+          "text": "the clerk's review shows evidence before the verdict"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "setting('review_independence','walk') in ('independent', 'sequential') and (setting('review_independence','walk') == 'independent' or has('independ|regulated|irreversible', st('walk').get('rationale')))",
+          "text": "review independence decided for a regulated decision"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "len(listed(setting('control_levels','walk'))) >= 2 and any(has('clerk', l) and has('approve', l) for l in listed(setting('control_levels','walk')))",
+          "text": "control levels per persona: the clerk approves"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
+          "expr": "setting('autonomy','crawl') == 'assistive' and setting('autonomy','walk') in ('assistive','semi-autonomous')",
+          "text": "autonomy copied from the plan's ceiling"
         }
       ]
     },
@@ -162,7 +186,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
-          "expr": "setting('feedback_capture','walk') == 'in-channel' and 'apps/surveys/formbricks' not in choices()",
+          "expr": "setting('feedback_capture','walk') == 'in-channel' and 'feedback' not in choice_capabilities()",
           "text": "feedback in the channel, not a web survey"
         },
         {
@@ -200,6 +224,24 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
           "expr": "any(has('group|private|visib', q.get('question')) or has('review ui|ui of their own|agents', q.get('question')) for q in oq())",
           "text": "asks about group visibility or a review UI for the agents"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "listed(setting('disclosure','walk')) and not any(txt(l) == 'none' for l in listed(setting('disclosure','walk')))",
+          "text": "customers are told an agent is involved and who is accountable (disclosure)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "any(has('agent|support', l) and has('operate|approve|direct', l) for l in listed(setting('control_levels','walk')))",
+          "text": "the support agent's control level stated"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "setting('review_mode','walk') in ('evidence-first', 'n-a')",
+          "text": "the handoff carries evidence first, or no human decision exists"
         }
       ]
     },
@@ -309,7 +351,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
-          "expr": "'apps/ai-models/open-webui' not in choices() and 'apps/surveys/formbricks' not in choices()",
+          "expr": "not ({'chat-ui', 'feedback'} & set(choice_capabilities()))",
           "text": "no UI or survey component"
         },
         {

@@ -73,10 +73,10 @@ jobs:
       - name: Tooling tests
         run: poetry run pytest -q plugins/forjate/scripts/builder/tests
 
-      - name: Skill lint (warn mode)
-        # Flags catalog component paths hard-coded in SKILL.md and references outside the
-        # generated catalog-snapshot.md. Warn mode until #27 rewrites the skills by capability.
-        run: poetry run python plugins/forjate/scripts/builder/skill-lint.py --quiet
+      - name: Skill lint
+        # Fails on a catalog component path hard-coded in a SKILL.md or a reference outside the
+        # generated catalog-snapshot.md: skills ask the catalog by capability (#23, #27).
+        run: poetry run python plugins/forjate/scripts/builder/skill-lint.py --strict --quiet
 
       - name: Lint context packs
         run: |

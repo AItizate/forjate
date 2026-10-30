@@ -64,6 +64,11 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: PostgreSQL
     notes: Default system of record. Single StatefulSet; move to an operator (CNPG) at Run for HA/PITR. Mounts `postgres-secret`.
+    wiring:
+      protocol: postgresql
+      sizing:
+        requests: {cpu: 100m, memory: 256Mi}
+        limits: {cpu: '1', memory: 1Gi}
   apps/databases/redis:
     stages: [crawl, walk, run]
     capabilities: [session-memory, cache]
@@ -76,6 +81,11 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: BSD-3 (7.2) / RSALv2+SSPL (7.4+)
     notes: Short-term memory, rate limiting and locks; memory-bound, name the eviction policy. Check the image tag against the licence change.
+    wiring:
+      protocol: redis
+      sizing:
+        requests: {cpu: 50m, memory: 64Mi}
+        limits: {cpu: 500m, memory: 256Mi}
   apps/databases/mongodb:
     stages: [crawl, walk]
     capabilities: [episodic-memory]
@@ -88,6 +98,10 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: SSPL
     notes: Document-shaped chat state; SSPL is often disallowed in corporate packs. `mongodb/replica-set` adds the oplog CDC needs. Mounts `mongodb-secret`.
+    wiring:
+      sizing:
+        requests: {cpu: 100m, memory: 128Mi}
+        limits: {cpu: 500m, memory: 512Mi}
   apps/databases/mariadb:
     stages: [crawl, walk, run]
     capabilities: [working-memory, episodic-memory]
@@ -110,6 +124,7 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: Apache-2.0
     notes: Embedded-style vector store served over HTTP; single writer, so concurrent ingestion is the limit. Cheapest semantic memory for Crawl.
+    wiring: {protocol: http}
   apps/databases/milvus:
     stages: [walk, run]
     capabilities: [semantic-memory]
@@ -142,6 +157,14 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: AGPL-3.0
     notes: A one-server Tenant through the operator in base; no redundancy. Run is the same Tenant with more servers, or an S3 service within residency. Buckets per kind (inbox, parsed, audit, seed).
+    wiring:
+      service: minio
+      port: 9000
+      protocol: s3
+      label: minio
+      secret:
+        name: minio-storage-configuration
+        keys: [config.env]
   apps/minio/dev:
     stages: [crawl]
     capabilities: [artifact-store]
@@ -152,6 +175,18 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: AGPL-3.0
     notes: A bare Pod for k3d; dies with the environment.
+    wiring:
+      service: minio
+      port: 9000
+      protocol: s3
+      label: minio
+      extra_ports: {console: 9090}
+      secret:
+        name: minio-secret
+        keys: [MINIO_ROOT_USER, MINIO_ROOT_PASSWORD]
+      sizing:
+        requests: {cpu: 100m, memory: 256Mi}
+        limits: {cpu: '1', memory: 1Gi}
   apps/ai-models/ollama:
     stages: [crawl, walk]
     capabilities: [inference]
@@ -164,6 +199,11 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: MIT
     notes: Zero-egress inference. CPU is fine for Crawl latency; a GPU node from Walk. Each model has its own licence.
+    wiring:
+      protocol: http
+      sizing:
+        requests: {cpu: 250m, memory: 1Gi}
+        limits: {cpu: '2', memory: 4Gi}
   apps/ai-models/vllm:
     stages: [walk, run]
     capabilities: [inference]
@@ -175,6 +215,7 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: Apache-2.0
     notes: The production-shaped local inference server; concurrency and pinned model versions. Model licence separate.
+    wiring: {protocol: http}
   apps/ai-models/litellm:
     stages: [crawl, walk, run]
     capabilities: [llm-gateway]
@@ -187,6 +228,7 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: MIT
     notes: One OpenAI-compatible endpoint in front of local and external models; routing, per-key spend, where egress policy is enforced. Provider API keys arrive as a Secret.
+    wiring: {protocol: http}
   apps/ai-models/open-webui:
     stages: [crawl, walk]
     capabilities: [chat-ui]
@@ -196,6 +238,7 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: BSD-3 (with branding clause)
     notes: Fastest human-facing surface for a Crawl demo; speaks to LiteLLM or Ollama.
+    wiring: {protocol: http}
   apps/brokers/nats:
     stages: [crawl, walk, run]
     capabilities: [message-broker]
@@ -208,6 +251,7 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: Apache-2.0
     notes: Lightweight (20 MB); JetStream gives persistence and replay. Default broker for event-driven use cases. Mounts `nats-secret`.
+    wiring: {protocol: nats}
   apps/brokers/rabbitmq:
     stages: [walk, run]
     capabilities: [message-broker]
@@ -252,6 +296,7 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: MIT
     notes: Temporal plus its Postgres, wired. The default way to take durable-workflows.
+    wiring: {service: temporal-server, protocol: grpc}
   apps/document-processing/docling:
     stages: [crawl, walk, run]
     capabilities: [document-parsing]
@@ -263,6 +308,11 @@ components:
     data_classes: [internal, pii, financial, health]
     licence: MIT
     notes: PDF/Office to structured text with tables, layout and OCR. Stateless CPU image; slow but dependable for Crawl.
+    wiring:
+      protocol: http
+      sizing:
+        requests: {cpu: 250m, memory: 1Gi}
+        limits: {cpu: '2', memory: 3Gi}
   apps/cdc/debezium-postgres-nats:
     stages: [walk, run]
     capabilities: [cdc]
@@ -369,6 +419,7 @@ components:
     data_classes: [internal, pii]
     licence: MIT
     notes: Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature.
+    wiring: {protocol: http}
   apps/continuous-delivery/argocd:
     stages: [walk, run]
     capabilities: [gitops]
@@ -477,6 +528,10 @@ components:
     data_classes: [internal, pii, financial]
     licence: Apache-2.0
     notes: Public ingress without open ports; two replicas. Traffic transits Cloudflare — a hop the compliance record names for residency and for health data.
+    wiring:
+      secret:
+        name: cloudflare-tunnel-secret
+        keys: [TUNNEL_TOKEN]
   apps/iac/crossplane:
     stages: [run]
     capabilities: [cloud-resources]
@@ -510,6 +565,11 @@ components:
     data_classes: [internal, pii]
     licence: AGPL-3.0
     notes: In-product feedback capture for forjate:ux. Free-text answers are pii until proven otherwise.
+    wiring:
+      protocol: http
+      config:
+        name: formbricks-config
+        literals: ['WEBAPP_URL=http://formbricks:3000', 'NEXTAUTH_URL=http://formbricks:3000']
   apps/n8n:
     stages: [crawl, walk]
     capabilities: [low-code-automation]

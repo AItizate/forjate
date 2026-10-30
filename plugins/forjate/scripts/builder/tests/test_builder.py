@@ -798,3 +798,40 @@ def test_walk_overlay_deletes_what_crawl_ran_and_walk_does_not():
     assert any(p["target"] == {"kind": "Pod", "name": "minio", "namespace": "uc-invoice-intake"} for p in deletes)
     walk = [p for p in (USECASES / "invoice-intake" / "stages" / "walk").rglob("*minio-secret*") if p.suffix != ".env"]
     assert walk == [], "the dev object store's Secret left Walk with it"
+
+
+def test_assembly_names_no_component_and_wires_from_the_catalog():
+    src = (BUILDER.parent.parent / "skills" / "kustomize" / "scripts" / "assemble.py").read_text()
+    assert "COMPONENTS" not in src.replace("CONTRACT_COMPONENT", "")
+    assert not re.search(r"apps/(databases|brokers|ai-models|minio|document-processing|surveys|auth)/", src)
+    catalog = json.loads(CATALOG.read_text())
+    by_path = {c["path"]: c for c in catalog["components"]}
+    # derived from the manifests: the Service, its port, the pod label, the Secret the pods reference and its keys
+    w = by_path["apps/databases/postgres"]["wiring"]
+    assert (w["service"], w["port"], w["label"]) == ("postgres", 5432, "postgres")
+    assert w["secret"]["name"] == "postgres-secret" and set(w["secret"]["keys"]) == {"POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD"}
+    assert w["protocol"] == "postgresql"  # curated: the manifests do not say
+    assert w["workload"] == {"kind": "StatefulSet", "name": "postgres", "container": "postgres"}
+    # a bare Pod with no Service: the overlay adds one, mounts the curated Secret, swaps the hostPath
+    w = by_path["apps/minio/dev"]["wiring"]
+    assert w["workload"]["kind"] == "Pod" and w["hostpath_volumes"] and not w["secret_mounted"] and w["service"] == "minio"
+    # a GPU limit on an optional-GPU component is what a laptop overlay drops; a required one stays
+    assert by_path["apps/ai-models/ollama"]["wiring"]["gpu_limit"] and by_path["apps/ai-models/ollama"]["gpu_required"] == "optional"
+    assert by_path["apps/ai-models/vllm"]["wiring"]["gpu_limit"] and by_path["apps/ai-models/vllm"]["gpu_required"] == "required"
+    # shared infrastructure's own placeholder Secret is not the overlay's to supply
+    assert by_path["apps/monitoring/otel-collector"]["wiring"]["secret"] is None
+    assert by_path["apps/cloudflare-tunnel"]["wiring"]["secret"]["keys"] == ["TUNNEL_TOKEN"]
+
+
+def test_wiring_override_contradicting_the_tree_is_a_compile_error():
+    wc = _wiki_compile()
+    tree = {"services": [{"name": "postgres", "ports": [{"name": None, "port": 5432}], "selector": {"app": "postgres"}}],
+            "workloads": [{"kind": "StatefulSet", "name": "postgres", "container": "postgres", "ports": [5432], "gpu": False, "hostpath": False, "hostpath_volumes": [], "has_resources": True}],
+            "secret_refs": ["postgres-secret"], "configmap_refs": [], "shipped_secrets": {}, "shipped_configmaps": [], "ingresses": [],
+            "example_keys": {"postgres-secret": ["POSTGRES_PASSWORD"]}, "example_literals": {}, "ref_keys": {}}
+    extra = {"namespace": None}
+    errors = wc.merge_wiring("apps/x", extra, tree, {"wiring": {"service": "other"}})
+    assert any("wiring.service 'other'" in e for e in errors)
+    extra = {"namespace": None}
+    assert wc.merge_wiring("apps/x", extra, tree, {"wiring": {"protocol": "postgresql"}}) == []
+    assert extra["wiring"]["secret"] == {"name": "postgres-secret", "keys": ["POSTGRES_PASSWORD"]} and extra["wiring"]["secret_mounted"]

@@ -54,11 +54,6 @@ patches:
     name: postgres-secret
     namespace: uc-support-copilot
   patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: postgres-secret\n"
-- target:
-    kind: Secret
-    name: litellm-secret
-    namespace: uc-support-copilot
-  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: litellm-secret\n"
 - path: patches/cloudflare-tunnel-psa-patch.yaml
   target:
     kind: Namespace

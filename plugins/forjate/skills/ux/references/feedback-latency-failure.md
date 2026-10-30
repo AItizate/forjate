@@ -5,12 +5,12 @@
 | Surface | `feedback_capture` | How |
 |---------|--------------------|-----|
 | `cli` / `none` (Crawl) | `verify-job-log` | the requester reads the exceptions and the KPI line; the labels they correct are the feedback |
-| `custom-web`, `open-webui` | `formbricks` (`apps/surveys/formbricks` in `choice`, Walk and Run) | one question after the action that matters (was the extraction right? was this answer useful?), optional free text, skippable, weekly summary to the requester |
+| `custom-web`, the `chat-ui` component | the `feedback` component (its catalog name; in `choice` from the stage the catalog marks fit) | one question after the action that matters (was the extraction right? was this answer useful?), optional free text, skippable, weekly summary to the requester |
 | `chat-channel` | `in-channel` | an inline reaction under each answer (thumbs, a keyboard), written to the outcome row the KPI query reads; never a link to a survey page |
 | a review queue | `review-queue-flag` | a "wrong extraction" or "bad answer" flag on the item, which is also the eval corpus growing |
 | `existing-tool`, `api-only` | `none` or what the tool offers | say which |
 
-One question per interaction. The response rate is a `metric` gate (`feedback_response_rate`), the negative rate another (`feedback_negative_rate`); both are read from the outcome table, and the quality record's weekly human sample is what keeps a thumbs rate honest. Formbricks is never chosen at Crawl (catalog fitness walk and run, and nobody to ask) and never for a chat user.
+One question per interaction. The response rate is a `metric` gate (`feedback_response_rate`), the negative rate another (`feedback_negative_rate`); both are read from the outcome table, and the quality record's weekly human sample is what keeps a thumbs rate honest. The feedback component is never chosen at Crawl (the catalog marks it fit from Walk, and nobody is there to ask) and never for a chat user.
 
 ## Latency budget
 
@@ -23,7 +23,7 @@ Write a sentence with numbers and a behaviour at the limit:
 | chat | typing indicator immediately; first reply within 5 s; per-turn p95 from the AI-engineering `budget:` guardrail (often 20 s) | past the budget the bot says it is still checking, then hands over with a reason |
 | token stream | first token within 2 s, then streaming | a stall past 10 s becomes the chat limit above |
 
-`streaming`: `none` for batch and queues, `typing-indicator` for chat channels (Telegram and Slack support it, email does not), `token-stream` only where the surface renders it (Open WebUI, a custom page over LiteLLM). The AI-engineering record's "40 s per invoice on CPU" is not a latency problem for a queue and is a disaster for a chat; say which shape you are in.
+`streaming`: `none` for batch and queues, `typing-indicator` for chat channels (Telegram and Slack support it, email does not), `token-stream` only where the surface renders it (the chat-ui component, a custom page over the gateway). The AI-engineering record's "40 s per invoice on CPU" is not a latency problem for a queue and is a disaster for a chat; say which shape you are in.
 
 ## Failure catalogue
 

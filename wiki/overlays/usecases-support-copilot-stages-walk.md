@@ -72,7 +72,6 @@ summary_source: derived
 - `patches/replay-job-env-patch.yaml → Job/replay-job (ns: uc-support-copilot)`
 - `patches/copilot-validate-env-patch.yaml → Job/copilot-validate (ns: uc-support-copilot)`
 - `inline → Secret/postgres-secret (ns: uc-support-copilot)`
-- `inline → Secret/litellm-secret (ns: uc-support-copilot)`
 - `patches/cloudflare-tunnel-psa-patch.yaml → Namespace/cloudflare-tunnel`
 - `patches/argocd-psa-patch.yaml → Namespace/argocd`
 - `patches/longhorn-system-psa-patch.yaml → Namespace/longhorn-system`

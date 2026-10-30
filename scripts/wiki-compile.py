@@ -84,6 +84,7 @@ class Page:
     pod_levels: list[str] = field(default_factory=list)   # PSA level each scanned pod template meets
     resource_namespaces: list[str] = field(default_factory=list)  # metadata.namespace of the listed resources
     declared_namespaces: list[str] = field(default_factory=list)  # Namespace objects it ships
+    wiring_tree: dict = field(default_factory=dict)       # services, workloads, secrets, configmaps, ingresses read from the manifests
     parent: str | None = None      # set when nested inside another kustomization
     summary: str = ""             # one-liner used by index.md
     consumed_by: list[str] = field(default_factory=list)  # computed backlinks
@@ -234,6 +235,83 @@ def scan_pods_and_namespaces(files: list[Path]) -> tuple[list[str], list[str], l
     return levels, sorted(namespaces), sorted(declared)
 
 
+def scan_wiring(files: list[Path], directory: Path) -> dict:
+    """What an overlay needs to wire a component, read from the manifests it lists: its Services
+    (name, ports, pod selector), its workloads (kind, name, first container, ports, GPU request,
+    hostPath volumes), the Secrets and ConfigMaps its pods reference, the Secrets and ConfigMaps
+    it ships (placeholders the overlay replaces), its Ingresses, and the keys its `*.env.example`
+    files and unlisted `secret*.yaml` document for the Secrets the overlay must supply."""
+    out = {"services": [], "workloads": [], "secret_refs": [], "configmap_refs": [], "shipped_secrets": {},
+           "shipped_configmaps": [], "ingresses": [], "example_keys": {}, "example_literals": {}, "ref_keys": {}}
+
+    def ordered_keys(doc: dict) -> list[str]:
+        keys = list((doc.get("data") or {}).keys()) + list((doc.get("stringData") or {}).keys())
+        return list(dict.fromkeys(str(k) for k in keys))
+    for f in sorted(set(files)):
+        if f.suffix not in (".yaml", ".yml"):
+            continue
+        try:
+            docs = list(yaml.safe_load_all(f.read_text(encoding="utf-8")))
+        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            continue
+        for doc in docs:
+            if not isinstance(doc, dict) or not isinstance(doc.get("kind"), str):
+                continue
+            kind, meta, spec = doc["kind"], doc.get("metadata") or {}, doc.get("spec") or {}
+            name = meta.get("name")
+            if kind == "Service" and name:
+                ports = [{"name": p.get("name"), "port": p.get("port")} for p in spec.get("ports") or [] if isinstance(p, dict)]
+                out["services"].append({"name": name, "ports": ports, "selector": spec.get("selector") or {}})
+            elif kind == "Secret" and name:
+                out["shipped_secrets"][name] = ordered_keys(doc)
+            elif kind == "ConfigMap" and name:
+                out["shipped_configmaps"].append(name)
+            elif kind == "Ingress" and name:
+                out["ingresses"].append(name)
+            ps = pod_spec(doc)
+            if isinstance(ps, dict) and name:
+                cts = ps.get("containers") or []
+                first = cts[0] if cts else {}
+                res = first.get("resources") or {}
+                w = {"kind": kind, "name": name, "container": first.get("name"),
+                     "ports": [p.get("containerPort") for p in first.get("ports") or [] if isinstance(p, dict)],
+                     "gpu": any("nvidia.com/gpu" in (res.get(k) or {}) for k in ("limits", "requests")),
+                     "hostpath": any("hostPath" in v for v in ps.get("volumes") or [] if isinstance(v, dict)),
+                     "hostpath_volumes": [{"index": i, "name": v.get("name")} for i, v in enumerate(ps.get("volumes") or []) if isinstance(v, dict) and "hostPath" in v],
+                     "has_resources": bool(res)}
+                out["workloads"].append(w)
+                for ct in cts:
+                    for e in ct.get("envFrom") or []:
+                        if isinstance(e, dict) and (e.get("secretRef") or {}).get("name"):
+                            out["secret_refs"].append(e["secretRef"]["name"])
+                        if isinstance(e, dict) and (e.get("configMapRef") or {}).get("name"):
+                            out["configmap_refs"].append(e["configMapRef"]["name"])
+                    for e in ct.get("env") or []:
+                        ref = ((e.get("valueFrom") or {}).get("secretKeyRef") or {}) if isinstance(e, dict) else {}
+                        if ref.get("name"):
+                            out["secret_refs"].append(ref["name"])
+                            if ref.get("key") and ref["key"] not in out["ref_keys"].setdefault(ref["name"], []):
+                                out["ref_keys"][ref["name"]].append(str(ref["key"]))
+    out["secret_refs"] = list(dict.fromkeys(out["secret_refs"]))
+    out["configmap_refs"] = list(dict.fromkeys(out["configmap_refs"]))
+    # keys the component documents for the Secrets and ConfigMaps the overlay supplies
+    for f in sorted(directory.glob("*.env.example")):
+        lines = [ln.strip() for ln in f.read_text(encoding="utf-8", errors="replace").splitlines()
+                 if ln.strip() and not ln.lstrip().startswith("#") and "=" in ln]
+        out["example_keys"][f.name[: -len(".env.example")]] = [ln.split("=", 1)[0].strip() for ln in lines]
+        out["example_literals"][f.name[: -len(".env.example")]] = lines
+    for f in sorted(directory.glob("secret*.yaml")):
+        if f in set(files):
+            continue
+        try:
+            for doc in yaml.safe_load_all(f.read_text(encoding="utf-8")):
+                if isinstance(doc, dict) and doc.get("kind") == "Secret" and (doc.get("metadata") or {}).get("name"):
+                    out["example_keys"].setdefault(doc["metadata"]["name"], ordered_keys(doc))
+        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            continue
+    return out
+
+
 def collect_refs(page: Page, directory: Path, doc: dict, page_dirs: set[Path],
                  files: list[Path], via: str | None = None) -> None:
     """Record what a kustomization references. A directory inside the page that
@@ -314,6 +392,7 @@ def extract(page: Page, page_dirs: set[Path]) -> None:
     helm_ns = {h["namespace"] for h in doc.get("helmCharts") or [] if isinstance(h, dict) and h.get("namespace")}
     page.pod_levels, page.resource_namespaces, page.declared_namespaces = scan_pods_and_namespaces(files)
     page.resource_namespaces = sorted(set(page.resource_namespaces) | helm_ns)
+    page.wiring_tree = scan_wiring(files, page.source)
 
 
 # Directories that are structural parts of a kustomization, never pages of their own.
@@ -811,6 +890,119 @@ def derive_psa_and_namespace(pages: list[Page]) -> dict[str, dict]:
     return out
 
 
+# Port names that spell their protocol; anything else (client, api, ui, metrics) is not a protocol.
+PORT_NAME_PROTOCOLS = {"http", "https", "grpc", "amqp", "mongodb", "postgresql", "redis", "nats", "mqtt", "s3", "tcp", "udp"}
+
+
+def derive_wiring(pages: list[Page]) -> dict[str, dict]:
+    """Per component page: the wiring facts aggregated over the sub-components it composes, in
+    page order (the parent's manifests first, then each child's)."""
+    by_src = {rel(p.source): p for p in pages}
+    memo: dict[str, dict] = {}
+
+    def walk(src: str, seen: frozenset) -> dict:
+        if src in memo:
+            return memo[src]
+        p = by_src[src]
+        t = {k: (list(v) if isinstance(v, list) else dict(v)) for k, v in p.wiring_tree.items()} if p.wiring_tree else scan_wiring([], p.source)
+        for ref in p.local_refs:
+            if ref in by_src and ref not in seen and by_src[ref].kind == "component":
+                c = walk(ref, seen | {src})
+                for k in ("services", "workloads", "secret_refs", "configmap_refs", "shipped_configmaps", "ingresses"):
+                    t[k] = t[k] + [x for x in c[k] if x not in t[k]]
+                for k in ("shipped_secrets", "example_keys", "example_literals", "ref_keys"):
+                    t[k] = {**c[k], **t[k]}
+        memo[src] = t
+        return t
+
+    return {rel(p.source): walk(rel(p.source), frozenset()) for p in pages if p.kind == "component"}
+
+
+def merge_wiring(path: str, extra: dict, t: dict, cur: dict) -> list[str]:
+    """Fill `wiring` from the tree, with the curated `wiring:` of catalog-overrides.yaml winning where the
+    manifests cannot say (the protocol, laptop sizing, a Secret the component takes but documents nowhere,
+    the Service of a bundle that ships several). A curated service or secret the tree contradicts is an error.
+
+    service, port, label: the component's Service (the one named like the component, else the only one),
+    its first port, its pod selector's `app`. protocol: the port's name when it spells one, else curated,
+    else tcp. workload: the first Deployment, StatefulSet or Pod. secret: the Secret the overlay supplies,
+    the first one a pod references that the component does not ship as a shipped-and-kept object, with the
+    keys the component documents (a shipped placeholder, an unlisted secret.yaml, a *.env.example).
+    placeholder_secrets: Secrets the component ships that a pod references (replaced from Walk).
+    config: a ConfigMap a pod references and nobody ships, with the literals its *.env.example documents.
+    ingress: the first Ingress. gpu_limit and hostpath: what a Crawl overlay has to patch away on a laptop."""
+    errors: list[str] = []
+    cw = dict(cur.get("wiring") or {})
+    short = path.rsplit("/", 1)[-1]
+    services = t.get("services") or []
+    svc = None
+    if cw.get("service"):
+        svc = next((x for x in services if x["name"] == cw["service"]), None)
+        if services and svc is None:
+            errors.append(f"{path}: wiring.service '{cw['service']}' but its manifests ship {[x['name'] for x in services]}")
+    elif len(services) == 1:
+        svc = services[0]
+    elif services:
+        svc = next((x for x in services if x["name"] in (short, f"{short}-service", f"{short}-svc") or (x.get("selector") or {}).get("app") in (short, f"{short}-service")), None)
+    port = cw.get("port")
+    port_name = None
+    if svc and svc["ports"]:
+        chosen = next((p for p in svc["ports"] if port is not None and p.get("port") == port), svc["ports"][0])
+        port = port if port is not None else chosen.get("port")
+        port_name = chosen.get("name")
+    protocol = cw.get("protocol") or (port_name if port_name in PORT_NAME_PROTOCOLS else None) or "tcp"
+    label = cw.get("label") or ((svc or {}).get("selector") or {}).get("app") or ((t.get("workloads") or [{}])[0].get("name") if t.get("workloads") else None)
+    workloads = t.get("workloads") or []
+    main = next((w for w in workloads if w["kind"] in ("Deployment", "StatefulSet")), workloads[0] if workloads else None)
+    if cw.get("workload"):
+        main = next((w for w in workloads if w["name"] == cw["workload"]), main)
+    shipped = t.get("shipped_secrets") or {}
+    placeholders = [n for n in (t.get("secret_refs") or []) if n in shipped]
+    secret = None
+    if "secret" in cw:
+        secret = cw["secret"]
+        if secret and secret.get("name") and (t.get("secret_refs") or []) and secret["name"] not in t["secret_refs"] and main is not None and main["kind"] != "Pod":
+            errors.append(f"{path}: wiring.secret '{secret['name']}' but its pods reference {t['secret_refs']}")
+    else:
+        for n in t.get("secret_refs") or []:
+            if n in shipped and extra.get("namespace"):
+                continue  # shared infrastructure ships its own credentials in its own namespace; not the overlay's to supply
+            keys = (t.get("example_keys") or {}).get(n) or shipped.get(n) or (t.get("ref_keys") or {}).get(n)
+            if keys:
+                secret = {"name": n, "keys": list(keys)}
+                break
+        if secret is None:
+            own = [n for n in t.get("secret_refs") or [] if not (n in shipped and extra.get("namespace"))]
+            if own:
+                secret = {"name": own[0], "keys": []}  # the overlay supplies it; the keys are curated or written by hand
+    config = None
+    if "config" in cw:
+        config = cw["config"]
+    else:
+        for n in t.get("configmap_refs") or []:
+            if n not in (t.get("shipped_configmaps") or []):
+                config = {"name": n, "literals": list((t.get("example_literals") or {}).get(n) or [])}
+                break
+    extra["wiring"] = {
+        "service": (svc or {}).get("name") or cw.get("service"),
+        "port": port,
+        "protocol": protocol,
+        "label": label,
+        "workload": {"kind": main["kind"], "name": main["name"], "container": main.get("container")} if main else None,
+        "secret": secret,
+        "placeholder_secrets": placeholders,
+        "config": config,
+        "ingress": cw.get("ingress") or ((t.get("ingresses") or [None])[0]),
+        "gpu_limit": any(w.get("gpu") for w in workloads),
+        "hostpath": any(w.get("hostpath") for w in workloads),
+        "hostpath_volumes": [dict(v, workload=w["name"], kind=w["kind"]) for w in workloads for v in w.get("hostpath_volumes") or []],
+        "secret_mounted": bool(secret) and secret.get("name") in (t.get("secret_refs") or []),
+        "sizing": cw.get("sizing"),
+        "extra_ports": cw.get("extra_ports") or {},
+    }
+    return errors
+
+
 def merge_psa_and_namespace(path: str, extra: dict, d: dict, cur: dict) -> list[str]:
     """Fill `psa_level`, `namespace` and `namespace_how` from the tree; a curated value wins, but a
     curation the tree contradicts is an error, so a component that changes its namespace or gains
@@ -874,6 +1066,7 @@ def build_catalog(pages: list[Page], compiled_at: str) -> dict:
     records = []
     errors = []
     derived = derive_psa_and_namespace(pages)
+    wiring = derive_wiring(pages)
     for p in pages:
         if p.kind != "component":
             continue
@@ -903,6 +1096,7 @@ def build_catalog(pages: list[Page], compiled_at: str) -> dict:
         if extra["secrets"].get("mechanism") and "secrets-mechanism" not in (extra.get("capabilities") or []):
             errors.append(f"{path}: secrets.mechanism is only for components with the secrets-mechanism capability")
         errors += merge_psa_and_namespace(path, extra, derived[rel(p.source)], curated.get(path) or {})
+        errors += merge_wiring(path, extra, wiring[rel(p.source)], curated.get(path) or {})
         rec.update(extra)
         records.append(rec)
     if errors:

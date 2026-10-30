@@ -1,0 +1,15 @@
+# Laptop sizing for apps/minio/dev (catalog defaults are sized for tenants; strategic merge on the container name).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: minio
+spec:
+  containers:
+  - name: minio
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: '1'
+        memory: 1Gi

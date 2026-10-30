@@ -492,13 +492,23 @@ def test_skill_lint_runs_and_allows_single_option_components(tmp_path: Path):
     r = run(str(BUILDER / "skill-lint.py"), "--quiet")
     assert r.returncode == 0, r.stdout + r.stderr  # warn mode never fails
     assert "| ux |" in r.stdout
-    strict = run(str(BUILDER / "skill-lint.py"), "--strict", "--skills", "data-store")
-    assert strict.returncode == 1 and "apps/databases/postgres" in strict.stdout
     # docling is the only document-parsing option: naming it is allowed.
     lint = __import__("importlib").util.spec_from_file_location("skill_lint", BUILDER / "skill-lint.py")
     mod = __import__("importlib").util.module_from_spec(lint); lint.loader.exec_module(mod)
-    single = mod.single_option_components(json.loads(CATALOG.read_text()))
+    catalog = json.loads(CATALOG.read_text())
+    single = mod.single_option_components(catalog)
     assert "apps/document-processing/docling" in single and "apps/databases/postgres" not in single
+    # a skill that ladders a multi-option component by path is flagged; a marked line and a single option are not
+    skill = tmp_path / "demo"
+    (skill / "references").mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# demo\n| Walk | `apps/databases/postgres` |\n")
+    (skill / "references" / "notes.md").write_text("Example: `apps/databases/postgres` as an illustration <!-- skill-lint: allow -->\nParser: `apps/document-processing/docling`\n")
+    pattern = mod.path_pattern([c["path"] for c in catalog["components"]])
+    hits, skipped = mod.lint_skill(skill, pattern, single)
+    assert [h[2] for h in hits] == ["apps/databases/postgres"] and skipped == 2
+    # the rewritten skills are clean in strict mode
+    strict = run(str(BUILDER / "skill-lint.py"), "--strict", "--skills", "ai-engineering", "architecture", "data-store", "data-pipeline", "business")
+    assert strict.returncode == 0, strict.stdout
 
 
 # ------------------------------------------------------------ PSA exceptions (#22)
@@ -682,7 +692,7 @@ def test_governance_vocabulary_matches_the_skills_that_document_it():
         assert copied <= documented, f"{skill}: copies {copied - documented} per contracts.md but its Governance posture does not document them"
         # a key the skill writes is in the vocabulary (settings the validator does not know are not posture)
         rows = set(re.findall(r"^\| `([a-z_]+)` \|", section, re.MULTILINE))
-        assert rows <= set(vocab) | {"open_standards_exceptions"}, f"{skill}: posture table names keys outside contracts.md: {rows - set(vocab)}"
+        assert rows <= set(vocab) | {"open_standards_exceptions", "auth_in_front"}, f"{skill}: posture table names keys outside contracts.md: {rows - set(vocab)}"
 
 
 def test_enterprise_pack_targets_are_vocabulary_and_applies_to_owners_or_copiers():

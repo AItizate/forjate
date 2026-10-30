@@ -29,10 +29,11 @@
           "text": "Crawl is a batch"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_has_capability",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
-          "expr": "any('docling' in c for c in choices('crawl'))",
-          "text": "Docling parses the PDFs at Crawl"
+          "capability": "document-parsing",
+          "text": "a document parser for the PDFs at Crawl",
+          "stage": "crawl"
         },
         {
           "type": "yaml_expr",
@@ -89,10 +90,16 @@
           "text": "Crawl gate is the verify Job"
         },
         {
+          "type": "choice_lacks_capability",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
+          "capability": "cdc",
+          "text": "no CDC for a document intake"
+        },
+        {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
-          "expr": "not any('debezium' in c for c in choices())",
-          "text": "no CDC for a document intake"
+          "expr": "any(has('robust|duplicate|second run|dead', x) for s in stages for x in listed(setting('eval_dimensions', s)))",
+          "text": "contributes robustness (duplicates, dead letters) as an eval dimension"
         }
       ]
     },
@@ -144,7 +151,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
-          "expr": "all(setting('document_parser', s) in ('none', None) for s in stages) and not any('docling' in c for c in choices())",
+          "expr": "all(setting('document_parser', s) in ('none', None) for s in stages) and 'document-parsing' not in choice_capabilities()",
           "text": "no document parser for chat"
         },
         {
@@ -208,7 +215,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
-          "expr": "not any('debezium' in c or 'brokers/' in c for c in choices()) and all(setting('broker', s) in ('none', None) for s in stages)",
+          "expr": "not ({'cdc', 'message-broker'} & set(choice_capabilities())) and all(setting('broker', s) in ('none', None) for s in stages)",
           "text": "no CDC and no broker"
         },
         {
@@ -267,7 +274,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-pipeline.yaml",
-          "expr": "setting('ingestion_pattern', 'crawl') == 'batch' and not any('debezium' in c or 'brokers/' in c for c in choices('crawl'))",
+          "expr": "setting('ingestion_pattern', 'crawl') == 'batch' and not ({'cdc', 'message-broker'} & set(choice_capabilities('crawl')))",
           "text": "Crawl stays a batch without CDC or broker"
         },
         {
@@ -314,8 +321,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml",
-          "expr": "not any('docling' in c for c in choices()) and all(setting('document_parser', s) in ('none', None) for s in stages)",
-          "text": "respects PIPE-1: no Docling"
+          "expr": "'document-parsing' not in choice_capabilities() and all(setting('document_parser', s) in ('none', None) for s in stages)",
+          "text": "respects PIPE-1: no document parser"
         },
         {
           "type": "grep",

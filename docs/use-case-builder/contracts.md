@@ -130,7 +130,7 @@ The posture an enterprise expects of an agentic system (bounded execution, inten
 | key | values | owner | copied by | default Crawl → Walk → Run | pack rule |
 |-----|--------|-------|-----------|-----------------------------|-----------|
 | `autonomy` | `assistive` / `semi-autonomous` / `autonomous` | stage-planner (plan `stages.<s>.autonomy`) | ai-engineering, ux, quality | `assistive` → ≤ `semi-autonomous` → ≤ the brief's `autonomy` | AUT-1 (`require_setting`) |
-| `write_actions` | `none` / `approval-required` / `registered-tools-only` / `autonomous` | ai-engineering | security, quality | `none` → `approval-required` → `registered-tools-only`, `autonomous` only per action with a gate | AUT-2 |
+| `write_actions` | `none` / `approval-required` / `registered-tools-only` / `autonomous` | ai-engineering | security, quality | `none` when no tool writes (the person acts), `approval-required` as soon as one does → `approval-required` → `registered-tools-only`, `autonomous` only per action with a gate | AUT-2 (`deny_setting_value: [registered-tools-only, autonomous]` until Run) |
 | `execution_bounds` | list `max_steps=<n>`, `step_timeout_s=<n>`, `delegation_depth=<n>`, `budget_tokens=<n>` | ai-engineering | architecture, quality | set at every stage; Crawl may be generous, never absent | EXE-1 |
 | `intent_validation` | `disabled` / `schema` / `policy-judge` | ai-engineering | security | `schema` → `policy-judge` when any tool writes → `policy-judge` | EXE-2 (`deny_setting_value: [disabled]`) |
 | `kill_switch` | `none` / `gateway-key-revocation` / `ingress-permission` | security | ai-engineering, devops | `none` → `gateway-key-revocation` → `ingress-permission`, rehearsed (`G-SEC-<n>`) | EXE-3 (via `auth_in_front`) |

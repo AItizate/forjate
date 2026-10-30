@@ -6,9 +6,9 @@ rules:
     stages: [crawl]
     reason: A PoC proves the reasoning, not the right to act; autonomy grows with evidence and a gate.
   AUT-2:
-    type: require_setting
+    type: deny_setting_value
     target: write_actions
-    value: approval-required
+    value: [registered-tools-only, autonomous]
     stages: [crawl, walk]
     reason: Writes outside registered tools, or without a human gate, are the failure mode regulators ask about first.
   EXE-1:

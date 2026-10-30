@@ -12,6 +12,14 @@ Every line in `settings.tools` is `<name>: <verb> <object> [read-only|idempotent
 - **Fails loud.** Typed errors the model can act on; never an empty result that looks like "nothing found".
 - **Gated writes.** A tool that writes to a system of record or sends a message to a person is callable only with an approval token or a deterministic check result, and the line says which: `post_invoice: create payable in ERP [idempotent, requires approval token]`.
 
+## Execution bounds and intent validation
+
+`settings.execution_bounds` is a list of numbers the scaffold enforces in code and the quality record tests: `max_steps=<n>` (tool calls or workflow steps per unit of work), `step_timeout_s=<n>`, `delegation_depth=<n>` (how many agents may hand work to another before a person is in the loop; `0` for a single agent), `budget_tokens=<n>` per request. A bound that is not a number is not a bound; "reasonable" is not enforceable. Crawl may be generous (the verify Job is the backstop); Walk and Run carry the numbers the latency budget and the cost envelope allow.
+
+`settings.intent_validation` says what stands between a proposed tool call and its execution. `schema`: the arguments validate against the tool's contract, out-of-range amounts and unknown ids are refused before the call. `policy-judge`: a deterministic rule or a second model call checks, with the policy for this stage and this data class in hand, that the action is allowed (this supplier, this amount, this customer, this stage's `write_actions`), and logs the verdict with the call. From the moment any tool writes, `policy-judge` is the floor; `disabled` is a finding, not a value you choose.
+
+The write gate and the bounds appear in the tool lines themselves: `post_invoice: create payable in ERP [idempotent, requires approval token, max 1 per invoice]`.
+
 ## Guardrail checklist
 
 Write each as one line in `settings.guardrails`, grouped by prefix.

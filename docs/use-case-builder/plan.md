@@ -391,18 +391,21 @@ Tests: L4 on every skill; MCP server contract tests; full L1–L3 re-run as regr
 |-------|------|-----------|-------|
 | #21 | L3 nightly run once in GitHub Actions, runtime recorded | — | Sonnet |
 | #22 | PSA exceptions for shared components at Walk (0b) | — | Opus |
-| #23 | Catalog roles and properties, `skill-lint`, `choice_has_role` (0, infrastructure) | — | Fable 5.1 |
+| #23 | Catalog capabilities and properties, `skill-lint`, `choice_has_capability` (0, infrastructure) — **done 2026-10-29**, see below | — | Fable 5.1 |
 | #27 | Every skill rewritten to ask by role, governance posture folded in (0 + 0c) | #23, #22 | Fable 5.1 writes, Opus evals |
 | #24 | Walk scaffold for invoice-intake | — | Opus |
 | #25 | Walk scaffold for support-copilot | — | Opus |
 | #28 | Coordinator cold start end to end (L3) | #27 | Opus |
 | #6 | Velero in the catalog | — | Sonnet |
+| #34 | Skill and checker to curate a component's capabilities and properties | #23 | Fable 5.1 (skill), Sonnet (checker) |
 | #29 | Trigger evals and description optimisation (1) | #27 | Opus |
 | #26 | ADR: catalog MCP server, reuse, language, A2A (2 and 3) | — | Fable 5.1 |
 | #30 | Catalog MCP server in its own repository | #26, #23 | Opus |
 | #31 | Skills query the MCP server with a file fallback | #30, #27 | Opus |
 | #32 | Memory across runs (4) | #27 | Opus |
 | #33 | Release v1.2.0, first remote consumer, `builder-p5` (5) | all | Sonnet |
+
+**#23 done (2026-10-29).** The catalog's `roles` became **capabilities** (the schema's `role` stays the expert's name; the two vocabularies were colliding): 36 needs in `wiki/catalog-capabilities.yaml` with `asked_by`, `exclusive` and `setting`, documented in `contracts.md` and kept equal by a test. Every curated component carries `gpu_required`, `ha`, `psa_restricted`, `secrets: {takes, mechanism, rank}` and `data_classes` (potential with configuration, not as shipped); Vault left the curated set (deprecated by OpenBao, which entered as `secrets-store`), so pairing OpenBao with External Secrets is no longer a conflict. `validate.py` names no component any more: the secrets ranking, the exclusive groups, the setting→component maps and the CDC-implies-broker rule are derived from `catalog.json` at run time, with a warning when none is reachable. `wiki-compile.py` validates capabilities against the vocabulary and writes `references/catalog-snapshot.md` for the nine skills that resolve components (declared once, in `asked_by` plus `snapshot_all`); `wiki-compile --check` in CI fails on a stale snapshot like on a stale catalog. Grader: `choice_has_capability`, `choice_lacks_capability`, `choice_capabilities()` in `yaml_expr`. `skill-lint.py` runs in `validate-builder.yml` in warn mode: 67 catalog paths named outside snapshots today (data-store 11, architecture 13, compliance 16, data-pipeline 10, ai-engineering 7, security 6, kustomize 3, devops 1; ux and devops mostly single-option), the inventory #27 works from. `backup` is a capability with no component until #6.
 
 ---
 

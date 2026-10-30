@@ -65,6 +65,7 @@ wiki/
 ├── log.md             # chronological, append-only, grep-parseable
 ├── catalog.json       # machine-readable component catalog (compiler-owned)
 ├── catalog-overrides.yaml  # curated facts merged into catalog.json (human/agent-authored)
+├── catalog-capabilities.yaml  # the capability vocabulary the overrides must use (human/agent-authored)
 ├── base/              # the foundation every tenant inherits
 ├── components/        # one page per component under k8s/components/apps/**
 ├── overlays/          # one page per overlay under k8s/overlays/**
@@ -73,9 +74,16 @@ wiki/
 
 `catalog.json` is compiler-owned too: one JSON record per component with the
 declared facts (images, kinds, composition, backlinks) merged with the curated
-facts in `catalog-overrides.yaml` (stage fitness, roles, licence, maturity).
-It exists for tooling, the use-case builder plugin in particular, that needs to
-query the catalog without parsing markdown. Edit the overrides, never the JSON.
+facts in `catalog-overrides.yaml` (stage fitness, capabilities, properties,
+licence, maturity), plus the capability vocabulary from
+`catalog-capabilities.yaml`. It exists for tooling, the use-case builder plugin
+in particular, that needs to query the catalog without parsing markdown. Edit the
+overrides and the vocabulary, never the JSON. The compiler refuses a component
+tagged with a capability the vocabulary does not define, and from the
+vocabulary's `asked_by` it also writes
+`plugins/forjate/skills/<skill>/references/catalog-snapshot.md`: generated,
+whole-file, labelled as a snapshot of what the catalog resolves on a date. Those
+files are outputs of this compiler like `catalog.json`; never edit them by hand.
 
 `base/`, `components/` and `overlays/` mirror the tree and are **compiler-owned**.
 `concepts/` has no counterpart in `k8s/` and is **agent-authored**: the recursive

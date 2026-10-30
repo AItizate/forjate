@@ -7,7 +7,7 @@ An expert is a skill (knowledge), an agent (isolation) and an eval suite (proof)
 - `SKILL.md` under 500 lines (CI fails above), with a pushy `description` that names the decisions the expert makes and the phrases that should trigger it, `user-invocable: true`, `argument-hint: "<usecase-dir>"`, and an `allowed-tools` line with only what it needs.
 - Sections, in this order: who it is and what it never decides alone; inputs and output; the procedure (numbered, ending with `validate.py` and the five-line reply); the record (a table of the `settings` keys with their enum values); judgement calls (one bold sentence each, with the reason); when you push back; the **Context packs** section pasted verbatim from `skills/context-pack/references/section.md` with `<role>` filled in and one paragraph on which rule types matter to this role; see also.
 - `references/` split by stage or by domain (`secrets-ladder.md`, `network-and-psa.md`), each opened on demand by the procedure. Prose that applies to every decision goes in SKILL.md; tables and snippets go in references.
-- Name roles and properties, not component names, wherever the catalog has more than one option (phase 5 item 0).
+- Ask by catalog capability and property, not component name, wherever the catalog has more than one option (`contracts.md`, "Catalog capabilities"); if the expert resolves components, add it to `asked_by` in `wiki/catalog-capabilities.yaml` so it gets a `references/catalog-snapshot.md`.
 
 ## 2. The agent: `plugins/forjate/agents/<role>.md`
 

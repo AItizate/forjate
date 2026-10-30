@@ -13,6 +13,9 @@ on:
       - 'plugins/forjate/**'
       - 'context-packs/**'
       - 'k8s/overlays/usecases/**/.builder/**'
+      - 'wiki/catalog.json'
+      - 'wiki/catalog-*.yaml'
+      - 'docs/use-case-builder/contracts.md'
       - '.claude-plugin/**'
       - '.github/workflows/validate-builder.yml'
   push:
@@ -21,6 +24,9 @@ on:
       - 'plugins/forjate/**'
       - 'context-packs/**'
       - 'k8s/overlays/usecases/**/.builder/**'
+      - 'wiki/catalog.json'
+      - 'wiki/catalog-*.yaml'
+      - 'docs/use-case-builder/contracts.md'
 
 jobs:
   builder:
@@ -66,6 +72,11 @@ jobs:
 
       - name: Tooling tests
         run: poetry run pytest -q plugins/forjate/scripts/builder/tests
+
+      - name: Skill lint (warn mode)
+        # Flags catalog component paths hard-coded in SKILL.md and references outside the
+        # generated catalog-snapshot.md. Warn mode until #27 rewrites the skills by capability.
+        run: poetry run python plugins/forjate/scripts/builder/skill-lint.py --quiet
 
       - name: Lint context packs
         run: |

@@ -13,7 +13,75 @@ Everything the builder team produces is YAML validated against a JSON Schema in 
 | `context-packs/<name>/pack.yaml` | `pack.schema.json` | pack authors | `packs.py` |
 | `context-packs/<name>/constraints.yaml` | `constraints.schema.json` | pack authors | `packs.py`, `validate.py` |
 
-Shared vocabulary (`_defs.schema.json`): stages are `crawl`, `walk`, `run`; roles are the plugin's skill names; components are paths relative to `k8s/components/`; a rule reference is `pack:<name>#<ID>`; data classes are `none`, `internal`, `pii`, `financial`, `health`, `secret`.
+Shared vocabulary (`_defs.schema.json`): stages are `crawl`, `walk`, `run`; the schema's `role` is an **expert**, one of the plugin's skill names (`forjate:data-store`); components are paths relative to `k8s/components/`; a rule reference is `pack:<name>#<ID>`; data classes are `none`, `internal`, `pii`, `financial`, `health`, `secret`. What a component is *for* is a **catalog capability**, a different vocabulary, below.
+
+## Catalog capabilities
+
+Experts do not choose components by name; they ask the catalog for a **capability** and resolve it at run time from `wiki/catalog.json`, applying the selection criteria to the candidates and recording the rejected ones in `alternatives`. The vocabulary lives in `wiki/catalog-capabilities.yaml` (the compiler rejects a component tagged with a capability that file does not define); `wiki/catalog-overrides.yaml` tags every curated component with the capabilities it covers and the properties the criteria need. A test keeps this table and the YAML equal.
+
+A capability is a need, not a product category. "Postgres with a TTL column can hold session memory at Crawl when a second store is not worth it" is a rule of judgement that belongs in the data-store skill; `session-memory` is the capability, and today Redis is its only option.
+
+| Capability | Asked by | One per stage | Setting | What it is for |
+|------------|----------|---------------|---------|----------------|
+| `session-memory` | data-store | | | short-lived context with a TTL; rate limits and locks |
+| `working-memory` | data-store | | | transactional state the agent must not lose |
+| `episodic-memory` | data-store | | | structured history of what happened |
+| `semantic-memory` | data-store | yes | | embeddings for retrieval over unstructured text |
+| `artifact-store` | data-store | yes | | documents, prompts, logs and reports as objects |
+| `cache` | data-store, architecture | | | hot data in front of a slower store |
+| `coordination` | architecture | | | leader election, locks, shared configuration |
+| `inference` | ai-engineering | yes | `inference` | serves a model in the cluster; zero egress |
+| `llm-gateway` | ai-engineering | | | one endpoint in front of local and external models; routing, budgets, egress policy |
+| `chat-ui` | ux | | | a human-facing chat surface |
+| `feedback` | ux | | | in-product feedback capture |
+| `message-broker` | architecture, data-pipeline | yes | `broker` | decouples workloads, fans out events |
+| `mqtt-broker` | architecture, data-pipeline | | | pub/sub for devices |
+| `durable-workflows` | architecture | | | multi-step work that survives a pod dying |
+| `cdc` | data-pipeline, architecture | | | a database's change log published to a broker |
+| `document-parsing` | data-pipeline | | | PDF and Office to structured text |
+| `identity-provider` | architecture, security | | | who the user is, for oauth2-proxy |
+| `public-ingress` | architecture, devops | | | reachable from the internet without an open port |
+| `low-code-automation` | architecture | | | visual flows for glue |
+| `secrets-mechanism` | security, devops | yes | `secrets_mechanism` | how a secret reaches a workload; ranked, floor `secret-generator` |
+| `secrets-store` | security | | | where secrets live; audit, rotation, short-lived credentials |
+| `access-control` | security | | | service accounts and RBAC |
+| `gitops` | devops | | | the cluster converges on git |
+| `block-storage` | devops | | | replicated persistent volumes |
+| `static-storage` | kustomize | | | pre-provisioned volumes for a lab cluster |
+| `load-balancer` | devops | | | LoadBalancer services on bare metal |
+| `metrics` | devops | | | time series; the source of metric gates |
+| `dashboards` | devops | | | operational dashboards and alerting |
+| `telemetry` | devops | | | logs and traces, including model and tool calls |
+| `config-reload` | devops | | | restart consumers on config change |
+| `cluster-ui` | devops | | | a web view of the cluster |
+| `image-registry` | devops | | | images close to the cluster |
+| `backup` | devops | | | scheduled backups and rehearsed restores (no component today) |
+| `cloud-resources` | devops | | | managed cloud services from Kubernetes objects |
+| `bi` | devops | | | business dashboards over the system of record |
+| `smoke-test` | kustomize | | | proves ingress, TLS and routing |
+
+**Exclusive** capabilities ("one per stage") are the groups `validate.py` check 6 reads: two records that choose two components of one exclusive capability for the same stage are in conflict, and the capability's **setting** names the record key whose value picks one of them (`broker: nats` and a choice of `apps/brokers/rabbitmq` is the same conflict). `secrets-mechanism` carries the ranking check 4 uses for `secrets_mechanism` rules: each component with that capability declares `secrets.mechanism` and `secrets.rank`, and the vocabulary declares the floor without a component (`secret-generator`, rank 0). Nothing in the validator names a component.
+
+### Component properties
+
+Every curated component in `wiki/catalog-overrides.yaml` carries, besides `capabilities`:
+
+| Property | Values | What an expert does with it |
+|----------|--------|-----------------------------|
+| `stages` | `crawl`, `walk`, `run` | fitness; `[]` means in the tree but never chosen |
+| `maturity` | `lab`, `mvp`, `production` | how battle-tested in this factory |
+| `gpu_required` | `required`, `optional`, `none`, `unknown` | exclude `required` when no GPU node exists; `optional` is a Walk latency question |
+| `ha` | `single`, `replicated`, `operator`, `n/a`, `unknown` | as deployed: `single` loses data with the node, `operator` makes HA a config change |
+| `psa_restricted` | `true`, `false`, `n/a`, `unknown` | whether the shipped manifests run under `restricted`; `false` is a recorded exception in its own namespace (#22) |
+| `secrets` | `takes`: `none`, `env`, `sealed`, `unknown`; `mechanism`, `rank` on secrets-mechanism components | what the overlay must supply; the ladder |
+| `data_classes` | subset of `internal`, `pii`, `financial`, `health`, `secret`; `[]` touches no use-case data | what the component can hold or transit when configured for it; the brief's classification must be in the list (or `none`) |
+| `licence`, `notes` | free text | for compliance; one line for the experts |
+
+Selection order when several candidates remain: stage fitness, pack rules (`deny_components`, `allow_components_only`), data classes against the brief, GPU against the environment, HA against the stage's exit criteria, maturity, licence. Record the rejected candidates in `alternatives` with the criterion that excluded them.
+
+### Snapshots
+
+`scripts/wiki-compile.py` writes `plugins/forjate/skills/<skill>/references/catalog-snapshot.md` for every skill that resolves components: the skills named in any capability's `asked_by`, plus `snapshot_all` (kustomize and compliance, which consume the whole catalog). Which skill sees which capability is declared there and nowhere else. A snapshot shows what the catalog resolved on a date and says so; it is never a rule. Prose in a skill may name a component only when it is the single option for one of its capabilities; `plugins/forjate/scripts/builder/skill-lint.py` flags every other catalog path outside the snapshots. Evals assert capabilities with `choice_has_capability` / `choice_lacks_capability`, names only for single-option capabilities.
 
 ## Decision record
 
@@ -47,9 +115,9 @@ Plus `estimated_cost_usd_month` at stage level, matched by `max_cost_usd_month`.
 1. Schema validity of every artifact.
 2. Every component in a `choice` exists under `k8s/components/`.
 3. Every `pack:<name>#<ID>` cited exists in an active pack.
-4. No stage decision violates a `must` of a structured type that applies to its area, its stage and the brief's data classification.
+4. No stage decision violates a `must` of a structured type that applies to its area, its stage and the brief's data classification. `secrets_mechanism` rules are ranked through the catalog (`secrets.rank` of the secrets-mechanism components); without a reachable `wiki/catalog.json` the ranking and check 6's groups are skipped with a warning (`FORJATE_ROOT` points at a factory checkout).
 5. Plan/decision consistency: experts the plan runs have a record (warning), decisions do not cover skipped stages (warning).
-6. Cross-record consistency: for each stage, two records that choose components from one exclusive group (brokers `nats`/`rabbitmq`, vector stores `lancedb`/`milvus`, inference `ollama`/`vllm`, object storage `minio/dev`/`minio/single-server`, secrets `sealed-secrets`/`external-secrets`/`vault`), that imply one through a setting (`broker`, `inference`, `secrets_mechanism`) or a CDC connector's suffix, or that disagree on a shared setting (`psa_level`, `secrets_mechanism`, `data_residency`, `data_egress`, `network_policy`, `backup`, `auth_in_front`) are a **conflict**. So are two records that claim one gate id (`gate_to_next[].id`) with different texts. A conflict is an error unless some record carries an open question naming both sides, in which case it is a warning the coordinator reports to the user. The validator never resolves a conflict and the coordinator never edits a record to make one disappear.
+6. Cross-record consistency: for each stage, two records that choose components of one exclusive catalog capability (`message-broker`, `semantic-memory`, `inference`, `artifact-store`, `secrets-mechanism`, read from `wiki/catalog.json`), that imply one through the capability's setting (`broker`, `inference`, `secrets_mechanism`) or a CDC connector's suffix, or that disagree on a shared setting (`psa_level`, `secrets_mechanism`, `data_residency`, `data_egress`, `network_policy`, `backup`, `auth_in_front`) are a **conflict**. So are two records that claim one gate id (`gate_to_next[].id`) with different texts. A conflict is an error unless some record carries an open question naming both sides, in which case it is a warning the coordinator reports to the user. The validator never resolves a conflict and the coordinator never edits a record to make one disappear.
 7. Gates consolidation: when `gates.yaml` exists, every gate id a record emits in `gate_to_next` for a stage with a transition out of it appears under that transition (warning otherwise), and every `pack_overrides.rule` exists in an active pack (error otherwise).
 8. `ci` gate refs: a gate whose `check.type` is `ci` names a script in `scripts/gates/checks/` (the directory is the enum the gates runner executes). An unknown ref is an error in `gates.yaml` and a warning in a record's `gate_to_next`; when no checks directory is reachable (a tenant repo without the factory checked out) the check is skipped with a warning and `FORJATE_ROOT` points the validator at one.
 

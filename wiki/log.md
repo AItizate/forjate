@@ -25,3 +25,5 @@ Types: `compile`, `concept`, `lint`, `query`.
 ## [2026-10-21] compile | 2 page(s) changed — 5 base, 74 component, 17 overlay
 ## [2026-10-21] compile | 3 page(s) changed — 5 base, 74 component, 17 overlay
 ## [2026-10-29] compile | 22 page(s) changed — 5 base, 79 component, 19 overlay
+## [2026-10-29] compile | 10 page(s) changed — 5 base, 79 component, 19 overlay
+## [2026-10-29] compile | 9 page(s) changed — 5 base, 79 component, 19 overlay

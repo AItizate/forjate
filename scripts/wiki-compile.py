@@ -638,24 +638,71 @@ def render_index(pages: list[Page], compiled_at: str) -> str:
 
 
 CATALOG_OVERRIDES = WIKI / "catalog-overrides.yaml"
+CATALOG_CAPABILITIES = WIKI / "catalog-capabilities.yaml"
 CATALOG_OUT = WIKI / "catalog.json"
+SKILLS_ROOT = REPO / "plugins" / "forjate" / "skills"
+SNAPSHOT_NAME = "catalog-snapshot.md"
+CAPABILITY_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 
 
-def render_catalog(pages: list[Page], compiled_at: str) -> str:
-    """wiki/catalog.json — one record per component, merged with curated overrides.
+def load_capabilities() -> dict:
+    """wiki/catalog-capabilities.yaml, checked: the vocabulary the overrides must use."""
+    if not CATALOG_CAPABILITIES.exists():
+        sys.exit(f"{rel(CATALOG_CAPABILITIES)} is missing; the catalog needs its capability vocabulary")
+    doc = yaml.safe_load(CATALOG_CAPABILITIES.read_text(encoding="utf-8")) or {}
+    caps = doc.get("capabilities") or {}
+    errors = []
+    for name, c in caps.items():
+        if not CAPABILITY_RE.match(str(name)):
+            errors.append(f"capability '{name}': name must be lower-case kebab")
+        if not isinstance(c, dict) or not c.get("summary"):
+            errors.append(f"capability '{name}': needs a summary")
+            continue
+        if not c.get("asked_by"):
+            errors.append(f"capability '{name}': needs asked_by (which experts resolve it)")
+        for skill in c.get("asked_by") or []:
+            if not (SKILLS_ROOT / skill / "SKILL.md").is_file():
+                errors.append(f"capability '{name}': asked_by names no skill at plugins/forjate/skills/{skill}")
+        if c.get("floor") and not c.get("exclusive"):
+            errors.append(f"capability '{name}': floor only makes sense on an exclusive capability")
+    for skill in doc.get("snapshot_all") or []:
+        if not (SKILLS_ROOT / skill / "SKILL.md").is_file():
+            errors.append(f"snapshot_all names no skill at plugins/forjate/skills/{skill}")
+    if errors:
+        sys.exit(f"{rel(CATALOG_CAPABILITIES)}:\n  " + "\n  ".join(errors))
+    return doc
+
+
+def normalize_secrets(value) -> dict:
+    """`secrets` used to be a scalar (how a component takes credentials); it is a mapping now."""
+    if value is None:
+        return {"takes": "unknown"}
+    if not isinstance(value, dict):
+        return {"takes": str(value)}
+    out = dict(value)
+    out.setdefault("takes", "unknown")
+    return out
+
+
+def build_catalog(pages: list[Page], compiled_at: str) -> dict:
+    """wiki/catalog.json as a dict — one record per component, merged with curated overrides.
 
     This is the machine-readable catalog the use-case builder experts query
     (plugins/forjate). Declared facts come from the tree; stage fitness,
-    roles, licence and maturity come from catalog-overrides.yaml.
+    capabilities, properties, licence and maturity come from catalog-overrides.yaml;
+    the capability vocabulary from catalog-capabilities.yaml.
     """
     overrides = {"defaults": {}, "components": {}}
     if CATALOG_OVERRIDES.exists():
         overrides = yaml.safe_load(CATALOG_OVERRIDES.read_text(encoding="utf-8")) or overrides
     defaults = overrides.get("defaults") or {}
     curated = overrides.get("components") or {}
+    vocab = load_capabilities()
+    caps = vocab.get("capabilities") or {}
 
     comps_root = K8S / "components"
     records = []
+    errors = []
     for p in pages:
         if p.kind != "component":
             continue
@@ -676,19 +723,121 @@ def render_catalog(pages: list[Page], compiled_at: str) -> str:
         extra = dict(defaults)
         extra.update(curated.get(path) or {})
         extra["curated"] = path in curated
+        extra["secrets"] = normalize_secrets(extra.get("secrets"))
+        if "roles" in extra:
+            errors.append(f"{path}: `roles` was renamed `capabilities`")
+        for cap in extra.get("capabilities") or []:
+            if cap not in caps:
+                errors.append(f"{path}: unknown capability '{cap}' (define it in {rel(CATALOG_CAPABILITIES)})")
+        if extra["secrets"].get("mechanism") and "secrets-mechanism" not in (extra.get("capabilities") or []):
+            errors.append(f"{path}: secrets.mechanism is only for components with the secrets-mechanism capability")
         rec.update(extra)
         records.append(rec)
+    if errors:
+        sys.exit(f"{rel(CATALOG_OVERRIDES)}:\n  " + "\n  ".join(errors))
 
     unknown = sorted(set(curated) - {r["path"] for r in records})
-    doc = {
+    return {
         "apiVersion": "forjate.io/v0",
         "kind": "Catalog",
         "compiled_at": compiled_at,
         "stages": ["crawl", "walk", "run"],
+        "capabilities": caps,
+        "snapshot_all": vocab.get("snapshot_all") or [],
         "components": records,
         "overrides_without_component": unknown,
     }
+
+
+def render_catalog(doc: dict) -> str:
     return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
+
+
+def _cell(v) -> str:
+    if isinstance(v, list):
+        return ", ".join(str(x) for x in v) if v else "—"
+    if v is None or v == "":
+        return "—"
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    return str(v).replace("|", "\\|")
+
+
+def _component_rows(records: list[dict], with_capabilities: bool) -> list[str]:
+    head = ["Component", "Stages", "Maturity", "HA", "GPU", "PSA restricted", "Data classes", "Licence", "Notes"]
+    if with_capabilities:
+        head.insert(1, "Capabilities")
+    lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for r in records:
+        row = [f"`{r['path']}`", _cell(r.get("stages")), _cell(r.get("maturity")), _cell(r.get("ha")),
+               _cell(r.get("gpu_required")), _cell(r.get("psa_restricted")), _cell(r.get("data_classes")),
+               _cell(r.get("licence")), _cell(r.get("notes") or r.get("summary"))]
+        if with_capabilities:
+            row.insert(1, _cell(r.get("capabilities")))
+        lines.append("| " + " | ".join(row) + " |")
+    return lines
+
+
+def render_snapshots(doc: dict) -> dict[Path, str]:
+    """plugins/forjate/skills/<skill>/references/catalog-snapshot.md for every skill that resolves components.
+
+    Which skills, and which capabilities each one sees, is declared once: `asked_by` in
+    catalog-capabilities.yaml (plus `snapshot_all` for the skills that consume the whole catalog).
+    A snapshot is labelled as what the catalog resolved on a date, never as a rule.
+    """
+    caps: dict = doc["capabilities"]
+    comps = [r for r in doc["components"] if r.get("curated")]
+    by_cap: dict[str, list[dict]] = {name: [] for name in caps}
+    for r in comps:
+        for c in r.get("capabilities") or []:
+            by_cap[c].append(r)
+    skills: dict[str, list[str]] = {}
+    for name, c in caps.items():
+        for skill in c["asked_by"]:
+            skills.setdefault(skill, []).append(name)
+    for skill in doc["snapshot_all"]:
+        skills.setdefault(skill, [])
+
+    banner = (
+        "<!-- generated by scripts/wiki-compile.py from wiki/catalog.json — do not edit; "
+        "regenerate with `poetry run python scripts/wiki-compile.py` -->\n"
+    )
+    out: dict[Path, str] = {}
+    for skill in sorted(skills):
+        lines = [banner, f"# Catalog snapshot for forjate:{skill}", "", f"compiled_at: {doc['compiled_at']}", "",
+                 "**This is a snapshot, not a rule.** It shows what `wiki/catalog.json` resolved for each "
+                 "capability on the date above. Ask by capability and property, read the catalog at run time, "
+                 "and expect these tables to change as the catalog grows: a capability with one option today "
+                 "may have two tomorrow, and a component listed here may be denied by a context pack. Name a "
+                 "component in a record only after resolving it; name it in prose only when it is the single "
+                 "option for the capability.", ""]
+        if skill in doc["snapshot_all"]:
+            lines += ["## Every curated component", "",
+                      "This skill consumes the whole catalog. Components whose `stages` is empty are in the tree "
+                      "but never chosen.", ""]
+            lines += _component_rows(comps, with_capabilities=True)
+            lines.append("")
+        for name in skills[skill]:
+            c = caps[name]
+            meta = [f"asked by: {', '.join(c['asked_by'])}"]
+            if c.get("exclusive"):
+                meta.append("exclusive: one per stage")
+            if c.get("setting"):
+                meta.append(f"setting `{c['setting']}`")
+            if c.get("floor"):
+                meta.append(f"floor without a component: `{c['floor']}`")
+            lines += [f"## `{name}`", "", c["summary"] + ".", "", "_" + " · ".join(meta) + "_", ""]
+            rows = [r for r in by_cap[name] if r.get("stages")]
+            if not rows:
+                lines += ["**No component today.** Say so in the record, keep the requirement explicit and "
+                          "raise the gap as an open question or a later-stage risk.", ""]
+                continue
+            if len(rows) == 1:
+                lines += [f"Single option today: `{rows[0]['path']}`. Prose may name it.", ""]
+            lines += _component_rows(rows, with_capabilities=False)
+            lines.append("")
+        out[SKILLS_ROOT / skill / "references" / SNAPSHOT_NAME] = "\n".join(lines).rstrip() + "\n"
+    return out
 
 
 def append_log(entry: str) -> None:
@@ -755,13 +904,24 @@ def main() -> int:
             index_path.write_text(index_content, encoding="utf-8")
             written += 1
 
-    catalog_content = render_catalog(pages, compiled_at)
+    catalog_doc = build_catalog(pages, compiled_at)
+    catalog_content = render_catalog(catalog_doc)
     prior_catalog = CATALOG_OUT.read_text(encoding="utf-8") if CATALOG_OUT.exists() else None
     if strip_json_date(prior_catalog) != strip_json_date(catalog_content):
         changed.append(rel(CATALOG_OUT))
         if not args.check:
             CATALOG_OUT.write_text(catalog_content, encoding="utf-8")
             written += 1
+
+    # Per-skill snapshots of what the catalog resolves today (plugins/forjate/skills/*/references/).
+    for snap_path, snap_content in render_snapshots(catalog_doc).items():
+        prior_snap = snap_path.read_text(encoding="utf-8") if snap_path.exists() else None
+        if strip(prior_snap) != strip(snap_content):
+            changed.append(rel(snap_path))
+            if not args.check:
+                snap_path.parent.mkdir(parents=True, exist_ok=True)
+                snap_path.write_text(snap_content, encoding="utf-8")
+                written += 1
 
     if changed and not args.check:
         append_log(f"## [{compiled_at}] compile | {len(changed)} page(s) changed — {summary}")

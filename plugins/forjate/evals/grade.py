@@ -34,7 +34,25 @@ def _load_yaml(path: Path):
     return yaml.safe_load(path.read_text())
 
 
-def _expr_env(d: dict) -> dict:
+_CAPS_CACHE: dict[Path, dict[str, list[str]]] = {}
+
+
+def _catalog_capabilities(repo: Path) -> dict[str, list[str]]:
+    """component path -> capabilities, from the worktree's wiki/catalog.json (run.sh keeps the wiki)."""
+    if repo not in _CAPS_CACHE:
+        cat = repo / "wiki" / "catalog.json"
+        comps = json.loads(cat.read_text())["components"] if cat.exists() else []
+        _CAPS_CACHE[repo] = {c["path"]: list(c.get("capabilities") or []) for c in comps}
+    return _CAPS_CACHE[repo]
+
+
+def _choice_components(d: dict, stage: str | None) -> list[str]:
+    stages = ((d or {}).get("spec") or {}).get("stages") or {}
+    src = [stages.get(stage) or {}] if stage else stages.values()
+    return [c for sd in src for c in ((sd or {}).get("choice") or [])]
+
+
+def _expr_env(d: dict, repo: Path) -> dict:
     """Helpers available to `yaml_expr` assertions, all tolerant of missing keys."""
     spec = (d or {}).get("spec") or {}
     stages = spec.get("stages") or {}
@@ -85,7 +103,15 @@ def _expr_env(d: dict) -> dict:
     def listed(x):
         return x if isinstance(x, list) else ([] if x is None else [x])
 
+    def capabilities_of(component):
+        return _catalog_capabilities(repo).get(component, [])
+
+    def choice_capabilities(name=None):
+        """Every catalog capability the stage's (or every stage's) chosen components cover."""
+        return sorted({cap for c in choices(name) for cap in capabilities_of(c)})
+
     return dict(d=d, spec=spec, stages=stages, st=st, settings=settings, setting=setting, choices=choices,
+                capabilities_of=capabilities_of, choice_capabilities=choice_capabilities,
                 alts=alts, risks=risks, gates=gates, rules=rules, oq=oq, txt=txt, has=has, listed=listed, re=re, len=len,
                 any=any, all=all, str=str, set=set, sum=sum, int=int, float=float, bool=bool, sorted=sorted, isinstance=isinstance, list=list, dict=dict)
 
@@ -146,11 +172,25 @@ def check(a: dict, repo: Path) -> tuple[bool, str]:
             return False, f"{a['path']} missing"
         try:
             d = _load_yaml(path)
-            env = _expr_env(d)
+            env = _expr_env(d, repo)
             val = eval(a["expr"], {"__builtins__": {}, **env})  # noqa: S307 - repo-authored; globals so comprehensions see the helpers
         except Exception as exc:
             return False, f"expr error: {exc}"
         return bool(val), f"{a['expr']} = {val!r}"
+    if t in {"choice_has_capability", "choice_lacks_capability"}:
+        # Asserts the role a choice plays, not its name: a better component with the same
+        # capability passes too. `stage` is optional; without it every stage's choice counts.
+        if not path.exists():
+            return t == "choice_lacks_capability", f"{a['path']} missing"
+        caps = _catalog_capabilities(repo)
+        if not caps:
+            return False, "wiki/catalog.json missing in the worktree"
+        comps = _choice_components(_load_yaml(path), a.get("stage"))
+        hits = [c for c in comps if a["capability"] in caps.get(c, [])]
+        unknown = [c for c in comps if c not in caps]
+        where = f"stage {a['stage']}" if a.get("stage") else "any stage"
+        evidence = f"{a['capability']} ← {hits or 'none'} ({where})" + (f"; not in catalog: {unknown}" if unknown else "")
+        return (bool(hits) if t == "choice_has_capability" else not hits), evidence
     if t == "yaml_count":
         rc, out = sh(["yq", "-r", a["query"], a["path"]], repo)
         return rc == 0 and out == str(a["equals"]), f"{a['query']} = {out!r}"
@@ -183,7 +223,7 @@ def quality_metrics(repo: Path) -> dict:
             continue
         if not isinstance(d, dict) or d.get("kind") != "Decision":
             continue
-        env = _expr_env(d)
+        env = _expr_env(d, repo)
         m["records"] += 1
         m["stages"] += len(env["stages"])
         m["open_questions"] += len(env["oq"]())

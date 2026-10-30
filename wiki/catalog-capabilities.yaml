@@ -1,0 +1,156 @@
+# Capability vocabulary of the catalog — the needs an expert of the use-case
+# builder asks the catalog for. A component in catalog-overrides.yaml lists the
+# capabilities it covers; scripts/wiki-compile.py refuses one that is not here,
+# copies this file into wiki/catalog.json and, from `asked_by`, generates
+# plugins/forjate/skills/<skill>/references/catalog-snapshot.md for every skill
+# that resolves components. Documented in docs/use-case-builder/contracts.md
+# ("Catalog capabilities"); a test keeps the two lists equal.
+#
+# A capability is a need, not a product category: `session-memory`, not
+# `key-value store`. "Postgres with a TTL column can hold session memory at
+# Crawl" is a rule of judgement for the data-store skill, not a capability of
+# Postgres. Fields:
+#   summary    one line: what a component with this capability does for a use case
+#   asked_by   experts (plugin skills) that resolve this capability into a `choice`
+#   exclusive  true when a use case holds at most one component with this
+#              capability per stage; two is a conflict (validate.py check 6)
+#   setting    the decision-record settings key whose value names a component of
+#              this capability (by component name, or by secrets.mechanism)
+#   floor      exclusive secrets only: the mechanism every stage can use without
+#              a component, ranked 0 by validate.py
+#
+# `snapshot_all` lists the skills that get a snapshot of the whole catalog
+# because they consume every component (kustomize writes the overlays,
+# compliance audits the licences) rather than asking by capability.
+
+snapshot_all: [kustomize, compliance]
+
+capabilities:
+  # --- memory and data (forjate:data-store) ---------------------------------
+  session-memory:
+    summary: short-lived conversational or working context with a TTL; rate limits and locks live here too
+    asked_by: [data-store]
+  working-memory:
+    summary: transactional state the agent must not lose — cursors, idempotency keys, approval status
+    asked_by: [data-store]
+  episodic-memory:
+    summary: structured history of what happened — decisions, extractions, transcripts
+    asked_by: [data-store]
+  semantic-memory:
+    summary: embeddings for retrieval over unstructured text
+    asked_by: [data-store]
+    exclusive: true
+  artifact-store:
+    summary: documents, prompts, run logs and reports as objects, keyed by the idempotency key
+    asked_by: [data-store]
+    exclusive: true
+  cache:
+    summary: hot data in front of a slower store; disposable
+    asked_by: [data-store, architecture]
+  coordination:
+    summary: leader election, distributed locks and configuration for a set of workloads
+    asked_by: [architecture]
+
+  # --- AI (forjate:ai-engineering) -------------------------------------------
+  inference:
+    summary: serves a model inside the cluster; zero egress
+    asked_by: [ai-engineering]
+    exclusive: true
+    setting: inference
+  llm-gateway:
+    summary: one OpenAI-compatible endpoint in front of local and external models; routing, budgets, egress policy
+    asked_by: [ai-engineering]
+
+  # --- surfaces (forjate:ux) -------------------------------------------------
+  chat-ui:
+    summary: a human-facing chat surface over the gateway or an inference server
+    asked_by: [ux]
+  feedback:
+    summary: captures what users think of an answer or an action, in product
+    asked_by: [ux]
+
+  # --- integration (forjate:architecture, forjate:data-pipeline) ---------------
+  message-broker:
+    summary: decouples two workloads or fans out events; persistence and replay
+    asked_by: [architecture, data-pipeline]
+    exclusive: true
+    setting: broker
+  mqtt-broker:
+    summary: pub/sub for devices and sensors over MQTT
+    asked_by: [architecture, data-pipeline]
+  durable-workflows:
+    summary: multi-step work that survives a pod dying halfway — retries, timers, human steps
+    asked_by: [architecture]
+  cdc:
+    summary: publishes a database's change log to a broker; the trigger is "a row changed"
+    asked_by: [data-pipeline, architecture]
+  document-parsing:
+    summary: PDF and Office files to structured text with layout, tables and OCR
+    asked_by: [data-pipeline]
+  identity-provider:
+    summary: who the user is, for oauth2-proxy in front of any HTTP surface
+    asked_by: [architecture, security]
+  public-ingress:
+    summary: reaches the internet without an open port, for webhooks and external users
+    asked_by: [architecture, devops]
+  low-code-automation:
+    summary: visual flows for glue a developer should not have to write
+    asked_by: [architecture]
+
+  # --- security (forjate:security) --------------------------------------------
+  secrets-mechanism:
+    summary: how a secret gets from where it is kept into a workload; one per stage, ranked
+    asked_by: [security, devops]
+    exclusive: true
+    setting: secrets_mechanism
+    floor: secret-generator
+  secrets-store:
+    summary: where secrets live, with audit, short-lived credentials and rotation
+    asked_by: [security]
+  access-control:
+    summary: service accounts and RBAC the workloads run under
+    asked_by: [security]
+
+  # --- delivery and operations (forjate:devops) ---------------------------------
+  gitops:
+    summary: the cluster converges on what git says
+    asked_by: [devops]
+  block-storage:
+    summary: replicated persistent volumes for stateful components
+    asked_by: [devops]
+  static-storage:
+    summary: pre-provisioned volumes and claims for a lab cluster
+    asked_by: [kustomize]
+  load-balancer:
+    summary: LoadBalancer services on bare metal
+    asked_by: [devops]
+  metrics:
+    summary: scrapes and stores time series; the source of metric gates
+    asked_by: [devops]
+  dashboards:
+    summary: operational dashboards and alerting over the metrics store
+    asked_by: [devops]
+  telemetry:
+    summary: collects logs and traces, including model and tool calls, and ships them
+    asked_by: [devops]
+  config-reload:
+    summary: restarts consumers when a ConfigMap or Secret changes
+    asked_by: [devops]
+  cluster-ui:
+    summary: a web view of the cluster for operators
+    asked_by: [devops]
+  image-registry:
+    summary: stores the use case's images close to the cluster
+    asked_by: [devops]
+  backup:
+    summary: scheduled backups and rehearsed restores of volumes and databases
+    asked_by: [devops]
+  cloud-resources:
+    summary: provisions managed cloud services from Kubernetes objects
+    asked_by: [devops]
+  bi:
+    summary: business dashboards over the system of record; evidence for KPI gates
+    asked_by: [devops]
+  smoke-test:
+    summary: a workload that proves ingress, TLS and routing work
+    asked_by: [kustomize]

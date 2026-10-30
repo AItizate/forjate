@@ -17,7 +17,10 @@ records which overlays consume which component.
 - `wiki/concepts/` — synthesis that no single directory contains (secret
   strategy, remote-reference pinning, multi-tenant recursion).
 - `poetry run python scripts/wiki-compile.py` — regenerate after any change to
-  `k8s/**`. Page prose is preserved; only generated zones are rewritten.
+  `k8s/**` or to `wiki/catalog-overrides.yaml` / `wiki/catalog-capabilities.yaml`.
+  Page prose is preserved; only generated zones are rewritten. It also writes
+  `wiki/catalog.json` and the per-skill `references/catalog-snapshot.md` files
+  under `plugins/forjate/skills/` (generated, never edited by hand).
 - `poetry run python scripts/wiki-lint.py` — detects pages whose sources changed
   after the page was compiled.
 - `qmd query "..." -c forjate-wiki` — hybrid local search over the wiki, set up

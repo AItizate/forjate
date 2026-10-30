@@ -397,6 +397,7 @@ Tests: L4 on every skill; MCP server contract tests; full L1–L3 re-run as regr
 | #25 | Walk scaffold for support-copilot | — | Opus |
 | #28 | Coordinator cold start end to end (L3) | #27 | Opus |
 | #6 | Velero in the catalog | — | Sonnet |
+| #34 | Skill and checker to curate a component's capabilities and properties | #23 | Fable 5.1 (skill), Sonnet (checker) |
 | #29 | Trigger evals and description optimisation (1) | #27 | Opus |
 | #26 | ADR: catalog MCP server, reuse, language, A2A (2 and 3) | — | Fable 5.1 |
 | #30 | Catalog MCP server in its own repository | #26, #23 | Opus |

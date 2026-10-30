@@ -832,18 +832,49 @@ class Assembly:
         ns = self.ns
         nsdir = k8s / "namespaces" / ns
         stage = "walk" if "walk" in self.in_scope else "crawl"
-        comps = [c for c in self.choices("crawl") + self.new_at("walk") if not self.infra(c)] if stage == "walk" else [c for c in self.choices("crawl") if not self.infra(c)]
+        everything = [c for c in self.choices("crawl") + self.new_at("walk") if not self.infra(c)] if stage == "walk" else [c for c in self.choices("crawl") if not self.infra(c)]
+        place = self.placement(stage)
+        comps = [c for c in everything if c not in place]
         infra = [c for c in self.choices(stage) if self.infra(c)]
         sc = (self.scaffold or {}).get("spec", {})
         image = sc.get("image")
         root_path = k8s / "kustomization.yaml"
+        exc_dirs = self.write_tenant_exceptions(k8s, stage, place, everything)
+        # shared namespaces at their own level: patches on a root the assembly writes, notes on the tenant's own root
+        shared_labels: list[tuple[str, str]] = []
+        groups: dict[str, list[str]] = {}
+        for c in infra:
+            groups.setdefault(self.fact(c, "namespace"), []).append(c)
+        for n, cs in groups.items():
+            levels = [l for l in (self.fact(c, "psa_level", "unknown") for c in cs) if l != "n/a"]
+            if n in SYSTEM_NAMESPACES or not levels:
+                continue
+            if "unknown" in levels:
+                self.notes.append(f"OPEN: the catalog does not know the PSA level of {n} ({', '.join(cs)}); the tenant's owner labels it")
+                continue
+            shared_labels.append((n, min(levels, key=lambda l: PSA_RANK[l])))
+        undeclared = [(n, l) for n, l in shared_labels
+                      if n not in self.declared_ns and not any(self.fact(c, "namespace_how") in ("declares", "remote") for c in groups[n])]
+        for c in infra:
+            if self.fact(c, "namespace_how") == "none":
+                self.notes.append(f"OPEN: {c} sets no namespace in its manifests; place it in {self.fact(c, 'namespace')} with a namespace child of the tenant root")
         if not root_path.exists():
             root = {"apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization",
-                    "resources": [f"ssh://git@github.com/{self.org}/forjate.git//k8s/base?ref={self.factory_ref}"] + [self.ssh_component(c) for c in infra] + [f"./namespaces/{ns}"],
+                    "resources": [f"ssh://git@github.com/{self.org}/forjate.git//k8s/base?ref={self.factory_ref}"] + [self.ssh_component(c) for c in infra] + [f"./namespaces/{ns}"] + exc_dirs,
                     "labels": [{"pairs": {"app.kubernetes.io/managed-by": "kustomize", "app.kubernetes.io/overlay": tenant}}]}
-            self.write(root_path, f"# Tenant root of {tenant}: the factory base and the cluster-level components by SSH ref pinned to one tag ({self.factory_ref}),\n# then one namespace child per use case. No base/ + overlays/ split (tenant-patterns.md).\n" + dump(root))
+            if undeclared:
+                self.write(k8s / "shared-namespaces.yaml", "# Namespaces shared components use but do not ship, at the PSA level their pods meet (catalog psa_level).\n"
+                           + "---\n".join(dump({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": n, "labels": self.psa_labels(l)}}) for n, l in undeclared))
+                root["resources"].insert(1 + len(infra), "shared-namespaces.yaml")
+            labelled = [(n, l) for n, l in shared_labels if (n, l) not in undeclared]
+            if labelled:
+                root["patches"] = [{"target": {"kind": "Namespace", "name": n}, "patch": dump({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": n, "labels": self.psa_labels(l)}})}
+                                   for n, l in labelled]
+            self.write(root_path, f"# Tenant root of {tenant}: the factory base and the cluster-level components by SSH ref pinned to one tag ({self.factory_ref}),\n# then one namespace child per use case (and per PSA exception namespace). No base/ + overlays/ split (tenant-patterns.md).\n# Shared namespaces carry the PSA level their pods meet (catalog psa_level), never the use case's.\n" + dump(root))
         else:
-            self.notes.append(f"add to {root_path}: ./namespaces/{ns} and the infra components " + ", ".join(self.ssh_component(c) for c in infra))
+            self.notes.append(f"add to {root_path}: ./namespaces/{ns}" + "".join(f", {d}" for d in exc_dirs) + " and the infra components " + ", ".join(self.ssh_component(c) for c in infra))
+            for n, l in shared_labels:
+                self.notes.append(f"label Namespace {n} in {root_path} at pod-security.kubernetes.io/enforce={l} (catalog psa_level of what runs there)")
         psa = self.setting("security", stage, "psa_level", "baseline")
         self.write(nsdir / "namespace.yaml", dump({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": ns, "labels": {"forjate.io/usecase": self.name, "pod-security.kubernetes.io/enforce": psa, "pod-security.kubernetes.io/warn": "restricted", "pod-security.kubernetes.io/audit": "restricted"}}}))
         resources = ["namespace.yaml"] + [self.ssh_component(c) for c in comps] + ["netpols.yaml"]
@@ -859,6 +890,14 @@ class Assembly:
             if meta.get("config"):
                 pass
         secrets = self.crawl_secrets() + (self.stage_secrets("walk") if stage == "walk" else [])
+        consumed = {x for w in sc.get("workloads", []) for x in w.get("secrets") or []}
+        secrets = [t for t in secrets if t[2] not in self.catalog or self.home(t[2], stage) == ns or t[0] in consumed]
+        aliases = [{"apiVersion": "v1", "kind": "Service", "metadata": {"name": svc, "labels": {"forjate.io/psa-exception": n}},
+                    "spec": {"type": "ExternalName", "externalName": f"{svc}.{n}.svc.cluster.local"}}
+                   for c, n in place.items() if c in everything for svc in self.services_of(c)]
+        if aliases:
+            self.write(nsdir / "aliases.yaml", f"# ExternalName aliases in {ns} for the Services the PSA exceptions run elsewhere (security: psa_exceptions).\n" + "---\n".join(dump(a) for a in aliases))
+            resources.append("aliases.yaml")
         for sname, keys, origin in secrets:
             patches.append({"target": {"kind": "Secret", "name": sname}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {sname}\n"})
             self.write(nsdir / "secrets" / f"sealed-{sname}.yaml", self.sealed_placeholder(sname, keys))
@@ -887,6 +926,45 @@ class Assembly:
         self.write(k8s / ".gitignore", "# Real credentials never land in git; the committed examples do.\n**/secrets/*.env\n!**/secrets/*.env.example\n")
         self.write(repo / "k8s" / "README.md" if not (repo / "k8s" / "README.md").exists() else repo / "k8s" / f"README-{self.name}.md", self.readme_text(tenant=tenant), keep=False)
 
+    def write_tenant_exceptions(self, k8s: Path, stage: str, place: dict[str, str], everything: list[str]) -> list[str]:
+        """Tenant target: one namespace child per PSA exception namespace, with its components by SSH ref,
+        their sealed Secrets and default-deny. The root composes it next to ./namespaces/uc-<name>."""
+        out: list[str] = []
+        entries = {e["namespace"]: e for e in self.psa_exceptions(stage)}
+        by_ns: dict[str, list[str]] = {}
+        for c in everything:
+            if c in place:
+                by_ns.setdefault(place[c], []).append(c)
+        for n, cs in by_ns.items():
+            e = entries[n]
+            ndir = k8s / "namespaces" / n
+            doc = {"apiVersion": "v1", "kind": "Namespace", "metadata": {
+                "name": n, "labels": {"forjate.io/usecase": self.name, "forjate.io/psa-exception": "true", **self.psa_labels(e["level"])},
+                "annotations": {"forjate.io/psa-exception-owner": e["owner"], "forjate.io/psa-exception-reason": e["reason"]}}}
+            self.write(ndir / "namespace.yaml", dump(doc))
+            res = ["namespace.yaml"] + [self.ssh_component(c) for c in cs]
+            patches = []
+            for c in cs:
+                res += self.secret_files(ndir, n, c, "walk", "sealed-secrets")
+                meta = COMPONENTS.get(c) or {}
+                if meta.get("secret"):
+                    patches.append({"target": {"kind": "Secret", "name": meta["secret"][0]}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {meta['secret'][0]}\n"})
+                if meta.get("placeholder_secret") and meta["placeholder_secret"] != (meta.get("secret") or ("",))[0]:
+                    patches.append({"target": {"kind": "Secret", "name": meta["placeholder_secret"]}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {meta['placeholder_secret']}\n"})
+            if self.setting("security", stage, "network_policy") == "default-deny":
+                self.write(ndir / "netpols.yaml", self.exception_netpols(stage, n, cs))
+                res.append("netpols.yaml")
+            sub = {"namespace": n, "resources": res}
+            if patches:
+                sub["patches"] = patches
+            config = [{"name": COMPONENTS[c]["config"][0], "literals": COMPONENTS[c]["config"][1], "options": {"disableNameSuffixHash": True}}
+                      for c in cs if (COMPONENTS.get(c) or {}).get("config")]
+            if config:
+                sub["configMapGenerator"] = config
+            self.write(ndir / "kustomization.yaml", f"# {n}: the PSA exceptions of {self.name} at {e['level']} (owner {e['owner']}: {e['reason']}).\n" + dump(sub))
+            out.append(f"./namespaces/{n}")
+        return out
+
     # ------------------------------------------------------------ README
     def readme_text(self, *, tenant: str | None = None) -> str:
         b = self.brief["spec"]
@@ -911,6 +989,12 @@ class Assembly:
                 first = str(sd.get("rationale", "")).strip().split(". ")[0][:140]
                 cells.append(f"{choice}. {first}")
             lines.append(f"| {area} | " + " | ".join(cells) + " |")
+        psa_rows = [(st, e) for st in self.in_scope for e in self.psa_exceptions(st)]
+        if psa_rows:
+            lines += ["", "## PSA exceptions", "",
+                      f"`{self.ns}` enforces the security record's `psa_level` per stage and is never lowered; these namespaces run below it.", "",
+                      "| Stage | Namespace | Level | Components | Owner | Reason |", "|---|---|---|---|---|---|"]
+            lines += [f"| {st} | `{e['namespace']}` | {e['level']} | " + ", ".join(f"`{c}`" for c in e["components"]) + f" | {e['owner']} | {' '.join(str(e['reason']).split())} |" for st, e in psa_rows]
         oq = [(a, q) for a, r in self.records.items() for q in r["spec"].get("open_questions") or []]
         lines += ["", "## Open questions", ""] + ([f"- **{a} {q['id']}** (blocks {q.get('blocks_stage', 'nothing')}" + (f", {q['caused_by_rule']}" if q.get("caused_by_rule") else "") + f"): {str(q['question']).strip()}" for a, q in oq] or ["none"])
         if self.gates:
@@ -926,7 +1010,7 @@ class Assembly:
                   "- [x] `usecase.yaml` validates; seed and verify Jobs exist suspended (CI: validate-usecases)",
                   "- [x] `.env.example` with the generate and seal header for every secret; real `.env` gitignored",
                   "- [x] plaintext-credential scan clean over the whole use case (`secret-scan.py`, CI: validate-kustomize)",
-                  "- [x] from Walk: PSA labels, default-deny NetworkPolicies, the egress allow-list, sealed secrets replacing every generated Secret, the ArgoCD Application on a tag",
+                  "- [x] from Walk: PSA labels (the use case's namespace at the stage's level, every other namespace at its own, the PSA exceptions in theirs), default-deny NetworkPolicies, the egress allow-list, sealed secrets replacing every generated Secret, the ArgoCD Application on a tag",
                   "- [ ] seal the real secrets with the recipe in each `.env.example` before the first Walk sync",
                   "- [ ] patch the hostnames (`*.example.com`) and the ArgoCD `targetRevision` to the release tag"]
         if self.notes:

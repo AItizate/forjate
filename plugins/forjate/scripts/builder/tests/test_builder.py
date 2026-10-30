@@ -620,3 +620,25 @@ def test_assembly_reproduces_the_golden_overlays(tmp_path: Path):
         assert generated - committed == set(), f"{name}: files the assembly writes that are not committed"
         for rel_path in generated:
             assert (dst / rel_path).read_text() == (src / rel_path).read_text(), f"{name}: {rel_path} drifted from the assembly"
+
+
+def test_tenant_target_gives_psa_exceptions_their_own_namespace_child(tmp_path: Path):
+    k8s = tmp_path / "k8s"
+    (k8s / "overlays" / "usecases").mkdir(parents=True)
+    for d in ("components", "base"):
+        (k8s / d).symlink_to(REPO / "k8s" / d)
+    uc = k8s / "overlays" / "usecases" / "invoice-intake"
+    shutil.copytree(USECASES / "invoice-intake" / ".builder", uc / ".builder")
+    tenant = tmp_path / "demo-iac"
+    r = run(str(BUILDER.parent.parent / "skills" / "kustomize" / "scripts" / "assemble.py"), str(uc),
+            "--target", "tenant", "--tenant-repo", str(tenant), "--tenant", "demo", "--factory-ref", "v1.1.0")
+    assert r.returncode == 0, r.stdout + r.stderr
+    root = yaml.safe_load((tenant / "k8s" / "kustomization.yaml").read_text())
+    assert "./namespaces/uc-invoice-intake-baseline" in root["resources"]
+    exc = yaml.safe_load((tenant / "k8s" / "namespaces" / "uc-invoice-intake-baseline" / "kustomization.yaml").read_text())
+    assert exc["namespace"] == "uc-invoice-intake-baseline"
+    assert any("apps/databases/postgres" in x for x in exc["resources"])
+    child = yaml.safe_load((tenant / "k8s" / "namespaces" / "uc-invoice-intake" / "kustomization.yaml").read_text())
+    assert not any("apps/databases/postgres" in x for x in child["resources"]) and "aliases.yaml" in child["resources"]
+    ns = yaml.safe_load((tenant / "k8s" / "namespaces" / "uc-invoice-intake" / "namespace.yaml").read_text())
+    assert ns["metadata"]["labels"]["pod-security.kubernetes.io/enforce"] == "restricted"

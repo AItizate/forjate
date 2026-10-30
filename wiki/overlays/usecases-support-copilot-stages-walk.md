@@ -3,7 +3,7 @@ title: usecases-support-copilot-stages-walk
 kind: overlay
 sources:
 - k8s/overlays/usecases/support-copilot/stages/walk
-compiled_at: '2026-10-31'
+compiled_at: '2026-10-30'
 category: usecases
 parent: overlays/usecases-support-copilot
 source_last_commit: '2026-10-30'
@@ -30,7 +30,7 @@ summary_source: derived
 ### Declared resources
 
 - `../../../../../base`
-- `../../namespaces/uc-support-copilot`
+- `./relocated`
 - `../../../../../components/apps/cloudflare-tunnel`
 - `../../../../../components/apps/continuous-delivery/argocd`
 - `../../../../../components/apps/sealed-secrets`
@@ -52,7 +52,7 @@ summary_source: derived
 ### Depends on
 
 - [base/base](../base/base.md)
-- `k8s/overlays/usecases/support-copilot/namespaces/uc-support-copilot`
+- `k8s/overlays/usecases/support-copilot/namespaces/uc-support-copilot` — resource, via relocated
 - [components/cloudflare-tunnel](../components/cloudflare-tunnel.md)
 - [components/continuous-delivery-argocd](../components/continuous-delivery-argocd.md)
 - [components/sealed-secrets](../components/sealed-secrets.md)

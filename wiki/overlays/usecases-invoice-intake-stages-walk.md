@@ -3,7 +3,7 @@ title: usecases-invoice-intake-stages-walk
 kind: overlay
 sources:
 - k8s/overlays/usecases/invoice-intake/stages/walk
-compiled_at: '2026-10-31'
+compiled_at: '2026-10-30'
 category: usecases
 parent: overlays/usecases-invoice-intake
 consumed_by:
@@ -93,7 +93,7 @@ summary_source: derived
 
 ### Consumed by
 
-- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md)
+- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md) — resource, via relocated
 
 <!-- END DECLARED -->
 

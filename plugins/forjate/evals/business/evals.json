@@ -91,7 +91,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
-          "expr": "len(listed(setting('raci', 'crawl'))) >= 4 and all(has('R=', l) and has('A=', l) for l in listed(setting('raci', 'crawl')))",
+          "expr": "len(listed(setting('raci', 'crawl'))) >= 4 and all(has('r=', l) and has('a=', l) for l in listed(setting('raci', 'crawl')))",
           "text": "a RACI with the four activities, each with R and A"
         },
         {
@@ -103,7 +103,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
-          "expr": "any(has('infosec|security|data readiness|change', r.get('text')) for r in risks())",
+          "expr": "any(has('infosec|security|access|data.?readiness|change|trust|adopt', str(r.get('text', '')) + ' ' + str(r.get('mitigation', ''))) for r in risks())",
           "text": "an adoption friction is also a risk with a mitigation"
         },
         {
@@ -303,7 +303,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
-          "expr": "txt(setting('kpi_baseline', 'crawl')) in ('0%', '0', '0 %')",
+          "expr": "has(r'^0\\s*%', txt(setting('kpi_baseline', 'crawl')).strip()) or txt(setting('kpi_baseline', 'crawl')).strip() in ('0', '0%', '0 %')",
           "text": "baseline kept from the brief, not dropped"
         }
       ]

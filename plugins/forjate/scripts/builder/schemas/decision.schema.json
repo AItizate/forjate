@@ -91,6 +91,23 @@
           }
         },
         "risks": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/risk" } },
+        "psa_exceptions": {
+          "description": "Namespaces below this stage's settings.psa_level that run components of the use case: shared infrastructure at the level its owner sets, or a use-case-scoped component moved out because it cannot run at the use case's level. Never the use case's own namespace, which stays at psa_level. The kustomize assembly labels each namespace at its level and moves the listed use-case-scoped components there; severity and mitigation go in the linked risk.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["namespace", "level", "components", "owner", "reason"],
+            "additionalProperties": false,
+            "properties": {
+              "namespace": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+              "level": { "enum": ["privileged", "baseline"] },
+              "components": { "type": "array", "minItems": 1, "items": { "$ref": "_defs.schema.json#/$defs/component" } },
+              "owner": { "type": "string", "description": "Who sets and accepts the level: the platform team, the cluster admin, a named role." },
+              "reason": { "type": "string", "description": "Why the components cannot run at the use case's level: the catalog fact or the host access they need." },
+              "risk": { "type": "string", "pattern": "^R[0-9]+$", "description": "The risks entry carrying severity and mitigation, when there is one." }
+            }
+          }
+        },
         "gate_to_next": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/gate" } },
         "constrained_by": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/ruleRef" } },
         "estimated_cost_usd_month": { "type": "number" }

@@ -14,9 +14,9 @@ _asked by: data-store, architecture_
 
 Single option today: `apps/databases/redis`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/databases/redis` | crawl, walk, run | mvp | single | none | false | internal, pii, financial, health | BSD-3 (7.2) / RSALv2+SSPL (7.4+) | Short-term memory, rate limiting and locks; memory-bound, name the eviction policy. Check the image tag against the licence change. |
+| `apps/databases/redis` | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | BSD-3 (7.2) / RSALv2+SSPL (7.4+) | Short-term memory, rate limiting and locks; memory-bound, name the eviction policy. Check the image tag against the licence change. |
 
 ## `coordination`
 
@@ -26,9 +26,9 @@ _asked by: architecture_
 
 Single option today: `apps/databases/etcd`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/databases/etcd` | walk, run | lab | single | none | false | internal | Apache-2.0 | Dependency of Milvus; rarely chosen on its own. |
+| `apps/databases/etcd` | walk, run | lab | single | none | baseline | internal | Apache-2.0 | Dependency of Milvus; rarely chosen on its own. |
 
 ## `message-broker`
 
@@ -36,10 +36,10 @@ decouples two workloads or fans out events; persistence and replay.
 
 _asked by: architecture, data-pipeline · exclusive: one per stage · setting `broker`_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/brokers/nats` | crawl, walk, run | mvp | single | none | unknown | internal, pii, financial, health | Apache-2.0 | Lightweight (20 MB); JetStream gives persistence and replay. Default broker for event-driven use cases. Mounts `nats-secret`. |
-| `apps/brokers/rabbitmq` | walk, run | lab | single | none | false | internal, pii, financial, health | MPL-2.0 | Classic work-queue semantics and AMQP; choose when AMQP clients already exist. |
+| `apps/brokers/nats` | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Lightweight (20 MB); JetStream gives persistence and replay. Default broker for event-driven use cases. Mounts `nats-secret`. |
+| `apps/brokers/rabbitmq` | walk, run | lab | single | none | baseline | internal, pii, financial, health | MPL-2.0 | Classic work-queue semantics and AMQP; choose when AMQP clients already exist. |
 
 ## `mqtt-broker`
 
@@ -49,9 +49,9 @@ _asked by: architecture, data-pipeline_
 
 Single option today: `apps/brokers/mosquitto`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/brokers/mosquitto` | crawl, walk, run | lab | single | none | false | internal, pii | EPL-2.0 | MQTT for devices and sensors; not a substitute for a message broker between workloads. |
+| `apps/brokers/mosquitto` | crawl, walk, run | lab | single | none | baseline | internal, pii | EPL-2.0 | MQTT for devices and sensors; not a substitute for a message broker between workloads. |
 
 ## `durable-workflows`
 
@@ -59,10 +59,10 @@ multi-step work that survives a pod dying halfway — retries, timers, human ste
 
 _asked by: architecture_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/workflows/temporal` | walk, run | mvp | single | none | false | internal, pii, financial, health | MIT | auto-setup image, server and UI; use bundles/temporal-stack for the Postgres wiring. Workflow payloads persist in its database. |
-| `bundles/temporal-stack` | walk, run | mvp | single | none | false | internal, pii, financial, health | MIT | Temporal plus its Postgres, wired. The default way to take durable-workflows. |
+| `apps/workflows/temporal` | walk, run | mvp | single | none | baseline | internal, pii, financial, health | MIT | auto-setup image, server and UI; use bundles/temporal-stack for the Postgres wiring. Workflow payloads persist in its database. |
+| `bundles/temporal-stack` | walk, run | mvp | single | none | baseline | internal, pii, financial, health | MIT | Temporal plus its Postgres, wired. The default way to take durable-workflows. |
 
 ## `cdc`
 
@@ -70,14 +70,14 @@ publishes a database's change log to a broker; the trigger is "a row changed".
 
 _asked by: data-pipeline, architecture_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/cdc/debezium-mariadb-nats` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink NATS. |
-| `apps/cdc/debezium-mariadb-rabbitmq` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink RabbitMQ. |
-| `apps/cdc/debezium-mongo-nats` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink NATS. |
-| `apps/cdc/debezium-mongo-rabbitmq` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink RabbitMQ. |
-| `apps/cdc/debezium-postgres-nats` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink NATS. Doubles as an audit trail of row changes. |
-| `apps/cdc/debezium-postgres-rabbitmq` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink RabbitMQ. |
+| `apps/cdc/debezium-mariadb-nats` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink NATS. |
+| `apps/cdc/debezium-mariadb-rabbitmq` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink RabbitMQ. |
+| `apps/cdc/debezium-mongo-nats` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink NATS. |
+| `apps/cdc/debezium-mongo-rabbitmq` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink RabbitMQ. |
+| `apps/cdc/debezium-postgres-nats` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink NATS. Doubles as an audit trail of row changes. |
+| `apps/cdc/debezium-postgres-rabbitmq` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink RabbitMQ. |
 
 ## `identity-provider`
 
@@ -87,9 +87,9 @@ _asked by: architecture, security_
 
 Single option today: `apps/auth/gotrue-auth`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/auth/gotrue-auth` | walk, run | mvp | single | none | false | internal, pii | MIT | Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature. |
+| `apps/auth/gotrue-auth` | walk, run | mvp | single | none | baseline | internal, pii | MIT | Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature. |
 
 ## `public-ingress`
 
@@ -99,9 +99,9 @@ _asked by: architecture, devops_
 
 Single option today: `apps/cloudflare-tunnel`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/cloudflare-tunnel` | walk, run | mvp | replicated | none | false | internal, pii, financial | Apache-2.0 | Public ingress without open ports; two replicas. Traffic transits Cloudflare — a hop the compliance record names for residency and for health data. |
+| `apps/cloudflare-tunnel` | walk, run | mvp | replicated | none | baseline | internal, pii, financial | Apache-2.0 | Public ingress without open ports; two replicas. Traffic transits Cloudflare — a hop the compliance record names for residency and for health data. |
 
 ## `low-code-automation`
 
@@ -109,7 +109,7 @@ visual flows for glue a developer should not have to write.
 
 _asked by: architecture_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/n8n` | crawl, walk | lab | single | none | false | internal, pii | Sustainable Use License | Not OSI-approved; corporate packs often restrict it. Ships its own Postgres. |
-| `apps/node-red` | crawl, walk | lab | single | none | false | internal, pii | Apache-2.0 | Flows for devices and MQTT; pairs with mosquitto. |
+| `apps/n8n` | crawl, walk | lab | single | none | baseline | internal, pii | Sustainable Use License | Not OSI-approved; corporate packs often restrict it. Ships its own Postgres. |
+| `apps/node-red` | crawl, walk | lab | single | none | baseline | internal, pii | Apache-2.0 | Flows for devices and MQTT; pairs with mosquitto. |

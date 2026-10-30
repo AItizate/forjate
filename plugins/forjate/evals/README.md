@@ -33,7 +33,7 @@ Results land in `evals-workspace/<skill>/iteration-N/<eval-name>/{with_skill,wit
 | `schema_valid` | `path`, `schema` | the YAML validates against `scripts/builder/schemas/<schema>.schema.json` |
 | `command` | `cmd` | a shell command exits 0 in the worktree (a generated service builds, its tests pass) |
 | `scaffold_check` | `path` | `scaffold-check.py` exits 0 on that use case (tool signatures match the AI-engineering record, templates @v1, no hand-rolled build) |
-| `yaml_expr` | `path`, `expr` | a Python expression over the loaded YAML is truthy; helpers: `d`, `stages`, `setting(key[, stage])`, `choices([stage])`, `choice_capabilities([stage])`, `capabilities_of(component)`, `alts()`, `risks()`, `gates()`, `rules()`, `oq()`, `has(regex, x)`, `txt(x)`, `listed(x)` |
+| `yaml_expr` | `path`, `expr` | a Python expression over the loaded YAML is truthy; helpers: `d`, `stages`, `setting(key[, stage])`, `choices([stage])`, `choice_capabilities([stage])`, `capabilities_of(component)`, `psa_exceptions([stage])`, `psa_level_of(component)`, `namespace_of(component)` (the last two read `wiki/catalog.json`), `alts()`, `risks()`, `gates()`, `rules()`, `oq()`, `has(regex, x)`, `txt(x)`, `listed(x)` |
 | `choice_has_capability` | `path`, `capability`, optional `stage` | some component in the record's `choice` (of that stage, or any) has that catalog capability per `wiki/catalog.json`; asserts the role a choice plays, not its name |
 | `choice_lacks_capability` | `path`, `capability`, optional `stage` | no chosen component has it ("no vector store") |
 

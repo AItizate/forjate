@@ -4,7 +4,7 @@
     {
       "name": "regulated-invoice-intake",
       "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the security expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area security, metadata.author forjate:security, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
-      "expected_output": "PSA restricted at Walk and Run citing SEC-1, secrets ladder secret-generator/sealed-secrets/external-secrets with SEC-2 cited and one mechanism per stage, egress none citing AI-2, default-deny with an egress allow-list naming Odoo and IMAP, oauth2-proxy at Walk matching the architecture record, LLM threats with injection and a write gate, ci gates for the secret scan and the .env.example recipe.",
+      "expected_output": "PSA restricted at Walk and Run citing SEC-1, the catalog components that cannot run restricted recorded in psa_exceptions in a namespace of their own (never uc-invoice-intake), secrets ladder secret-generator/sealed-secrets/external-secrets with SEC-2 cited and one mechanism per stage, egress none citing AI-2, default-deny with an egress allow-list naming Odoo and IMAP, oauth2-proxy at Walk matching the architecture record, LLM threats with injection and a write gate, ci gates for the secret scan and the .env.example recipe.",
       "assertions": [
         {
           "type": "file_exists",
@@ -33,6 +33,12 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
           "pattern": "pack:regulated-corp#SEC-1",
           "text": "SEC-1 cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('psa_level','walk') == 'restricted' and all(x.get('namespace') != 'uc-invoice-intake' for x in psa_exceptions()) and any(psa_level_of(c) not in ('restricted', 'n/a') for x in psa_exceptions('walk') for c in x.get('components') or [])",
+          "text": "a component the catalog does not prove under restricted is a recorded exception in a namespace of its own, and uc-invoice-intake stays restricted (psa-exception-not-lowering)"
         },
         {
           "type": "yaml_expr",

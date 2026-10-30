@@ -12,10 +12,10 @@ serves a model inside the cluster; zero egress.
 
 _asked by: ai-engineering · exclusive: one per stage · setting `inference`_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/ai-models/ollama` | crawl, walk | mvp | single | optional | false | internal, pii, financial, health | MIT | Zero-egress inference. CPU is fine for Crawl latency; a GPU node from Walk. Each model has its own licence. |
-| `apps/ai-models/vllm` | walk, run | lab | single | required | false | internal, pii, financial, health | Apache-2.0 | The production-shaped local inference server; concurrency and pinned model versions. Model licence separate. |
+| `apps/ai-models/ollama` | crawl, walk | mvp | single | optional | baseline | internal, pii, financial, health | MIT | Zero-egress inference. CPU is fine for Crawl latency; a GPU node from Walk. Each model has its own licence. |
+| `apps/ai-models/vllm` | walk, run | lab | single | required | baseline | internal, pii, financial, health | Apache-2.0 | The production-shaped local inference server; concurrency and pinned model versions. Model licence separate. |
 
 ## `llm-gateway`
 
@@ -25,6 +25,6 @@ _asked by: ai-engineering_
 
 Single option today: `apps/ai-models/litellm`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/ai-models/litellm` | crawl, walk, run | mvp | single | none | false | internal, pii, financial, health | MIT | One OpenAI-compatible endpoint in front of local and external models; routing, per-key spend, where egress policy is enforced. Provider API keys arrive as a Secret. |
+| `apps/ai-models/litellm` | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | MIT | One OpenAI-compatible endpoint in front of local and external models; routing, per-key spend, where egress policy is enforced. Provider API keys arrive as a Secret. |

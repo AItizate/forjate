@@ -30,20 +30,21 @@ summary_source: derived
 
 - `../walk`
 - `../../../../../components/apps/security/external-secrets`
-- `../../../../../components/apps/monitoring/otel-collector`
 - `./namespaces/uc-invoice-intake`
+- `./namespaces/uc-invoice-intake-baseline`
+- `./namespaces/otel-collector`
 - `argocd/application.yaml`
 
 ### Kubernetes kinds
 
-`Application`, `ExternalSecret`
+`Application`, `ExternalSecret`, `Namespace`, `Service`
 
 ### Depends on
 
 - [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md)
 - [components/security-external-secrets](../components/security-external-secrets.md)
-- [components/monitoring-otel-collector](../components/monitoring-otel-collector.md)
-- [components/ai-models-vllm](../components/ai-models-vllm.md) — resource, via namespaces/uc-invoice-intake
+- [components/ai-models-vllm](../components/ai-models-vllm.md) — resource, via namespaces/uc-invoice-intake-baseline
+- [components/monitoring-otel-collector](../components/monitoring-otel-collector.md) — resource, via namespaces/otel-collector
 
 ### Patches
 
@@ -51,12 +52,14 @@ summary_source: derived
 - `inline → SealedSecret/postgres-secret (ns: uc-invoice-intake)`
 - `inline → SealedSecret/minio-secret (ns: uc-invoice-intake)`
 - `inline → SealedSecret/approval-secret (ns: uc-invoice-intake)`
-- `inline → SealedSecret/litellm-secret (ns: uc-invoice-intake)`
-- `inline → SealedSecret/gotrue-secret (ns: uc-invoice-intake)`
 - `inline → SealedSecret/minio-storage-configuration (ns: uc-invoice-intake)`
-- `inline → SealedSecret/formbricks-secret (ns: uc-invoice-intake)`
 - `inline → SealedSecret/imap-mailbox-secret (ns: uc-invoice-intake)`
 - `inline → SealedSecret/odoo-rest-api-secret (ns: uc-invoice-intake)`
+- `inline → SealedSecret/postgres-secret (ns: uc-invoice-intake-baseline)`
+- `inline → SealedSecret/minio-secret (ns: uc-invoice-intake-baseline)`
+- `inline → SealedSecret/litellm-secret (ns: uc-invoice-intake-baseline)`
+- `inline → SealedSecret/gotrue-secret (ns: uc-invoice-intake-baseline)`
+- `inline → SealedSecret/formbricks-secret (ns: uc-invoice-intake-baseline)`
 
 <!-- END DECLARED -->
 

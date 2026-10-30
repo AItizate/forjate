@@ -1,0 +1,20 @@
+# walk: uc-invoice-intake-baseline, where the PSA exceptions of invoice-intake run at baseline (exception owned by platform team: the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the invoice workloads stay restricted in uc-invoice-intake).
+namespace: uc-invoice-intake-baseline
+resources:
+- namespace.yaml
+- ../../../../../../../components/apps/ai-models/litellm
+- ../../../../../../../components/apps/auth/gotrue-auth
+- ../../../../../../../components/apps/surveys/formbricks
+- secrets/sealed-postgres-secret.yaml
+- secrets/sealed-minio-secret.yaml
+- secrets/sealed-litellm-secret.yaml
+- secrets/sealed-gotrue-secret.yaml
+- secrets/sealed-formbricks-secret.yaml
+- netpols.yaml
+configMapGenerator:
+- name: formbricks-config
+  literals:
+  - WEBAPP_URL=http://formbricks:3000
+  - NEXTAUTH_URL=http://formbricks:3000
+  options:
+    disableNameSuffixHash: true

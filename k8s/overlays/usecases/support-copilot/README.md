@@ -27,6 +27,14 @@ kubectl kustomize --enable-helm k8s/overlays/usecases/support-copilot/stages/wal
 | security | no component. No packs are active, so the factory defaults apply | `apps/sealed-secrets`. Walk puts the bot in front of real customers, so the overlay becomes complete in git: Sealed Secrets is the one mechanism for this stage and | out of scope |
 | ux | no component. No packs are active, so the factory defaults apply | no component. The customers are already in Telegram, so the surface is the channel itself through the webhook the architecture record exposes; the support | out of scope |
 
+## PSA exceptions
+
+`uc-support-copilot` enforces the security record's `psa_level` per stage and is never lowered; these namespaces run below it.
+
+| Stage | Namespace | Level | Components | Owner | Reason |
+|---|---|---|---|---|---|
+| walk | `longhorn-system` | privileged | `apps/storage/longhorn` | platform team | the CSI driver and the engine need privileged containers and hostPath |
+
 ## Open questions
 
 - **ai-engineering Q1** (blocks walk): Which order fields may be shown to a customer in chat? The allowed list bounds the tools.
@@ -59,6 +67,6 @@ kubectl kustomize --enable-helm k8s/overlays/usecases/support-copilot/stages/wal
 - [x] `usecase.yaml` validates; seed and verify Jobs exist suspended (CI: validate-usecases)
 - [x] `.env.example` with the generate and seal header for every secret; real `.env` gitignored
 - [x] plaintext-credential scan clean over the whole use case (`secret-scan.py`, CI: validate-kustomize)
-- [x] from Walk: PSA labels, default-deny NetworkPolicies, the egress allow-list, sealed secrets replacing every generated Secret, the ArgoCD Application on a tag
+- [x] from Walk: PSA labels (the use case's namespace at the stage's level, every other namespace at its own, the PSA exceptions in theirs), default-deny NetworkPolicies, the egress allow-list, sealed secrets replacing every generated Secret, the ArgoCD Application on a tag
 - [ ] seal the real secrets with the recipe in each `.env.example` before the first Walk sync
 - [ ] patch the hostnames (`*.example.com`) and the ArgoCD `targetRevision` to the release tag

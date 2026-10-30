@@ -6,7 +6,6 @@ resources:
 - ../../../../../../../components/apps/databases/redis
 - secrets/sealed-postgres-secret.yaml
 - secrets/sealed-litellm-secret.yaml
-- secrets/sealed-cloudflare-tunnel-secret.yaml
 - secrets/sealed-telegram-bot-api-secret.yaml
 - secrets/sealed-orders-api-secret.yaml
 - secrets/sealed-support-queue-secret.yaml

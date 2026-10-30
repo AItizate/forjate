@@ -499,3 +499,146 @@ def test_skill_lint_runs_and_allows_single_option_components(tmp_path: Path):
     mod = __import__("importlib").util.module_from_spec(lint); lint.loader.exec_module(mod)
     single = mod.single_option_components(json.loads(CATALOG.read_text()))
     assert "apps/document-processing/docling" in single and "apps/databases/postgres" not in single
+
+
+# ------------------------------------------------------------ PSA exceptions (#22)
+
+USECASES = REPO / "k8s" / "overlays" / "usecases"
+
+
+def _golden(tmp_path: Path, name: str) -> Path:
+    dst = tmp_path / name
+    shutil.copytree(USECASES / name / ".builder", dst / ".builder")
+    return dst
+
+
+def _psa_messages(msgs: list[str]) -> list[str]:
+    return [m for m in msgs if "psa_exceptions" in m or "psa_level" in m]
+
+
+def test_golden_psa_exceptions_are_clean(tmp_path: Path):
+    for name in ("invoice-intake", "support-copilot"):
+        errors, warnings = validate_usecase(_golden(tmp_path, name))
+        assert errors == [] and _psa_messages(warnings) == [], (name, errors, warnings)
+
+
+def test_psa_exception_in_the_use_case_namespace_is_an_error(tmp_path: Path):
+    uc = _golden(tmp_path, "invoice-intake")
+    f = uc / ".builder" / "decisions" / "security.yaml"
+    d = yaml.safe_load(f.read_text())
+    d["spec"]["stages"]["walk"]["psa_exceptions"][0]["namespace"] = "uc-invoice-intake"
+    f.write_text(yaml.safe_dump(d, sort_keys=False))
+    errors, _ = validate_usecase(uc)
+    assert any("never lowers the use case's namespace" in e for e in errors)
+
+
+def test_missing_psa_exceptions_are_warnings_derived_from_the_catalog(tmp_path: Path):
+    uc = _golden(tmp_path, "invoice-intake")
+    f = uc / ".builder" / "decisions" / "security.yaml"
+    d = yaml.safe_load(f.read_text())
+    for sd in d["spec"]["stages"].values():
+        sd.pop("psa_exceptions", None)
+    f.write_text(yaml.safe_dump(d, sort_keys=False))
+    errors, warnings = validate_usecase(uc)
+    psa = _psa_messages(warnings)
+    assert errors == []
+    catalog = json.loads(CATALOG.read_text())
+    shared_privileged = {c["namespace"] for c in catalog["components"] if c.get("namespace") and c.get("psa_level") == "privileged"}
+    assert any("would run in uc-invoice-intake" in w for w in psa)
+    assert any(any(f"{ns} needs a level below" in w for ns in shared_privileged) for w in psa)
+
+
+def test_validator_names_no_component():
+    """Where a component runs and the level it meets come from wiki/catalog.json, never from the validator."""
+    src = (BUILDER / "validate.py").read_text()
+    assert not re.search(r"[\"']apps/", src)
+
+
+def _wiki_compile():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("wiki_compile", REPO / "scripts" / "wiki-compile.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["wiki_compile"] = mod      # dataclasses resolve their module through sys.modules
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_pod_psa_level_is_derived_from_the_pod_spec():
+    wc = _wiki_compile()
+    hardened = {"securityContext": {"runAsNonRoot": True, "seccompProfile": {"type": "RuntimeDefault"}},
+                "containers": [{"name": "a", "securityContext": {"allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"]}}}]}
+    assert wc.pod_psa_level(hardened) == "restricted"
+    assert wc.pod_psa_level({"containers": [{"name": "a"}]}) == "baseline"
+    assert wc.pod_psa_level({"containers": [{"name": "a"}], "volumes": [{"name": "h", "hostPath": {"path": "/"}}]}) == "privileged"
+    assert wc.pod_psa_level({"hostNetwork": True, "containers": [{"name": "a"}]}) == "privileged"
+    assert wc.pod_psa_level({"containers": [{"name": "a", "securityContext": {"capabilities": {"add": ["NET_ADMIN"]}}}]}) == "privileged"
+
+
+def test_catalog_overrides_cannot_contradict_the_tree():
+    wc = _wiki_compile()
+    tree = {"psa_level": "privileged", "namespace": "storage-system", "declared": {"storage-system"}, "remote": False}
+    extra = {"psa_restricted": True}
+    errors = wc.merge_psa_and_namespace("apps/x", extra, tree, {"namespace": "other"})
+    assert any("namespace override 'other'" in e for e in errors)
+    assert any("psa_restricted is true" in e for e in errors)
+    extra = {"psa_restricted": "unknown"}
+    assert wc.merge_psa_and_namespace("apps/x", extra, tree, {}) == []
+    assert (extra["psa_level"], extra["namespace"], extra["namespace_how"]) == ("privileged", "storage-system", "declares")
+    extra = {"psa_restricted": False}
+    wc.merge_psa_and_namespace("apps/x", extra, dict(tree, namespace="pinned", declared=set()), {"namespace": None})
+    assert extra["namespace"] is None and extra["namespace_how"] is None
+
+
+def test_catalog_carries_psa_level_and_namespace_for_every_component():
+    catalog = json.loads(CATALOG.read_text())
+    for c in catalog["components"]:
+        assert c["psa_level"] in ("privileged", "baseline", "restricted", "n/a", "unknown"), c["path"]
+        assert (c["namespace"] is None) == (c["namespace_how"] is None), c["path"]
+        if c.get("psa_restricted") is True:
+            assert c["psa_level"] == "restricted", c["path"]
+
+
+def test_assembly_reproduces_the_golden_overlays(tmp_path: Path):
+    """The golden overlays are generated: regenerating them from their records and today's catalog must give
+    the committed files, so a catalog change (a component's namespace, its PSA level) cannot drift unseen."""
+    k8s = tmp_path / "k8s"
+    (k8s / "overlays" / "usecases").mkdir(parents=True)
+    for d in ("components", "base"):
+        (k8s / d).symlink_to(REPO / "k8s" / d)
+    for name in ("invoice-intake", "support-copilot"):
+        src, dst = USECASES / name, k8s / "overlays" / "usecases" / name
+        shutil.copytree(src / ".builder", dst / ".builder")
+        r = run(str(BUILDER.parent.parent / "skills" / "kustomize" / "scripts" / "assemble.py"), str(dst), "--force")
+        assert r.returncode == 0, r.stdout + r.stderr
+        def files(root: Path) -> set[str]:
+            # the working tree minus the inputs (.builder/, app/) and the gitignored .env copies of the examples
+            return {p.relative_to(root).as_posix() for p in root.rglob("*")
+                    if p.is_file() and not set(p.relative_to(root).parts[:1]) & {".builder", "app"} and p.suffix != ".env"
+                    and "__pycache__" not in p.parts}
+        generated, committed = files(dst), files(src)
+        assert committed - generated == set(), f"{name}: committed files the assembly no longer writes"
+        assert generated - committed == set(), f"{name}: files the assembly writes that are not committed"
+        for rel_path in generated:
+            assert (dst / rel_path).read_text() == (src / rel_path).read_text(), f"{name}: {rel_path} drifted from the assembly"
+
+
+def test_tenant_target_gives_psa_exceptions_their_own_namespace_child(tmp_path: Path):
+    k8s = tmp_path / "k8s"
+    (k8s / "overlays" / "usecases").mkdir(parents=True)
+    for d in ("components", "base"):
+        (k8s / d).symlink_to(REPO / "k8s" / d)
+    uc = k8s / "overlays" / "usecases" / "invoice-intake"
+    shutil.copytree(USECASES / "invoice-intake" / ".builder", uc / ".builder")
+    tenant = tmp_path / "demo-iac"
+    r = run(str(BUILDER.parent.parent / "skills" / "kustomize" / "scripts" / "assemble.py"), str(uc),
+            "--target", "tenant", "--tenant-repo", str(tenant), "--tenant", "demo", "--factory-ref", "v1.1.0")
+    assert r.returncode == 0, r.stdout + r.stderr
+    root = yaml.safe_load((tenant / "k8s" / "kustomization.yaml").read_text())
+    assert "./namespaces/uc-invoice-intake-baseline" in root["resources"]
+    exc = yaml.safe_load((tenant / "k8s" / "namespaces" / "uc-invoice-intake-baseline" / "kustomization.yaml").read_text())
+    assert exc["namespace"] == "uc-invoice-intake-baseline"
+    assert any("apps/databases/postgres" in x for x in exc["resources"])
+    child = yaml.safe_load((tenant / "k8s" / "namespaces" / "uc-invoice-intake" / "kustomization.yaml").read_text())
+    assert not any("apps/databases/postgres" in x for x in child["resources"]) and "aliases.yaml" in child["resources"]
+    ns = yaml.safe_load((tenant / "k8s" / "namespaces" / "uc-invoice-intake" / "namespace.yaml").read_text())
+    assert ns["metadata"]["labels"]["pod-security.kubernetes.io/enforce"] == "restricted"

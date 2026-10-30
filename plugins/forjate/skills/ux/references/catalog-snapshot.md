@@ -14,9 +14,9 @@ _asked by: ux_
 
 Single option today: `apps/ai-models/open-webui`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/ai-models/open-webui` | crawl, walk | lab | single | none | false | internal, pii, financial, health | BSD-3 (with branding clause) | Fastest human-facing surface for a Crawl demo; speaks to LiteLLM or Ollama. |
+| `apps/ai-models/open-webui` | crawl, walk | lab | single | none | baseline | internal, pii, financial, health | BSD-3 (with branding clause) | Fastest human-facing surface for a Crawl demo; speaks to LiteLLM or Ollama. |
 
 ## `feedback`
 
@@ -26,6 +26,6 @@ _asked by: ux_
 
 Single option today: `apps/surveys/formbricks`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/surveys/formbricks` | walk, run | lab | single | none | false | internal, pii | AGPL-3.0 | In-product feedback capture for forjate:ux. Free-text answers are pii until proven otherwise. |
+| `apps/surveys/formbricks` | walk, run | lab | single | none | baseline | internal, pii | AGPL-3.0 | In-product feedback capture for forjate:ux. Free-text answers are pii until proven otherwise. |

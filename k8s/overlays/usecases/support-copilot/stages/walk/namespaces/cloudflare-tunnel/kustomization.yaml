@@ -1,0 +1,4 @@
+# walk: shared infrastructure in cloudflare-tunnel; components whose manifests set no namespace are placed here.
+namespace: cloudflare-tunnel
+resources:
+- secrets/sealed-cloudflare-tunnel-secret.yaml

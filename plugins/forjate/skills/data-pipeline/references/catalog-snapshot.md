@@ -12,10 +12,10 @@ decouples two workloads or fans out events; persistence and replay.
 
 _asked by: architecture, data-pipeline · exclusive: one per stage · setting `broker`_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/brokers/nats` | crawl, walk, run | mvp | single | none | unknown | internal, pii, financial, health | Apache-2.0 | Lightweight (20 MB); JetStream gives persistence and replay. Default broker for event-driven use cases. Mounts `nats-secret`. |
-| `apps/brokers/rabbitmq` | walk, run | lab | single | none | false | internal, pii, financial, health | MPL-2.0 | Classic work-queue semantics and AMQP; choose when AMQP clients already exist. |
+| `apps/brokers/nats` | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Lightweight (20 MB); JetStream gives persistence and replay. Default broker for event-driven use cases. Mounts `nats-secret`. |
+| `apps/brokers/rabbitmq` | walk, run | lab | single | none | baseline | internal, pii, financial, health | MPL-2.0 | Classic work-queue semantics and AMQP; choose when AMQP clients already exist. |
 
 ## `mqtt-broker`
 
@@ -25,9 +25,9 @@ _asked by: architecture, data-pipeline_
 
 Single option today: `apps/brokers/mosquitto`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/brokers/mosquitto` | crawl, walk, run | lab | single | none | false | internal, pii | EPL-2.0 | MQTT for devices and sensors; not a substitute for a message broker between workloads. |
+| `apps/brokers/mosquitto` | crawl, walk, run | lab | single | none | baseline | internal, pii | EPL-2.0 | MQTT for devices and sensors; not a substitute for a message broker between workloads. |
 
 ## `cdc`
 
@@ -35,14 +35,14 @@ publishes a database's change log to a broker; the trigger is "a row changed".
 
 _asked by: data-pipeline, architecture_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/cdc/debezium-mariadb-nats` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink NATS. |
-| `apps/cdc/debezium-mariadb-rabbitmq` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink RabbitMQ. |
-| `apps/cdc/debezium-mongo-nats` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink NATS. |
-| `apps/cdc/debezium-mongo-rabbitmq` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink RabbitMQ. |
-| `apps/cdc/debezium-postgres-nats` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink NATS. Doubles as an audit trail of row changes. |
-| `apps/cdc/debezium-postgres-rabbitmq` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink RabbitMQ. |
+| `apps/cdc/debezium-mariadb-nats` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink NATS. |
+| `apps/cdc/debezium-mariadb-rabbitmq` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink RabbitMQ. |
+| `apps/cdc/debezium-mongo-nats` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink NATS. |
+| `apps/cdc/debezium-mongo-rabbitmq` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink RabbitMQ. |
+| `apps/cdc/debezium-postgres-nats` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink NATS. Doubles as an audit trail of row changes. |
+| `apps/cdc/debezium-postgres-rabbitmq` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink RabbitMQ. |
 
 ## `document-parsing`
 
@@ -52,6 +52,6 @@ _asked by: data-pipeline_
 
 Single option today: `apps/document-processing/docling`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/document-processing/docling` | crawl, walk, run | lab | single | none | false | internal, pii, financial, health | MIT | PDF/Office to structured text with tables, layout and OCR. Stateless CPU image; slow but dependable for Crawl. |
+| `apps/document-processing/docling` | crawl, walk, run | lab | single | none | baseline | internal, pii, financial, health | MIT | PDF/Office to structured text with tables, layout and OCR. Stateless CPU image; slow but dependable for Crawl. |

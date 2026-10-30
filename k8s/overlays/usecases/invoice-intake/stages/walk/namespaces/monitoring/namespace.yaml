@@ -1,0 +1,9 @@
+# monitoring: declared by the assembly, no component in it ships the Namespace (shared infrastructure, catalog psa_level of apps/monitoring/prometheus, apps/monitoring/grafana.)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

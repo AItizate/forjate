@@ -286,7 +286,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/ai-models/litellm",
@@ -336,7 +339,10 @@
       ],
       "licence": "MIT",
       "notes": "One OpenAI-compatible endpoint in front of local and external models; routing, per-key spend, where egress policy is enforced. Provider API keys arrive as a Secret.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/ai-models/litellm/postgres",
@@ -371,7 +377,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/ai-models/ollama",
@@ -418,7 +427,10 @@
       ],
       "licence": "MIT",
       "notes": "Zero-egress inference. CPU is fine for Crawl latency; a GPU node from Walk. Each model has its own licence.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/ai-models/open-webui",
@@ -464,7 +476,10 @@
       ],
       "licence": "BSD-3 (with branding clause)",
       "notes": "Fastest human-facing surface for a Crawl demo; speaks to LiteLLM or Ollama.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/ai-models/vllm",
@@ -510,7 +525,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "The production-shaped local inference server; concurrency and pinned model versions. Model licence separate.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/analytics/metabase",
@@ -552,7 +570,10 @@
       ],
       "licence": "AGPL-3.0",
       "notes": "Reads the system of record; whoever sees a dashboard sees the rows behind it.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/auth/gotrue-auth/authz",
@@ -590,7 +611,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/auth/gotrue-auth/gotrue",
@@ -631,7 +655,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/auth/gotrue-auth",
@@ -674,7 +701,10 @@
       ],
       "licence": "MIT",
       "notes": "Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/auth/gotrue-auth/middlewares",
@@ -708,7 +738,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "n/a",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/brokers/mosquitto",
@@ -751,7 +784,10 @@
       ],
       "licence": "EPL-2.0",
       "notes": "MQTT for devices and sensors; not a substitute for a message broker between workloads.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/brokers/nats",
@@ -794,7 +830,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Lightweight (20 MB); JetStream gives persistence and replay. Default broker for event-driven use cases. Mounts `nats-secret`.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/brokers/rabbitmq",
@@ -838,7 +877,10 @@
       ],
       "licence": "MPL-2.0",
       "notes": "Classic work-queue semantics and AMQP; choose when AMQP clients already exist.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/cdc/debezium-mariadb-nats",
@@ -882,7 +924,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Source MariaDB (binlog), sink NATS.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/cdc/debezium-mariadb-rabbitmq",
@@ -924,7 +969,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Source MariaDB (binlog), sink RabbitMQ.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/cdc/debezium-mongo-nats",
@@ -968,7 +1016,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Source MongoDB (needs the replica set for the oplog), sink NATS.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/cdc/debezium-mongo-rabbitmq",
@@ -1012,7 +1063,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Source MongoDB (needs the replica set for the oplog), sink RabbitMQ.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/cdc/debezium-postgres-nats",
@@ -1056,7 +1110,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Source Postgres (logical decoding), sink NATS. Doubles as an audit trail of row changes.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/cdc/debezium-postgres-rabbitmq",
@@ -1098,7 +1155,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Source Postgres (logical decoding), sink RabbitMQ.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/cloudflare-tunnel",
@@ -1143,7 +1203,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Public ingress without open ports; two replicas. Traffic transits Cloudflare — a hop the compliance record names for residency and for health data.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": "cloudflare-tunnel",
+      "namespace_how": "declares"
     },
     {
       "path": "apps/communication/snappymail",
@@ -1180,7 +1243,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/communication/stalwart",
@@ -1220,7 +1286,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/continuous-delivery/argocd",
@@ -1260,8 +1329,11 @@
         "takes": "none"
       },
       "data_classes": [],
+      "psa_level": "baseline",
       "licence": "Apache-2.0",
-      "curated": true
+      "curated": true,
+      "namespace": "argocd",
+      "namespace_how": "declares"
     },
     {
       "path": "apps/databases/etcd",
@@ -1301,7 +1373,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Dependency of Milvus; rarely chosen on its own.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/databases/lancedb",
@@ -1344,7 +1419,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Embedded-style vector store served over HTTP; single writer, so concurrent ingestion is the limit. Cheapest semantic memory for Crawl.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/databases/mariadb",
@@ -1388,7 +1466,10 @@
       ],
       "licence": "GPL-2.0",
       "notes": "The relational alternative when a pack denies Postgres.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/databases/milvus",
@@ -1431,7 +1512,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Heavier; needs etcd + MinIO. Reach for it when LanceDB's single-writer model is the bottleneck.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/databases/mongodb",
@@ -1476,7 +1560,10 @@
       ],
       "licence": "SSPL",
       "notes": "Document-shaped chat state; SSPL is often disallowed in corporate packs. `mongodb/replica-set` adds the oplog CDC needs. Mounts `mongodb-secret`.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/databases/mongodb/replica-set",
@@ -1512,7 +1599,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/databases/postgres",
@@ -1565,7 +1655,10 @@
       ],
       "licence": "PostgreSQL",
       "notes": "Default system of record. Single StatefulSet; move to an operator (CNPG) at Run for HA/PITR. Mounts `postgres-secret`.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/databases/redis",
@@ -1610,7 +1703,10 @@
       ],
       "licence": "BSD-3 (7.2) / RSALv2+SSPL (7.4+)",
       "notes": "Short-term memory, rate limiting and locks; memory-bound, name the eviction policy. Check the image tag against the licence change.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/docker-registry",
@@ -1646,9 +1742,12 @@
         "takes": "unknown"
       },
       "data_classes": [],
+      "namespace": "docker-registry",
       "licence": "Apache-2.0",
       "notes": "The local registry for k3d; GHCR or the organisation's registry from Walk.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace_how": "none"
     },
     {
       "path": "apps/document-processing/docling",
@@ -1692,7 +1791,10 @@
       ],
       "licence": "MIT",
       "notes": "PDF/Office to structured text with tables, layout and OCR. Stateless CPU image; slow but dependable for Crawl.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/home-automation/esphome",
@@ -1731,7 +1833,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/home-automation/hass",
@@ -1770,7 +1875,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/home-automation",
@@ -1805,7 +1913,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/iac/crossplane",
@@ -1837,7 +1948,10 @@
       "data_classes": [],
       "licence": "Apache-2.0",
       "notes": "Cloud credentials arrive as a Secret; the resources it creates have their own classification.",
-      "curated": true
+      "curated": true,
+      "psa_level": "unknown",
+      "namespace": "crossplane-system",
+      "namespace_how": "declares"
     },
     {
       "path": "apps/minio/dev",
@@ -1876,9 +1990,12 @@
         "financial",
         "health"
       ],
+      "namespace": null,
       "licence": "AGPL-3.0",
       "notes": "A bare Pod for k3d; dies with the environment.",
-      "curated": true
+      "curated": true,
+      "psa_level": "privileged",
+      "namespace_how": null
     },
     {
       "path": "apps/minio/single-server",
@@ -1924,9 +2041,12 @@
         "financial",
         "health"
       ],
+      "namespace": null,
       "licence": "AGPL-3.0",
       "notes": "A one-server Tenant through the operator in base; no redundancy. Run is the same Tenant with more servers, or an S3 service within residency. Buckets per kind (inbox, parsed, audit, seed).",
-      "curated": true
+      "curated": true,
+      "psa_level": "restricted",
+      "namespace_how": null
     },
     {
       "path": "apps/monitoring/grafana",
@@ -1972,7 +2092,10 @@
       ],
       "licence": "AGPL-3.0",
       "notes": "Alertmanager rules live beside it; the three alerts that page are a Walk gate.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": "monitoring",
+      "namespace_how": "sets"
     },
     {
       "path": "apps/monitoring/kubernetes-dashboard",
@@ -2008,7 +2131,10 @@
       "data_classes": [],
       "licence": "Apache-2.0",
       "notes": "Ingress, RBAC and token for the upstream dashboard; the dashboard itself is deployed by base or the tenant.",
-      "curated": true
+      "curated": true,
+      "psa_level": "n/a",
+      "namespace": "kubernetes-dashboard",
+      "namespace_how": "sets"
     },
     {
       "path": "apps/monitoring/otel-collector/agent",
@@ -2050,7 +2176,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "privileged",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/monitoring/otel-collector/cluster",
@@ -2091,7 +2220,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/monitoring/otel-collector",
@@ -2128,9 +2260,12 @@
         "internal",
         "pii"
       ],
+      "namespace": "otel-collector",
       "licence": "Apache-2.0",
       "notes": "Agent DaemonSet plus a cluster Deployment; the step from metrics-only to metrics+logs+traces, needed for LLM call tracing. Logs can carry pii — scrub at the collector.",
-      "curated": true
+      "curated": true,
+      "psa_level": "privileged",
+      "namespace_how": "none"
     },
     {
       "path": "apps/monitoring/prometheus",
@@ -2180,7 +2315,10 @@
         "internal"
       ],
       "licence": "Apache-2.0",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": "monitoring",
+      "namespace_how": "sets"
     },
     {
       "path": "apps/monitoring/reloader",
@@ -2214,8 +2352,11 @@
         "takes": "none"
       },
       "data_classes": [],
+      "namespace": "default",
+      "psa_level": "baseline",
       "licence": "Apache-2.0",
-      "curated": true
+      "curated": true,
+      "namespace_how": "remote"
     },
     {
       "path": "apps/n8n",
@@ -2252,7 +2393,10 @@
       ],
       "licence": "Sustainable Use License",
       "notes": "Not OSI-approved; corporate packs often restrict it. Ships its own Postgres.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/n8n/n8n",
@@ -2294,7 +2438,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/n8n/postgres",
@@ -2334,7 +2481,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/networking/metallb",
@@ -2369,8 +2519,11 @@
         "takes": "none"
       },
       "data_classes": [],
+      "psa_level": "privileged",
       "licence": "Apache-2.0",
-      "curated": true
+      "curated": true,
+      "namespace": "metallb-system",
+      "namespace_how": "remote"
     },
     {
       "path": "apps/node-red",
@@ -2416,7 +2569,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Flows for devices and MQTT; pairs with mosquitto.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/productivity/affine",
@@ -2448,7 +2604,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/productivity/affine/server",
@@ -2488,7 +2647,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/productivity/appflowy/admin-frontend",
@@ -2526,7 +2688,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/productivity/appflowy/ai",
@@ -2564,7 +2729,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/productivity/appflowy/appflowy-cloud",
@@ -2606,7 +2774,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/productivity/appflowy/gotrue",
@@ -2645,7 +2816,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/productivity/appflowy",
@@ -2683,7 +2857,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/productivity/appflowy/search",
@@ -2721,7 +2898,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/productivity/appflowy/web",
@@ -2758,7 +2938,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/productivity/appflowy/worker",
@@ -2795,7 +2978,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/sealed-secrets",
@@ -2838,9 +3024,12 @@
       "data_classes": [
         "secret"
       ],
+      "namespace": "kube-system",
+      "psa_level": "baseline",
       "licence": "Apache-2.0",
       "notes": "Encrypted SealedSecrets committed next to the overlay; the floor for secrets in git from Walk. The controller key is the single point of loss — its backup is a devops gate.",
-      "curated": true
+      "curated": true,
+      "namespace_how": "remote"
     },
     {
       "path": "apps/security/external-secrets",
@@ -2879,7 +3068,10 @@
       ],
       "licence": "Apache-2.0",
       "notes": "Syncs from a store (openbao in the factory, or a corporate secret manager) into Kubernetes Secrets; rotation happens in the store. Not a store itself — pair it with a secrets-store.",
-      "curated": true
+      "curated": true,
+      "psa_level": "unknown",
+      "namespace": "external-secrets",
+      "namespace_how": "declares"
     },
     {
       "path": "apps/security/openbao/eso-store",
@@ -2913,7 +3105,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "n/a",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/security/openbao/follow-namespace",
@@ -2947,7 +3142,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "n/a",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/security/openbao",
@@ -2992,7 +3190,10 @@
       ],
       "licence": "MPL-2.0",
       "notes": "The factory's secret store (Vault API, Linux Foundation); raft, audit, kubernetes/approle auth and an SSH CA after bootstrap.sh. `openbao/eso-store` is the ClusterSecretStore for external-secrets; `raft-snapshot` and `seal-static` are add-ons. Replaces the deprecated apps/security/vault.",
-      "curated": true
+      "curated": true,
+      "psa_level": "restricted",
+      "namespace": "security",
+      "namespace_how": "sets"
     },
     {
       "path": "apps/security/openbao/raft-snapshot",
@@ -3029,7 +3230,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "restricted",
+      "namespace": "security",
+      "namespace_how": "sets"
     },
     {
       "path": "apps/security/openbao/seal-static",
@@ -3063,7 +3267,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "n/a",
+      "namespace": "security",
+      "namespace_how": "sets"
     },
     {
       "path": "apps/security/vault",
@@ -3101,7 +3308,10 @@
       "data_classes": [
         "internal"
       ],
-      "curated": false
+      "curated": false,
+      "psa_level": "privileged",
+      "namespace": "security",
+      "namespace_how": "sets"
     },
     {
       "path": "apps/storage/longhorn",
@@ -3137,9 +3347,12 @@
         "takes": "none"
       },
       "data_classes": [],
+      "namespace": "longhorn-system",
+      "psa_level": "privileged",
       "licence": "Apache-2.0",
       "notes": "Not for k3d; single replica on a Pi, three replicas from Walk. Privileged by design — runs in its own namespace at its own PSA level.",
-      "curated": true
+      "curated": true,
+      "namespace_how": "remote"
     },
     {
       "path": "apps/surveys/formbricks",
@@ -3182,7 +3395,10 @@
       ],
       "licence": "AGPL-3.0",
       "notes": "In-product feedback capture for forjate:ux. Free-text answers are pii until proven otherwise.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/whoami",
@@ -3219,7 +3435,10 @@
       },
       "data_classes": [],
       "licence": "MIT",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/workflows/temporal",
@@ -3264,7 +3483,10 @@
       ],
       "licence": "MIT",
       "notes": "auto-setup image, server and UI; use bundles/temporal-stack for the Postgres wiring. Workflow payloads persist in its database.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "bundles/temporal-stack",
@@ -3305,7 +3527,10 @@
       ],
       "licence": "MIT",
       "notes": "Temporal plus its Postgres, wired. The default way to take durable-workflows.",
-      "curated": true
+      "curated": true,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "pvcs",
@@ -3335,7 +3560,10 @@
         "takes": "none"
       },
       "data_classes": [],
-      "curated": true
+      "curated": true,
+      "psa_level": "n/a",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "pvs/local-storage",
@@ -3365,7 +3593,10 @@
         "takes": "none"
       },
       "data_classes": [],
-      "curated": true
+      "curated": true,
+      "psa_level": "n/a",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "pvs/nfs-storage",
@@ -3396,7 +3627,10 @@
         "takes": "none"
       },
       "data_classes": [],
-      "curated": true
+      "curated": true,
+      "psa_level": "n/a",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "rbac",
@@ -3431,7 +3665,10 @@
         "takes": "none"
       },
       "data_classes": [],
-      "curated": true
+      "curated": true,
+      "psa_level": "n/a",
+      "namespace": null,
+      "namespace_how": null
     }
   ],
   "overrides_without_component": []

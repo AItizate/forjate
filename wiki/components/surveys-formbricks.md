@@ -39,7 +39,7 @@ summary_source: derived
 
 ### Consumed by
 
-- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via namespaces/uc-invoice-intake
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via namespaces/uc-invoice-intake-baseline
 
 <!-- END DECLARED -->
 

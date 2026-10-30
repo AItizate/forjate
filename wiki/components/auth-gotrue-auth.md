@@ -73,7 +73,7 @@ summary_source: derived
 - [overlays/agentic-simple-workflow](../overlays/agentic-simple-workflow.md)
 - [overlays/home-edge-lab](../overlays/home-edge-lab.md)
 - [overlays/multi-tenant-pattern-org](../overlays/multi-tenant-pattern-org.md)
-- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via namespaces/uc-invoice-intake
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via namespaces/uc-invoice-intake-baseline
 
 <!-- END DECLARED -->
 

@@ -32,6 +32,7 @@ ROLES = (
     "security", "compliance", "quality", "devops", "ux",
 )
 ENFORCE_RANK = {"may": 0, "should": 1, "must": 2}
+PSA_RANK = {"privileged": 0, "baseline": 1, "restricted": 2}
 
 
 class BuilderError(Exception):
@@ -87,6 +88,15 @@ def schema_errors(schema_name: str, data: dict, where: str) -> list[str]:
         loc = "/".join(str(p) for p in err.path) or "<root>"
         errors.append(f"{where}: {loc}: {err.message}")
     return errors
+
+
+def load_catalog() -> dict | None:
+    """wiki/catalog.json of the factory: the project, FORJATE_ROOT, or the checkout this plugin lives in."""
+    for root in (REPO, Path(os.environ["FORJATE_ROOT"]) if os.environ.get("FORJATE_ROOT") else None,
+                 Path(__file__).resolve().parents[4]):
+        if root and (root / "wiki" / "catalog.json").is_file():
+            return json.loads((root / "wiki" / "catalog.json").read_text())
+    return None
 
 
 def component_exists(component: str) -> bool:

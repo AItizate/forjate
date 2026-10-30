@@ -14,9 +14,9 @@ _asked by: data-store_
 
 Single option today: `apps/databases/redis`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/databases/redis` | crawl, walk, run | mvp | single | none | false | internal, pii, financial, health | BSD-3 (7.2) / RSALv2+SSPL (7.4+) | Short-term memory, rate limiting and locks; memory-bound, name the eviction policy. Check the image tag against the licence change. |
+| `apps/databases/redis` | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | BSD-3 (7.2) / RSALv2+SSPL (7.4+) | Short-term memory, rate limiting and locks; memory-bound, name the eviction policy. Check the image tag against the licence change. |
 
 ## `working-memory`
 
@@ -24,10 +24,10 @@ transactional state the agent must not lose — cursors, idempotency keys, appro
 
 _asked by: data-store_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/databases/mariadb` | crawl, walk, run | lab | single | none | false | internal, pii, financial, health | GPL-2.0 | The relational alternative when a pack denies Postgres. |
-| `apps/databases/postgres` | crawl, walk, run | mvp | single | none | false | internal, pii, financial, health | PostgreSQL | Default system of record. Single StatefulSet; move to an operator (CNPG) at Run for HA/PITR. Mounts `postgres-secret`. |
+| `apps/databases/mariadb` | crawl, walk, run | lab | single | none | baseline | internal, pii, financial, health | GPL-2.0 | The relational alternative when a pack denies Postgres. |
+| `apps/databases/postgres` | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | PostgreSQL | Default system of record. Single StatefulSet; move to an operator (CNPG) at Run for HA/PITR. Mounts `postgres-secret`. |
 
 ## `episodic-memory`
 
@@ -35,11 +35,11 @@ structured history of what happened — decisions, extractions, transcripts.
 
 _asked by: data-store_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/databases/mariadb` | crawl, walk, run | lab | single | none | false | internal, pii, financial, health | GPL-2.0 | The relational alternative when a pack denies Postgres. |
-| `apps/databases/mongodb` | crawl, walk | lab | single | none | false | internal, pii, financial, health | SSPL | Document-shaped chat state; SSPL is often disallowed in corporate packs. `mongodb/replica-set` adds the oplog CDC needs. Mounts `mongodb-secret`. |
-| `apps/databases/postgres` | crawl, walk, run | mvp | single | none | false | internal, pii, financial, health | PostgreSQL | Default system of record. Single StatefulSet; move to an operator (CNPG) at Run for HA/PITR. Mounts `postgres-secret`. |
+| `apps/databases/mariadb` | crawl, walk, run | lab | single | none | baseline | internal, pii, financial, health | GPL-2.0 | The relational alternative when a pack denies Postgres. |
+| `apps/databases/mongodb` | crawl, walk | lab | single | none | baseline | internal, pii, financial, health | SSPL | Document-shaped chat state; SSPL is often disallowed in corporate packs. `mongodb/replica-set` adds the oplog CDC needs. Mounts `mongodb-secret`. |
+| `apps/databases/postgres` | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | PostgreSQL | Default system of record. Single StatefulSet; move to an operator (CNPG) at Run for HA/PITR. Mounts `postgres-secret`. |
 
 ## `semantic-memory`
 
@@ -47,10 +47,10 @@ embeddings for retrieval over unstructured text.
 
 _asked by: data-store · exclusive: one per stage_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/databases/lancedb` | crawl, walk | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Embedded-style vector store served over HTTP; single writer, so concurrent ingestion is the limit. Cheapest semantic memory for Crawl. |
-| `apps/databases/milvus` | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Heavier; needs etcd + MinIO. Reach for it when LanceDB's single-writer model is the bottleneck. |
+| `apps/databases/lancedb` | crawl, walk | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Embedded-style vector store served over HTTP; single writer, so concurrent ingestion is the limit. Cheapest semantic memory for Crawl. |
+| `apps/databases/milvus` | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Heavier; needs etcd + MinIO. Reach for it when LanceDB's single-writer model is the bottleneck. |
 
 ## `artifact-store`
 
@@ -58,10 +58,10 @@ documents, prompts, run logs and reports as objects, keyed by the idempotency ke
 
 _asked by: data-store · exclusive: one per stage_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/minio/dev` | crawl | lab | single | none | false | internal, pii, financial, health | AGPL-3.0 | A bare Pod for k3d; dies with the environment. |
-| `apps/minio/single-server` | crawl, walk | mvp | operator | none | true | internal, pii, financial, health | AGPL-3.0 | A one-server Tenant through the operator in base; no redundancy. Run is the same Tenant with more servers, or an S3 service within residency. Buckets per kind (inbox, parsed, audit, seed). |
+| `apps/minio/dev` | crawl | lab | single | none | privileged | internal, pii, financial, health | AGPL-3.0 | A bare Pod for k3d; dies with the environment. |
+| `apps/minio/single-server` | crawl, walk | mvp | operator | none | restricted | internal, pii, financial, health | AGPL-3.0 | A one-server Tenant through the operator in base; no redundancy. Run is the same Tenant with more servers, or an S3 service within residency. Buckets per kind (inbox, parsed, audit, seed). |
 
 ## `cache`
 
@@ -71,6 +71,6 @@ _asked by: data-store, architecture_
 
 Single option today: `apps/databases/redis`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/databases/redis` | crawl, walk, run | mvp | single | none | false | internal, pii, financial, health | BSD-3 (7.2) / RSALv2+SSPL (7.4+) | Short-term memory, rate limiting and locks; memory-bound, name the eviction policy. Check the image tag against the licence change. |
+| `apps/databases/redis` | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | BSD-3 (7.2) / RSALv2+SSPL (7.4+) | Short-term memory, rate limiting and locks; memory-bound, name the eviction policy. Check the image tag against the licence change. |

@@ -30,7 +30,7 @@ summary_source: derived
 
 ### Consumed by
 
-- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md)
+- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md) — resource, via namespaces/otel-collector
 
 <!-- END DECLARED -->
 

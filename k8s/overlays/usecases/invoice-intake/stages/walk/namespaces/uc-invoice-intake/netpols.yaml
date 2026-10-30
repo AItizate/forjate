@@ -47,6 +47,9 @@ spec:
     - podSelector:
         matchLabels:
           app: ollama
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 11434
@@ -54,6 +57,9 @@ spec:
     - podSelector:
         matchLabels:
           app: litellm
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 4000
@@ -61,6 +67,9 @@ spec:
     - podSelector:
         matchLabels:
           app: gotrue
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 9999
@@ -68,6 +77,9 @@ spec:
     - podSelector:
         matchLabels:
           app: docling
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 5001
@@ -75,6 +87,9 @@ spec:
     - podSelector:
         matchLabels:
           app: postgres
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 5432
@@ -89,6 +104,9 @@ spec:
     - podSelector:
         matchLabels:
           app: formbricks
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 3000
@@ -116,6 +134,9 @@ spec:
     - podSelector:
         matchLabels:
           app: ollama
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 11434
@@ -123,6 +144,9 @@ spec:
     - podSelector:
         matchLabels:
           app: litellm
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 4000
@@ -130,6 +154,9 @@ spec:
     - podSelector:
         matchLabels:
           app: gotrue
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 9999
@@ -137,6 +164,9 @@ spec:
     - podSelector:
         matchLabels:
           app: docling
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 5001
@@ -144,6 +174,9 @@ spec:
     - podSelector:
         matchLabels:
           app: postgres
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 5432
@@ -158,6 +191,9 @@ spec:
     - podSelector:
         matchLabels:
           app: formbricks
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 3000
@@ -185,6 +221,9 @@ spec:
     - podSelector:
         matchLabels:
           app: ollama
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 11434
@@ -192,6 +231,9 @@ spec:
     - podSelector:
         matchLabels:
           app: litellm
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 4000
@@ -199,6 +241,9 @@ spec:
     - podSelector:
         matchLabels:
           app: gotrue
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 9999
@@ -206,6 +251,9 @@ spec:
     - podSelector:
         matchLabels:
           app: docling
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 5001
@@ -213,6 +261,9 @@ spec:
     - podSelector:
         matchLabels:
           app: postgres
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 5432
@@ -227,6 +278,9 @@ spec:
     - podSelector:
         matchLabels:
           app: formbricks
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 3000
@@ -254,6 +308,9 @@ spec:
     - podSelector:
         matchLabels:
           app: ollama
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 11434
@@ -261,6 +318,9 @@ spec:
     - podSelector:
         matchLabels:
           app: litellm
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 4000
@@ -268,6 +328,9 @@ spec:
     - podSelector:
         matchLabels:
           app: gotrue
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 9999
@@ -275,6 +338,9 @@ spec:
     - podSelector:
         matchLabels:
           app: docling
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 5001
@@ -282,6 +348,9 @@ spec:
     - podSelector:
         matchLabels:
           app: postgres
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 5432
@@ -296,99 +365,12 @@ spec:
     - podSelector:
         matchLabels:
           app: formbricks
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 3000
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-ingress-to-ollama
-  namespace: uc-invoice-intake
-spec:
-  podSelector:
-    matchLabels:
-      app: ollama
-  policyTypes:
-  - Ingress
-  ingress:
-  - from:
-    - podSelector: {}
-    ports:
-    - protocol: TCP
-      port: 11434
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-ingress-to-litellm
-  namespace: uc-invoice-intake
-spec:
-  podSelector:
-    matchLabels:
-      app: litellm
-  policyTypes:
-  - Ingress
-  ingress:
-  - from:
-    - podSelector: {}
-    ports:
-    - protocol: TCP
-      port: 4000
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-ingress-to-gotrue
-  namespace: uc-invoice-intake
-spec:
-  podSelector:
-    matchLabels:
-      app: gotrue
-  policyTypes:
-  - Ingress
-  ingress:
-  - from:
-    - podSelector: {}
-    ports:
-    - protocol: TCP
-      port: 9999
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-ingress-to-docling
-  namespace: uc-invoice-intake
-spec:
-  podSelector:
-    matchLabels:
-      app: docling
-  policyTypes:
-  - Ingress
-  ingress:
-  - from:
-    - podSelector: {}
-    ports:
-    - protocol: TCP
-      port: 5001
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-ingress-to-postgres
-  namespace: uc-invoice-intake
-spec:
-  podSelector:
-    matchLabels:
-      app: postgres
-  policyTypes:
-  - Ingress
-  ingress:
-  - from:
-    - podSelector: {}
-    ports:
-    - protocol: TCP
-      port: 5432
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -407,24 +389,6 @@ spec:
     ports:
     - protocol: TCP
       port: 9000
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-ingress-to-formbricks
-  namespace: uc-invoice-intake
-spec:
-  podSelector:
-    matchLabels:
-      app: formbricks
-  policyTypes:
-  - Ingress
-  ingress:
-  - from:
-    - podSelector: {}
-    ports:
-    - protocol: TCP
-      port: 3000
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

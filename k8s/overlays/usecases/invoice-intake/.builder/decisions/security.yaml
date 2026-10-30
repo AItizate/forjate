@@ -140,9 +140,11 @@ spec:
         is internal and a human uses it, so SECBASE item 4 puts it behind oauth2-proxy and GoTrue, the same value the
         architecture record states. Audit is an application log with the data class per entry and never the payload:
         supplier id and invoice number are fine, the bank account number and the invoice text are not, which is the
-        hard part of SECBASE item 5 and what G-SEC-7 scans. The catalog Postgres and MinIO are not proven under
-        restricted; they are an exception that moves to its own namespace at baseline rather than a reason to lower
-        this namespace, and because the mvp tier shares a cluster, Q1 asks the platform owner to accept it.
+        hard part of SECBASE item 5 and what G-SEC-7 scans. The catalog proves none of the use case's components
+        under restricted, so they run in uc-invoice-intake-baseline at baseline, an exception recorded in
+        psa_exceptions rather than a reason to lower this namespace; the shared infrastructure the overlay brings is
+        listed there too, each namespace with its level and owner. Because the mvp tier shares a cluster, Q1 asks
+        the platform owner to accept them.
       constrained_by: ["pack:regulated-corp#SEC-1", "pack:regulated-corp#AI-2"]
       alternatives:
         - option: Vault at Walk instead of Sealed Secrets
@@ -154,10 +156,10 @@ spec:
             the consumer is an AP clerk, not a system; SECBASE item 4 requires a human-facing surface to sit behind
             the org identity provider, and a shared API key gives no per-clerk audit trail for an approval that
             releases a payable
-        - option: baseline PSA on the use case namespace so the catalog Postgres and MinIO fit
+        - option: baseline PSA on the use case namespace so the catalog components fit
           rejected_because: >-
-            pack:regulated-corp#SEC-1 is a must at Walk; shared infrastructure that cannot run restricted moves to
-            its own namespace with its own owner instead of lowering the level the invoice workloads run under
+            pack:regulated-corp#SEC-1 is a must at Walk; components that cannot run restricted move to a namespace
+            of their own with its own owner instead of lowering the level the invoice workloads run under
       risks:
         - id: R3
           text: >-
@@ -170,11 +172,13 @@ spec:
           severity: high
         - id: R4
           text: >-
-            the catalog Postgres and MinIO single-server are not proven under PSA restricted, which the pack requires
-            from Walk, and the mvp tier shares the cluster with other tenants
+            the catalog proves none of the use case's components (model server, gateway, parser, Postgres, the IdP,
+            the feedback form) under PSA restricted, which the pack requires from Walk, and the mvp tier shares the
+            cluster with other tenants
           mitigation: >-
-            they move to a data namespace labelled baseline, owned by the platform team, with default-deny between it
-            and the use case namespace; the invoice workloads stay restricted. Accepted by the platform owner in Q1
+            they run in uc-invoice-intake-baseline at baseline, owned by the platform team, default-deny with only
+            uc-invoice-intake allowed in; the invoice workloads, the only code that reads invoices and posts to Odoo,
+            stay restricted. Accepted by the platform owner in Q1
           severity: medium
         - id: R5
           text: >-
@@ -200,6 +204,22 @@ spec:
             oauth2-proxy with GoTrue in front, ingress allowed only from the ingress controller's namespace, and
             G-SEC-6 asserts an unauthenticated request is redirected to the IdP
           severity: high
+      psa_exceptions:
+        - namespace: uc-invoice-intake-baseline
+          level: baseline
+          components: [apps/ai-models/ollama, apps/ai-models/litellm, apps/document-processing/docling, apps/databases/postgres, apps/minio/dev, apps/auth/gotrue-auth, apps/surveys/formbricks]
+          owner: platform team
+          reason: >-
+            the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is
+            replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the
+            invoice workloads stay restricted in uc-invoice-intake
+          risk: R4
+        - { namespace: argocd, level: baseline, components: [apps/continuous-delivery/argocd], owner: platform team, reason: "ArgoCD is not proven under restricted in the catalog (psa_level baseline)" }
+        - { namespace: kube-system, level: privileged, components: [apps/sealed-secrets], owner: cluster admin, reason: "the controller runs in the cluster's own namespace, which a use case never labels" }
+        - { namespace: longhorn-system, level: privileged, components: [apps/storage/longhorn], owner: platform team, reason: "the CSI driver and the engine need privileged containers and hostPath" }
+        - { namespace: metallb-system, level: privileged, components: [apps/networking/metallb], owner: platform team, reason: "the speaker needs hostNetwork and NET_RAW" }
+        - { namespace: monitoring, level: baseline, components: [apps/monitoring/prometheus, apps/monitoring/grafana], owner: platform team, reason: "not proven under restricted in the catalog (psa_level baseline)" }
+        - { namespace: default, level: privileged, components: [apps/monitoring/reloader], owner: cluster admin, reason: "the upstream manifests install it in default, the cluster's own namespace" }
       gate_to_next:
         - { id: G-SEC-3, text: secrets via External Secrets (pack:regulated-corp#SEC-2), owner: security, check: { type: ci, ref: secrets-check } }
         - { id: G-SEC-9, text: "secret rotation rehearsed end to end by the platform operator: every secret re-sealed from its .env.example recipe, consumers restarted by the reloader, the use case still posts to Odoo afterwards", owner: security, check: { type: manual, ref: rotation-rehearsal } }
@@ -246,7 +266,7 @@ spec:
         changes, the sealed files are deleted in the same commit, and rotation happens in the central store with the
         refresh interval picking it up -- the .env.example files stay as the documentation of which keys each secret
         holds. PSA restricted is already enforced and the data namespace exception from Walk is the one thing a
-        reviewer re-checks. The audit trail becomes CDC on the decisions table for regulated data, which is a request
+        reviewer re-checks, now with vLLM in it. The audit trail becomes CDC on the decisions table for regulated data, which is a request
         to the pipeline expert and not a component in this record; the application log keeps carrying the data class
         and not the payload, and the CDC stream is the regulated copy that compliance retains for the legal period and
         that stays inside this namespace. The per-workload, per-port egress matrix, FQDN policies where the CNI
@@ -288,14 +308,33 @@ spec:
             GoTrue groups per entity enforced in the review API's authorisation check, not only in the UI, and the
             CDC audit stream records which clerk approved which entity's payable
           severity: medium
+      psa_exceptions:
+        - namespace: uc-invoice-intake-baseline
+          level: baseline
+          components: [apps/ai-models/ollama, apps/ai-models/litellm, apps/document-processing/docling, apps/databases/postgres, apps/minio/dev, apps/auth/gotrue-auth, apps/surveys/formbricks, apps/ai-models/vllm]
+          owner: platform team
+          reason: >-
+            the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is
+            replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the
+            invoice workloads stay restricted in uc-invoice-intake
+          risk: R4
+        - { namespace: argocd, level: baseline, components: [apps/continuous-delivery/argocd], owner: platform team, reason: "ArgoCD is not proven under restricted in the catalog (psa_level baseline)" }
+        - { namespace: kube-system, level: privileged, components: [apps/sealed-secrets], owner: cluster admin, reason: "the controller runs in the cluster's own namespace, which a use case never labels" }
+        - { namespace: longhorn-system, level: privileged, components: [apps/storage/longhorn], owner: platform team, reason: "the CSI driver and the engine need privileged containers and hostPath" }
+        - { namespace: metallb-system, level: privileged, components: [apps/networking/metallb], owner: platform team, reason: "the speaker needs hostNetwork and NET_RAW" }
+        - { namespace: monitoring, level: baseline, components: [apps/monitoring/prometheus, apps/monitoring/grafana], owner: platform team, reason: "not proven under restricted in the catalog (psa_level baseline)" }
+        - { namespace: default, level: privileged, components: [apps/monitoring/reloader], owner: cluster admin, reason: "the upstream manifests install it in default, the cluster's own namespace" }
+        - { namespace: external-secrets, level: baseline, components: [apps/security/external-secrets], owner: platform team, reason: "the Helm chart is not read by the catalog (psa_level unknown) and its controller needs no host access" }
+        - { namespace: otel-collector, level: privileged, components: [apps/monitoring/otel-collector], owner: platform team, reason: "the agent DaemonSet mounts hostPath to read node logs" }
       estimated_cost_usd_month: 25
   open_questions:
     - id: Q1
       question: >-
-        pack:regulated-corp#SEC-1 requires PSA restricted from Walk, but the catalog Postgres and MinIO single-server
-        are not proven under it, and the mvp tier shares the cluster with other tenants. Either they move to a data
-        namespace labelled baseline owned by the platform team, or the use case runs its own restricted-capable
-        Postgres. The platform owner decides and records the exception; security does not accept it on their behalf.
+        pack:regulated-corp#SEC-1 requires PSA restricted from Walk, but the catalog proves none of the use case's
+        components under it, and the mvp tier shares the cluster with other tenants. Either the platform owner
+        accepts uc-invoice-intake-baseline at baseline and the shared namespaces in psa_exceptions, or the use case
+        waits for restricted-capable components. The platform owner decides and records the exception; security
+        does not accept it on their behalf.
       blocks_stage: walk
       caused_by_rule: "pack:regulated-corp#SEC-1"
     - id: Q2

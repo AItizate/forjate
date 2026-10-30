@@ -1,0 +1,9 @@
+# PSA of metallb-system at its own level: shared infrastructure, catalog psa_level of apps/networking/metallb.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: metallb-system
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

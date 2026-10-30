@@ -32,7 +32,7 @@ summary_source: derived
 ### Declared resources
 
 - `../../../../../base`
-- `../../namespaces/uc-invoice-intake`
+- `./relocated`
 - `../../../../../components/apps/continuous-delivery/argocd`
 - `../../../../../components/apps/sealed-secrets`
 - `../../../../../components/apps/storage/longhorn`
@@ -41,18 +41,20 @@ summary_source: derived
 - `../../../../../components/apps/monitoring/grafana`
 - `../../../../../components/apps/monitoring/reloader`
 - `./namespaces/uc-invoice-intake`
+- `./namespaces/uc-invoice-intake-baseline`
+- `./namespaces/monitoring`
 - `argocd/application.yaml`
 - `argocd/secrets/sealed-argocd-ssh-keys.yaml`
 - `argocd/secrets/sealed-argocd-repo-creds.yaml`
 
 ### Kubernetes kinds
 
-`Application`, `Ingress`, `NetworkPolicy`, `SealedSecret`
+`Application`, `Ingress`, `Namespace`, `NetworkPolicy`, `SealedSecret`, `Service`
 
 ### Depends on
 
 - [base/base](../base/base.md)
-- `k8s/overlays/usecases/invoice-intake/namespaces/uc-invoice-intake`
+- `k8s/overlays/usecases/invoice-intake/namespaces/uc-invoice-intake` — resource, via relocated
 - [components/continuous-delivery-argocd](../components/continuous-delivery-argocd.md)
 - [components/sealed-secrets](../components/sealed-secrets.md)
 - [components/storage-longhorn](../components/storage-longhorn.md)
@@ -60,10 +62,10 @@ summary_source: derived
 - [components/monitoring-prometheus](../components/monitoring-prometheus.md)
 - [components/monitoring-grafana](../components/monitoring-grafana.md)
 - [components/monitoring-reloader](../components/monitoring-reloader.md)
-- [components/ai-models-litellm](../components/ai-models-litellm.md) — resource, via namespaces/uc-invoice-intake
-- [components/auth-gotrue-auth](../components/auth-gotrue-auth.md) — resource, via namespaces/uc-invoice-intake
 - [components/minio-single-server](../components/minio-single-server.md) — resource, via namespaces/uc-invoice-intake
-- [components/surveys-formbricks](../components/surveys-formbricks.md) — resource, via namespaces/uc-invoice-intake
+- [components/ai-models-litellm](../components/ai-models-litellm.md) — resource, via namespaces/uc-invoice-intake-baseline
+- [components/auth-gotrue-auth](../components/auth-gotrue-auth.md) — resource, via namespaces/uc-invoice-intake-baseline
+- [components/surveys-formbricks](../components/surveys-formbricks.md) — resource, via namespaces/uc-invoice-intake-baseline
 
 ### Patches
 
@@ -75,9 +77,12 @@ summary_source: derived
 - `inline → Secret/postgres-secret (ns: uc-invoice-intake)`
 - `inline → Secret/minio-secret (ns: uc-invoice-intake)`
 - `inline → Secret/approval-secret (ns: uc-invoice-intake)`
-- `inline → Secret/litellm-secret (ns: uc-invoice-intake)`
-- `inline → Secret/gotrue-secret (ns: uc-invoice-intake)`
-- `inline → Ingress/formbricks-ingress (ns: uc-invoice-intake)`
+- `inline → Secret/litellm-secret (ns: uc-invoice-intake-baseline)`
+- `inline → Secret/gotrue-secret (ns: uc-invoice-intake-baseline)`
+- `inline → Ingress/formbricks-ingress (ns: uc-invoice-intake-baseline)`
+- `patches/argocd-psa-patch.yaml → Namespace/argocd`
+- `patches/longhorn-system-psa-patch.yaml → Namespace/longhorn-system`
+- `patches/metallb-system-psa-patch.yaml → Namespace/metallb-system`
 - `argocd/repo-server-ssh-patch.yaml → Deployment/argocd-repo-server (ns: argocd)`
 - `argocd/cmd-params-cm-patch.yaml → ConfigMap/argocd-cmd-params-cm (ns: argocd)`
 

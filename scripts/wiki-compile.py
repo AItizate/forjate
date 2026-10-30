@@ -80,6 +80,10 @@ class Page:
     configmaps: list[str] = field(default_factory=list)
     secrets: list[str] = field(default_factory=list)
     namespace: str | None = None
+    helm: bool = False             # renders a Helm chart: its pods are not in the listed files
+    pod_levels: list[str] = field(default_factory=list)   # PSA level each scanned pod template meets
+    resource_namespaces: list[str] = field(default_factory=list)  # metadata.namespace of the listed resources
+    declared_namespaces: list[str] = field(default_factory=list)  # Namespace objects it ships
     parent: str | None = None      # set when nested inside another kustomization
     summary: str = ""             # one-liner used by index.md
     consumed_by: list[str] = field(default_factory=list)  # computed backlinks
@@ -153,6 +157,81 @@ def scan_manifests(files: list[Path]) -> tuple[list[str], list[str]]:
         except yaml.YAMLError:
             pass
     return sorted(images), sorted(kinds)
+
+
+# Pod Security Standards, read from the pod templates a component ships. `privileged` when a
+# pod needs host access the baseline profile forbids; `restricted` when every container meets
+# the restricted profile; `baseline` otherwise. https://kubernetes.io/docs/concepts/security/pod-security-standards/
+PSA_LEVELS = ("privileged", "baseline", "restricted")
+BASELINE_CAPS = {"AUDIT_WRITE", "CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "KILL", "MKNOD", "NET_BIND_SERVICE",
+                 "SETFCAP", "SETGID", "SETPCAP", "SETUID", "SYS_CHROOT"}
+CLUSTER_SCOPED = {"Namespace", "ClusterRole", "ClusterRoleBinding", "CustomResourceDefinition", "StorageClass",
+                  "PersistentVolume", "PriorityClass", "MutatingWebhookConfiguration", "ValidatingWebhookConfiguration",
+                  "IngressClass", "CSIDriver", "APIService", "ClusterIssuer", "ClusterSecretStore", "RuntimeClass"}
+
+
+def pod_spec(doc: dict) -> dict | None:
+    kind, spec = doc.get("kind"), doc.get("spec") or {}
+    if kind == "Pod":
+        return spec
+    if kind in ("Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Job"):
+        return (spec.get("template") or {}).get("spec")
+    if kind == "CronJob":
+        return (((spec.get("jobTemplate") or {}).get("spec") or {}).get("template") or {}).get("spec")
+    return None
+
+
+def pod_psa_level(ps: dict) -> str:
+    """The strictest Pod Security Standard a pod spec meets."""
+    if ps.get("hostNetwork") or ps.get("hostPID") or ps.get("hostIPC"):
+        return "privileged"
+    if any("hostPath" in (v or {}) for v in ps.get("volumes") or []):
+        return "privileged"
+    psc = ps.get("securityContext") or {}
+    if ((psc.get("seccompProfile") or {}).get("type")) == "Unconfined":
+        return "privileged"
+    restricted = True
+    for c in (ps.get("containers") or []) + (ps.get("initContainers") or []):
+        sc = (c or {}).get("securityContext") or {}
+        caps = sc.get("capabilities") or {}
+        added = {str(x).upper() for x in caps.get("add") or []}
+        if sc.get("privileged") or added - BASELINE_CAPS or any((pt or {}).get("hostPort") for pt in c.get("ports") or []):
+            return "privileged"
+        if ((sc.get("seccompProfile") or {}).get("type")) == "Unconfined":
+            return "privileged"
+        seccomp = (sc.get("seccompProfile") or psc.get("seccompProfile") or {}).get("type")
+        non_root = sc.get("runAsNonRoot", psc.get("runAsNonRoot"))
+        drops = {str(x).upper() for x in caps.get("drop") or []}
+        if not (non_root is True and sc.get("allowPrivilegeEscalation") is False and "ALL" in drops
+                and seccomp in ("RuntimeDefault", "Localhost") and added <= {"NET_BIND_SERVICE"}):
+            restricted = False
+    return "restricted" if restricted else "baseline"
+
+
+def scan_pods_and_namespaces(files: list[Path]) -> tuple[list[str], list[str], list[str]]:
+    """(PSA level per pod template, metadata.namespace of the namespaced resources, Namespace objects)."""
+    levels: list[str] = []
+    namespaces: set[str] = set()
+    declared: set[str] = set()
+    for f in sorted(set(files)):
+        if f.suffix not in (".yaml", ".yml"):
+            continue
+        try:
+            docs = list(yaml.safe_load_all(f.read_text(encoding="utf-8")))
+        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            continue
+        for doc in docs:
+            if not isinstance(doc, dict) or not isinstance(doc.get("kind"), str):
+                continue
+            meta = doc.get("metadata") or {}
+            if doc["kind"] == "Namespace" and meta.get("name"):
+                declared.add(str(meta["name"]))
+            elif doc["kind"] not in CLUSTER_SCOPED and meta.get("namespace"):
+                namespaces.add(str(meta["namespace"]))
+            ps = pod_spec(doc)
+            if isinstance(ps, dict):
+                levels.append(pod_psa_level(ps))
+    return levels, sorted(namespaces), sorted(declared)
 
 
 def collect_refs(page: Page, directory: Path, doc: dict, page_dirs: set[Path],
@@ -231,10 +310,14 @@ def extract(page: Page, page_dirs: set[Path]) -> None:
                 bucket.append(f"{entry['name']}" + (f" (ns: {ns})" if ns else ""))
 
     page.images, page.kinds = scan_manifests(files)
+    page.helm = bool(doc.get("helmCharts"))
+    helm_ns = {h["namespace"] for h in doc.get("helmCharts") or [] if isinstance(h, dict) and h.get("namespace")}
+    page.pod_levels, page.resource_namespaces, page.declared_namespaces = scan_pods_and_namespaces(files)
+    page.resource_namespaces = sorted(set(page.resource_namespaces) | helm_ns)
 
 
 # Directories that are structural parts of a kustomization, never pages of their own.
-STRUCTURAL = {"namespaces", "patches", "configs", "secrets", "templates"}
+STRUCTURAL = {"namespaces", "patches", "configs", "secrets", "templates", "relocated", "wrapped"}
 
 
 def is_page_dir(d: Path, root: Path) -> bool:
@@ -684,6 +767,93 @@ def normalize_secrets(value) -> dict:
     return out
 
 
+def derive_psa_and_namespace(pages: list[Page]) -> dict[str, dict]:
+    """Per component page: the PSA level its pods meet and the namespace it runs in, read from the
+    tree and aggregated over the sub-components it composes (the least strict level wins; a
+    namespace the children agree on is the parent's unless the parent sets its own)."""
+    by_src = {rel(p.source): p for p in pages}
+    memo: dict[str, dict] = {}
+
+    def walk(src: str, seen: frozenset) -> dict:
+        if src in memo:
+            return memo[src]
+        p = by_src[src]
+        levels = list(p.pod_levels)
+        unknown = p.helm or (bool(p.remote_refs) and not levels)
+        remote = p.helm or bool(p.remote_refs)
+        declared = set(p.declared_namespaces)
+        own = p.namespace or (p.resource_namespaces[0] if len(p.resource_namespaces) == 1 else None)
+        child_ns = set()
+        for ref in p.local_refs:
+            if ref in by_src and ref not in seen and by_src[ref].kind == "component":
+                c = walk(ref, seen | {src})
+                levels += c["levels"]
+                unknown = unknown or c["unknown"]
+                remote = remote or c["remote"]
+                declared |= c["declared"]
+                if c["namespace"]:
+                    child_ns.add(c["namespace"])
+        ns = own or (child_ns.pop() if len(child_ns) == 1 else None)
+        memo[src] = {"levels": levels, "unknown": unknown, "remote": remote, "declared": declared, "namespace": ns}
+        return memo[src]
+
+    out = {}
+    for p in pages:
+        if p.kind == "component":
+            d = walk(rel(p.source), frozenset())
+            if d["unknown"]:
+                level = "unknown"
+            elif not d["levels"]:
+                level = "n/a"
+            else:
+                level = min(d["levels"], key=PSA_LEVELS.index)
+            out[rel(p.source)] = {"psa_level": level, "namespace": d["namespace"], "declared": d["declared"], "remote": d["remote"]}
+    return out
+
+
+def merge_psa_and_namespace(path: str, extra: dict, d: dict, cur: dict) -> list[str]:
+    """Fill `psa_level`, `namespace` and `namespace_how` from the tree; a curated value wins, but a
+    curation the tree contradicts is an error, so a component that changes its namespace or gains
+    host access cannot keep a stale override. namespace_how: declares (ships the Namespace) | remote
+    (Helm or remote manifests carry it; whether they ship the Namespace is not readable here) | sets
+    (its manifests use it, nobody in it declares it) | none (the overlay has to place it)."""
+    errors = []
+    tree_level = d["psa_level"]
+    if "psa_level" in cur:
+        level = cur["psa_level"]
+        if level not in PSA_LEVELS + ("n/a", "unknown"):
+            errors.append(f"{path}: psa_level '{level}' is not one of {', '.join(PSA_LEVELS)}, n/a, unknown")
+    elif extra.get("psa_restricted") is True:
+        level = "restricted"
+    elif tree_level == "restricted" and extra.get("psa_restricted") is False:
+        level = "baseline"
+    else:
+        level = tree_level
+    if extra.get("psa_restricted") is True and tree_level == "privileged":
+        errors.append(f"{path}: psa_restricted is true but its manifests need host access (privileged)")
+    extra["psa_level"] = level
+
+    tree_ns = d["namespace"]
+    if "namespace" in cur:
+        ns = cur["namespace"]
+        if ns is not None and tree_ns is not None and ns != tree_ns:
+            errors.append(f"{path}: namespace override '{ns}' but its manifests set '{tree_ns}'")
+    else:
+        ns = tree_ns
+    extra["namespace"] = ns
+    if ns is None:
+        extra["namespace_how"] = None
+    elif ns in d["declared"]:
+        extra["namespace_how"] = "declares"
+    elif d["remote"]:
+        extra["namespace_how"] = "remote"
+    elif tree_ns == ns:
+        extra["namespace_how"] = "sets"
+    else:
+        extra["namespace_how"] = "none"
+    return errors
+
+
 def build_catalog(pages: list[Page], compiled_at: str) -> dict:
     """wiki/catalog.json as a dict — one record per component, merged with curated overrides.
 
@@ -703,6 +873,7 @@ def build_catalog(pages: list[Page], compiled_at: str) -> dict:
     comps_root = K8S / "components"
     records = []
     errors = []
+    derived = derive_psa_and_namespace(pages)
     for p in pages:
         if p.kind != "component":
             continue
@@ -731,6 +902,7 @@ def build_catalog(pages: list[Page], compiled_at: str) -> dict:
                 errors.append(f"{path}: unknown capability '{cap}' (define it in {rel(CATALOG_CAPABILITIES)})")
         if extra["secrets"].get("mechanism") and "secrets-mechanism" not in (extra.get("capabilities") or []):
             errors.append(f"{path}: secrets.mechanism is only for components with the secrets-mechanism capability")
+        errors += merge_psa_and_namespace(path, extra, derived[rel(p.source)], curated.get(path) or {})
         rec.update(extra)
         records.append(rec)
     if errors:
@@ -764,13 +936,13 @@ def _cell(v) -> str:
 
 
 def _component_rows(records: list[dict], with_capabilities: bool) -> list[str]:
-    head = ["Component", "Stages", "Maturity", "HA", "GPU", "PSA restricted", "Data classes", "Licence", "Notes"]
+    head = ["Component", "Stages", "Maturity", "HA", "GPU", "PSA level", "Data classes", "Licence", "Notes"]
     if with_capabilities:
         head.insert(1, "Capabilities")
     lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for r in records:
         row = [f"`{r['path']}`", _cell(r.get("stages")), _cell(r.get("maturity")), _cell(r.get("ha")),
-               _cell(r.get("gpu_required")), _cell(r.get("psa_restricted")), _cell(r.get("data_classes")),
+               _cell(r.get("gpu_required")), _cell(r.get("psa_level")), _cell(r.get("data_classes")),
                _cell(r.get("licence")), _cell(r.get("notes") or r.get("summary"))]
         if with_capabilities:
             row.insert(1, _cell(r.get("capabilities")))

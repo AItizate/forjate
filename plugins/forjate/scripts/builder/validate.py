@@ -25,6 +25,13 @@ Checks, per use case:
      directory is the enum). Error in gates.yaml, warning in a record's gate_to_next;
      skipped with a warning when no checks directory is reachable (a tenant repo
      without the factory checkout; set FORJATE_ROOT to point at one).
+  9. PSA exceptions: the security record's `psa_exceptions` never name the use case's
+     namespace (error), list catalog components (error) that some record runs at that
+     stage, and sit below the stage's `psa_level` (warning otherwise). A shared component
+     whose namespace runs below the stage's level, or, at `restricted`, a use-case-scoped
+     component the catalog does not prove under `restricted`, with no exception is a
+     warning: what runs at a stage is every record's choices up to it, because stage
+     overlays add and never remove.
 
 Exit 1 on any error. Warnings never fail the run.
 """
@@ -35,7 +42,8 @@ import re
 import sys
 from pathlib import Path
 
-from common import BuilderError, REPO, STAGES, component_exists, die, load_yaml, report, schema_errors
+from common import (BuilderError, PSA_RANK, REPO, STAGES, component_exists, die, load_catalog, load_yaml, report,
+                    schema_errors)
 from packs import active_packs, load_pack, RULE_REF_RE
 
 RULE_REF = re.compile(r"^pack:(?P<pack>[a-z0-9-]+)#(?P<id>[A-Z][A-Z0-9]*-[0-9]+)$")
@@ -63,7 +71,6 @@ def ci_ref_errors(gates: list[dict], where: str) -> list[str]:
             if not ref or not (d / f"{ref}.sh").is_file():
                 out.append(f"{where}: gate {g.get('id')} has ci ref '{ref}' with no script scripts/gates/checks/{ref}.sh (the directory is the enum)")
     return out
-PSA_RANK = {"privileged": 0, "baseline": 1, "restricted": 2}
 
 # Cross-record consistency (check 6) and the secrets ladder (check 4) are read from the
 # catalog, not from tables in this file: a capability marked `exclusive` in
@@ -78,8 +85,9 @@ SECRETS_CAPABILITY = "secrets-mechanism"
 SHARED_SETTINGS = ("psa_level", "secrets_mechanism", "data_residency", "data_egress",
                    "network_policy", "backup", "auth_in_front")
 TRANSITION_OUT_OF = {"crawl": "crawl->walk", "walk": "walk->run"}
-# A CDC connector is named debezium-<source>-<broker>; its suffix implies a message-broker choice.
-CDC_PREFIX = "apps/cdc/"
+# A CDC connector (the catalog's `cdc` capability) is named debezium-<source>-<broker>; its suffix
+# implies a message-broker choice.
+CDC_CAPABILITY = "cdc"
 
 
 class CatalogRules:
@@ -88,12 +96,14 @@ class CatalogRules:
     def __init__(self, catalog: dict | None):
         self.available = catalog is not None
         self.groups: dict[str, set[str]] = {}
+        self.cdc: set[str] = set()
         self.setting_to_group: dict[str, tuple[str, dict[str, str]]] = {}
         self.secrets_rank: dict[str, int] = {}
         if catalog is None:
             return
         caps = catalog.get("capabilities") or {}
         comps = catalog.get("components") or []
+        self.cdc = {c["path"] for c in comps if CDC_CAPABILITY in (c.get("capabilities") or [])}
         for name, cap in caps.items():
             if not cap.get("exclusive"):
                 continue
@@ -113,17 +123,6 @@ class CatalogRules:
                     s = c.get("secrets") or {}
                     if s.get("mechanism") and isinstance(s.get("rank"), int):
                         self.secrets_rank[s["mechanism"]] = s["rank"]
-
-
-def load_catalog() -> dict | None:
-    """wiki/catalog.json of the factory: the project, FORJATE_ROOT, or the checkout this plugin lives in."""
-    import os
-    for root in (REPO, Path(os.environ["FORJATE_ROOT"]) if os.environ.get("FORJATE_ROOT") else None,
-                 Path(__file__).resolve().parents[4]):
-        if root and (root / "wiki" / "catalog.json").is_file():
-            import json
-            return json.loads((root / "wiki" / "catalog.json").read_text())
-    return None
 
 
 _RULES: CatalogRules | None = None
@@ -277,7 +276,7 @@ def cross_record_conflicts(decisions: dict[str, dict]) -> tuple[list[str], list[
                 for group, members in rules_from_catalog.groups.items():
                     if c in members:
                         claim(group, c, area)
-                if c.startswith(CDC_PREFIX) and "broker" in rules_from_catalog.setting_to_group:
+                if c in rules_from_catalog.cdc and "broker" in rules_from_catalog.setting_to_group:
                     group, by_name = rules_from_catalog.setting_to_group["broker"]
                     implied = by_name.get(c.rsplit("-", 1)[-1])
                     if implied:
@@ -317,7 +316,7 @@ def cross_record_conflicts(decisions: dict[str, dict]) -> tuple[list[str], list[
         for area, d in decisions.items():
             sd = d["spec"]["stages"].get(stage) or {}
             for c in sd.get("choice") or []:
-                if c.startswith(CDC_PREFIX) and "broker" in rules_from_catalog.setting_to_group:
+                if c in rules_from_catalog.cdc and "broker" in rules_from_catalog.setting_to_group:
                     needed = rules_from_catalog.setting_to_group["broker"][1].get(c.rsplit("-", 1)[-1])
                     present = any(needed in (dd["spec"]["stages"].get(stage) or {}).get("choice", []) for dd in decisions.values())
                     if needed and not present:
@@ -341,6 +340,75 @@ def cross_record_conflicts(decisions: dict[str, dict]) -> tuple[list[str], list[
             warnings.append(f"{msg}; acknowledged by open question {ack}, resolve with the authors")
         else:
             errors.append(f"{msg}; one gate id, one text: raise an open question naming the id and both records, do not merge the texts")
+    return errors, warnings
+
+
+def psa_exception_findings(uc_name: str, decisions: dict[str, dict], where: str) -> tuple[list[str], list[str]]:
+    """Check 9: the security record's psa_exceptions against the stage level and the catalog.
+
+    Where a component runs and the level its pods meet are catalog facts (`namespace`,
+    `psa_level` in wiki/catalog.json, derived from k8s/** by wiki-compile.py); nothing here
+    names a component. A shared component (one with a `namespace`) runs there; the rest run
+    in the use case's namespace unless an exception moves them. `unknown` counts as below
+    any enforced level, `n/a` (no pods) never needs an exception."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    sec = decisions.get("security")
+    catalog = load_catalog()
+    if not sec or catalog is None:
+        return errors, warnings
+    facts = {c["path"]: c for c in catalog.get("components") or []}
+    uc_ns = f"uc-{uc_name}"
+
+    def rank(level) -> int:
+        return PSA_RANK.get(str(level), -1)
+
+    runs: dict[str, list[str]] = {}
+    seen: list[str] = []
+    for s in STAGES:
+        for d in decisions.values():
+            for c in (d["spec"]["stages"].get(s) or {}).get("choice") or []:
+                if c not in seen:
+                    seen.append(c)
+        runs[s] = list(seen)
+    for stage, sd in sec["spec"]["stages"].items():
+        level = str((sd.get("settings") or {}).get("psa_level") or "")
+        covered: set[str] = set()
+        for e in sd.get("psa_exceptions") or []:
+            at = f"{where}: {stage}: psa_exceptions {e['namespace']}"
+            if e["namespace"] == uc_ns:
+                errors.append(f"{at}: an exception never lowers the use case's namespace; move the components to a namespace of their own")
+            if level in PSA_RANK and PSA_RANK[e["level"]] >= PSA_RANK[level]:
+                warnings.append(f"{at}: level {e['level']} is not below the stage's psa_level {level}, so it is not an exception")
+            for c in e["components"]:
+                covered.add(c)
+                if not component_exists(c):
+                    errors.append(f"{at}: component not in catalog: {c}")
+                    continue
+                if c not in runs.get(stage, []):
+                    warnings.append(f"{at}: {c} is not chosen by any record at {stage} or before")
+                home = (facts.get(c) or {}).get("namespace")
+                if home and home != e["namespace"]:
+                    warnings.append(f"{at}: the catalog runs {c} in {home}, not {e['namespace']}")
+        if rank(level) <= 0:
+            continue
+        shared: dict[str, list[tuple[str, str]]] = {}
+        unproven: list[str] = []
+        for c in runs.get(stage, []):
+            f = facts.get(c) or {}
+            lvl = f.get("psa_level", "unknown")
+            if c in covered or lvl == "n/a" or rank(lvl) >= rank(level):
+                continue
+            if f.get("namespace"):
+                shared.setdefault(f["namespace"], []).append((c, lvl))
+            else:
+                unproven.append(f"{c} ({lvl})")
+        for ns, comps in shared.items():
+            warnings.append(f"{where}: {stage}: {ns} needs a level below psa_level {level} and has no psa_exceptions entry: "
+                            + ", ".join(f"{c} ({lvl})" for c, lvl in comps))
+        if unproven:
+            warnings.append(f"{where}: {stage}: below psa_level {level} in the catalog (psa_level) and would run in {uc_ns}: "
+                            f"{', '.join(unproven)}; move them to a namespace of their own with a psa_exceptions entry, or choose candidates that meet it")
     return errors, warnings
 
 
@@ -443,6 +511,9 @@ def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
     c_errs, c_warns = cross_record_conflicts(decisions)
     errors += [f"{uc}: {e}" for e in c_errs]
     warnings += [f"{uc}: {w}" for w in c_warns]
+    p_errs, p_warns = psa_exception_findings(uc_name, decisions, str(b / "decisions" / "security.yaml"))
+    errors += p_errs
+    warnings += p_warns
 
     for role, run in planned_experts.items():
         if run and role not in found_areas:

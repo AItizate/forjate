@@ -37,7 +37,7 @@ summary_source: derived
 ### Consumed by
 
 - [overlays/ai-dev-stack](../overlays/ai-dev-stack.md) — resource, via namespaces/ai-tools
-- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md) — resource, via namespaces/uc-invoice-intake
+- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md) — resource, via namespaces/uc-invoice-intake-baseline
 
 <!-- END DECLARED -->
 

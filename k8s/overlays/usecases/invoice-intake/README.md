@@ -28,6 +28,29 @@ kubectl kustomize --enable-helm k8s/overlays/usecases/invoice-intake/stages/walk
 | security | no component. Nothing real is reachable from Crawl, so the controls that cost money are deferred and the ones that are free now and expensive to retrofit  | `apps/sealed-secrets`, `apps/auth/gotrue-auth`. Walk is where the first real credential, the first real invoice and the first write to Odoo appear together, so every control is enforced ra | `apps/security/external-secrets`, `apps/auth/gotrue-auth`. Run keeps the Walk shape and changes where the truth about a secret lives |
 | ux | no component. No packs constrain the surface, so the factory defaults apply | `apps/surveys/formbricks`. At Walk a human approves exceptions and nothing else, so the surface is the review queue the architecture record already names as the review | `apps/surveys/formbricks`. The surface does not change shape at Run; it is filtered by legal entity and the clerk's GoTrue groups decide which entities a clerk sees, w |
 
+## PSA exceptions
+
+`uc-invoice-intake` enforces the security record's `psa_level` per stage and is never lowered; these namespaces run below it.
+
+| Stage | Namespace | Level | Components | Owner | Reason |
+|---|---|---|---|---|---|
+| walk | `uc-invoice-intake-baseline` | baseline | `apps/ai-models/ollama`, `apps/ai-models/litellm`, `apps/document-processing/docling`, `apps/databases/postgres`, `apps/minio/dev`, `apps/auth/gotrue-auth`, `apps/surveys/formbricks` | platform team | the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the invoice workloads stay restricted in uc-invoice-intake |
+| walk | `argocd` | baseline | `apps/continuous-delivery/argocd` | platform team | ArgoCD is not proven under restricted in the catalog (psa_level baseline) |
+| walk | `kube-system` | privileged | `apps/sealed-secrets` | cluster admin | the controller runs in the cluster's own namespace, which a use case never labels |
+| walk | `longhorn-system` | privileged | `apps/storage/longhorn` | platform team | the CSI driver and the engine need privileged containers and hostPath |
+| walk | `metallb-system` | privileged | `apps/networking/metallb` | platform team | the speaker needs hostNetwork and NET_RAW |
+| walk | `monitoring` | baseline | `apps/monitoring/prometheus`, `apps/monitoring/grafana` | platform team | not proven under restricted in the catalog (psa_level baseline) |
+| walk | `default` | privileged | `apps/monitoring/reloader` | cluster admin | the upstream manifests install it in default, the cluster's own namespace |
+| run | `uc-invoice-intake-baseline` | baseline | `apps/ai-models/ollama`, `apps/ai-models/litellm`, `apps/document-processing/docling`, `apps/databases/postgres`, `apps/minio/dev`, `apps/auth/gotrue-auth`, `apps/surveys/formbricks`, `apps/ai-models/vllm` | platform team | the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the invoice workloads stay restricted in uc-invoice-intake |
+| run | `argocd` | baseline | `apps/continuous-delivery/argocd` | platform team | ArgoCD is not proven under restricted in the catalog (psa_level baseline) |
+| run | `kube-system` | privileged | `apps/sealed-secrets` | cluster admin | the controller runs in the cluster's own namespace, which a use case never labels |
+| run | `longhorn-system` | privileged | `apps/storage/longhorn` | platform team | the CSI driver and the engine need privileged containers and hostPath |
+| run | `metallb-system` | privileged | `apps/networking/metallb` | platform team | the speaker needs hostNetwork and NET_RAW |
+| run | `monitoring` | baseline | `apps/monitoring/prometheus`, `apps/monitoring/grafana` | platform team | not proven under restricted in the catalog (psa_level baseline) |
+| run | `default` | privileged | `apps/monitoring/reloader` | cluster admin | the upstream manifests install it in default, the cluster's own namespace |
+| run | `external-secrets` | baseline | `apps/security/external-secrets` | platform team | the Helm chart is not read by the catalog (psa_level unknown) and its controller needs no host access |
+| run | `otel-collector` | privileged | `apps/monitoring/otel-collector` | platform team | the agent DaemonSet mounts hostPath to read node logs |
+
 ## Open questions
 
 - **ai-engineering Q1** (blocks walk): Is a GPU node in the Walk budget? Without it extraction on CPU takes about 40 s per invoice, fine for 300 a month but not for a clerk waiting on screen.
@@ -42,7 +65,7 @@ kubectl kustomize --enable-helm k8s/overlays/usecases/invoice-intake/stages/walk
 - **devops Q3** (blocks run): The Run envelope is 300 USD/month and the shape this record needs costs 260 without a GPU and 410 to 560 with the GPU node vLLM requires. Business owns go_no_go: either the envelope rises, or Run accepts CPU inference on the same 3 nodes and no managed Postgres. This record keeps 300 and does not resolve it.
 - **devops Q4** (blocks run, pack:regulated-corp#SEC-2): Which backing store does External Secrets read at Run, and is its region inside the EU? Most managed secret stores default to a region outside the EU, and Vault is BUSL-licensed, which the compliance record has to clear before it can be the answer.
 - **quality Q2** (blocks walk): The Walk golden set is 100 anonymised real invoices carrying supplier bank account numbers. The compliance record does not exist yet: who approves reusing invoices as an evaluation corpus, what anonymisation is required, and how long may the corpus be kept?
-- **security Q1** (blocks walk, pack:regulated-corp#SEC-1): pack:regulated-corp#SEC-1 requires PSA restricted from Walk, but the catalog Postgres and MinIO single-server are not proven under it, and the mvp tier shares the cluster with other tenants. Either they move to a data namespace labelled baseline owned by the platform team, or the use case runs its own restricted-capable Postgres. The platform owner decides and records the exception; security does not accept it on their behalf.
+- **security Q1** (blocks walk, pack:regulated-corp#SEC-1): pack:regulated-corp#SEC-1 requires PSA restricted from Walk, but the catalog proves none of the use case's components under it, and the mvp tier shares the cluster with other tenants. Either the platform owner accepts uc-invoice-intake-baseline at baseline and the shared namespaces in psa_exceptions, or the use case waits for restricted-capable components. The platform owner decides and records the exception; security does not accept it on their behalf.
 - **security Q2** (blocks run): Does the organisation sign container images? Cosign is not in the catalog, so image_policy signed at Run is either a CI step the platform team owns or an accepted gap, decided by the platform owner before the Run tag.
 - **security Q3** (blocks walk): Can the shared mailbox provider issue a per-application IMAP credential that can be rotated without affecting the humans who also read that mailbox? If not, rotation of imap-mailbox is a manual coordination with finance ops and G-SEC-9 cannot be fully automated. Finance ops and IT decide.
 - **ux Q1** (blocks walk): Should approvals happen inside Odoo's own UI (a draft payable the clerk validates there) instead of the separate review queue? It saves the clerks a second tool but moves the approval token outside the use case's control and loses the PO side-by-side view. Finance ops decides before the Walk walkthrough.
@@ -62,10 +85,12 @@ kubectl kustomize --enable-helm k8s/overlays/usecases/invoice-intake/stages/walk
 - [x] `usecase.yaml` validates; seed and verify Jobs exist suspended (CI: validate-usecases)
 - [x] `.env.example` with the generate and seal header for every secret; real `.env` gitignored
 - [x] plaintext-credential scan clean over the whole use case (`secret-scan.py`, CI: validate-kustomize)
-- [x] from Walk: PSA labels, default-deny NetworkPolicies, the egress allow-list, sealed secrets replacing every generated Secret, the ArgoCD Application on a tag
+- [x] from Walk: PSA labels (the use case's namespace at the stage's level, every other namespace at its own, the PSA exceptions in theirs), default-deny NetworkPolicies, the egress allow-list, sealed secrets replacing every generated Secret, the ArgoCD Application on a tag
 - [ ] seal the real secrets with the recipe in each `.env.example` before the first Walk sync
 - [ ] patch the hostnames (`*.example.com`) and the ArgoCD `targetRevision` to the release tag
 
 ## Assembly notes
 
 - OPEN: the walk surface workload review-api is not in scaffold.yaml yet; the Ingress is written for the shape, the workload arrives with the walk scaffold
+- OPEN: apps/minio/dev's shipped manifests meet privileged in the catalog and uc-invoice-intake-baseline enforces baseline: confirm this overlay's patches bring it to baseline, or its pods are rejected there
+- OPEN: the catalog does not know the PSA level of external-secrets (apps/security/external-secrets); it is left unlabelled for its owner

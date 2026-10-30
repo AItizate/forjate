@@ -14,9 +14,9 @@ _asked by: architecture, security_
 
 Single option today: `apps/auth/gotrue-auth`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/auth/gotrue-auth` | walk, run | mvp | single | none | false | internal, pii | MIT | Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature. |
+| `apps/auth/gotrue-auth` | walk, run | mvp | single | none | baseline | internal, pii | MIT | Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature. |
 
 ## `secrets-mechanism`
 
@@ -24,9 +24,9 @@ how a secret gets from where it is kept into a workload; one per stage, ranked.
 
 _asked by: security, devops · exclusive: one per stage · setting `secrets_mechanism` · floor without a component: `secret-generator`_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/sealed-secrets` | walk, run | mvp | unknown | none | unknown | secret | Apache-2.0 | Encrypted SealedSecrets committed next to the overlay; the floor for secrets in git from Walk. The controller key is the single point of loss — its backup is a devops gate. |
+| `apps/sealed-secrets` | walk, run | mvp | unknown | none | baseline | secret | Apache-2.0 | Encrypted SealedSecrets committed next to the overlay; the floor for secrets in git from Walk. The controller key is the single point of loss — its backup is a devops gate. |
 | `apps/security/external-secrets` | run | lab | unknown | none | unknown | secret | Apache-2.0 | Syncs from a store (openbao in the factory, or a corporate secret manager) into Kubernetes Secrets; rotation happens in the store. Not a store itself — pair it with a secrets-store. |
 
 ## `secrets-store`
@@ -37,9 +37,9 @@ _asked by: security_
 
 Single option today: `apps/security/openbao`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/security/openbao` | walk, run | lab | single | none | true | secret | MPL-2.0 | The factory's secret store (Vault API, Linux Foundation); raft, audit, kubernetes/approle auth and an SSH CA after bootstrap.sh. `openbao/eso-store` is the ClusterSecretStore for external-secrets; `raft-snapshot` and `seal-static` are add-ons. Replaces the deprecated apps/security/vault. |
+| `apps/security/openbao` | walk, run | lab | single | none | restricted | secret | MPL-2.0 | The factory's secret store (Vault API, Linux Foundation); raft, audit, kubernetes/approle auth and an SSH CA after bootstrap.sh. `openbao/eso-store` is the ClusterSecretStore for external-secrets; `raft-snapshot` and `seal-static` are add-ons. Replaces the deprecated apps/security/vault. |
 
 ## `access-control`
 
@@ -49,6 +49,6 @@ _asked by: security_
 
 Single option today: `rbac`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `rbac` | walk, run | lab | n/a | none | n/a | — | — | declares `ClusterRole`, `ClusterRoleBinding`, `ServiceAccount` |

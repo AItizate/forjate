@@ -1,0 +1,16 @@
+# PSA exception namespace of invoice-intake at walk (security: psa_exceptions). uc-invoice-intake keeps its own level.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uc-invoice-intake-baseline
+  labels:
+    forjate.io/usecase: invoice-intake
+    forjate.io/psa-exception: 'true'
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+  annotations:
+    forjate.io/psa-exception-owner: platform team
+    forjate.io/psa-exception-reason: the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's
+      hostPath is replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the invoice
+      workloads stay restricted in uc-invoice-intake

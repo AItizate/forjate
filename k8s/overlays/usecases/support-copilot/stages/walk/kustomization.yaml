@@ -14,6 +14,8 @@ resources:
 - ../../../../../components/apps/monitoring/grafana
 - ../../../../../components/apps/monitoring/reloader
 - ./namespaces/uc-support-copilot
+- ./namespaces/cloudflare-tunnel
+- ./namespaces/monitoring
 - argocd/application.yaml
 - argocd/secrets/sealed-argocd-ssh-keys.yaml
 - argocd/secrets/sealed-argocd-repo-creds.yaml
@@ -57,6 +59,18 @@ patches:
     name: litellm-secret
     namespace: uc-support-copilot
   patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: litellm-secret\n"
+- path: patches/cloudflare-tunnel-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: cloudflare-tunnel
+- path: patches/argocd-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: argocd
+- path: patches/longhorn-system-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: longhorn-system
 - path: argocd/repo-server-ssh-patch.yaml
   target:
     kind: Deployment

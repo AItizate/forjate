@@ -85,15 +85,20 @@ patches:
 
 ## PSA label on the namespace (Walk and Run)
 
+The use case's namespace enforces the security record's `psa_level` for the stage (`baseline` at Walk unless a pack raises it, `restricted` at Run) and warns and audits at `restricted`:
+
 ```yaml
 apiVersion: v1
 kind: Namespace
 metadata:
   name: uc-<name>
   labels:
-    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce: baseline      # the stage's psa_level
     pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
 ```
+
+Every other namespace the stage brings is labelled at its own level, never the use case's: a shared component's namespace at the catalog `psa_level` of what runs there, a PSA exception namespace (`uc-<name>-baseline`) at the level the security record's `psa_exceptions` give it. `references/assembly.md`, "Namespaces and PSA exceptions".
 
 ## Mounting a component into a different namespace
 

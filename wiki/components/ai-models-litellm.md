@@ -42,7 +42,7 @@ summary_source: derived
 - [overlays/agentic-orchestration](../overlays/agentic-orchestration.md) — resource, via namespaces/ai-tools
 - [overlays/ai-dev-stack](../overlays/ai-dev-stack.md) — resource, via namespaces/ai-tools
 - [overlays/quickstart](../overlays/quickstart.md) — resource, via namespaces/ai-tools
-- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via namespaces/uc-invoice-intake
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via namespaces/uc-invoice-intake-baseline
 - [overlays/usecases-support-copilot-stages-walk](../overlays/usecases-support-copilot-stages-walk.md) — resource, via namespaces/uc-support-copilot
 
 <!-- END DECLARED -->

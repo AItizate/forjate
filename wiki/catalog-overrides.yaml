@@ -333,6 +333,18 @@ components:
     data_classes: [secret]
     licence: Apache-2.0
     notes: Encrypted SealedSecrets committed next to the overlay; the floor for secrets in git from Walk. The controller key is the single point of loss — its backup is a devops gate.
+  apps/backup/velero:
+    stages: [walk, run]
+    capabilities: [backup]
+    maturity: lab
+    gpu_required: none
+    ha: single
+    psa_restricted: false
+    secrets:
+      takes: env
+    data_classes: [internal, pii, financial, health, secret]
+    licence: Apache-2.0
+    notes: Cluster-level backup of namespaces and PVC data (CSI snapshots or node agent) with schedule, retention and restore. Default target is the in-cluster MinIO, which is not DR on its own; point it off-cluster (values-s3-backend.yaml) at Run. Reads `velero-credentials`. Complements pg_dump CronJobs, does not replace them. Restore runbook in the component README.
   apps/security/external-secrets:
     stages: [run]
     capabilities: [secrets-mechanism]

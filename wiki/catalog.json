@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-10-29",
+  "compiled_at": "2026-10-30",
   "stages": [
     "crawl",
     "walk",
@@ -742,6 +742,48 @@
       "psa_level": "n/a",
       "namespace": null,
       "namespace_how": null
+    },
+    {
+      "path": "apps/backup/velero",
+      "name": "backup-velero",
+      "category": "backup",
+      "wiki": "wiki/components/backup-velero.md",
+      "summary": "Velero — cluster-level backup and restore (namespaces, cluster resources, PVC data)",
+      "images": [],
+      "kinds": [
+        "Namespace"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "capabilities": [
+        "backup"
+      ],
+      "maturity": "lab",
+      "gpu_required": "none",
+      "ha": "single",
+      "psa_restricted": false,
+      "secrets": {
+        "takes": "env"
+      },
+      "data_classes": [
+        "internal",
+        "pii",
+        "financial",
+        "health",
+        "secret"
+      ],
+      "licence": "Apache-2.0",
+      "notes": "Cluster-level backup of namespaces and PVC data (CSI snapshots or node agent) with schedule, retention and restore. Default target is the in-cluster MinIO, which is not DR on its own; point it off-cluster (values-s3-backend.yaml) at Run. Reads `velero-credentials`. Complements pg_dump CronJobs, does not replace them. Restore runbook in the component README.",
+      "curated": true,
+      "psa_level": "unknown",
+      "namespace": "velero",
+      "namespace_how": "declares"
     },
     {
       "path": "apps/brokers/mosquitto",

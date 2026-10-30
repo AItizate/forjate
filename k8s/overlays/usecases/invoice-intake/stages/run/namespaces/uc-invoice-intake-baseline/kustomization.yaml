@@ -1,0 +1,9 @@
+# run: uc-invoice-intake-baseline, where the PSA exceptions of invoice-intake run at baseline (exception owned by platform team: the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the invoice workloads stay restricted in uc-invoice-intake).
+namespace: uc-invoice-intake-baseline
+resources:
+- ../../../../../../../components/apps/ai-models/vllm
+- externalsecrets/postgres-secret.yaml
+- externalsecrets/minio-secret.yaml
+- externalsecrets/litellm-secret.yaml
+- externalsecrets/gotrue-secret.yaml
+- externalsecrets/formbricks-secret.yaml

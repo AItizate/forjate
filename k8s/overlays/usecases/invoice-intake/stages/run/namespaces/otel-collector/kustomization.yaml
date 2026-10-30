@@ -1,0 +1,5 @@
+# run: shared infrastructure in otel-collector; components whose manifests set no namespace are placed here.
+namespace: otel-collector
+resources:
+- namespace.yaml
+- ../../../../../../../components/apps/monitoring/otel-collector

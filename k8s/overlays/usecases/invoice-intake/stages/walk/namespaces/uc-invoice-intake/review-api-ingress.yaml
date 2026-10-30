@@ -5,7 +5,7 @@ metadata:
   name: review-api
   namespace: uc-invoice-intake
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: uc-invoice-intake-gotrue-chain@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: uc-invoice-intake-baseline-gotrue-chain@kubernetescrd
     cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: traefik

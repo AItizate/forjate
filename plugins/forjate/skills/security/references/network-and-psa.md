@@ -47,7 +47,7 @@ containers:
       capabilities: { drop: [ALL] }
 ```
 
-`readOnlyRootFilesystem` needs an `emptyDir` for `/tmp` and any cache the runtime writes; say so in `rationale` so the scaffolder adds it. Catalog components keep their own contexts; a component that cannot run under the stage's PSA level is a `risks` entry with the namespace it needs, not a reason to lower the level for the whole use case.
+`readOnlyRootFilesystem` needs an `emptyDir` for `/tmp` and any cache the runtime writes; say so in `rationale` so the scaffolder adds it. Catalog components keep their own contexts; a component that cannot run under the stage's PSA level is a PSA exception (below), not a reason to lower the level for the whole use case.
 
 ## RBAC
 
@@ -57,9 +57,40 @@ The use case's workloads run under their own ServiceAccount with `automountServi
 
 Observed: one ArgoCD Application on a feature branch with `automated: { prune: false, selfHeal: false }`, serving as production. Anyone with push to the branch deploys; drift stays until someone looks. Your gate from Walk, `check: {type: ci, ref: argocd-revision-check}`: the Application's `targetRevision` is a tag (or a commit), `selfHeal: true`. Prune is Run's, after a dry run (`argocd app diff`), because a wrong prune deletes state. The devops record carries `target_revision: tag` and `argocd_sync`; you demand it.
 
-## Tenancy and shared infrastructure
+## PSA exceptions
 
-The use case's PSA level applies to the use case's namespace. Shared infrastructure (operators, Longhorn, the ingress controller, the inference server, the sealed-secrets controller) runs in its own namespaces at the level its owner sets; a catalog component the use case needs that is not proven under the stage's level is recorded as an exception in `risks` with the namespace it moves to, never as a reason to lower the use case's level. On a cluster shared with other tenants the exception is an open question for the platform owner.
+**The rule.** The use case's namespace enforces the stage's `psa_level` and nothing lowers it. Walk enforces `baseline` with `restricted` as warn and audit, Run enforces `restricted`, a pack's `min_psa_level` can raise Walk. Whatever cannot run at that level runs in a namespace of its own, at its own level, with an owner, and the record says so in `psa_exceptions`. A reviewer reads one list to learn everything that runs below the use case's level and who accepted it.
 
+**Why a list and not a risk.** The kustomize assembly labels each namespace and moves the components, and `validate.py` checks the list against the catalog; neither reads prose. Keep the `risks` entry for severity and mitigation and link it with `risk: R<n>`.
+
+**Where the facts come from.** Two catalog facts per component, derived from `k8s/**` by `wiki-compile.py`: `psa_level`, the strictest Pod Security Standard its pods meet (`privileged` when they need host access, `restricted` when every container meets the profile, `baseline` otherwise, `unknown` for remote or Helm manifests the compiler cannot read), and `namespace`, set for shared infrastructure that runs in a namespace of its own. Read them for every component any record runs at the stage, not only yours: stage overlays add and never remove, so a Crawl choice still runs at Walk.
+
+```bash
+python3 -c "import json;[print(c['path'],c['psa_level'],c['namespace']) for c in json.load(open('wiki/catalog.json'))['components']]"
+```
+
+Two kinds of exception, one shape:
+
+- **Shared infrastructure** (`namespace` set: storage, ingress, GitOps, the secrets controller, monitoring, an operator) runs in its own namespace already. Record the namespace when its components' `psa_level` is below the stage's level, so the reviewer sees a storage namespace at `privileged` and who owns it. The assembly labels it at the catalog's level.
+- **A use-case-scoped component the catalog does not prove at the stage's level** (a database, the model server, the parser, the identity provider when the use case brings its own) moves out of `uc-<name>`. Put them in one namespace of the use case's own, `uc-<name>-baseline`, not in a shared one: two use cases cannot both deploy a `postgres` into the same namespace, and the components keep reaching each other by short name. The assembly moves them, leaves an alias of each Service in `uc-<name>`, seals their Secrets in the new namespace and gives it its own default-deny.
+
+```yaml
+psa_exceptions:
+  - namespace: uc-<name>-baseline
+    level: baseline
+    components: [<the use-case-scoped paths the catalog gives psa_level baseline>]
+    owner: <who sets and accepts the level>
+    reason: >-
+      <the catalog fact, and why the level admits them while the use case's own workloads stay at the
+      stage's level in uc-<name>>
+    risk: R<n>
+  - { namespace: <the shared component's catalog namespace>, level: privileged, components: [<its path>], owner: <owner>, reason: "<the host access it needs>" }
+```
+
+`level` is the namespace's enforce level and must be below the stage's `psa_level`; when the components' `psa_level` is `unknown`, say so in `reason` and record the level you expect the owner to set. An `n/a` component (no pods) never needs an entry.
+
+**Shared clusters.** On a cluster shared with other tenants the exception is the platform owner's to accept: raise an open question naming the namespaces and their levels, and leave the record's level where it is. When the only way to keep a component in `uc-<name>` would be to lower `uc-<name>`, that is the alternative you reject, with the pack rule or the ladder as the reason.
+
+## Tenancy from Run
 
 From Run, if the cluster is shared with other use cases or tenants: namespace per use case (already the convention), NetworkPolicy isolation between namespaces, ResourceQuota and LimitRange per namespace, PSA labels per namespace, separate ServiceAccounts, and the `multi-tenant-pattern` overlay as the reference. Say which of these the stage needs.

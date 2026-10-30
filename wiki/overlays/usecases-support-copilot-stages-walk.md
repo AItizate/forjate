@@ -39,13 +39,15 @@ summary_source: derived
 - `../../../../../components/apps/monitoring/grafana`
 - `../../../../../components/apps/monitoring/reloader`
 - `./namespaces/uc-support-copilot`
+- `./namespaces/cloudflare-tunnel`
+- `./namespaces/monitoring`
 - `argocd/application.yaml`
 - `argocd/secrets/sealed-argocd-ssh-keys.yaml`
 - `argocd/secrets/sealed-argocd-repo-creds.yaml`
 
 ### Kubernetes kinds
 
-`Application`, `NetworkPolicy`, `SealedSecret`
+`Application`, `Namespace`, `NetworkPolicy`, `SealedSecret`
 
 ### Depends on
 
@@ -71,6 +73,9 @@ summary_source: derived
 - `patches/copilot-validate-env-patch.yaml → Job/copilot-validate (ns: uc-support-copilot)`
 - `inline → Secret/postgres-secret (ns: uc-support-copilot)`
 - `inline → Secret/litellm-secret (ns: uc-support-copilot)`
+- `patches/cloudflare-tunnel-psa-patch.yaml → Namespace/cloudflare-tunnel`
+- `patches/argocd-psa-patch.yaml → Namespace/argocd`
+- `patches/longhorn-system-psa-patch.yaml → Namespace/longhorn-system`
 - `argocd/repo-server-ssh-patch.yaml → Deployment/argocd-repo-server (ns: argocd)`
 - `argocd/cmd-params-cm-patch.yaml → ConfigMap/argocd-cmd-params-cm (ns: argocd)`
 

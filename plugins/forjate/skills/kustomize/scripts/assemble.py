@@ -35,13 +35,19 @@ import yaml
 HERE = Path(__file__).resolve().parent
 BUILDER = HERE.parents[2] / "scripts" / "builder"
 sys.path.insert(0, str(BUILDER))
-from common import load_yaml  # noqa: E402
+from common import PSA_RANK, load_catalog, load_yaml  # noqa: E402
 
 STAGES = ("crawl", "walk", "run")
-# Components that live in their own namespace (cluster-level infrastructure). They go at a stage root,
-# never under the use case's namespaced sub-overlay, which would force them into uc-<name>.
-INFRA_PREFIXES = ("apps/sealed-secrets", "apps/continuous-delivery/", "apps/storage/", "apps/networking/", "apps/monitoring/",
-                  "apps/security/", "apps/docker-registry", "apps/iac/", "apps/cloudflare-tunnel")
+# Where a component runs and the PSA level its pods meet are catalog facts (`namespace`,
+# `namespace_how`, `psa_level` in wiki/catalog.json, derived from k8s/** by wiki-compile.py):
+# a component with a `namespace` is shared infrastructure and goes at a stage root, never under
+# the use case's namespaced sub-overlay; the rest go in uc-<name> unless the security record's
+# psa_exceptions move them. Kubernetes' own namespaces are never labelled by a use case.
+SYSTEM_NAMESPACES = {"kube-system", "kube-public", "kube-node-lease", "default"}
+CLUSTER_SCOPED = {"Namespace", "ClusterRole", "ClusterRoleBinding", "CustomResourceDefinition", "StorageClass",
+                  "PersistentVolume", "PriorityClass", "MutatingWebhookConfiguration", "ValidatingWebhookConfiguration",
+                  "IngressClass", "CSIDriver", "APIService", "ClusterIssuer", "ClusterSecretStore", "RuntimeClass"}
+REMOTE = re.compile(r"^(https?://|ssh://|git@|github\.com/)")
 # What the assembly knows about catalog components it wires: service, port, protocol, the Secret the
 # component mounts (name, keys), the pod label for NetworkPolicies, laptop sizing, glue manifests.
 COMPONENTS: dict[str, dict] = {
@@ -106,6 +112,15 @@ class Assembly:
         self.written: list[Path] = []
         self.notes: list[str] = []
         self.in_scope = [s for s in STAGES if (self.plan["spec"]["stages"].get(s) or {}).get("in_scope")]
+        catalog = load_catalog()
+        if catalog is None:
+            raise SystemExit("error: wiki/catalog.json not reachable (run from the factory root or set FORJATE_ROOT)")
+        self.catalog = {c["path"]: c for c in catalog.get("components") or []}
+        self.k8s = next(p for p in self.uc.parents if p.name == "k8s")
+        self.declared_ns = {o["metadata"]["name"] for o in self.local_objects(self.k8s / "base") if o["kind"] == "Namespace"}
+        self.declared_ns |= {ns for c in self.choices("crawl") if (ns := self.fact(c, "namespace")) and self.fact(c, "namespace_how") == "declares"}
+        self.labelled_ns: dict[str, str] = {}
+        self.exception_secrets: dict[str, list[str]] = {}
 
     # ------------------------------------------------------------ record access
     def setting(self, area: str, stage: str, key: str, default=None):
@@ -127,8 +142,73 @@ class Assembly:
         before = {c for s in STAGES[:STAGES.index(stage)] for c in self.choices(s)}
         return [c for c in self.choices(stage) if c not in before]
 
+    def fact(self, c: str, key: str, default=None):
+        return (self.catalog.get(c) or {}).get(key, default)
+
     def infra(self, c: str) -> bool:
-        return c.startswith(INFRA_PREFIXES)
+        """Shared infrastructure: the catalog gives it a namespace of its own."""
+        return bool(self.fact(c, "namespace"))
+
+    def runs(self, stage: str) -> list[str]:
+        """Every component the stage's build contains: stage overlays add, never remove."""
+        out: list[str] = []
+        for s in STAGES[:STAGES.index(stage) + 1]:
+            out += [c for c in self.choices(s) if c not in out]
+        return out
+
+    def psa_exceptions(self, stage: str) -> list[dict]:
+        r = self.records.get("security")
+        return list(((r or {}).get("spec", {}).get("stages", {}).get(stage) or {}).get("psa_exceptions") or [])
+
+    def placement(self, stage: str) -> dict[str, str]:
+        """Use-case-scoped components the security record moves out of uc-<name>, and where."""
+        if stage == "crawl":
+            return {}
+        return {c: e["namespace"] for e in self.psa_exceptions(stage) for c in e["components"] if not self.infra(c)}
+
+    def home(self, c: str, stage: str) -> str:
+        """The namespace a component runs in at a stage."""
+        return self.fact(c, "namespace") or self.placement(stage).get(c) or self.ns
+
+    def local_objects(self, d: Path) -> list[dict]:
+        """Objects a kustomization lists from local files, recursively, plus its generators; remote refs
+        and Helm charts are not read. Used for names and kinds, never to rebuild the manifest."""
+        k = d / "kustomization.yaml"
+        if not k.is_file():
+            return []
+        doc = load_yaml(k)
+        out: list[dict] = []
+        for r in doc.get("resources") or []:
+            if not isinstance(r, str) or REMOTE.match(r):
+                continue
+            t = (d / r).resolve()
+            if t.is_dir():
+                out += self.local_objects(t)
+            elif t.is_file() and t.suffix in (".yaml", ".yml"):
+                out += [x for x in yaml.safe_load_all(t.read_text()) if isinstance(x, dict) and x.get("kind")]
+        for gen, kind in (("configMapGenerator", "ConfigMap"), ("secretGenerator", "Secret")):
+            out += [{"kind": kind, "metadata": {"name": g["name"]}} for g in doc.get(gen) or [] if isinstance(g, dict) and g.get("name")]
+        return out
+
+    def objects_of(self, c: str) -> list[tuple[str, str]]:
+        """(kind, name) of the namespaced objects a use-case-scoped component brings into uc-<name>,
+        including the glue and the config the assembly adds for it."""
+        objs = [(o["kind"], o["metadata"]["name"]) for o in self.local_objects(self.k8s / "components" / c)
+                if o["kind"] not in CLUSTER_SCOPED and (o.get("metadata") or {}).get("name")]
+        meta = COMPONENTS.get(c) or {}
+        if meta.get("glue") == "minio-dev":
+            objs.append(("Service", "minio"))
+        if meta.get("config"):
+            objs.append(("ConfigMap", meta["config"][0]))
+        if self.fact(c, "remote_refs") or not objs:
+            self.notes.append(f"OPEN: {c} is moved out of {self.ns} but part of it is remote or Helm-rendered; move those objects by hand")
+        return list(dict.fromkeys(objs))
+
+    def services_of(self, c: str) -> list[str]:
+        return [n for k, n in self.objects_of(c) if k == "Service"]
+
+    def psa_labels(self, level: str) -> dict:
+        return {"pod-security.kubernetes.io/enforce": level, "pod-security.kubernetes.io/warn": "restricted", "pod-security.kubernetes.io/audit": "restricted"}
 
     def rel_component(self, c: str, depth: int) -> str:
         return "../" * depth + f"components/{c}"
@@ -333,7 +413,8 @@ class Assembly:
         for w in workloads:
             if w["kind"] == "deployment":
                 endpoints.append({"name": w["name"], "service": w["name"], "port": w.get("port", 8000), "protocol": "http"})
-        dedicated = any(c.startswith(("apps/storage/", "apps/continuous-delivery/", "apps/sealed-secrets", "apps/minio/single-server")) for c in crawl)
+        # cluster-level controllers (shared infrastructure, or an operator-backed component) need their own cluster
+        dedicated = any(self.infra(c) or self.fact(c, "ha") == "operator" for c in crawl)
         contract = {"apiVersion": "forjate.io/v0", "kind": "UseCase",
                     "metadata": {"name": self.name, "description": str(self.brief["spec"]["problem"]).split(". ")[0][:160]},
                     "spec": {"isolation": "dedicated" if dedicated else "shared", "ttl": "4h",
@@ -357,12 +438,22 @@ class Assembly:
         ]
         comps = [c for c in self.choices(stage) if not self.infra(c) and (COMPONENTS.get(c) or {}).get("label")]
         workloads = (self.scaffold or {}).get("spec", {}).get("workloads", [])
-        targets = [(COMPONENTS[c]["label"], COMPONENTS[c]["port"]) for c in comps] + [(w["name"], w.get("port", 8000)) for w in workloads if w["kind"] == "deployment"]
+        # (pod label, port, namespace): a component a psa_exceptions entry moved is reached across namespaces
+        targets = [(COMPONENTS[c]["label"], COMPONENTS[c]["port"], self.home(c, stage)) for c in comps] + [(w["name"], w.get("port", 8000), ns) for w in workloads if w["kind"] == "deployment"]
+
+        def peer(lbl: str, home: str) -> dict:
+            sel = {"podSelector": {"matchLabels": {"app": lbl}}}
+            if home != ns:
+                sel["namespaceSelector"] = {"matchLabels": {"kubernetes.io/metadata.name": home}}
+            return sel
+
         for w in workloads:
-            to = [{"to": [{"podSelector": {"matchLabels": {"app": lbl}}}], "ports": [{"protocol": "TCP", "port": port}]} for lbl, port in targets if lbl != w["name"]]
+            to = [{"to": [peer(lbl, home)], "ports": [{"protocol": "TCP", "port": port}]} for lbl, port, home in targets if lbl != w["name"]]
             docs.append({"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"name": f"allow-{w['name']}-egress", "namespace": ns},
                          "spec": {"podSelector": {"matchLabels": {"app": w["name"]}}, "policyTypes": ["Egress"], "egress": to}})
-        for lbl, port in targets:
+        for lbl, port, home in targets:
+            if home != ns:
+                continue
             docs.append({"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"name": f"allow-ingress-to-{lbl}", "namespace": ns},
                          "spec": {"podSelector": {"matchLabels": {"app": lbl}}, "policyTypes": ["Ingress"],
                                   "ingress": [{"from": [{"podSelector": {}}], "ports": [{"protocol": "TCP", "port": port}]}]}})
@@ -385,6 +476,30 @@ class Assembly:
                          "spec": {"podSelector": {}, "policyTypes": ["Egress"], "egress": [{"to": [{"ipBlock": {"cidr": "203.0.113.0/32"}}], "ports": [{"protocol": "TCP", "port": port}]}]}})
         head = (f"# NetworkPolicies for {ns} at {stage}, generated from decisions/security.yaml (network_policy: default-deny,\n"
                 f"# egress_allowlist: {len(external)} external host(s)) and the in-cluster allows derived from the scaffold's workloads and the components.{depth_note}\n")
+        return head + "---\n".join(dump(d) for d in docs)
+
+    def exception_netpols(self, stage: str, n: str, comps: list[str]) -> str:
+        """default-deny in an exception namespace: DNS, traffic inside it, the use case's namespace to the
+        moved components' ports, and the ingress controller to the ones it serves (an Ingress or the IdP)."""
+        ports = sorted({(COMPONENTS.get(c) or {}).get("port") for c in comps} - {None})
+        served = [c for c in comps if (COMPONENTS.get(c) or {}).get("ingress") or "identity-provider" in (self.fact(c, "capabilities") or [])]
+        from_uc = {"from": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": self.ns}}}]}
+        if ports:
+            from_uc["ports"] = [{"protocol": "TCP", "port": p} for p in ports]
+        docs = [
+            {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"name": "default-deny", "namespace": n}, "spec": {"podSelector": {}, "policyTypes": ["Ingress", "Egress"]}},
+            {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"name": "allow-dns", "namespace": n},
+             "spec": {"podSelector": {}, "policyTypes": ["Egress"], "egress": [{"to": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}}}], "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}]}]}},
+            {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"name": "allow-same-namespace", "namespace": n},
+             "spec": {"podSelector": {}, "policyTypes": ["Ingress", "Egress"], "ingress": [{"from": [{"podSelector": {}}]}], "egress": [{"to": [{"podSelector": {}}]}]}},
+            {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"name": f"allow-ingress-from-{self.ns}", "namespace": n},
+             "spec": {"podSelector": {}, "policyTypes": ["Ingress"], "ingress": [from_uc]}},
+        ]
+        if served:
+            docs.append({"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"name": "allow-ingress-controller", "namespace": n},
+                         "spec": {"podSelector": {}, "policyTypes": ["Ingress"], "ingress": [{"from": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "traefik"}}}]}]}})
+        head = (f"# NetworkPolicies for {n} at {stage}: the PSA exception namespace of {self.name} (security: psa_exceptions), default-deny like {self.ns}.\n"
+                f"# Components: {', '.join(comps)}. Egress to anything outside the cluster is not allowed here; add it by hand if one of them needs it.\n")
         return head + "---\n".join(dump(d) for d in docs)
 
     def argocd_files(self, stage: str, path: str, repo_url: str, dirn: Path, depth: int, *, wiring: bool = True) -> list[str]:
@@ -420,14 +535,56 @@ class Assembly:
         # overlay recomposes the Crawl root from its parts (base, the Crawl infra, the Crawl namespace child)
         # instead of referencing ../.. ; Run extends ../walk, a sibling.
         crawl_infra = [c for c in self.choices("crawl") if self.infra(c)]
-        prev = ["../../../../../base"] + [self.rel_component(c, 5) for c in crawl_infra] + [f"../../namespaces/{ns}"] if stage == "walk" else ["../walk"]
         new = self.new_at(stage)
         infra = [c for c in new if self.infra(c)]
         scoped = [c for c in new if not self.infra(c)]
         sc = (self.scaffold or {}).get("spec", {})
         image = sc.get("image")
-        resources = prev + [self.rel_component(c, 5) for c in infra] + [f"./namespaces/{ns}"]
         patches: list[dict] = []
+        # PSA exceptions (security: psa_exceptions): use-case-scoped components that cannot run at the use
+        # case's level leave uc-<name> for a namespace of their own. One already in the build is moved by a
+        # relocation layer under the stage (a patch and an alias in one kustomization collide); one the stage
+        # adds is composed straight into its namespace. A stage overlay never moves a component back.
+        place = self.placement(stage)
+        prev_place = self.placement("walk") if stage == "run" else {}
+        before = self.runs(STAGES[STAGES.index(stage) - 1])
+        for c, n in prev_place.items():
+            if place.get(c) != n:
+                self.notes.append(f"OPEN: {c} was moved to {n} at walk and the {stage} record says {place.get(c) or 'nothing'}; a stage overlay never moves a component back, edit the walk exception")
+        relocate = {c: n for c, n in place.items() if c in before and c not in prev_place}
+        placed = {c: place[c] for c in scoped if c in place}
+        arriving: dict[str, list[str]] = {}
+        for c, n in list(relocate.items()) + list(placed.items()):
+            arriving.setdefault(n, []).append(c)
+        wrapped = f"../../namespaces/{ns}" if stage == "walk" else "../walk"
+        if relocate:
+            moves = [{"target": {"kind": kind, "name": name, "namespace": ns}, "patch": f"- op: replace\n  path: /metadata/namespace\n  value: {n}\n"}
+                     for c, n in relocate.items() for kind, name in self.objects_of(c)]
+            self.write(sdir / "relocated" / "kustomization.yaml",
+                       f"# {stage}: the build so far with the PSA exceptions moved out of {ns} (security: psa_exceptions).\n"
+                       "# A layer of its own because the aliases left in the use case's namespace would collide with the originals here.\n"
+                       + dump({"apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization", "resources": ["../" + wrapped], "patches": moves}))
+            wrapped = "./relocated"
+        prev = (["../../../../../base"] + [self.rel_component(c, 5) for c in crawl_infra] + [wrapped]) if stage == "walk" else [wrapped]
+        # shared infrastructure: at the stage root, or placed in its namespace when its manifests set none;
+        # a component whose Namespace the build already has is wrapped so the duplicate is dropped
+        root_infra: list[str] = []
+        ns_dirs: dict[str, dict] = {}
+        for c in infra:
+            n, how = self.fact(c, "namespace"), self.fact(c, "namespace_how")
+            if how == "none":
+                ns_dirs.setdefault(n, {"resources": [], "declare": False})["resources"].append(self.rel_component(c, 7))
+            elif how == "declares" and n in self.declared_ns:
+                wdir = f"wrapped/{slug(c)}"
+                self.write(sdir / wdir / "kustomization.yaml", f"# {c} ships the Namespace {n}, which the build already has: the duplicate is dropped here.\n" + dump(
+                    {"apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization", "resources": [self.rel_component(c, 7)],
+                     "patches": [{"target": {"kind": "Namespace", "name": n}, "patch": f"$patch: delete\napiVersion: v1\nkind: Namespace\nmetadata:\n  name: {n}\n"}]}))
+                root_infra.append(f"./{wdir}")
+            else:
+                root_infra.append(self.rel_component(c, 5))
+                if how == "declares":
+                    self.declared_ns.add(n)
+        resources = prev + root_infra + [f"./namespaces/{ns}"]
         # PSA on the namespace
         psa = self.setting("security", stage, "psa_level", "baseline")
         self.write(sdir / "patches" / "namespace-psa-patch.yaml", f"# PSA at {stage} from decisions/security.yaml (psa_level: {psa}); restricted stays on warn and audit.\n" + dump(
@@ -450,15 +607,18 @@ class Assembly:
         # secrets: the mechanism per stage
         mech = self.setting("security", stage, "secrets_mechanism", "sealed-secrets")
         # Walk writes the NetworkPolicies and the surface; Run inherits them from ../walk and adds only what changes.
-        sub_resources = (["netpols.yaml"] if stage == "walk" else []) + [self.rel_component(c, 7) for c in scoped]
+        sub_resources = (["netpols.yaml"] if stage == "walk" else []) + [self.rel_component(c, 7) for c in scoped if c not in placed]
         all_secrets = self.crawl_secrets() + self.stage_secrets("walk") + (self.stage_secrets("run") if stage == "run" else [])
+        # a component's Secret stays in uc-<name> while a workload there consumes it or the component runs there
+        consumed = {x for w in sc.get("workloads", []) for x in w.get("secrets") or []}
+        all_secrets = [t for t in all_secrets if t[2] not in self.catalog or self.home(t[2], stage) == ns or t[0] in consumed]
         if stage == "walk":
             for sname, keys, origin in self.crawl_secrets():
                 patches.append({"target": {"kind": "Secret", "name": sname, "namespace": ns}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {sname}\n"})
             for c in scoped:
                 ph = (COMPONENTS.get(c) or {}).get("placeholder_secret")
                 if ph:
-                    patches.append({"target": {"kind": "Secret", "name": ph, "namespace": ns}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {ph}\n"})
+                    patches.append({"target": {"kind": "Secret", "name": ph, "namespace": self.home(c, stage)}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {ph}\n"})
             for sname, keys, origin in all_secrets:
                 self.write(sdir / "namespaces" / ns / "secrets" / f"sealed-{sname}.yaml", self.sealed_placeholder(sname, keys))
                 self.write(sdir / "namespaces" / ns / "secrets" / f"{sname}.env.example", self.env_example(sname, keys, origin, stage=stage))
@@ -475,10 +635,12 @@ class Assembly:
         # ingress for the human surface
         auth = self.setting("security", stage, "auth_in_front") or self.setting("architecture", stage, "auth_in_front")
         surface = self.setting("ux", stage, "surface_workload")
+        idp = next((c for c in self.runs(stage) if "identity-provider" in (self.fact(c, "capabilities") or [])), None)
+        mw = f"{self.home(idp, stage) if idp else ns}-gotrue-chain@kubernetescrd"
         if stage == "walk" and auth == "oauth2-proxy" and surface and surface != "none":
             port = next((w.get("port", 8000) for w in sc.get("workloads", []) if w["name"] == surface), 8000)
             ing = {"apiVersion": "networking.k8s.io/v1", "kind": "Ingress", "metadata": {"name": surface, "namespace": ns,
-                   "annotations": {"traefik.ingress.kubernetes.io/router.middlewares": f"{ns}-gotrue-chain@kubernetescrd", "cert-manager.io/cluster-issuer": "letsencrypt-prod"}},
+                   "annotations": {"traefik.ingress.kubernetes.io/router.middlewares": mw, "cert-manager.io/cluster-issuer": "letsencrypt-prod"}},
                    "spec": {"ingressClassName": "traefik", "rules": [{"host": f"{self.name}.example.com", "http": {"paths": [{"path": "/", "pathType": "Prefix", "backend": {"service": {"name": surface, "port": {"number": port}}}}]}}],
                             "tls": [{"hosts": [f"{self.name}.example.com"], "secretName": f"{surface}-tls"}]}}
             self.write(sdir / "namespaces" / ns / f"{surface}-ingress.yaml", f"# The human surface (ux: {surface}) behind oauth2-proxy and GoTrue (security/architecture: auth_in_front). Patch the host.\n" + dump(ing))
@@ -490,24 +652,33 @@ class Assembly:
             for c in scoped:
                 ing_name = (COMPONENTS.get(c) or {}).get("ingress")
                 if ing_name:
-                    patches.append({"target": {"kind": "Ingress", "name": ing_name, "namespace": ns},
-                                    "patch": f"- op: add\n  path: /metadata/annotations/traefik.ingress.kubernetes.io~1router.middlewares\n  value: {ns}-gotrue-chain@kubernetescrd\n"})
+                    patches.append({"target": {"kind": "Ingress", "name": ing_name, "namespace": self.home(c, stage)},
+                                    "patch": f"- op: add\n  path: /metadata/annotations/traefik.ingress.kubernetes.io~1router.middlewares\n  value: {mw}\n"})
         # netpols (Walk; Run keeps them and the matrix is a Run recommendation the reviewer asks for)
         if stage == "walk":
             self.write(sdir / "namespaces" / ns / "netpols.yaml", self.netpols(stage, depth_note=""))
         elif self.setting("security", stage, "egress_matrix") == "required":
             self.notes.append("OPEN: security egress_matrix is required at Run; write the per-workload matrix next to stages/run (netpol-matrix-check reads it)")
+        # aliases: a moved component keeps its short Service name in uc-<name>, so no consumer changes
+        aliases = [{"apiVersion": "v1", "kind": "Service", "metadata": {"name": svc, "namespace": ns, "labels": {"forjate.io/psa-exception": n}},
+                    "spec": {"type": "ExternalName", "externalName": f"{svc}.{n}.svc.cluster.local"}}
+                   for n, comps in arriving.items() for c in comps for svc in self.services_of(c)]
+        if aliases:
+            self.write(sdir / "namespaces" / ns / "aliases.yaml", f"# {stage}: ExternalName aliases in {ns} for the Services the PSA exceptions moved out (security: psa_exceptions).\n" + "---\n".join(dump(a) for a in aliases))
+            sub_resources.append("aliases.yaml")
         sub = {"namespace": ns, "resources": sub_resources}
         for c in scoped:
             meta = COMPONENTS.get(c) or {}
-            if meta.get("config"):
+            if meta.get("config") and c not in placed:
                 sub.setdefault("configMapGenerator", []).append({"name": meta["config"][0], "literals": meta["config"][1], "options": {"disableNameSuffixHash": True}})
         self.write(sdir / "namespaces" / ns / "kustomization.yaml", f"# {stage}: what the records add inside {ns} (components fit for {stage}, NetworkPolicies, the secrets mechanism, the surface).\n" + dump(sub))
+        resources += self.write_exception_namespaces(stage, sdir, arriving, placed, mech, patches)
+        resources += self.write_shared_namespaces(stage, sdir, ns_dirs, patches, psa)
         # argocd
         gitops = self.setting("devops", stage, "gitops")
         if gitops == "argocd":
             resources += self.argocd_files(stage, f"k8s/overlays/usecases/{self.name}/stages/{stage}", f"ssh://git@github.com/{self.org}/forjate.git", sdir, 5, wiring=(stage == "walk"))
-            if stage == "walk" and "apps/continuous-delivery/argocd" in self.choices(stage):
+            if stage == "walk" and any("gitops" in (self.fact(c, "capabilities") or []) for c in self.choices(stage)):
                 patches.append({"path": "argocd/repo-server-ssh-patch.yaml", "target": {"kind": "Deployment", "name": "argocd-repo-server", "namespace": "argocd"}})
                 patches.append({"path": "argocd/cmd-params-cm-patch.yaml", "target": {"kind": "ConfigMap", "name": "argocd-cmd-params-cm", "namespace": "argocd"}})
         doc = {"apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization", "resources": resources, "patches": patches}
@@ -525,6 +696,135 @@ class Assembly:
                 f"# images: is the write-back surface: sync-app-image.yml (repository_dispatch app-image-updated) sets the SHA with yq, never sed.\n"
                 "# Every remote ref is a tag (ref-pinning-check); the Application tracks a tag with selfHeal (argocd-revision-check).\n")
         self.write(sdir / "kustomization.yaml", head + dump(doc))
+
+    def ns_patch(self, sdir: Path, n: str, level: str, why: str, patches: list[dict]) -> None:
+        self.write(sdir / "patches" / f"{n}-psa-patch.yaml", f"# PSA of {n} at its own level: {why}\n" + dump(
+            {"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": n, "labels": self.psa_labels(level)}}))
+        patches.append({"path": f"patches/{n}-psa-patch.yaml", "target": {"kind": "Namespace", "name": n}})
+
+    def secret_files(self, ndir: Path, n: str, c: str, stage: str, mech: str) -> list[str]:
+        """The Secret a component mounts, in the namespace it runs in: a sealed placeholder with its recipe,
+        or an ExternalSecret at Run when the mechanism moved to a central store."""
+        meta = COMPONENTS.get(c) or {}
+        if not meta.get("secret"):
+            return []
+        sname, keys = meta["secret"]
+        if mech in ("external-secrets", "vault") and stage == "run":
+            es = {"apiVersion": "external-secrets.io/v1beta1", "kind": "ExternalSecret", "metadata": {"name": sname, "namespace": n},
+                  "spec": {"refreshInterval": "1h", "secretStoreRef": {"name": "corporate-store", "kind": "ClusterSecretStore"},
+                           "target": {"name": sname, "creationPolicy": "Owner"},
+                           "data": [{"secretKey": k, "remoteRef": {"key": f"{self.name}/{sname}", "property": k}} for k in keys if k != "config.env"]}}
+            self.write(ndir / "externalsecrets" / f"{sname}.yaml", f"# Run: {sname} for {c} in {n}, pulled from the central store (security: secrets_mechanism {mech}).\n" + dump(es))
+            return [f"externalsecrets/{sname}.yaml"]
+        self.write(ndir / "secrets" / f"sealed-{sname}.yaml", self.sealed_placeholder(sname, keys).replace(f"namespace: {self.ns}", f"namespace: {n}"))
+        self.write(ndir / "secrets" / f"{sname}.env.example", self.env_example(sname, keys, f"{c}, which runs in {n}; sealed once per namespace", stage=stage).replace(f"namespace: {self.ns}", f"namespace: {n}"))
+        return [f"secrets/sealed-{sname}.yaml"]
+
+    def write_exception_namespaces(self, stage: str, sdir: Path, arriving: dict[str, list[str]], placed: dict[str, str],
+                                   mech: str, patches: list[dict]) -> list[str]:
+        """One sub-overlay per PSA exception namespace that receives use-case-scoped components at this stage:
+        the Namespace at the record's level (or a label patch when the build already declares it), the
+        components the stage adds there, their Secrets and NetworkPolicies. Moved components arrive by the
+        relocation layer."""
+        out: list[str] = []
+        entries = {e["namespace"]: e for e in self.psa_exceptions(stage)}
+        net = self.setting("security", stage, "network_policy") == "default-deny"
+        central = stage == "run" and mech in ("external-secrets", "vault")
+        # at Run a central store replaces the SealedSecrets Walk wrote in the exception namespaces too
+        targets = list(arriving) + [n for n in self.exception_secrets if central and n not in arriving]
+        for n in targets:
+            comps = arriving.get(n, [])
+            e = entries.get(n) or {"level": self.labelled_ns.get(n, "baseline"), "owner": "?", "reason": "moved at walk"}
+            ndir = sdir / "namespaces" / n
+            res: list[str] = []
+            why = f"exception owned by {e['owner']}: {e['reason']}"
+            first = n not in self.declared_ns
+            if first:
+                doc = {"apiVersion": "v1", "kind": "Namespace", "metadata": {
+                    "name": n, "labels": {"forjate.io/usecase": self.name, "forjate.io/psa-exception": "true", **self.psa_labels(e["level"])},
+                    "annotations": {"forjate.io/psa-exception-owner": e["owner"], "forjate.io/psa-exception-reason": e["reason"]}}}
+                self.write(ndir / "namespace.yaml", f"# PSA exception namespace of {self.name} at {stage} (security: psa_exceptions). {self.ns} keeps its own level.\n" + dump(doc))
+                res.append("namespace.yaml")
+                self.declared_ns.add(n)
+            elif comps and self.labelled_ns.get(n) != e["level"]:
+                self.ns_patch(sdir, n, e["level"], why, patches)
+            self.labelled_ns[n] = e["level"]
+            for c in comps:
+                lvl = self.fact(c, "psa_level", "unknown")
+                if PSA_RANK.get(lvl, -1) < PSA_RANK[e["level"]]:
+                    self.notes.append(f"OPEN: {c}'s shipped manifests meet {lvl} in the catalog and {n} enforces {e['level']}: confirm this overlay's patches bring it to {e['level']}, or its pods are rejected there")
+            res += [self.rel_component(c, 7) for c in comps if placed.get(c) == n]
+            config = []
+            for c in comps:
+                meta = COMPONENTS.get(c) or {}
+                if meta.get("config") and placed.get(c) == n:
+                    config.append({"name": meta["config"][0], "literals": meta["config"][1], "options": {"disableNameSuffixHash": True}})
+                res += self.secret_files(ndir, n, c, stage, mech)
+            if central:
+                for c in dict.fromkeys(self.exception_secrets.get(n, [])):
+                    sname = COMPONENTS[c]["secret"][0]
+                    patches.append({"target": {"kind": "SealedSecret", "name": sname, "namespace": n}, "patch": f"$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: {sname}\n"})
+                    res += self.secret_files(ndir, n, c, stage, mech)
+            self.exception_secrets.setdefault(n, []).extend(c for c in comps if (COMPONENTS.get(c) or {}).get("secret"))
+            if net and first:
+                every = [c for c, m in self.placement(stage).items() if m == n]
+                self.write(ndir / "netpols.yaml", self.exception_netpols(stage, n, every))
+                res.append("netpols.yaml")
+            if not res:
+                continue
+            sub = {"namespace": n, "resources": res}
+            if config:
+                sub["configMapGenerator"] = config
+            self.write(ndir / "kustomization.yaml", f"# {stage}: {n}, where the PSA exceptions of {self.name} run at {e['level']} ({why}).\n" + dump(sub))
+            out.append(f"./namespaces/{n}")
+        return out
+
+    def write_shared_namespaces(self, stage: str, sdir: Path, ns_dirs: dict[str, dict], patches: list[dict], psa: str) -> list[str]:
+        """Each namespace shared infrastructure runs in, labelled at the level its pods meet (catalog psa_level,
+        the least strict of the components the build runs there). The assembly declares the ones nobody
+        declares and places the components that set none; Kubernetes' own namespaces are never labelled."""
+        out: list[str] = []
+        groups: dict[str, list[str]] = {}
+        for c in self.runs(stage):
+            if self.infra(c):
+                groups.setdefault(self.fact(c, "namespace"), []).append(c)
+        entries = {e["namespace"]: e for e in self.psa_exceptions(stage)}
+        for n, comps in groups.items():
+            levels = [self.fact(c, "psa_level", "unknown") for c in comps]
+            levels = [l for l in levels if l != "n/a"]
+            level = None if not levels or "unknown" in levels else min(levels, key=lambda l: PSA_RANK[l])
+            if n in SYSTEM_NAMESPACES:
+                continue
+            if levels and level is None:
+                if self.labelled_ns.get(n) != "unknown":
+                    self.notes.append(f"OPEN: the catalog does not know the PSA level of {n} ({', '.join(comps)}); it is left unlabelled for its owner")
+                self.labelled_ns[n] = "unknown"
+                continue
+            if level and PSA_RANK[level] < PSA_RANK.get(psa, 0) and n not in entries:
+                self.notes.append(f"OPEN: at {stage}, {n} runs at {level}, below {self.ns}'s {psa}, and the security record has no psa_exceptions entry for it")
+            if level and n in entries and entries[n]["level"] != level:
+                self.notes.append(f"OPEN: at {stage}, the security record puts {n} at {entries[n]['level']}, the catalog says its pods meet {level}; the label follows the catalog")
+            d = ns_dirs.get(n) or {"resources": []}
+            mech = self.setting("security", stage, "secrets_mechanism", "sealed-secrets")
+            for c in comps:
+                if c in self.new_at(stage):
+                    d["resources"] += self.secret_files(sdir / "namespaces" / n, n, c, stage, mech)
+            why = f"shared infrastructure, catalog psa_level of {', '.join(comps)}."
+            if n in self.declared_ns or any(self.fact(c, "namespace_how") in ("declares", "remote") for c in comps):
+                if level and self.labelled_ns.get(n) != level:
+                    self.ns_patch(sdir, n, level, why, patches)
+            elif level or d["resources"]:
+                doc = {"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": n, "labels": self.psa_labels(level) if level else {}}}
+                self.write(sdir / "namespaces" / n / "namespace.yaml", f"# {n}: declared by the assembly, no component in it ships the Namespace ({why})\n" + dump(doc))
+                d["resources"].insert(0, "namespace.yaml")
+                self.declared_ns.add(n)
+            if level:
+                self.labelled_ns[n] = level
+            if d["resources"]:
+                self.write(sdir / "namespaces" / n / "kustomization.yaml", f"# {stage}: shared infrastructure in {n}; components whose manifests set no namespace are placed here.\n" + dump(
+                    {"namespace": n, "resources": d["resources"]}))
+                out.append(f"./namespaces/{n}")
+        return out
 
     # ------------------------------------------------------------ tenant target
     def write_tenant(self, repo: Path, tenant: str) -> None:
@@ -630,7 +930,7 @@ class Assembly:
                   "- [ ] seal the real secrets with the recipe in each `.env.example` before the first Walk sync",
                   "- [ ] patch the hostnames (`*.example.com`) and the ArgoCD `targetRevision` to the release tag"]
         if self.notes:
-            lines += ["", "## Assembly notes", ""] + [f"- {n}" for n in self.notes]
+            lines += ["", "## Assembly notes", ""] + [f"- {n}" for n in dict.fromkeys(self.notes)]
         return "\n".join(lines) + "\n"
 
     def write_readme(self) -> None:
@@ -657,7 +957,7 @@ def main(argv: list[str]) -> int:
         asm.write_tenant(repo, a.tenant or repo.name)
     for p in asm.written:
         print(f"wrote {p}")
-    for n in asm.notes:
+    for n in dict.fromkeys(asm.notes):
         print(f"note: {n}")
     print(f"assembled {asm.name} ({a.target}): {len(asm.written)} file(s)")
     return 0

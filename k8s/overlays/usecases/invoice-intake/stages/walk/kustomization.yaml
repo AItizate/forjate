@@ -5,7 +5,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
 - ../../../../../base
-- ../../namespaces/uc-invoice-intake
+- ./relocated
 - ../../../../../components/apps/continuous-delivery/argocd
 - ../../../../../components/apps/sealed-secrets
 - ../../../../../components/apps/storage/longhorn
@@ -14,6 +14,8 @@ resources:
 - ../../../../../components/apps/monitoring/grafana
 - ../../../../../components/apps/monitoring/reloader
 - ./namespaces/uc-invoice-intake
+- ./namespaces/uc-invoice-intake-baseline
+- ./namespaces/monitoring
 - argocd/application.yaml
 - argocd/secrets/sealed-argocd-ssh-keys.yaml
 - argocd/secrets/sealed-argocd-repo-creds.yaml
@@ -60,18 +62,30 @@ patches:
 - target:
     kind: Secret
     name: litellm-secret
-    namespace: uc-invoice-intake
+    namespace: uc-invoice-intake-baseline
   patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: litellm-secret\n"
 - target:
     kind: Secret
     name: gotrue-secret
-    namespace: uc-invoice-intake
+    namespace: uc-invoice-intake-baseline
   patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: gotrue-secret\n"
 - target:
     kind: Ingress
     name: formbricks-ingress
-    namespace: uc-invoice-intake
-  patch: "- op: add\n  path: /metadata/annotations/traefik.ingress.kubernetes.io~1router.middlewares\n  value: uc-invoice-intake-gotrue-chain@kubernetescrd\n"
+    namespace: uc-invoice-intake-baseline
+  patch: "- op: add\n  path: /metadata/annotations/traefik.ingress.kubernetes.io~1router.middlewares\n  value: uc-invoice-intake-baseline-gotrue-chain@kubernetescrd\n"
+- path: patches/argocd-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: argocd
+- path: patches/longhorn-system-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: longhorn-system
+- path: patches/metallb-system-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: metallb-system
 - path: argocd/repo-server-ssh-patch.yaml
   target:
     kind: Deployment

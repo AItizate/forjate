@@ -1,0 +1,4 @@
+# walk: shared infrastructure in monitoring; components whose manifests set no namespace are placed here.
+namespace: monitoring
+resources:
+- namespace.yaml

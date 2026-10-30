@@ -1,0 +1,9 @@
+# PSA of cloudflare-tunnel at its own level: shared infrastructure, catalog psa_level of apps/cloudflare-tunnel.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudflare-tunnel
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

@@ -73,6 +73,8 @@ Every curated component in `wiki/catalog-overrides.yaml` carries, besides `capab
 | `gpu_required` | `required`, `optional`, `none`, `unknown` | exclude `required` when no GPU node exists; `optional` is a Walk latency question |
 | `ha` | `single`, `replicated`, `operator`, `n/a`, `unknown` | as deployed: `single` loses data with the node, `operator` makes HA a config change |
 | `psa_restricted` | `true`, `false`, `n/a`, `unknown` | whether the shipped manifests run under `restricted`; `false` is a recorded exception in its own namespace (#22) |
+| `psa_level` | `privileged`, `baseline`, `restricted`, `n/a`, `unknown` | **derived** by `wiki-compile.py` from the pod templates (host access is `privileged`, the restricted profile on every container is `restricted`), curated only where the manifests are remote or Helm; the strictest level the component's pods meet. Below the stage's `psa_level` it is a PSA exception, never a reason to lower the use case's namespace |
+| `namespace`, `namespace_how` | a namespace or `null`; `declares`, `remote`, `sets`, `none` | **derived** from the kustomization's `namespace:`, the manifests and Helm charts, curated for remote manifests or set to `null` for a component whose manifests pin a namespace but that belongs in the use case's. A component with a `namespace` is shared infrastructure: it runs there, at its own level. `namespace_how` tells the assembly whether to label the Namespace (`declares`, `remote`), declare it (`sets`) or place the component in it (`none`). An override the tree contradicts is a compile error |
 | `secrets` | `takes`: `none`, `env`, `sealed`, `unknown`; `mechanism`, `rank` on secrets-mechanism components | what the overlay must supply; the ladder |
 | `data_classes` | subset of `internal`, `pii`, `financial`, `health`, `secret`; `[]` touches no use-case data | what the component can hold or transit when configured for it; the brief's classification must be in the list (or `none`) |
 | `licence`, `notes` | free text | for compliance; one line for the experts |
@@ -108,6 +110,15 @@ The one shape every expert returns. Per stage: what was chosen (`choice`, catalo
 
 The full key set each expert emits is documented in `experts.md`.
 
+### PSA exceptions
+
+The security record's stage may carry `psa_exceptions`, a list of namespaces below the stage's `psa_level` that run components of the use case. Each entry has `namespace`, `level` (`privileged` or `baseline`), `components` (catalog paths), `owner` (who sets and accepts the level) and `reason` (the catalog fact or the host access), plus an optional `risk` id carrying severity and mitigation. A `risks` entry alone is not enough: the assembly has to act on the exception (label the namespace, move the components there) and the validator has to check it against the catalog, and neither can read prose. Two kinds of entry:
+
+- **Shared infrastructure** (a component whose catalog `namespace` is set) already runs in its own namespace; the entry records that this namespace runs below the use case's level and who owns it.
+- **A use-case-scoped component the catalog does not prove at the stage's level** moves to a namespace of the use case's own (convention `uc-<name>-<level>`); the assembly relocates it and leaves an ExternalName alias of each of its Services in `uc-<name>`, so no consumer changes.
+
+The use case's own namespace is never an exception and never lowered.
+
 Plus `estimated_cost_usd_month` at stage level, matched by `max_cost_usd_month`.
 
 ## What `validate.py` checks
@@ -120,6 +131,8 @@ Plus `estimated_cost_usd_month` at stage level, matched by `max_cost_usd_month`.
 6. Cross-record consistency: for each stage, two records that choose components of one exclusive catalog capability (`message-broker`, `semantic-memory`, `inference`, `artifact-store`, `secrets-mechanism`, read from `wiki/catalog.json`), that imply one through the capability's setting (`broker`, `inference`, `secrets_mechanism`) or a CDC connector's suffix, or that disagree on a shared setting (`psa_level`, `secrets_mechanism`, `data_residency`, `data_egress`, `network_policy`, `backup`, `auth_in_front`) are a **conflict**. So are two records that claim one gate id (`gate_to_next[].id`) with different texts. A conflict is an error unless some record carries an open question naming both sides, in which case it is a warning the coordinator reports to the user. The validator never resolves a conflict and the coordinator never edits a record to make one disappear.
 7. Gates consolidation: when `gates.yaml` exists, every gate id a record emits in `gate_to_next` for a stage with a transition out of it appears under that transition (warning otherwise), and every `pack_overrides.rule` exists in an active pack (error otherwise).
 8. `ci` gate refs: a gate whose `check.type` is `ci` names a script in `scripts/gates/checks/` (the directory is the enum the gates runner executes). An unknown ref is an error in `gates.yaml` and a warning in a record's `gate_to_next`; when no checks directory is reachable (a tenant repo without the factory checked out) the check is skipped with a warning and `FORJATE_ROOT` points the validator at one.
+
+9. PSA exceptions: an entry in `psa_exceptions` that names the use case's namespace or a component outside the catalog is an error; one at or above the stage's level, or listing a component no record runs at that stage, or putting a shared component in another namespace than the catalog's, is a warning. Every component a stage runs (the records' choices up to it: stage overlays add, never remove) whose catalog `psa_level` is below the stage's `psa_level` and that no entry covers is a warning, grouped per shared namespace or listed as would-run-in-`uc-<name>`. Where a component runs and the level it meets come from `wiki/catalog.json`; the validator names no component.
 
 Warnings never fail CI; errors do.
 

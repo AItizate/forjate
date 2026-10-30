@@ -10,53 +10,53 @@ compiled_at: 2026-10-29
 
 This skill consumes the whole catalog. Components whose `stages` is empty are in the tree but never chosen.
 
-| Component | Capabilities | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Capabilities | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| `apps/ai-models/litellm` | llm-gateway | crawl, walk, run | mvp | single | none | false | internal, pii, financial, health | MIT | One OpenAI-compatible endpoint in front of local and external models; routing, per-key spend, where egress policy is enforced. Provider API keys arrive as a Secret. |
-| `apps/ai-models/ollama` | inference | crawl, walk | mvp | single | optional | false | internal, pii, financial, health | MIT | Zero-egress inference. CPU is fine for Crawl latency; a GPU node from Walk. Each model has its own licence. |
-| `apps/ai-models/open-webui` | chat-ui | crawl, walk | lab | single | none | false | internal, pii, financial, health | BSD-3 (with branding clause) | Fastest human-facing surface for a Crawl demo; speaks to LiteLLM or Ollama. |
-| `apps/ai-models/vllm` | inference | walk, run | lab | single | required | false | internal, pii, financial, health | Apache-2.0 | The production-shaped local inference server; concurrency and pinned model versions. Model licence separate. |
-| `apps/analytics/metabase` | bi | walk, run | lab | single | none | false | internal, pii, financial | AGPL-3.0 | Reads the system of record; whoever sees a dashboard sees the rows behind it. |
-| `apps/auth/gotrue-auth` | identity-provider | walk, run | mvp | single | none | false | internal, pii | MIT | Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature. |
-| `apps/brokers/mosquitto` | mqtt-broker | crawl, walk, run | lab | single | none | false | internal, pii | EPL-2.0 | MQTT for devices and sensors; not a substitute for a message broker between workloads. |
-| `apps/brokers/nats` | message-broker | crawl, walk, run | mvp | single | none | unknown | internal, pii, financial, health | Apache-2.0 | Lightweight (20 MB); JetStream gives persistence and replay. Default broker for event-driven use cases. Mounts `nats-secret`. |
-| `apps/brokers/rabbitmq` | message-broker | walk, run | lab | single | none | false | internal, pii, financial, health | MPL-2.0 | Classic work-queue semantics and AMQP; choose when AMQP clients already exist. |
-| `apps/cdc/debezium-mariadb-nats` | cdc | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink NATS. |
-| `apps/cdc/debezium-mariadb-rabbitmq` | cdc | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink RabbitMQ. |
-| `apps/cdc/debezium-mongo-nats` | cdc | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink NATS. |
-| `apps/cdc/debezium-mongo-rabbitmq` | cdc | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink RabbitMQ. |
-| `apps/cdc/debezium-postgres-nats` | cdc | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink NATS. Doubles as an audit trail of row changes. |
-| `apps/cdc/debezium-postgres-rabbitmq` | cdc | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink RabbitMQ. |
-| `apps/cloudflare-tunnel` | public-ingress | walk, run | mvp | replicated | none | false | internal, pii, financial | Apache-2.0 | Public ingress without open ports; two replicas. Traffic transits Cloudflare — a hop the compliance record names for residency and for health data. |
-| `apps/continuous-delivery/argocd` | gitops | walk, run | mvp | unknown | none | unknown | — | Apache-2.0 | vendors `install.yaml` |
-| `apps/databases/etcd` | coordination | walk, run | lab | single | none | false | internal | Apache-2.0 | Dependency of Milvus; rarely chosen on its own. |
-| `apps/databases/lancedb` | semantic-memory | crawl, walk | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Embedded-style vector store served over HTTP; single writer, so concurrent ingestion is the limit. Cheapest semantic memory for Crawl. |
-| `apps/databases/mariadb` | working-memory, episodic-memory | crawl, walk, run | lab | single | none | false | internal, pii, financial, health | GPL-2.0 | The relational alternative when a pack denies Postgres. |
-| `apps/databases/milvus` | semantic-memory | walk, run | lab | single | none | false | internal, pii, financial, health | Apache-2.0 | Heavier; needs etcd + MinIO. Reach for it when LanceDB's single-writer model is the bottleneck. |
-| `apps/databases/mongodb` | episodic-memory | crawl, walk | lab | single | none | false | internal, pii, financial, health | SSPL | Document-shaped chat state; SSPL is often disallowed in corporate packs. `mongodb/replica-set` adds the oplog CDC needs. Mounts `mongodb-secret`. |
-| `apps/databases/postgres` | working-memory, episodic-memory | crawl, walk, run | mvp | single | none | false | internal, pii, financial, health | PostgreSQL | Default system of record. Single StatefulSet; move to an operator (CNPG) at Run for HA/PITR. Mounts `postgres-secret`. |
-| `apps/databases/redis` | session-memory, cache | crawl, walk, run | mvp | single | none | false | internal, pii, financial, health | BSD-3 (7.2) / RSALv2+SSPL (7.4+) | Short-term memory, rate limiting and locks; memory-bound, name the eviction policy. Check the image tag against the licence change. |
-| `apps/docker-registry` | image-registry | crawl, walk | lab | single | none | false | — | Apache-2.0 | The local registry for k3d; GHCR or the organisation's registry from Walk. |
-| `apps/document-processing/docling` | document-parsing | crawl, walk, run | lab | single | none | false | internal, pii, financial, health | MIT | PDF/Office to structured text with tables, layout and OCR. Stateless CPU image; slow but dependable for Crawl. |
+| `apps/ai-models/litellm` | llm-gateway | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | MIT | One OpenAI-compatible endpoint in front of local and external models; routing, per-key spend, where egress policy is enforced. Provider API keys arrive as a Secret. |
+| `apps/ai-models/ollama` | inference | crawl, walk | mvp | single | optional | baseline | internal, pii, financial, health | MIT | Zero-egress inference. CPU is fine for Crawl latency; a GPU node from Walk. Each model has its own licence. |
+| `apps/ai-models/open-webui` | chat-ui | crawl, walk | lab | single | none | baseline | internal, pii, financial, health | BSD-3 (with branding clause) | Fastest human-facing surface for a Crawl demo; speaks to LiteLLM or Ollama. |
+| `apps/ai-models/vllm` | inference | walk, run | lab | single | required | baseline | internal, pii, financial, health | Apache-2.0 | The production-shaped local inference server; concurrency and pinned model versions. Model licence separate. |
+| `apps/analytics/metabase` | bi | walk, run | lab | single | none | baseline | internal, pii, financial | AGPL-3.0 | Reads the system of record; whoever sees a dashboard sees the rows behind it. |
+| `apps/auth/gotrue-auth` | identity-provider | walk, run | mvp | single | none | baseline | internal, pii | MIT | Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature. |
+| `apps/brokers/mosquitto` | mqtt-broker | crawl, walk, run | lab | single | none | baseline | internal, pii | EPL-2.0 | MQTT for devices and sensors; not a substitute for a message broker between workloads. |
+| `apps/brokers/nats` | message-broker | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Lightweight (20 MB); JetStream gives persistence and replay. Default broker for event-driven use cases. Mounts `nats-secret`. |
+| `apps/brokers/rabbitmq` | message-broker | walk, run | lab | single | none | baseline | internal, pii, financial, health | MPL-2.0 | Classic work-queue semantics and AMQP; choose when AMQP clients already exist. |
+| `apps/cdc/debezium-mariadb-nats` | cdc | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink NATS. |
+| `apps/cdc/debezium-mariadb-rabbitmq` | cdc | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MariaDB (binlog), sink RabbitMQ. |
+| `apps/cdc/debezium-mongo-nats` | cdc | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink NATS. |
+| `apps/cdc/debezium-mongo-rabbitmq` | cdc | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source MongoDB (needs the replica set for the oplog), sink RabbitMQ. |
+| `apps/cdc/debezium-postgres-nats` | cdc | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink NATS. Doubles as an audit trail of row changes. |
+| `apps/cdc/debezium-postgres-rabbitmq` | cdc | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Source Postgres (logical decoding), sink RabbitMQ. |
+| `apps/cloudflare-tunnel` | public-ingress | walk, run | mvp | replicated | none | baseline | internal, pii, financial | Apache-2.0 | Public ingress without open ports; two replicas. Traffic transits Cloudflare — a hop the compliance record names for residency and for health data. |
+| `apps/continuous-delivery/argocd` | gitops | walk, run | mvp | unknown | none | baseline | — | Apache-2.0 | vendors `install.yaml` |
+| `apps/databases/etcd` | coordination | walk, run | lab | single | none | baseline | internal | Apache-2.0 | Dependency of Milvus; rarely chosen on its own. |
+| `apps/databases/lancedb` | semantic-memory | crawl, walk | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Embedded-style vector store served over HTTP; single writer, so concurrent ingestion is the limit. Cheapest semantic memory for Crawl. |
+| `apps/databases/mariadb` | working-memory, episodic-memory | crawl, walk, run | lab | single | none | baseline | internal, pii, financial, health | GPL-2.0 | The relational alternative when a pack denies Postgres. |
+| `apps/databases/milvus` | semantic-memory | walk, run | lab | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Heavier; needs etcd + MinIO. Reach for it when LanceDB's single-writer model is the bottleneck. |
+| `apps/databases/mongodb` | episodic-memory | crawl, walk | lab | single | none | baseline | internal, pii, financial, health | SSPL | Document-shaped chat state; SSPL is often disallowed in corporate packs. `mongodb/replica-set` adds the oplog CDC needs. Mounts `mongodb-secret`. |
+| `apps/databases/postgres` | working-memory, episodic-memory | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | PostgreSQL | Default system of record. Single StatefulSet; move to an operator (CNPG) at Run for HA/PITR. Mounts `postgres-secret`. |
+| `apps/databases/redis` | session-memory, cache | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | BSD-3 (7.2) / RSALv2+SSPL (7.4+) | Short-term memory, rate limiting and locks; memory-bound, name the eviction policy. Check the image tag against the licence change. |
+| `apps/docker-registry` | image-registry | crawl, walk | lab | single | none | baseline | — | Apache-2.0 | The local registry for k3d; GHCR or the organisation's registry from Walk. |
+| `apps/document-processing/docling` | document-parsing | crawl, walk, run | lab | single | none | baseline | internal, pii, financial, health | MIT | PDF/Office to structured text with tables, layout and OCR. Stateless CPU image; slow but dependable for Crawl. |
 | `apps/iac/crossplane` | cloud-resources | run | lab | unknown | none | unknown | — | Apache-2.0 | Cloud credentials arrive as a Secret; the resources it creates have their own classification. |
-| `apps/minio/dev` | artifact-store | crawl | lab | single | none | false | internal, pii, financial, health | AGPL-3.0 | A bare Pod for k3d; dies with the environment. |
-| `apps/minio/single-server` | artifact-store | crawl, walk | mvp | operator | none | true | internal, pii, financial, health | AGPL-3.0 | A one-server Tenant through the operator in base; no redundancy. Run is the same Tenant with more servers, or an S3 service within residency. Buckets per kind (inbox, parsed, audit, seed). |
-| `apps/monitoring/grafana` | dashboards | walk, run | mvp | single | none | false | internal | AGPL-3.0 | Alertmanager rules live beside it; the three alerts that page are a Walk gate. |
+| `apps/minio/dev` | artifact-store | crawl | lab | single | none | privileged | internal, pii, financial, health | AGPL-3.0 | A bare Pod for k3d; dies with the environment. |
+| `apps/minio/single-server` | artifact-store | crawl, walk | mvp | operator | none | restricted | internal, pii, financial, health | AGPL-3.0 | A one-server Tenant through the operator in base; no redundancy. Run is the same Tenant with more servers, or an S3 service within residency. Buckets per kind (inbox, parsed, audit, seed). |
+| `apps/monitoring/grafana` | dashboards | walk, run | mvp | single | none | baseline | internal | AGPL-3.0 | Alertmanager rules live beside it; the three alerts that page are a Walk gate. |
 | `apps/monitoring/kubernetes-dashboard` | cluster-ui | crawl, walk | lab | n/a | none | n/a | — | Apache-2.0 | Ingress, RBAC and token for the upstream dashboard; the dashboard itself is deployed by base or the tenant. |
-| `apps/monitoring/otel-collector` | telemetry | walk, run | lab | replicated | none | false | internal, pii | Apache-2.0 | Agent DaemonSet plus a cluster Deployment; the step from metrics-only to metrics+logs+traces, needed for LLM call tracing. Logs can carry pii — scrub at the collector. |
-| `apps/monitoring/prometheus` | metrics | walk, run | mvp | single | none | false | internal | Apache-2.0 | deploys `prom/prometheus:v3.2.1` |
-| `apps/monitoring/reloader` | config-reload | walk, run | lab | unknown | none | unknown | — | Apache-2.0 | Stakater Reloader — auto-restarts Deployments/StatefulSets on Secret/ConfigMap changes |
-| `apps/n8n` | low-code-automation | crawl, walk | lab | single | none | false | internal, pii | Sustainable Use License | Not OSI-approved; corporate packs often restrict it. Ships its own Postgres. |
-| `apps/networking/metallb` | load-balancer | walk, run | mvp | unknown | none | unknown | — | Apache-2.0 | vendors `native?ref=v0.15.2` |
-| `apps/node-red` | low-code-automation | crawl, walk | lab | single | none | false | internal, pii | Apache-2.0 | Flows for devices and MQTT; pairs with mosquitto. |
-| `apps/sealed-secrets` | secrets-mechanism | walk, run | mvp | unknown | none | unknown | secret | Apache-2.0 | Encrypted SealedSecrets committed next to the overlay; the floor for secrets in git from Walk. The controller key is the single point of loss — its backup is a devops gate. |
+| `apps/monitoring/otel-collector` | telemetry | walk, run | lab | replicated | none | privileged | internal, pii | Apache-2.0 | Agent DaemonSet plus a cluster Deployment; the step from metrics-only to metrics+logs+traces, needed for LLM call tracing. Logs can carry pii — scrub at the collector. |
+| `apps/monitoring/prometheus` | metrics | walk, run | mvp | single | none | baseline | internal | Apache-2.0 | deploys `prom/prometheus:v3.2.1` |
+| `apps/monitoring/reloader` | config-reload | walk, run | lab | unknown | none | baseline | — | Apache-2.0 | Stakater Reloader — auto-restarts Deployments/StatefulSets on Secret/ConfigMap changes |
+| `apps/n8n` | low-code-automation | crawl, walk | lab | single | none | baseline | internal, pii | Sustainable Use License | Not OSI-approved; corporate packs often restrict it. Ships its own Postgres. |
+| `apps/networking/metallb` | load-balancer | walk, run | mvp | unknown | none | privileged | — | Apache-2.0 | vendors `native?ref=v0.15.2` |
+| `apps/node-red` | low-code-automation | crawl, walk | lab | single | none | baseline | internal, pii | Apache-2.0 | Flows for devices and MQTT; pairs with mosquitto. |
+| `apps/sealed-secrets` | secrets-mechanism | walk, run | mvp | unknown | none | baseline | secret | Apache-2.0 | Encrypted SealedSecrets committed next to the overlay; the floor for secrets in git from Walk. The controller key is the single point of loss — its backup is a devops gate. |
 | `apps/security/external-secrets` | secrets-mechanism | run | lab | unknown | none | unknown | secret | Apache-2.0 | Syncs from a store (openbao in the factory, or a corporate secret manager) into Kubernetes Secrets; rotation happens in the store. Not a store itself — pair it with a secrets-store. |
-| `apps/security/openbao` | secrets-store | walk, run | lab | single | none | true | secret | MPL-2.0 | The factory's secret store (Vault API, Linux Foundation); raft, audit, kubernetes/approle auth and an SSH CA after bootstrap.sh. `openbao/eso-store` is the ClusterSecretStore for external-secrets; `raft-snapshot` and `seal-static` are add-ons. Replaces the deprecated apps/security/vault. |
-| `apps/storage/longhorn` | block-storage | walk, run | mvp | operator | none | unknown | — | Apache-2.0 | Not for k3d; single replica on a Pi, three replicas from Walk. Privileged by design — runs in its own namespace at its own PSA level. |
-| `apps/surveys/formbricks` | feedback | walk, run | lab | single | none | false | internal, pii | AGPL-3.0 | In-product feedback capture for forjate:ux. Free-text answers are pii until proven otherwise. |
-| `apps/whoami` | smoke-test | crawl | lab | single | none | false | — | MIT | deploys `traefik/whoami` |
-| `apps/workflows/temporal` | durable-workflows | walk, run | mvp | single | none | false | internal, pii, financial, health | MIT | auto-setup image, server and UI; use bundles/temporal-stack for the Postgres wiring. Workflow payloads persist in its database. |
-| `bundles/temporal-stack` | durable-workflows | walk, run | mvp | single | none | false | internal, pii, financial, health | MIT | Temporal plus its Postgres, wired. The default way to take durable-workflows. |
+| `apps/security/openbao` | secrets-store | walk, run | lab | single | none | restricted | secret | MPL-2.0 | The factory's secret store (Vault API, Linux Foundation); raft, audit, kubernetes/approle auth and an SSH CA after bootstrap.sh. `openbao/eso-store` is the ClusterSecretStore for external-secrets; `raft-snapshot` and `seal-static` are add-ons. Replaces the deprecated apps/security/vault. |
+| `apps/storage/longhorn` | block-storage | walk, run | mvp | operator | none | privileged | — | Apache-2.0 | Not for k3d; single replica on a Pi, three replicas from Walk. Privileged by design — runs in its own namespace at its own PSA level. |
+| `apps/surveys/formbricks` | feedback | walk, run | lab | single | none | baseline | internal, pii | AGPL-3.0 | In-product feedback capture for forjate:ux. Free-text answers are pii until proven otherwise. |
+| `apps/whoami` | smoke-test | crawl | lab | single | none | baseline | — | MIT | deploys `traefik/whoami` |
+| `apps/workflows/temporal` | durable-workflows | walk, run | mvp | single | none | baseline | internal, pii, financial, health | MIT | auto-setup image, server and UI; use bundles/temporal-stack for the Postgres wiring. Workflow payloads persist in its database. |
+| `bundles/temporal-stack` | durable-workflows | walk, run | mvp | single | none | baseline | internal, pii, financial, health | MIT | Temporal plus its Postgres, wired. The default way to take durable-workflows. |
 | `pvcs` | static-storage | crawl | lab | n/a | none | n/a | — | — | declares `PersistentVolumeClaim` |
 | `pvs/local-storage` | static-storage | crawl | lab | n/a | none | n/a | — | — | declares `PersistentVolume` |
 | `pvs/nfs-storage` | static-storage | crawl, walk | lab | n/a | none | n/a | — | — | declares `PersistentVolume` |
@@ -68,7 +68,7 @@ pre-provisioned volumes and claims for a lab cluster.
 
 _asked by: kustomize_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `pvcs` | crawl | lab | n/a | none | n/a | — | — | declares `PersistentVolumeClaim` |
 | `pvs/local-storage` | crawl | lab | n/a | none | n/a | — | — | declares `PersistentVolume` |
@@ -82,6 +82,6 @@ _asked by: kustomize_
 
 Single option today: `apps/whoami`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/whoami` | crawl | lab | single | none | false | — | MIT | deploys `traefik/whoami` |
+| `apps/whoami` | crawl | lab | single | none | baseline | — | MIT | deploys `traefik/whoami` |

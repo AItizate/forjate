@@ -14,9 +14,9 @@ _asked by: architecture, devops_
 
 Single option today: `apps/cloudflare-tunnel`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/cloudflare-tunnel` | walk, run | mvp | replicated | none | false | internal, pii, financial | Apache-2.0 | Public ingress without open ports; two replicas. Traffic transits Cloudflare — a hop the compliance record names for residency and for health data. |
+| `apps/cloudflare-tunnel` | walk, run | mvp | replicated | none | baseline | internal, pii, financial | Apache-2.0 | Public ingress without open ports; two replicas. Traffic transits Cloudflare — a hop the compliance record names for residency and for health data. |
 
 ## `secrets-mechanism`
 
@@ -24,9 +24,9 @@ how a secret gets from where it is kept into a workload; one per stage, ranked.
 
 _asked by: security, devops · exclusive: one per stage · setting `secrets_mechanism` · floor without a component: `secret-generator`_
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/sealed-secrets` | walk, run | mvp | unknown | none | unknown | secret | Apache-2.0 | Encrypted SealedSecrets committed next to the overlay; the floor for secrets in git from Walk. The controller key is the single point of loss — its backup is a devops gate. |
+| `apps/sealed-secrets` | walk, run | mvp | unknown | none | baseline | secret | Apache-2.0 | Encrypted SealedSecrets committed next to the overlay; the floor for secrets in git from Walk. The controller key is the single point of loss — its backup is a devops gate. |
 | `apps/security/external-secrets` | run | lab | unknown | none | unknown | secret | Apache-2.0 | Syncs from a store (openbao in the factory, or a corporate secret manager) into Kubernetes Secrets; rotation happens in the store. Not a store itself — pair it with a secrets-store. |
 
 ## `gitops`
@@ -37,9 +37,9 @@ _asked by: devops_
 
 Single option today: `apps/continuous-delivery/argocd`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/continuous-delivery/argocd` | walk, run | mvp | unknown | none | unknown | — | Apache-2.0 | vendors `install.yaml` |
+| `apps/continuous-delivery/argocd` | walk, run | mvp | unknown | none | baseline | — | Apache-2.0 | vendors `install.yaml` |
 
 ## `block-storage`
 
@@ -49,9 +49,9 @@ _asked by: devops_
 
 Single option today: `apps/storage/longhorn`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/storage/longhorn` | walk, run | mvp | operator | none | unknown | — | Apache-2.0 | Not for k3d; single replica on a Pi, three replicas from Walk. Privileged by design — runs in its own namespace at its own PSA level. |
+| `apps/storage/longhorn` | walk, run | mvp | operator | none | privileged | — | Apache-2.0 | Not for k3d; single replica on a Pi, three replicas from Walk. Privileged by design — runs in its own namespace at its own PSA level. |
 
 ## `load-balancer`
 
@@ -61,9 +61,9 @@ _asked by: devops_
 
 Single option today: `apps/networking/metallb`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/networking/metallb` | walk, run | mvp | unknown | none | unknown | — | Apache-2.0 | vendors `native?ref=v0.15.2` |
+| `apps/networking/metallb` | walk, run | mvp | unknown | none | privileged | — | Apache-2.0 | vendors `native?ref=v0.15.2` |
 
 ## `metrics`
 
@@ -73,9 +73,9 @@ _asked by: devops_
 
 Single option today: `apps/monitoring/prometheus`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/monitoring/prometheus` | walk, run | mvp | single | none | false | internal | Apache-2.0 | deploys `prom/prometheus:v3.2.1` |
+| `apps/monitoring/prometheus` | walk, run | mvp | single | none | baseline | internal | Apache-2.0 | deploys `prom/prometheus:v3.2.1` |
 
 ## `dashboards`
 
@@ -85,9 +85,9 @@ _asked by: devops_
 
 Single option today: `apps/monitoring/grafana`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/monitoring/grafana` | walk, run | mvp | single | none | false | internal | AGPL-3.0 | Alertmanager rules live beside it; the three alerts that page are a Walk gate. |
+| `apps/monitoring/grafana` | walk, run | mvp | single | none | baseline | internal | AGPL-3.0 | Alertmanager rules live beside it; the three alerts that page are a Walk gate. |
 
 ## `telemetry`
 
@@ -97,9 +97,9 @@ _asked by: devops_
 
 Single option today: `apps/monitoring/otel-collector`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/monitoring/otel-collector` | walk, run | lab | replicated | none | false | internal, pii | Apache-2.0 | Agent DaemonSet plus a cluster Deployment; the step from metrics-only to metrics+logs+traces, needed for LLM call tracing. Logs can carry pii — scrub at the collector. |
+| `apps/monitoring/otel-collector` | walk, run | lab | replicated | none | privileged | internal, pii | Apache-2.0 | Agent DaemonSet plus a cluster Deployment; the step from metrics-only to metrics+logs+traces, needed for LLM call tracing. Logs can carry pii — scrub at the collector. |
 
 ## `config-reload`
 
@@ -109,9 +109,9 @@ _asked by: devops_
 
 Single option today: `apps/monitoring/reloader`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/monitoring/reloader` | walk, run | lab | unknown | none | unknown | — | Apache-2.0 | Stakater Reloader — auto-restarts Deployments/StatefulSets on Secret/ConfigMap changes |
+| `apps/monitoring/reloader` | walk, run | lab | unknown | none | baseline | — | Apache-2.0 | Stakater Reloader — auto-restarts Deployments/StatefulSets on Secret/ConfigMap changes |
 
 ## `cluster-ui`
 
@@ -121,7 +121,7 @@ _asked by: devops_
 
 Single option today: `apps/monitoring/kubernetes-dashboard`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `apps/monitoring/kubernetes-dashboard` | crawl, walk | lab | n/a | none | n/a | — | Apache-2.0 | Ingress, RBAC and token for the upstream dashboard; the dashboard itself is deployed by base or the tenant. |
 
@@ -133,9 +133,9 @@ _asked by: devops_
 
 Single option today: `apps/docker-registry`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/docker-registry` | crawl, walk | lab | single | none | false | — | Apache-2.0 | The local registry for k3d; GHCR or the organisation's registry from Walk. |
+| `apps/docker-registry` | crawl, walk | lab | single | none | baseline | — | Apache-2.0 | The local registry for k3d; GHCR or the organisation's registry from Walk. |
 
 ## `backup`
 
@@ -153,7 +153,7 @@ _asked by: devops_
 
 Single option today: `apps/iac/crossplane`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `apps/iac/crossplane` | run | lab | unknown | none | unknown | — | Apache-2.0 | Cloud credentials arrive as a Secret; the resources it creates have their own classification. |
 
@@ -165,6 +165,6 @@ _asked by: devops_
 
 Single option today: `apps/analytics/metabase`. Prose may name it.
 
-| Component | Stages | Maturity | HA | GPU | PSA restricted | Data classes | Licence | Notes |
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `apps/analytics/metabase` | walk, run | lab | single | none | false | internal, pii, financial | AGPL-3.0 | Reads the system of record; whoever sees a dashboard sees the rows behind it. |
+| `apps/analytics/metabase` | walk, run | lab | single | none | baseline | internal, pii, financial | AGPL-3.0 | Reads the system of record; whoever sees a dashboard sees the rows behind it. |

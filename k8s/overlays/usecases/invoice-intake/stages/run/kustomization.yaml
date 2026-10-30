@@ -6,8 +6,9 @@ kind: Kustomization
 resources:
 - ../walk
 - ../../../../../components/apps/security/external-secrets
-- ../../../../../components/apps/monitoring/otel-collector
 - ./namespaces/uc-invoice-intake
+- ./namespaces/uc-invoice-intake-baseline
+- ./namespaces/otel-collector
 - argocd/application.yaml
 patches:
 - path: patches/namespace-psa-patch.yaml
@@ -31,24 +32,9 @@ patches:
   patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: approval-secret\n"
 - target:
     kind: SealedSecret
-    name: litellm-secret
-    namespace: uc-invoice-intake
-  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: litellm-secret\n"
-- target:
-    kind: SealedSecret
-    name: gotrue-secret
-    namespace: uc-invoice-intake
-  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: gotrue-secret\n"
-- target:
-    kind: SealedSecret
     name: minio-storage-configuration
     namespace: uc-invoice-intake
   patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: minio-storage-configuration\n"
-- target:
-    kind: SealedSecret
-    name: formbricks-secret
-    namespace: uc-invoice-intake
-  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: formbricks-secret\n"
 - target:
     kind: SealedSecret
     name: imap-mailbox-secret
@@ -59,6 +45,31 @@ patches:
     name: odoo-rest-api-secret
     namespace: uc-invoice-intake
   patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: odoo-rest-api-secret\n"
+- target:
+    kind: SealedSecret
+    name: postgres-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: postgres-secret\n"
+- target:
+    kind: SealedSecret
+    name: minio-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: minio-secret\n"
+- target:
+    kind: SealedSecret
+    name: litellm-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: litellm-secret\n"
+- target:
+    kind: SealedSecret
+    name: gotrue-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: gotrue-secret\n"
+- target:
+    kind: SealedSecret
+    name: formbricks-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: formbricks-secret\n"
 images:
 - name: invoice-intake
   newName: ghcr.io/aitizate/invoice-intake

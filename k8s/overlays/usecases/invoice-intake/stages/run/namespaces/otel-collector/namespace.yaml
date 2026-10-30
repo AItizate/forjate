@@ -1,0 +1,9 @@
+# otel-collector: declared by the assembly, no component in it ships the Namespace (shared infrastructure, catalog psa_level of apps/monitoring/otel-collector.)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: otel-collector
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

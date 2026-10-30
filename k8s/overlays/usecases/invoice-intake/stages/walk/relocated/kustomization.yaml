@@ -1,0 +1,52 @@
+# walk: the build so far with the PSA exceptions moved out of uc-invoice-intake (security: psa_exceptions).
+# A layer of its own because the aliases left in the use case's namespace would collide with the originals here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../../namespaces/uc-invoice-intake
+patches:
+- target:
+    kind: Service
+    name: ollama-service
+    namespace: uc-invoice-intake
+  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
+- target:
+    kind: StatefulSet
+    name: ollama
+    namespace: uc-invoice-intake
+  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
+- target:
+    kind: PersistentVolumeClaim
+    name: pvc-ollama
+    namespace: uc-invoice-intake
+  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
+- target:
+    kind: Service
+    name: docling
+    namespace: uc-invoice-intake
+  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
+- target:
+    kind: Deployment
+    name: docling
+    namespace: uc-invoice-intake
+  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
+- target:
+    kind: Service
+    name: postgres
+    namespace: uc-invoice-intake
+  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
+- target:
+    kind: StatefulSet
+    name: postgres
+    namespace: uc-invoice-intake
+  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
+- target:
+    kind: Pod
+    name: minio
+    namespace: uc-invoice-intake
+  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
+- target:
+    kind: Service
+    name: minio
+    namespace: uc-invoice-intake
+  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"

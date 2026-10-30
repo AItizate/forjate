@@ -16,6 +16,20 @@
 #   psa_restricted true when the shipped manifests run under Pod Security Admission
 #                  `restricted` (runAsNonRoot, seccomp, drop ALL, no privilege
 #                  escalation) | false | n/a (no pods) | unknown (vendored or remote)
+#   psa_level      derived, override only where the tree cannot be read: the strictest Pod
+#                  Security Standard the shipped pods meet — privileged (host access) |
+#                  baseline | restricted | n/a | unknown (Helm or remote manifests). The
+#                  compiler reads it from the pod templates; psa_restricted true implies
+#                  restricted, and a curated value the manifests contradict is an error
+#   namespace      derived, override only where the tree cannot be read: the namespace a
+#                  shared component runs in, never the use case's. The compiler reads the
+#                  kustomization's namespace, the manifests' metadata.namespace and Helm
+#                  charts; set it for remote manifests, and `null` for a component whose
+#                  manifests pin a namespace but that belongs in the use case's namespace.
+#                  An override the manifests contradict is an error. The catalog adds
+#                  namespace_how: declares (ships the Namespace) | remote (Helm or remote
+#                  manifests carry it) | sets (uses it, declares nothing) | none (the
+#                  overlay places it)
 #   secrets        takes: how it receives credentials — none | env (a Secret the overlay
 #                  supplies) | sealed (ships a sealed-secret example) | unknown
 #                  mechanism, rank: only on secrets-mechanism components — the value of
@@ -122,6 +136,7 @@ components:
     gpu_required: none
     ha: operator
     psa_restricted: true
+    namespace: null
     secrets:
       takes: env
     data_classes: [internal, pii, financial, health]
@@ -133,6 +148,7 @@ components:
     gpu_required: none
     ha: single
     psa_restricted: false
+    namespace: null
     data_classes: [internal, pii, financial, health]
     licence: AGPL-3.0
     notes: A bare Pod for k3d; dies with the environment.
@@ -308,6 +324,8 @@ components:
     gpu_required: none
     ha: unknown
     psa_restricted: unknown
+    namespace: kube-system
+    psa_level: baseline
     secrets:
       takes: none
       mechanism: sealed-secrets
@@ -358,6 +376,7 @@ components:
     gpu_required: none
     ha: unknown
     psa_restricted: unknown
+    psa_level: baseline
     secrets:
       takes: none
     data_classes: []
@@ -391,6 +410,7 @@ components:
     gpu_required: none
     ha: replicated
     psa_restricted: false
+    namespace: otel-collector
     secrets:
       takes: none
     data_classes: [internal, pii]
@@ -402,6 +422,8 @@ components:
     gpu_required: none
     ha: unknown
     psa_restricted: unknown
+    namespace: default
+    psa_level: baseline
     secrets:
       takes: none
     data_classes: []
@@ -424,6 +446,8 @@ components:
     gpu_required: none
     ha: operator
     psa_restricted: unknown
+    namespace: longhorn-system
+    psa_level: privileged
     secrets:
       takes: none
     data_classes: []
@@ -436,6 +460,7 @@ components:
     gpu_required: none
     ha: unknown
     psa_restricted: unknown
+    psa_level: privileged
     secrets:
       takes: none
     data_classes: []
@@ -511,6 +536,7 @@ components:
     gpu_required: none
     ha: single
     psa_restricted: false
+    namespace: docker-registry
     data_classes: []
     licence: Apache-2.0
     notes: The local registry for k3d; GHCR or the organisation's registry from Walk.

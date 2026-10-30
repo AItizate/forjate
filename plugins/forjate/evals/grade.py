@@ -46,6 +46,17 @@ def _catalog_capabilities(repo: Path) -> dict[str, list[str]]:
     return _CAPS_CACHE[repo]
 
 
+_FACTS_CACHE: dict[Path, dict[str, dict]] = {}
+
+
+def _catalog_facts(repo: Path) -> dict[str, dict]:
+    """component path -> its catalog record (psa_level, namespace, ...), from the worktree's wiki/catalog.json."""
+    if repo not in _FACTS_CACHE:
+        cat = repo / "wiki" / "catalog.json"
+        _FACTS_CACHE[repo] = {c["path"]: c for c in json.loads(cat.read_text())["components"]} if cat.exists() else {}
+    return _FACTS_CACHE[repo]
+
+
 def _choice_components(d: dict, stage: str | None) -> list[str]:
     stages = ((d or {}).get("spec") or {}).get("stages") or {}
     src = [stages.get(stage) or {}] if stage else stages.values()
@@ -106,12 +117,23 @@ def _expr_env(d: dict, repo: Path) -> dict:
     def capabilities_of(component):
         return _catalog_capabilities(repo).get(component, [])
 
+    def psa_exceptions(name=None):
+        src = [stages.get(name) or {}] if name else stages.values()
+        return [e for sd in src for e in ((sd or {}).get("psa_exceptions") or [])]
+
+    def psa_level_of(component):
+        return (_catalog_facts(repo).get(component) or {}).get("psa_level", "unknown")
+
+    def namespace_of(component):
+        return (_catalog_facts(repo).get(component) or {}).get("namespace")
+
     def choice_capabilities(name=None):
         """Every catalog capability the stage's (or every stage's) chosen components cover."""
         return sorted({cap for c in choices(name) for cap in capabilities_of(c)})
 
     return dict(d=d, spec=spec, stages=stages, st=st, settings=settings, setting=setting, choices=choices,
                 capabilities_of=capabilities_of, choice_capabilities=choice_capabilities,
+                psa_exceptions=psa_exceptions, psa_level_of=psa_level_of, namespace_of=namespace_of,
                 alts=alts, risks=risks, gates=gates, rules=rules, oq=oq, txt=txt, has=has, listed=listed, re=re, len=len,
                 any=any, all=all, str=str, set=set, sum=sum, int=int, float=float, bool=bool, sorted=sorted, isinstance=isinstance, list=list, dict=dict)
 

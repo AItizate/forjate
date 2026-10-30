@@ -1,18 +1,18 @@
 # Secrets ladder
 
-Four mechanisms coexist in the factory (`wiki/concepts/secret-strategy.md`). The ladder is by stage; a pack `secrets_mechanism` rule can only move a stage up it.
+The mechanisms are the catalog's `secrets-mechanism` components, ranked by `secrets.rank` (`wiki/catalog.json`; `catalog-snapshot.md` shows today's ladder), with `secret-generator` as the floor every stage can use without a component (rank 0). A central store is a `secrets-store` component the top mechanism reads from, not a rung of its own. The ladder is by stage; a pack `secrets_mechanism` rule can only move a stage up it.
 
 | Stage | `secrets_mechanism` | `choice` | What it means |
 |-------|---------------------|----------|---------------|
-| Crawl | `secret-generator` | nothing | `secretGenerator` from gitignored `.env` files seeded from committed `.env.example`; the ephemeral runner and CI copy the example. Placeholder values are fine because the environment dies with its TTL. |
-| Walk | `sealed-secrets` | `apps/sealed-secrets` | Encrypted `sealed-<name>.yaml` committed next to the overlay; the overlay becomes complete in git. The controller key is the single point of loss: its backup is a devops gate. |
-| Run | `external-secrets` (or `vault` when the org runs it) | `apps/security/external-secrets` or `apps/security/vault` | Secrets pulled from a central store; rotation happens in the store, not in git. Neither component has a consumer in the factory tree yet: say in `risks` that it is untested here. Vault is BUSL-licensed; the compliance expert confirms it. |
+| Crawl | `secret-generator` (the floor) | nothing | `secretGenerator` from gitignored `.env` files seeded from committed `.env.example`; the ephemeral runner and CI copy the example. Placeholder values are fine because the environment dies with its TTL. |
+| Walk | the first ranked mechanism | its component | an encrypted secret committed next to the overlay, so the overlay becomes complete in git. The controller key is the single point of loss: its backup is a devops gate. |
+| Run | the highest ranked mechanism, when a pack or the data class asks for a central store | its component, plus the `secrets-store` component when the organisation does not already run one | secrets pulled from a central store; rotation happens in the store, not in git. Where the catalog's `maturity` says the component has no consumer in the factory tree yet, say in `risks` that it is untested here. The store's licence is the compliance expert's to confirm. |
 
-Higher on the ladder satisfies a lower rule (`external-secrets` satisfies `secrets_mechanism: sealed-secrets`); the validator ranks them. A pack that asks for `external-secrets` from Walk is satisfiable and you cite it; a pack that denies every mechanism the stage can use is an open question.
+Higher on the ladder satisfies a lower rule (the top mechanism satisfies a rule asking for the first one); the validator ranks them through the catalog. A pack that asks for the top mechanism from Walk is satisfiable and you cite it; a pack that denies every mechanism the stage can use is an open question. When a pack denies the mechanism a stage would use, the next ranked one the stage admits is the answer.
 
 ## One mechanism per stage
 
-A stage's `choice` carries exactly one secrets component. The move from Sealed Secrets to External Secrets is a gate the devops record owns ("every SealedSecret replaced by an ExternalSecret of the same name, old files deleted, pods restarted"), not a stage in which both exist. The validator treats two mechanisms in one stage as a conflict, also inside one record.
+A stage's `choice` carries exactly one secrets component. The move from one mechanism to the next is a gate the devops record owns ("every committed secret of the old mechanism replaced by one of the new mechanism with the same name, old files deleted, pods restarted"), not a stage in which both exist. The validator treats two mechanisms in one stage as a conflict, also inside one record.
 
 ## The `.env.example` header
 
@@ -42,11 +42,11 @@ Patterns a scanner catches without a vendor: `sk-[A-Za-z0-9]{20,}`, `AKIA[0-9A-Z
 
 ## Replacing a factory placeholder
 
-Catalog components ship a placeholder Secret with the name they mount (`postgres-secret`, `mongodb-secret`). From Walk the overlay deletes it and supplies a SealedSecret of the same name; the recipe is in the kustomize skill (`references/patterns.md`, "Replacing a placeholder Secret"). Your record states the names in `rationale` so the reviewer can check each has a sealed replacement.
+Catalog components ship a placeholder Secret with the name they mount (the catalog's `wiring` facts carry the names). From Walk the overlay deletes it and supplies a sealed secret of the same name; the recipe is in the kustomize skill (`references/patterns.md`, "Replacing a placeholder Secret"). Your record states the names in `rationale` so the reviewer can check each has a sealed replacement.
 
 ## Rotation
 
-Crawl: none, the environment is disposable. Walk: a script re-seals every `.env` and the reloader restarts consumers; rehearsed once before Run (`G-SEC-<n>`, `manual`, ref `rotation-rehearsal`, the operator named; the devops record operates it, `secret_rotation: scripted`). Run: rotation in the central store, consumers pick it up through External Secrets' refresh interval; the gate is the same rehearsal.
+Crawl: none, the environment is disposable. Walk: a script re-seals every `.env` and the reloader restarts consumers; rehearsed once before Run (`G-SEC-<n>`, `manual`, ref `rotation-rehearsal`, the operator named; the devops record operates it, `secret_rotation: scripted`). Run: rotation in the central store, consumers pick it up through the mechanism's refresh interval; the gate is the same rehearsal.
 
 ## What goes where
 

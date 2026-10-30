@@ -73,14 +73,14 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml",
-          "expr": "len(listed(setting('licences','walk'))) >= 3 and any(has('postgres', x) for x in listed(setting('licences','walk')))",
-          "text": "licence inventory covers the chosen components"
+          "expr": "len(listed(setting('licences', 'walk'))) >= 3 and any('working-memory' in capabilities_of(txt(x).split(':')[0].strip()) for x in listed(setting('licences', 'walk')))",
+          "text": "licence inventory covers the chosen components (the working-memory store is in it)"
         },
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml",
-          "expr": "any(has('minio', x) and has('agpl', x) for x in listed(setting('licences','walk')) + listed(setting('licence_flags','walk')))",
-          "text": "MinIO identified as AGPL"
+          "expr": "any(has('agpl', x) and 'artifact-store' in capabilities_of(txt(x).split(':')[0].strip()) for x in listed(setting('licences', 'walk')) + listed(setting('licence_flags', 'walk')))",
+          "text": "the artifact store's network-copyleft licence identified from the catalog"
         },
         {
           "type": "yaml_expr",
@@ -117,6 +117,30 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml",
           "expr": "setting('subject_rights_path','walk') in ('defined','open')",
           "text": "subject-rights path stated"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml",
+          "expr": "setting('model_register', 'walk') in ('in-record', 'org-register') or has('org-register:', setting('model_register', 'walk'))",
+          "text": "a model register stated at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml",
+          "expr": "setting('model_pinning', 'walk') == 'pinned'",
+          "text": "model pinning copied from the AI-engineering record"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml",
+          "expr": "setting('audit_artifacts', 'walk') == 'per-action' and any(has('prompt|model|tool|action', x) for x in listed(setting('audit_evidence', 'walk')))",
+          "text": "per-action audit artifacts are the Walk evidence"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml",
+          "expr": "setting('open_standards', 'walk') == 'all-layers'",
+          "text": "open standards copied: the brief requires them"
         }
       ]
     },
@@ -186,8 +210,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/compliance.yaml",
-          "expr": "any(has('redis', x) for x in listed(setting('licences','walk')))",
-          "text": "Redis in the licence inventory"
+          "expr": "any('session-memory' in capabilities_of(txt(x).split(':')[0].strip()) for x in listed(setting('licences', 'walk')))",
+          "text": "the session-memory store in the licence inventory"
         },
         {
           "type": "yaml_expr",
@@ -212,6 +236,12 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/compliance.yaml",
           "expr": "any(has('transcript|conversation|retention|90', q.get('question')) for q in oq()) or setting('legal_retention_episodic','walk') is not None",
           "text": "retention of transcripts addressed"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/compliance.yaml",
+          "expr": "setting('model_register', 'walk') is not None and setting('model_pinning', 'walk') == 'pinned'",
+          "text": "model register and pinning stated for the external provider"
         }
       ]
     },
@@ -280,8 +310,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/compliance.yaml",
-          "expr": "any(has('postgres', x) for x in listed(setting('licences','crawl')))",
-          "text": "Postgres in the licence inventory"
+          "expr": "any('working-memory' in capabilities_of(txt(x).split(':')[0].strip()) for x in listed(setting('licences', 'crawl')))",
+          "text": "the working-memory store in the licence inventory"
         },
         {
           "type": "yaml_expr",

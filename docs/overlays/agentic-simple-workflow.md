@@ -2,6 +2,8 @@
 
 > The smallest production-shaped overlay that still runs real agentic work.
 
+> **Recommended:** this overlay holds real state. Add [`apps/backup/velero`](../../k8s/components/apps/backup/velero/README.md) for cluster-level backup and a rehearsed restore before real users depend on it.
+
 ## The situation
 
 A small team needs a single agent that processes incoming work, calls an LLM, writes results to a database, and exposes a thin HTTP surface. They do not need durable workflows yet, they do not need a vector store, they do not need a service mesh. They need: a database, an object store, the agent, and a way to reach it.

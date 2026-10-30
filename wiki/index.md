@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-10-29'
+compiled_at: '2026-10-30'
 ---
 
 # Forjate wiki — index
@@ -31,7 +31,7 @@ The foundation every tenant inherits.
 
 ## Components
 
-79 pages. Optional building blocks an overlay can activate.
+80 pages. Optional building blocks an overlay can activate.
 
 ### agents
 
@@ -55,6 +55,10 @@ The foundation every tenant inherits.
   - [auth-gotrue-auth-authz](components/auth-gotrue-auth-authz.md) — deploys `node:20.18-alpine` · used by 1
   - [auth-gotrue-auth-gotrue](components/auth-gotrue-auth-gotrue.md) — deploys `busybox:1.36` · used by 1
   - [auth-gotrue-auth-middlewares](components/auth-gotrue-auth-middlewares.md) — declares `Middleware` · used by 1
+
+### backup
+
+- [backup-velero](components/backup-velero.md) — Velero — cluster-level backup and restore (namespaces, cluster resources, PVC data) · unused in this repo
 
 ### brokers
 

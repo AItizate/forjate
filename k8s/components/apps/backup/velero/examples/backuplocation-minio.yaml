@@ -1,0 +1,18 @@
+# The in-cluster MinIO target, as a standalone object (the Helm values already create
+# the same location named `default`). Use it to add a second location.
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: minio
+  namespace: velero
+spec:
+  provider: aws
+  objectStorage:
+    bucket: velero
+  config:
+    region: minio
+    s3ForcePathStyle: "true"
+    s3Url: http://minio.minio-operator.svc.cluster.local
+  credential:
+    name: velero-credentials
+    key: cloud

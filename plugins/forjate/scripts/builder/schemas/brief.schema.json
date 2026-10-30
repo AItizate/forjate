@@ -204,12 +204,8 @@
           "description": "Stages the requester wants. The planner may propose fewer."
         },
         "autonomy": {
-          "enum": [
-            "assistive",
-            "semi-autonomous",
-            "autonomous"
-          ],
-          "description": "Autonomy the requester wants at the end state. The planner sets the ceiling per stage; autonomy grows with evidence and a gate, never by default."
+          "$ref": "_defs.schema.json#/$defs/autonomy",
+          "description": "Autonomy the requester wants at the end state. The planner sets the ceiling per stage (stage-plan `autonomy`); autonomy grows with evidence and a gate, never by default."
         },
         "risk_profile": {
           "type": "array",

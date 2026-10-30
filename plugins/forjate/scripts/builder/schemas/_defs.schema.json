@@ -9,6 +9,10 @@
       "maxLength": 50
     },
     "stage": { "enum": ["crawl", "walk", "run"] },
+    "autonomy": {
+      "description": "How much the agent may do on its own: recommend while a person acts, execute registered tools with writes behind approval, or act for the actions the evidence supports. Ordered; never rises by default.",
+      "enum": ["assistive", "semi-autonomous", "autonomous"]
+    },
     "role": {
       "description": "A skill of the forjate plugin, by role name (forjate:<role>).",
       "enum": [

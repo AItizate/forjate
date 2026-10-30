@@ -35,7 +35,7 @@ import yaml
 HERE = Path(__file__).resolve().parent
 BUILDER = HERE.parents[2] / "scripts" / "builder"
 sys.path.insert(0, str(BUILDER))
-from common import PSA_RANK, load_catalog, load_yaml  # noqa: E402
+from common import PSA_RANK, load_catalog, load_yaml, stage_components  # noqa: E402
 
 STAGES = ("crawl", "walk", "run")
 # Where a component runs and the PSA level its pods meet are catalog facts (`namespace`,
@@ -150,11 +150,17 @@ class Assembly:
         return bool(self.fact(c, "namespace"))
 
     def runs(self, stage: str) -> list[str]:
-        """Every component the stage's build contains: stage overlays add, never remove."""
-        out: list[str] = []
-        for s in STAGES[:STAGES.index(stage) + 1]:
-            out += [c for c in self.choices(s) if c not in out]
-        return out
+        """Every component the stage's build contains: what the records choose at that stage, the same set
+        validate.py reads (common.stage_components). A Crawl choice no Walk record repeats is superseded or
+        dropped, and the stage overlay deletes its objects from the build it recomposes."""
+        return stage_components(self.records, stage)
+
+    def dropped_at(self, stage: str) -> list[str]:
+        """Use-case-scoped components the previous stage ran and this stage does not."""
+        if stage == "crawl":
+            return []
+        prev = STAGES[STAGES.index(stage) - 1]
+        return [c for c in self.runs(prev) if c not in self.runs(stage) and not self.infra(c)]
 
     def psa_exceptions(self, stage: str) -> list[dict]:
         r = self.records.get("security")
@@ -254,6 +260,25 @@ class Assembly:
             sname = f"{slug(system)}-secret"
             if sname not in known:
                 out.append((sname, [f"{slug(system).upper().replace('-', '_')}_TOKEN"], f"integration: {line}")); known.add(sname)
+        return out
+
+    def secrets_at(self, stage: str) -> list[tuple[str, list[str], str]]:
+        """(secret name, keys, origin) the stage's build needs: the Secrets of the components that run at the
+        stage, the scaffold's, and the integration tokens of this and the earlier stages. A dropped
+        component's Secret leaves with it."""
+        out: list[tuple[str, list[str], str]] = []
+        names: set[str] = set()
+        for c in self.runs(stage):
+            meta = COMPONENTS.get(c) or {}
+            if meta.get("secret") and meta["secret"][0] not in names:
+                out.append((meta["secret"][0], meta["secret"][1], c)); names.add(meta["secret"][0])
+        for s in self.crawl_secrets():
+            if s[2].startswith("scaffold:") and s[0] not in names:
+                out.append(s); names.add(s[0])
+        for st in STAGES[1:STAGES.index(stage) + 1]:
+            for s in self.stage_secrets(st):
+                if s[2].startswith("integration:") and s[0] not in names:
+                    out.append(s); names.add(s[0])
         return out
 
     def env_example(self, name: str, keys: list[str], origin: str, *, stage: str) -> str:
@@ -551,7 +576,10 @@ class Assembly:
         place = self.placement(stage)
         prev_place = self.placement("walk") if stage == "run" else {}
         before = self.runs(STAGES[STAGES.index(stage) - 1])
+        dropped = self.dropped_at(stage)
         for c, n in prev_place.items():
+            if c in dropped:
+                continue
             if place.get(c) != n:
                 self.notes.append(f"OPEN: {c} was moved to {n} at walk and the {stage} record says {place.get(c) or 'nothing'}; a stage overlay never moves a component back, edit the walk exception")
         relocate = {c: n for c, n in place.items() if c in before and c not in prev_place}
@@ -560,11 +588,23 @@ class Assembly:
         for c, n in list(relocate.items()) + list(placed.items()):
             arriving.setdefault(n, []).append(c)
         wrapped = f"../../namespaces/{ns}" if stage == "walk" else "../walk"
-        if relocate:
+        if relocate or dropped:
             moves = [{"target": {"kind": kind, "name": name, "namespace": ns}, "patch": f"- op: replace\n  path: /metadata/namespace\n  value: {n}\n"}
                      for c, n in relocate.items() for kind, name in self.objects_of(c)]
+            # a component the previous stage ran and no record repeats at this stage leaves the build:
+            # superseded by one that covers its capability (the records' choice), or dropped on purpose
+            prev_stage = STAGES[STAGES.index(stage) - 1]
+            for c in dropped:
+                home = self.home(c, prev_stage)
+                targets = [(kind, name, home) for kind, name in self.objects_of(c) if kind != "Secret"]  # the stage's secrets are written from what runs at the stage
+                if home != ns:  # a relocated component left ExternalName aliases of its Services in uc-<name>
+                    targets += [("Service", svc, ns) for svc in self.services_of(c)]
+                for kind, name, where in targets:
+                    moves.append({"target": {"kind": kind, "name": name, "namespace": where},
+                                  "patch": f"# {c} ran at {prev_stage} and no record chooses it at {stage}\n$patch: delete\nkind: {kind}\nmetadata:\n  name: {name}\n"})
             self.write(sdir / "relocated" / "kustomization.yaml",
-                       f"# {stage}: the build so far with the PSA exceptions moved out of {ns} (security: psa_exceptions).\n"
+                       f"# {stage}: the build so far with the PSA exceptions moved out of {ns} (security: psa_exceptions)"
+                       + (f" and the components {stage} no longer runs deleted ({', '.join(dropped)})" if dropped else "") + ".\n"
                        "# A layer of its own because the aliases left in the use case's namespace would collide with the originals here.\n"
                        + dump({"apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization", "resources": ["../" + wrapped], "patches": moves}))
             wrapped = "./relocated"
@@ -611,7 +651,7 @@ class Assembly:
         mech = self.setting("security", stage, "secrets_mechanism", "sealed-secrets")
         # Walk writes the NetworkPolicies and the surface; Run inherits them from ../walk and adds only what changes.
         sub_resources = (["netpols.yaml"] if stage == "walk" else []) + [self.rel_component(c, 7) for c in scoped if c not in placed]
-        all_secrets = self.crawl_secrets() + self.stage_secrets("walk") + (self.stage_secrets("run") if stage == "run" else [])
+        all_secrets = self.secrets_at(stage)
         # a component's Secret stays in uc-<name> while a workload there consumes it or the component runs there
         consumed = {x for w in sc.get("workloads", []) for x in w.get("secrets") or []}
         all_secrets = [t for t in all_secrets if t[2] not in self.catalog or self.home(t[2], stage) == ns or t[0] in consumed]
@@ -835,7 +875,7 @@ class Assembly:
         ns = self.ns
         nsdir = k8s / "namespaces" / ns
         stage = "walk" if "walk" in self.in_scope else "crawl"
-        everything = [c for c in self.choices("crawl") + self.new_at("walk") if not self.infra(c)] if stage == "walk" else [c for c in self.choices("crawl") if not self.infra(c)]
+        everything = [c for c in self.runs(stage) if not self.infra(c)]
         place = self.placement(stage)
         comps = [c for c in everything if c not in place]
         infra = [c for c in self.choices(stage) if self.infra(c)]
@@ -892,7 +932,7 @@ class Assembly:
                 resources.append("minio-service.yaml")
             if meta.get("config"):
                 pass
-        secrets = self.crawl_secrets() + (self.stage_secrets("walk") if stage == "walk" else [])
+        secrets = self.secrets_at(stage)
         consumed = {x for w in sc.get("workloads", []) for x in w.get("secrets") or []}
         secrets = [t for t in secrets if t[2] not in self.catalog or self.home(t[2], stage) == ns or t[0] in consumed]
         aliases = [{"apiVersion": "v1", "kind": "Service", "metadata": {"name": svc, "labels": {"forjate.io/psa-exception": n}},

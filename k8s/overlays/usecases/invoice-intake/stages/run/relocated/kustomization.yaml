@@ -1,0 +1,31 @@
+# run: the build so far with the PSA exceptions moved out of uc-invoice-intake (security: psa_exceptions) and the components run no longer runs deleted (apps/ai-models/ollama).
+# A layer of its own because the aliases left in the use case's namespace would collide with the originals here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../walk
+patches:
+- target:
+    kind: Service
+    name: ollama-service
+    namespace: uc-invoice-intake-baseline
+  patch: "# apps/ai-models/ollama ran at walk and no record chooses it at run\n$patch: delete\nkind: Service\nmetadata:\n\
+    \  name: ollama-service\n"
+- target:
+    kind: StatefulSet
+    name: ollama
+    namespace: uc-invoice-intake-baseline
+  patch: "# apps/ai-models/ollama ran at walk and no record chooses it at run\n$patch: delete\nkind: StatefulSet\nmetadata:\n\
+    \  name: ollama\n"
+- target:
+    kind: PersistentVolumeClaim
+    name: pvc-ollama
+    namespace: uc-invoice-intake-baseline
+  patch: "# apps/ai-models/ollama ran at walk and no record chooses it at run\n$patch: delete\nkind: PersistentVolumeClaim\n\
+    metadata:\n  name: pvc-ollama\n"
+- target:
+    kind: Service
+    name: ollama-service
+    namespace: uc-invoice-intake
+  patch: "# apps/ai-models/ollama ran at walk and no record chooses it at run\n$patch: delete\nkind: Service\nmetadata:\n\
+    \  name: ollama-service\n"

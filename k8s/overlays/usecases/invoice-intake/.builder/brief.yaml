@@ -25,9 +25,13 @@ spec:
     budget_per_month_usd: 300
     must_integrate_with: [Odoo REST API, IMAP mailbox]
     llm_egress_allowed: false
+    open_standards_required: true
     notes: Bank account numbers appear on invoices.
   success:
     metric: invoices posted to the ERP without manual typing
     baseline: "0%"
     target: "80% straight-through, 0 wrong amounts"
   stages_requested: [crawl, walk, run]
+  autonomy: semi-autonomous
+  risk_profile: [regulated-decision, high-impact-action]
+  isolation: logical

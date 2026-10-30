@@ -1,4 +1,4 @@
-# walk: the build so far with the PSA exceptions moved out of uc-invoice-intake (security: psa_exceptions).
+# walk: the build so far with the PSA exceptions moved out of uc-invoice-intake (security: psa_exceptions) and the components walk no longer runs deleted (apps/minio/dev).
 # A layer of its own because the aliases left in the use case's namespace would collide with the originals here.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -44,9 +44,10 @@ patches:
     kind: Pod
     name: minio
     namespace: uc-invoice-intake
-  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
+  patch: "# apps/minio/dev ran at crawl and no record chooses it at walk\n$patch: delete\nkind: Pod\nmetadata:\n  name: minio\n"
 - target:
     kind: Service
     name: minio
     namespace: uc-invoice-intake
-  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
+  patch: "# apps/minio/dev ran at crawl and no record chooses it at walk\n$patch: delete\nkind: Service\nmetadata:\n  name:\
+    \ minio\n"

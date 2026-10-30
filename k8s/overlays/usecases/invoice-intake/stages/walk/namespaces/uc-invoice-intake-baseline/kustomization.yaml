@@ -6,7 +6,6 @@ resources:
 - ../../../../../../../components/apps/auth/gotrue-auth
 - ../../../../../../../components/apps/surveys/formbricks
 - secrets/sealed-postgres-secret.yaml
-- secrets/sealed-minio-secret.yaml
 - secrets/sealed-litellm-secret.yaml
 - secrets/sealed-gotrue-secret.yaml
 - secrets/sealed-formbricks-secret.yaml

@@ -26,3 +26,6 @@ spec:
     baseline: "0"
     target: "100% with 0 mismatches on a 1% sample"
   stages_requested: [crawl, walk]
+  autonomy: assistive
+  risk_profile: [irreversible-action]
+  isolation: logical

@@ -17,9 +17,9 @@ rules:
     value: "*"
     reason: Loops and cascades terminate deterministically only when steps, timeouts and delegation depth are bounded.
   EXE-2:
-    type: require_setting
+    type: deny_setting_value
     target: intent_validation
-    value: enabled
+    value: [disabled]
     reason: A judge step between proposed tool call and execution blocks hallucinated or out-of-policy actions.
   EXE-3:
     type: require_setting

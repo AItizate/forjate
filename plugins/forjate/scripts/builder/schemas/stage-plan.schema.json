@@ -38,6 +38,7 @@
                 "skip_reason": { "type": "string" },
                 "goal": { "type": "string" },
                 "forjate_tier": { "enum": ["lab", "mvp", "production"] },
+                "autonomy": { "$ref": "_defs.schema.json#/$defs/autonomy", "description": "The autonomy ceiling for this stage, which every expert record copies into settings.autonomy and never exceeds. Crawl is always assistive; no stage exceeds the brief's autonomy; each increase is a gate with an owner." },
                 "exit_criteria": { "type": "array", "items": { "$ref": "_defs.schema.json#/$defs/gate" } },
                 "out_of_scope": { "type": "array", "items": { "type": "string" } },
                 "estimated_cost_usd_month": { "type": "number" }

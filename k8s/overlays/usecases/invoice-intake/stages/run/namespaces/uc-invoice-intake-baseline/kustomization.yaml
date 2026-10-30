@@ -3,7 +3,6 @@ namespace: uc-invoice-intake-baseline
 resources:
 - ../../../../../../../components/apps/ai-models/vllm
 - externalsecrets/postgres-secret.yaml
-- externalsecrets/minio-secret.yaml
 - externalsecrets/litellm-secret.yaml
 - externalsecrets/gotrue-secret.yaml
 - externalsecrets/formbricks-secret.yaml

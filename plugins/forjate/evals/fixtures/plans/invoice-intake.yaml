@@ -7,6 +7,7 @@ spec:
       in_scope: true
       goal: Prove that invoice PDFs from a seeded mailbox are parsed, matched against seeded purchase orders and routed to a review queue with zero wrong amounts on the sample.
       forjate_tier: lab
+      autonomy: assistive
       exit_criteria:
         - { id: G-Q-1, text: verify Job exits 0 on the seeded invoice set of 20 PDFs with 3 mismatches, owner: quality, check: { type: verify-job, ref: inv-validate } }
         - { id: G-BIZ-1, text: straight-through rate measured once on the sample and shown to the finance ops lead, owner: business, check: { type: metric, ref: straight_through_rate } }
@@ -18,6 +19,7 @@ spec:
       in_scope: true
       goal: AP clerks rely on the queue for real invoices for one month, with Odoo posting behind an approval step.
       forjate_tier: mvp
+      autonomy: semi-autonomous
       exit_criteria:
         - { id: G-Q-2, text: 80% straight-through over 30 days with 0 wrong amounts, owner: quality, check: { type: metric, ref: straight_through_rate } }
         - { id: G-SEC-1, text: namespace default-deny with egress allow-list to Odoo and IMAP only, owner: security, check: { type: ci, ref: netpol-check } }
@@ -27,6 +29,7 @@ spec:
       in_scope: true
       goal: Audited, PSA restricted, multi-entity invoice intake with External Secrets and offsite backup.
       forjate_tier: production
+      autonomy: semi-autonomous
       exit_criteria:
         - { id: G-SEC-2, text: PSA restricted enforced (pack:regulated-corp#SEC-1), owner: security, check: { type: ci, ref: psa-check } }
         - { id: G-SEC-3, text: secrets via External Secrets (pack:regulated-corp#SEC-2), owner: security, check: { type: ci, ref: secrets-check } }

@@ -133,8 +133,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-pipeline.yaml",
-          "expr": "setting('seed_strategy', 'crawl') == 'recorded-replay'",
-          "text": "Crawl replays recorded conversations"
+          "expr": "setting('seed_strategy', 'crawl') == 'recorded-replay' or (setting('seed_strategy', 'crawl') == 'synthetic' and has('replay|recorded|pii', st('crawl').get('rationale')) and any(has('replay|recorded', a.get('option')) for a in alts()))",
+          "text": "Crawl replays conversations: recorded, or synthetic in their shape when the data class forbids real transcripts (replay named)"
         },
         {
           "type": "yaml_expr",

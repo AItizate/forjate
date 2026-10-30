@@ -2,8 +2,6 @@
 
 > One overlay. Three providers. Zero "migrations."
 
-> **Recommended:** this overlay holds real state. Add [`apps/backup/velero`](../../k8s/components/apps/backup/velero/README.md) for cluster-level backup and a rehearsed restore before real users depend on it.
-
 ## The situation
 
 You have a workload that currently runs on bare metal. A customer in another region asks for low latency, so a slice of the deployment needs to live on AWS. Another customer requires data residency in GCP. The team's reaction shouldn't be "we need to fork the infra." It should be "we change the overlay's provider knob."

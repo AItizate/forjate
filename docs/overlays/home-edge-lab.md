@@ -2,8 +2,6 @@
 
 > The same architecture, on a Raspberry Pi and a household NAS.
 
-> **Recommended:** this overlay holds real state. Add [`apps/backup/velero`](../../k8s/components/apps/backup/velero/README.md) for cluster-level backup and a rehearsed restore before real users depend on it.
-
 ## The situation
 
 A house. A Raspberry Pi 5 sitting on a shelf. A NAS in a closet. The owner wants home automation, IoT devices, cameras feeding an agent, Google sign-in for the family, and role-based access so the kids don't accidentally turn off the heating. They want it to feel like a real platform — version-controlled, restorable, observable — without ever leaving the local network unless they explicitly say so.

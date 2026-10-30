@@ -103,6 +103,6 @@ Rehearse this before you need it. A backup nobody has restored is a guess.
 
 **Known limits.** Longhorn volumes restored from a CSI snapshot need the same Longhorn version family. Secrets restored from a backup include the sealed-secrets controller key only if `sealed-secrets` is in the backed-up namespaces; back that key up separately as well. Restores do not re-run `pg_dump` CronJobs; use them for point-in-time data checks.
 
-## Recommended in
+## Where it fits
 
-`agentic-simple-workflow`, `home-edge-lab` and `multi-cloud-portable` hold real state and list this component as recommended. It is the gate between MVP and Production in [`docs/lab-to-production.md`](../../../../../docs/lab-to-production.md).
+It is the gate between MVP and Production in [`docs/lab-to-production.md`](../../../../../docs/lab-to-production.md). Add it to any overlay that holds real state.

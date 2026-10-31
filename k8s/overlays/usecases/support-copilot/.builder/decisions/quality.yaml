@@ -90,7 +90,7 @@ spec:
         verify_job: copilot-validate
         verify_assertions:
           - "the Job keeps running on every deploy against the live namespace with one synthetic canary conversation, including a synthetic refund request"
-          - "the canary refund produces one escalation in the agents' queue with the full transcript and the order id, and is marked synthetic so it is not worked"
+          - "the canary refund produces exactly one expected escalation in the agents' queue with the full transcript and the order id, marked synthetic so it is not worked; unexpected escalations on the canary with reason lookup-failed or timeout = 0"
           - "the Telegram webhook rejects a request without the bot secret token (architecture G-ARCH-2)"
           - "the escalation worker retried on an induced failure and created no duplicate escalation"
           - "redaction holds on the canary: the LiteLLM request log carries no name, email or phone number (AI-engineering G-AI-2)"

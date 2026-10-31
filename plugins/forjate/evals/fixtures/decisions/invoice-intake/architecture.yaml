@@ -7,6 +7,7 @@ spec:
       choice: []
       settings:
         topology: batch
+        runtime: python
         workloads: [intake-job, seed-job, verify-job, erp-stub]
         integrations: ["IMAP mailbox: seed-replay", "Odoo REST API: stub"]
         integration_patterns: [batch]
@@ -22,6 +23,7 @@ spec:
       choice: [apps/auth/gotrue-auth]
       settings:
         topology: batch
+        runtime: python
         workloads: [intake-worker, review-api, verify-job]
         integrations: ["IMAP mailbox: poll", "Odoo REST API: rest-push"]
         integration_patterns: [poll, rest-push]
@@ -39,6 +41,7 @@ spec:
       choice: [apps/auth/gotrue-auth]
       settings:
         topology: batch
+        runtime: python
         workloads: [intake-worker, review-api, verify-job]
         integration_patterns: [poll, rest-push]
         durable_execution: job

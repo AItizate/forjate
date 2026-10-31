@@ -158,6 +158,13 @@
               "type": "string",
               "format": "date"
             },
+            "stack": {
+              "type": "array",
+              "description": "The runtimes the organisation builds and operates (its stack); the architecture expert picks the use case's `runtime` among them. Absent means no constraint.",
+              "items": {
+                "$ref": "_defs.schema.json#/$defs/runtime"
+              }
+            },
             "must_integrate_with": {
               "type": "array",
               "items": {

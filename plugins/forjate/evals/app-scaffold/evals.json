@@ -150,6 +150,12 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
           "expr": "any('approval' in f for t in spec.get('tools', []) if t.get('name') == 'post_to_erp' for f in t.get('flags', []))",
           "text": "scaffold.yaml carries post_to_erp's approval flag"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "expr": "spec.get('runtime') == 'python'",
+          "text": "scaffold.yaml carries the architecture record's runtime"
         }
       ]
     },
@@ -301,6 +307,11 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
           "expr": "any('idempotent' in f for t in spec.get('tools', []) if t.get('name') == 'escalate' for f in t.get('flags', []))",
           "text": "scaffold.yaml carries escalate's idempotent flag"
+        },
+        {
+          "type": "command",
+          "cmd": "grep -rqiE 'readyz' k8s/overlays/usecases/support-copilot/app/src && grep -rliE 'readyz' k8s/overlays/usecases/support-copilot/app/src | xargs grep -liE 'orders|stub|wait' | grep -q .",
+          "text": "the replay or seed waits on the readiness of the services on its route (the orders stub, not only the agent API)"
         }
       ]
     },

@@ -288,6 +288,12 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
           "expr": "len(listed(setting('eval_dimensions', 'walk'))) >= 5",
           "text": "evaluation dimensions consolidated at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "any(has('expected|unexpected|lookup|reason|timeout', x) for x in listed(setting('verify_assertions','crawl')))",
+          "text": "the escalation verify counts by reason: expected handoffs apart from failures such as lookup-failed"
         }
       ]
     },

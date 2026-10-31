@@ -107,6 +107,7 @@ The one shape every expert returns. Per stage: what was chosen (`choice`, catalo
 | `auth_in_front` | architecture, security, ux | cross-record consistency (check 6) |
 | `judge`, `kpi_metric_source`, `regression_trigger` | quality | `require_setting`, `deny_setting_value` |
 | `surface`, `feedback_capture` | ux | `deny_setting_value` (with `target`) |
+| `runtime` | architecture (`python` / `typescript` / `go`, within the brief's `constraints.stack`); app-scaffold copies it into `scaffold.yaml` and follows it | `require_setting`, `deny_setting_value`; the scaffold never falls back to another runtime silently |
 | `autonomy` | ai-engineering, ux, quality (from the plan's ceiling) | check 10 (never above the plan); cross-record consistency (check 6) |
 | `write_actions`, `intent_validation`, `kill_switch`, `model_pinning`, `fallback_policy`, `audit_artifacts`, `open_standards`, `scope_isolation` | the owner and the experts a pack rule applies to ("Governance settings") | cross-record consistency (check 6); `require_setting`, `deny_setting_value` |
 | any key | any | `require_setting`, `deny_setting_value` (with `target`) |

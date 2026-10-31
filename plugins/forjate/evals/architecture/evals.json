@@ -94,6 +94,12 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
           "expr": "setting('auth_in_front', 'walk') not in (None, 'none')",
           "text": "one choke point in front of the review surface from Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "all(setting('runtime', s) in ('python', 'typescript', 'go') for s in stages) and any(has('runtime|stack|default|language', st(s).get('rationale')) for s in stages)",
+          "text": "the workloads' runtime decided and argued (default declared as such when nothing constrains it)"
         }
       ]
     },
@@ -166,6 +172,12 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
           "expr": "any(has('refund|idempot|twice|double', r.get('text')) for r in risks()) or any(has('refund|idempot', st(s).get('rationale')) for s in stages)",
           "text": "refund double-execution named as the durability reason"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "all(setting('runtime', s) in ('python', 'typescript', 'go') for s in stages)",
+          "text": "the workloads' runtime decided"
         }
       ]
     },

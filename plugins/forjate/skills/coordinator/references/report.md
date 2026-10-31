@@ -42,7 +42,7 @@ Pack overrides: <from gates.yaml, or none>
 
 ## Assembly
 <from usecase.yaml, kustomization.yaml, stages/* and .builder/scaffold.yaml when present; otherwise "not assembled yet">
-- Workload: <scaffold package and image, workloads with their commands, tools with their flags; tests and scaffold-check result when known>
+- Workload: <scaffold runtime, package and image, workloads with their commands, tools with their flags; tests and scaffold-check result when known; "runtime <x> not yet available" when the scaffold does not implement the architecture's choice>
 - Overlay: <root and stages that build, kubeconform result, the gates.py ci table for crawl->walk when run>
 - Assembly notes: <every note the generator printed: surfaces the scaffold does not ship yet, guessed secret keys, matrices to write by hand>
 - Crawl proof: <ephemeral.sh up result and the KPI/EVAL lines from the verify Job, or "not run">

@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 **/*.env
 !**/*.env.example
+!.github/toolchain.env
 
 implementation_plan.md
 **/sample_data/**
@@ -11,3 +12,6 @@ k8s/**/charts/**
 # use-case builder
 .pytest_cache/
 evals-workspace/
+
+# pinned local tools (scripts/toolchain/install.sh)
+.tools/

@@ -38,4 +38,14 @@ require_yq_v4() {
   if ! yq --version 2>&1 | grep -qE 'v?4\.'; then
     error "yq v4 (mikefarah) is required. Found: $(yq --version 2>&1). Install with: brew install yq"
   fi
+  # The runner reads the contract and the built manifest with yq expressions whose result differs across 4.x:
+  # use the version CI pins (.github/toolchain.env; scripts/toolchain/install.sh installs it under .tools/bin).
+  local toolchain
+  toolchain="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../toolchain" && pwd)/toolchain.sh"
+  if [ -f "$toolchain" ]; then
+    # shellcheck source=../../toolchain/toolchain.sh
+    source "$toolchain"
+    toolchain_path
+    toolchain_check yq || exit 1
+  fi
 }

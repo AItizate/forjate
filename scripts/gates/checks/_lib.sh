@@ -11,6 +11,15 @@ UC_NS="${UC_NS:-uc-${UC_NAME}}"
 BUILDER_DIR="${UC_DIR}/.builder"
 PY="${REPO}/.venv/bin/python"; [ -x "$PY" ] || PY="python3"
 
+# One toolchain: the yq CI pins (.github/toolchain.env). A check run by hand or through gates.py reads the same
+# expressions the same way CI does, or refuses to run (FORJATE_TOOLCHAIN=warn to go on anyway).
+if [ -f "${REPO}/scripts/toolchain/toolchain.sh" ]; then
+  # shellcheck source=../../toolchain/toolchain.sh
+  source "${REPO}/scripts/toolchain/toolchain.sh"
+  toolchain_path
+  toolchain_check yq || exit 1
+fi
+
 pass() { echo "PASS: $*"; exit 0; }
 fail() { echo "FAIL: $*"; exit 1; }
 skip() { echo "SKIPPED: $*"; exit 2; }

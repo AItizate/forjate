@@ -30,7 +30,7 @@ Operating model: <business `operating_model`; RACI lines; the three adoption fri
 Review: <ux `review_mode` and `review_independence` per checkpoint; `control_levels` per persona; `disclosure` lines>
 
 ## Open questions
-<every open_questions entry across records, with the area and the blocking stage; a question caused by a pack rule shows the rule ref>
+<every open_questions entry across records, with the area and the blocking stage; a question caused by a pack rule shows the rule ref. With many questions, group them by theme, but every one stays findable: each line cites `<area> Q<n>` (a range like `compliance Q1–Q4` is fine), and none is left out because another seems to cover it>
 Conflicts between experts: <every `cross-record conflict` line validate.py reported, each with the open question that acknowledges it, or "none">
 
 ## Gates (consolidated)

@@ -224,23 +224,32 @@ def check(a: dict, repo: Path) -> tuple[bool, str]:
         rc, out = sh([PY, str(BUILDER / "scaffold-check.py"), a["path"]], repo)
         return rc == 0, out[-400:]
     if t == "report_covers_open_questions":
-        # The review report is the run's final message (result.json beside the worktree). Every
-        # open question of every record must be in it: its id and most of its words, since the
-        # report quotes or condenses the question rather than copying it verbatim.
+        # The review report is the run's final message (result.json beside the worktree). Every open
+        # question of every record must be cited by area and id on one line (`security Q2`, `compliance
+        # Q1 a Q4`, `ux Q1/Q3`): grouping by theme is fine, a question the approver cannot find is not.
         res = repo.parent / "result.json"
-        report = json.loads(res.read_text()).get("result") or "" if res.exists() else ""
-        low = report.lower()
+        report = (json.loads(res.read_text()).get("result") or "") if res.exists() else ""
+        if not report:
+            return False, "no report in result.json"
+        cited: set[tuple[str, int]] = set()
+        areas = [f.stem for f in (path / ".builder" / "decisions").glob("*.yaml")]
+        for line in report.lower().splitlines():
+            named = [a for a in areas if a in line or a.replace("-", " ") in line]
+            if not named:
+                continue
+            nums: set[int] = set()
+            for m in re.finditer(r"q(\d+)(?:\s*(?:-|–|—|a|to|al|hasta)\s*q?(\d+))?", line):
+                lo, hi = int(m.group(1)), int(m.group(2) or m.group(1))
+                nums.update(range(lo, hi + 1) if 0 <= hi - lo <= 20 else (lo,))
+            cited.update((a, n) for a in named for n in nums)
         missing, total = [], 0
         for f in sorted((path / ".builder" / "decisions").glob("*.yaml")):
             for q in ((_load_yaml(f) or {}).get("spec") or {}).get("open_questions") or []:
                 total += 1
-                words = {w for w in re.findall(r"\w{5,}", str(q.get("question", "")).lower())}
-                seen = sum(1 for w in words if w in low)
-                if q.get("id") not in report or (words and seen / len(words) < 0.5):
+                n = int(str(q.get("id", "Q0"))[1:] or 0)
+                if (f.stem, n) not in cited:
                     missing.append(f"{f.stem}/{q.get('id')}")
-        if not report:
-            return False, "no report in result.json"
-        return not missing, f"{total - len(missing)}/{total} open questions in the report" + (f"; missing: {missing}" if missing else "")
+        return not missing, f"{total - len(missing)}/{total} open questions cited by area and id" + (f"; missing: {missing}" if missing else "")
     if t == "git_unchanged":
         rc, out = sh(["git", "diff", "--quiet", "HEAD", "--", a["path"]], repo)
         return rc == 0, "unchanged" if rc == 0 else "modified"

@@ -14,6 +14,10 @@
      no `trivy` by hand, no `@main`; a build-push template call exists; the write-back dispatch
      sends `app-image-updated`.
   4. Dockerfile: a tagged base image (never latest), a non-root USER. pyproject.toml and tests/ exist.
+  5. A workload that mounts a catalog component's Secret reads that Secret's keys as the catalog's
+     `wiring.secret.keys` names them (MinIO's are MINIO_ROOT_USER/MINIO_ROOT_PASSWORD, not an S3 SDK's
+     names): a key the app never reads is a credential it never gets. The verify Job (phase verify) never
+     runs MODEL_MODE=live: the Crawl gate runs where no provider key exists.
 
 Exit 1 with one finding per line; 0 clean.
 """
@@ -28,7 +32,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from common import load_yaml, schema_errors  # noqa: E402
+from common import load_catalog, load_yaml, schema_errors  # noqa: E402
 
 TOOL_LINE = re.compile(r"^\s*(?P<name>[a-z][a-z0-9_]*)\s*:\s*(?P<desc>[^\[]*?)\s*(\[(?P<flags>[^\]]*)\])?\s*$")
 TEMPLATE = re.compile(r"^AItizate/gh-actions-templates/\.github/workflows/(?P<name>[a-z0-9-]+-template\.yml)@(?P<ref>.+)$")
@@ -168,6 +172,28 @@ def check_dockerfile(app: Path, findings: list[str]) -> None:
         findings.append("Dockerfile does not switch to a non-root USER")
 
 
+def check_secret_keys(scaffold: dict, app: Path, findings: list[str]) -> None:
+    catalog = load_catalog()
+    if not catalog:
+        return
+    keys_of = {}
+    for c in catalog.get("components", []):
+        sec = (c.get("wiring") or {}).get("secret") or {}
+        if sec.get("name") and sec.get("keys"):
+            keys_of.setdefault(sec["name"], (c["path"], sec["keys"]))
+    mounted = {s for w in (scaffold.get("spec") or {}).get("workloads", []) for s in (w.get("secrets") or [])}
+    source = "\n".join(f.read_text(errors="replace") for f in (app / "src").rglob("*.py")) if (app / "src").is_dir() else ""
+    for w in (scaffold.get("spec") or {}).get("workloads", []):
+        if w.get("phase") == "verify" and "MODEL_MODE=live" in (w.get("env") or []):
+            findings.append(f"workload {w.get('name')}: the verify Job runs MODEL_MODE=live; the Crawl gate runs the double (replay or rules)")
+    for name in sorted(mounted & keys_of.keys()):
+        component, keys = keys_of[name]
+        unread = [k for k in keys if k not in source]
+        if unread:
+            findings.append(f"secret {name} ({component}): the app never reads {', '.join(unread)}; "
+                            f"the catalog's keys are {', '.join(keys)}, read them by that name")
+
+
 def main(argv: list[str]) -> int:
     as_json = "--json" in argv
     args = [a for a in argv if not a.startswith("--")]
@@ -206,6 +232,8 @@ def main(argv: list[str]) -> int:
         check_workloads(load_yaml(arch), scaffold, app, findings)
     check_workflows(app, findings)
     check_dockerfile(app, findings)
+    if scaffold:
+        check_secret_keys(scaffold, app, findings)
     if as_json:
         print(json.dumps(findings, indent=2))
     else:

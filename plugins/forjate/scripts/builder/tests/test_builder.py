@@ -854,17 +854,36 @@ def test_grader_report_covers_open_questions(tmp_path: Path):
     dec = repo / "uc" / ".builder" / "decisions"
     dec.mkdir(parents=True)
     dec.joinpath("security.yaml").write_text(yaml.safe_dump({"spec": {"open_questions": [
-        {"id": "Q1", "question": "Which mailbox credentials rotate, and who owns the rotation?"}]}}))
-    dec.joinpath("business.yaml").write_text(yaml.safe_dump({"spec": {"open_questions": [
-        {"id": "Q1", "question": "Does the CFO accept the Walk budget above the envelope?"}]}}))
+        {"id": "Q1", "question": "Which mailbox credentials rotate?"}, {"id": "Q2", "question": "Who owns the key?"}]}}))
+    dec.joinpath("data-pipeline.yaml").write_text(yaml.safe_dump({"spec": {"open_questions": [
+        {"id": "Q1", "question": "Batch or event?"}, {"id": "Q2", "question": "Seed from production?"}, {"id": "Q3", "question": "CSV encoding?"}]}}))
     a = {"type": "report_covers_open_questions", "path": "uc"}
     ok, ev = grade.check(a, repo)
     assert not ok and "no report" in ev
-    report = "## Open questions\n- security Q1: which mailbox credentials rotate and who owns the rotation (blocks walk)\n"
+    report = "## Open questions\n- Credentials and ownership (security Q1, Q2)\n- Q3 is about encoding\n"
     (tmp_path / "result.json").write_text(json.dumps({"result": report}))
     ok, ev = grade.check(a, repo)
-    assert not ok and "business/Q1" in ev
-    report += "- business Q1: does the CFO accept the Walk budget above the envelope\n"
+    assert not ok and "data-pipeline/Q1" in ev and "security" not in ev.split("missing:")[1]
+    report += "- Ingestion (data pipeline Q1 a Q3)\n"
     (tmp_path / "result.json").write_text(json.dumps({"result": report}))
     ok, ev = grade.check(a, repo)
     assert ok, ev
+
+
+def test_scaffold_check_flags_secret_keys_the_app_never_reads(tmp_path: Path):
+    uc = tmp_path / "invoice-intake"
+    shutil.copytree(USECASES / "invoice-intake" / ".builder", uc / ".builder")
+    shutil.copytree(USECASES / "invoice-intake" / "app", uc / "app", ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"))
+    check = BUILDER / "scaffold-check.py"
+    assert run(str(check), str(uc)).returncode == 0
+    cfg = uc / "app" / "src" / "invoice_intake" / "config.py"
+    cfg.write_text(cfg.read_text().replace("MINIO_ROOT_USER", "MINIO_ACCESS_KEY").replace("MINIO_ROOT_PASSWORD", "MINIO_SECRET_KEY"))
+    r = run(str(check), str(uc))
+    assert r.returncode == 1 and "secret minio-secret (apps/minio/dev): the app never reads MINIO_ROOT_USER" in r.stdout
+    sc = uc / ".builder" / "scaffold.yaml"
+    d = yaml.safe_load(sc.read_text())
+    verify = next(w for w in d["spec"]["workloads"] if w.get("phase") == "verify")
+    verify["env"] = [e for e in verify.get("env", []) if not e.startswith("MODEL_MODE=")] + ["MODEL_MODE=live"]
+    sc.write_text(yaml.safe_dump(d, sort_keys=False))
+    r = run(str(check), str(uc))
+    assert "the verify Job runs MODEL_MODE=live" in r.stdout

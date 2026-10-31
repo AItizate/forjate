@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from . import stores
 from .config import Settings, settings
 from .docling import ParseFailed, parse_pdf, wait_ready as docling_ready
+from .readiness import wait_ready
 from .domain import Decision, InvoiceFields, Reason, compare, idempotency_key
 from .logging import log
 from .model import Model, model_for
@@ -106,6 +107,7 @@ def run_once(cfg: Settings | None = None) -> RunReport:
     model = model_for(cfg, labels=stores.labels() if cfg.model_mode == "replay" else None)
     client = stores.minio_client()
     docling_ready()
+    wait_ready(cfg.erp_url, "ERP stub")   # the stub posts the batch's would-be payables: a posting against a stub still starting is a false exception
     report = RunReport()
     for name in stores.list_objects(client, cfg.bucket_inbox, ".pdf"):
         document_id = name[:-4]

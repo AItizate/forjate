@@ -61,6 +61,13 @@ run_one() {  # <eval-name> <prompt> <with|without>
       rm -rf "$wt/k8s/overlays/usecases/$uc"
     fi
   done
+  # A suite may strip more (evals/<skill>/worktree-strip, one repo-relative path per line, # comments):
+  # the coordinator's end-to-end suite removes the golden fixtures so a cold start cannot copy them.
+  if [[ -f "${SCRIPT_DIR}/${skill}/worktree-strip" ]]; then
+    while IFS= read -r sub; do
+      [[ -n "$sub" && "$sub" != \#* ]] && rm -rf "${wt:?}/$sub"
+    done < "${SCRIPT_DIR}/${skill}/worktree-strip"
+  fi
   # Seed gitignored .env files so overlays build, as CI does.
   find "$wt/k8s/overlays" -name '*.env.example' | while read -r ex; do [[ -f "${ex%.example}" ]] || cp "$ex" "${ex%.example}"; done
   # Evals run in a throwaway worktree, so the build/validate commands the skills

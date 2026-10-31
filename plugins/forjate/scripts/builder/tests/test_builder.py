@@ -1,6 +1,7 @@
 """Tests for the use-case builder tooling. Run: poetry run pytest plugins/forjate/scripts/builder/tests"""
 
 import copy
+import json
 import shutil
 import subprocess
 import sys
@@ -844,3 +845,26 @@ def test_quality_verify_without_a_reason_split_is_a_warning(usecase: Path):
     _write_decision(usecase, "quality", {"crawl": {"choice": [], "settings": {"verify_assertions": ["expected escalations (4 address changes) exactly; unexpected escalations with reason lookup-failed or timeout = 0", "KPI printed"]}, "rationale": "x"}})
     _, warnings = validate_usecase(usecase)
     assert not any("without a reason split" in w for w in warnings)
+
+
+def test_grader_report_covers_open_questions(tmp_path: Path):
+    sys.path.insert(0, str(BUILDER.parent.parent / "evals"))
+    import grade  # noqa: E402
+    repo = tmp_path / "repo"
+    dec = repo / "uc" / ".builder" / "decisions"
+    dec.mkdir(parents=True)
+    dec.joinpath("security.yaml").write_text(yaml.safe_dump({"spec": {"open_questions": [
+        {"id": "Q1", "question": "Which mailbox credentials rotate, and who owns the rotation?"}]}}))
+    dec.joinpath("business.yaml").write_text(yaml.safe_dump({"spec": {"open_questions": [
+        {"id": "Q1", "question": "Does the CFO accept the Walk budget above the envelope?"}]}}))
+    a = {"type": "report_covers_open_questions", "path": "uc"}
+    ok, ev = grade.check(a, repo)
+    assert not ok and "no report" in ev
+    report = "## Open questions\n- security Q1: which mailbox credentials rotate and who owns the rotation (blocks walk)\n"
+    (tmp_path / "result.json").write_text(json.dumps({"result": report}))
+    ok, ev = grade.check(a, repo)
+    assert not ok and "business/Q1" in ev
+    report += "- business Q1: does the CFO accept the Walk budget above the envelope\n"
+    (tmp_path / "result.json").write_text(json.dumps({"result": report}))
+    ok, ev = grade.check(a, repo)
+    assert ok, ev

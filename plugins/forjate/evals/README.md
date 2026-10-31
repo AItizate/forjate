@@ -49,6 +49,6 @@ Assert capabilities, not component names: `choice_has_capability` with `session-
 python3 plugins/forjate/evals/grade.py --all evals-workspace/kustomize/iteration-1
 ```
 
-Needs `claude` on PATH, `kubectl`, `kubeconform`, `yq`, and the repo's poetry env.
+Needs `claude` on PATH, `kubectl`, `kubeconform`, `yq`, and the repo's poetry env. **`yq` must be the version CI pins** (`.github/toolchain.env`): the `yaml_path` and `yaml_expr` graders, the agents' own `yq` calls and the gate checks read the same expression differently across 4.x releases, which is how the L3 nightly failed on a check that passed on a laptop. `run.sh` refuses another version and says how to install the pinned one: `scripts/toolchain/install.sh` puts it under `.tools/bin`, which `run.sh` and `gates.py` put first on `PATH`; `FORJATE_TOOLCHAIN=warn` runs on a different one anyway.
 
 Runs use **Opus** by default (`--model` or `FORJATE_EVAL_MODEL` to change) and 40 turns (`--max-turns` or `FORJATE_EVAL_MAX_TURNS`); the builders need `--max-turns 120`, a scaffold writes dozens of files and 40 turns end in `error_max_turns`, recorded as `is_error`. Every run has a timeout (`--timeout`, `FORJATE_EVAL_TIMEOUT`, default 1800 s): a hung `claude -p` is killed, not waited on. A run that hits the timeout or the account's session limit is recorded with `is_error: true` in `timing.json` and must be re-run; the benchmark is not meaningful until every row has a real duration. Run batches in series and never re-run an eval while another run of it is alive: each run owns one worktree.

@@ -18,6 +18,11 @@ on:
       - 'docs/use-case-builder/contracts.md'
       - '.claude-plugin/**'
       - '.github/workflows/validate-builder.yml'
+      - '.github/toolchain.env'
+      - 'scripts/gates/**'
+      - 'scripts/toolchain/**'
+      - 'scripts/ephemeral/**'
+      - 'k8s/overlays/usecases/**/app/**'
   push:
     branches: [main]
     paths:
@@ -27,6 +32,10 @@ on:
       - 'wiki/catalog.json'
       - 'wiki/catalog-*.yaml'
       - 'docs/use-case-builder/contracts.md'
+      - '.github/toolchain.env'
+      - 'scripts/gates/**'
+      - 'scripts/toolchain/**'
+      - 'scripts/ephemeral/**'
 
 jobs:
   builder:
@@ -70,7 +79,21 @@ jobs:
           done
           exit $fail
 
-      - name: Tooling tests
+      - name: Install the gate toolchain
+        # The tests run every gate check and gates.py, which refuse a yq other than the pinned one. kustomize
+        # and kubeconform are what the checks that build a stage need; a case fails, not skips, when one is missing.
+        run: |
+          set -euo pipefail
+          source .github/toolchain.env
+          sudo curl -sSL -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz" | tar xz kustomize
+          sudo mv kustomize /usr/local/bin/
+          curl -sSL "https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz" | tar xz kubeconform
+          sudo mv kubeconform /usr/local/bin/
+          yq --version && kustomize version && kubeconform -v
+
+      - name: Tooling tests (builder scripts, every gate check, the scaffold's static checks)
         run: poetry run pytest -q plugins/forjate/scripts/builder/tests
 
       - name: Skill lint

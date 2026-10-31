@@ -305,6 +305,9 @@ class Assembly:
             return head + dump(doc)
         port = w.get("port", 8000)
         if w.get("health_path"):
+            # A server that waits for its database before it listens refuses /healthz meanwhile: without a startup probe the
+            # liveness probe restarts it, and a client that calls it (the replay Job) meets the outage as a failed lookup.
+            container["startupProbe"] = {"httpGet": {"path": w["health_path"], "port": port}, "periodSeconds": 5, "failureThreshold": 36}
             container["livenessProbe"] = {"httpGet": {"path": w["health_path"], "port": port}, "initialDelaySeconds": 10, "periodSeconds": 15}
             container["readinessProbe"] = {"httpGet": {"path": "/readyz" if w["health_path"] == "/healthz" else w["health_path"], "port": port}, "initialDelaySeconds": 5, "periodSeconds": 5}
         container["ports"] = [{"containerPort": port}]

@@ -975,6 +975,10 @@ def merge_wiring(path: str, extra: dict, t: dict, cur: dict) -> list[str]:
             own = [n for n in t.get("secret_refs") or [] if not (n in shipped and extra.get("namespace"))]
             if own:
                 secret = {"name": own[0], "keys": []}  # the overlay supplies it; the keys are curated or written by hand
+    # a Secret the component ships under the same name the overlay supplies is a placeholder, whether a pod
+    # references it or a CRD does (an object store Tenant's `configuration.name`): deleted and replaced from Walk
+    if secret and secret.get("name") in shipped and secret["name"] not in placeholders:
+        placeholders.append(secret["name"])
     config = None
     if "config" in cw:
         config = cw["config"]

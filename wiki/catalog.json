@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-10-30",
+  "compiled_at": "2026-10-31",
   "stages": [
     "crawl",
     "walk",
@@ -3052,7 +3052,9 @@
             "config.env"
           ]
         },
-        "placeholder_secrets": [],
+        "placeholder_secrets": [
+          "minio-storage-configuration"
+        ],
         "config": null,
         "ingress": null,
         "gpu_limit": false,

@@ -65,6 +65,11 @@ patches:
     namespace: uc-invoice-intake-baseline
   patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: gotrue-secret\n"
 - target:
+    kind: Secret
+    name: minio-storage-configuration
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: minio-storage-configuration\n"
+- target:
     kind: Ingress
     name: formbricks-ingress
     namespace: uc-invoice-intake-baseline

@@ -835,3 +835,12 @@ def test_wiring_override_contradicting_the_tree_is_a_compile_error():
     extra = {"namespace": None}
     assert wc.merge_wiring("apps/x", extra, tree, {"wiring": {"protocol": "postgresql"}}) == []
     assert extra["wiring"]["secret"] == {"name": "postgres-secret", "keys": ["POSTGRES_PASSWORD"]} and extra["wiring"]["secret_mounted"]
+
+
+def test_quality_verify_without_a_reason_split_is_a_warning(usecase: Path):
+    _write_decision(usecase, "quality", {"crawl": {"choice": [], "settings": {"verify_assertions": ["4 conversations escalated to an agent", "KPI printed"]}, "rationale": "x"}})
+    _, warnings = validate_usecase(usecase)
+    assert any("without a reason split" in w for w in warnings)
+    _write_decision(usecase, "quality", {"crawl": {"choice": [], "settings": {"verify_assertions": ["expected escalations (4 address changes) exactly; unexpected escalations with reason lookup-failed or timeout = 0", "KPI printed"]}, "rationale": "x"}})
+    _, warnings = validate_usecase(usecase)
+    assert not any("without a reason split" in w for w in warnings)

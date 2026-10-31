@@ -38,6 +38,8 @@ Checks, per use case:
  11. supersede: a component chosen at one stage and absent at the next is covered by a
      same-capability component or named in a rationale at that stage (warning otherwise);
      the stage overlay drops it either way.
+ 12. verify by reason: a quality record whose verify_assertions exercise the escalation or
+     exception path separates expected handoffs from failures such as lookup-failed (warning).
 
 Exit 1 on any error. Warnings never fail the run.
 """
@@ -463,6 +465,30 @@ def supersede_findings(decisions: dict[str, dict], where: str) -> list[str]:
     return warnings
 
 
+ESCALATION_RE = re.compile(r"escalat|exception|hand.?(ed|s)? ?(over|off)|dead.?letter|review queue", re.I)
+REASON_RE = re.compile(r"expected|unexpected|by reason|reason|lookup.?failed|timeout|parse.?failed|unreachable", re.I)
+
+
+def verify_findings(decisions: dict[str, dict], where: str) -> list[str]:
+    """Check 12: a verify that counts escalations counts them by reason. A quality record whose
+    `verify_assertions` exercise the escalation or exception path without separating the expected
+    handoffs (the seed's refunds and mismatches) from failures (`lookup-failed`, `timeout`) hides an
+    unreachable dependency behind a rate; the #21 nightly passed and failed by timing on exactly that.
+    A warning, never an error: the record's words are the expert's."""
+    warnings: list[str] = []
+    q = decisions.get("quality")
+    if not q:
+        return warnings
+    for stage, sd in q["spec"]["stages"].items():
+        lines = (sd.get("settings") or {}).get("verify_assertions") or []
+        lines = lines if isinstance(lines, list) else [lines]
+        texts = [str(x) for x in lines]
+        if any(ESCALATION_RE.search(t) for t in texts) and not any(REASON_RE.search(t) for t in texts):
+            warnings.append(f"{where}: {stage}: verify_assertions count escalations or exceptions without a reason split "
+                            "(expected handoffs apart from lookup-failed, timeout, parse-failed); an unreachable dependency would read as a rate")
+    return warnings
+
+
 def gates_consolidation(decisions: dict[str, dict], gates: dict, skipped: set[str]) -> list[str]:
     """Check 7. Every record gate for a stage with a transition out of it is in gates.yaml."""
     warnings: list[str] = []
@@ -567,6 +593,7 @@ def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
     warnings += p_warns
     errors += autonomy_findings(brief, plan, decisions, str(b))
     warnings += supersede_findings(decisions, str(b / "decisions"))
+    warnings += verify_findings(decisions, str(b / "decisions" / "quality.yaml"))
 
     for role, run in planned_experts.items():
         if run and role not in found_areas:

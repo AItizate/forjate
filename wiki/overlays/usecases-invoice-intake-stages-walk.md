@@ -3,12 +3,12 @@ title: usecases-invoice-intake-stages-walk
 kind: overlay
 sources:
 - k8s/overlays/usecases/invoice-intake/stages/walk
-compiled_at: '2026-10-29'
+compiled_at: '2026-10-31'
 category: usecases
 parent: overlays/usecases-invoice-intake
 consumed_by:
 - overlays/usecases-invoice-intake-stages-run
-source_last_commit: '2026-10-29'
+source_last_commit: '2026-10-30'
 summary: 'walk stage of invoice-intake: recomposes the Crawl root (base, Crawl components,
   the namespace child) and adds what the records require for walk, nothing the plan
   put out of scope'

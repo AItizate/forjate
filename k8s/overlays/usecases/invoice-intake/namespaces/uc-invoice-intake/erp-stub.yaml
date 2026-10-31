@@ -55,6 +55,12 @@ spec:
         volumeMounts:
         - name: writable-0
           mountPath: /tmp
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 8001
+          periodSeconds: 5
+          failureThreshold: 36
         livenessProbe:
           httpGet:
             path: /healthz

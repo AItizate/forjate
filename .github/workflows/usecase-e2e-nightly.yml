@@ -45,6 +45,11 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Sample disk use
+        run: |
+          # Peak disk use is part of what the nightly costs (#21); the report step reads this log.
+          nohup bash -c 'while :; do df -k --output=used / | tail -1 >> "$RUNNER_TEMP/disk-used.log"; sleep 15; done' >/dev/null 2>&1 &
+
       - name: Install tools
         run: |
           set -euo pipefail
@@ -70,3 +75,14 @@ jobs:
       - name: Tear down
         if: always()
         run: ./scripts/ephemeral/ephemeral.sh down "${{ matrix.usecase }}" || true
+
+      - name: Report disk use
+        if: always()
+        run: |
+          log="$RUNNER_TEMP/disk-used.log"
+          first="$(head -1 "$log")"; peak="$(sort -n "$log" | tail -1)"
+          {
+            echo "### ${{ matrix.usecase }}: disk"
+            echo "Root volume used: $((first / 1024)) MiB at start, $((peak / 1024)) MiB at peak (+$(((peak - first) / 1024)) MiB); free now $(df -h --output=avail / | tail -1 | tr -d ' ')."
+            echo '```'; docker system df; echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"

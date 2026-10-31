@@ -133,8 +133,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
-          "expr": "setting('kill_switch', 'walk') in ('gateway-key-revocation', 'ingress-permission') and setting('kill_switch', 'run') == 'ingress-permission'",
-          "text": "a kill switch named from Walk, the ingress permission at Run"
+          "expr": "setting('kill_switch', 'walk') in ('gateway-key-revocation', 'ingress-permission') and setting('kill_switch', 'run') in ('gateway-key-revocation', 'ingress-permission') and (setting('kill_switch', 'run') == 'ingress-permission' or any(has('ingress', a.get('option')) for a in alts()))",
+          "text": "a kill switch named from Walk; at Run the ingress permission, or the gateway key with the ingress rejected for a reason"
         },
         {
           "type": "yaml_expr",
@@ -392,7 +392,7 @@
         },
         {
           "type": "yaml_expr",
-          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
           "expr": "setting('secrets_mechanism', 'walk') not in (None, 'secret-generator') and setting('secret_scan', 'walk') == 'ci'",
           "text": "secrets stay on a ranked mechanism at Walk, never a literal"
         },

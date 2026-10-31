@@ -3,10 +3,10 @@ title: usecases-invoice-intake-stages-run
 kind: overlay
 sources:
 - k8s/overlays/usecases/invoice-intake/stages/run
-compiled_at: '2026-10-30'
+compiled_at: '2026-10-31'
 category: usecases
 parent: overlays/usecases-invoice-intake
-source_last_commit: '2026-10-30'
+source_last_commit: '2026-10-31'
 summary: 'run stage of invoice-intake: extends ../walk and adds what the records require
   for run, nothing the plan put out of scope'
 summary_source: derived

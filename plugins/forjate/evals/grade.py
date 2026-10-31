@@ -322,7 +322,7 @@ def main(argv: list[str]) -> int:
         models = ",".join(m.replace("claude-", "") for m in timing.get("models", []))
         if timing.get("is_error"):
             models = f"ERROR: {timing.get('error') or 'is_error'}"
-        rows.append((g["eval_name"], run_dir.name, g["pass_rate"], timing.get("total_duration_seconds"), timing.get("total_cost_usd"), timing.get("num_turns"), models, g.get("quality") or {}))
+        rows.append((g["eval_name"], run_dir.name, g["pass_rate"], timing.get("wall_seconds") or timing.get("total_duration_seconds"), timing.get("total_cost_usd"), timing.get("num_turns"), models, g.get("quality") or {}))
     lines = [f"# Benchmark — {it.parent.name} / {it.name}", "", "| eval | config | pass rate | seconds | cost USD | turns | models |", "|---|---|---|---|---|---|---|"]
     for name, cfg, pr, secs, cost, turns, models, _q in rows:
         lines.append(f"| {name} | {cfg} | {pr:.0%} | {secs if secs is None else round(secs)} | {cost if cost is None else round(cost, 3)} | {turns} | {models} |")

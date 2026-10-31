@@ -100,14 +100,15 @@ run_one() {  # <eval-name> <prompt> <with|without>
   done
   wait "$pid" || rc=$?
   [[ $rc -ne 0 ]] && echo "    claude exited $rc (see stderr.log)"
-  python3 - "$dir" "$rc" "$timeout_s" <<'PY'
+  local wall=$(( $(date +%s) - started ))
+  python3 - "$dir" "$rc" "$timeout_s" "$wall" <<'PY'
 import json, sys, pathlib
-d = pathlib.Path(sys.argv[1]); r = d / "result.json"; rc = int(sys.argv[2]); timeout_s = int(sys.argv[3])
+d = pathlib.Path(sys.argv[1]); r = d / "result.json"; rc = int(sys.argv[2]); timeout_s = int(sys.argv[3]); wall = int(sys.argv[4])
 try:
     raw = r.read_text()
     if rc in (124, 137, 143) or (rc != 0 and not raw.strip()):
         (d / "timing.json").write_text(json.dumps({
-            "duration_ms": None, "total_duration_seconds": None, "num_turns": None, "total_cost_usd": None,
+            "duration_ms": None, "total_duration_seconds": None, "wall_seconds": wall, "num_turns": None, "total_cost_usd": None,
             "total_tokens": 0, "models": [], "is_error": True,
             "error": f"killed after {timeout_s}s timeout" if rc in (124, 137, 143) else f"claude exited {rc} with no output",
         }, indent=2))
@@ -115,6 +116,8 @@ try:
     j = json.loads(raw)
     (d / "timing.json").write_text(json.dumps({
         "duration_ms": j.get("duration_ms"), "total_duration_seconds": (j.get("duration_ms") or 0)/1000,
+        # claude -p counts the top-level session only; a coordinator that waits on background agents runs far longer.
+        "wall_seconds": wall,
         "num_turns": j.get("num_turns"), "total_cost_usd": j.get("total_cost_usd"),
         "total_tokens": (j.get("usage") or {}).get("input_tokens", 0) + (j.get("usage") or {}).get("output_tokens", 0),
         "models": sorted((j.get("modelUsage") or {}).keys()),

@@ -54,5 +54,5 @@ Pack overrides: <from gates.yaml, or none>
 <expert roles the plan runs but that produced no record, with the reason: no agent yet, or failed>
 
 ## Log
-<last five lines of log.md>
+<last five lines of log.md, copied, never composed: a step the log does not record is a step to log now, before the report>
 ```

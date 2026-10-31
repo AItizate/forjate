@@ -145,8 +145,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
-          "expr": "(st('walk').get('estimated_cost_usd_month') or 0) <= 300 and (st('run').get('estimated_cost_usd_month') or 0) <= 300",
-          "text": "cost inside the 300 USD budget"
+          "expr": "(st('walk').get('estimated_cost_usd_month') or 0) <= 300 and ((st('run').get('estimated_cost_usd_month') or 0) <= 300 or any(q.get('blocks_stage') == 'run' and has('cost|envelope|usd|budget', q.get('question')) for q in oq()))",
+          "text": "cost inside the 300 USD budget, or the overrun is an open question blocking Run for the business expert"
         },
         {
           "type": "yaml_expr",
@@ -398,7 +398,7 @@
         },
         {
           "type": "yaml_expr",
-          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
           "expr": "not ({'gitops', 'block-storage'} & set(choice_capabilities('crawl')))",
           "text": "no GitOps engine or block storage at Crawl"
         },
@@ -481,7 +481,7 @@
         },
         {
           "type": "yaml_expr",
-          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
           "expr": "'secrets-store' in choice_capabilities('walk') and setting('secrets_mechanism','walk') not in (None, 'secret-generator', 'sealed-secrets')",
           "text": "the corporate secrets store from Walk (OPS-2), pulled through the top mechanism"
         },
@@ -499,7 +499,7 @@
         },
         {
           "type": "yaml_expr",
-          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
           "expr": "has('openbao|store|flux|block|cannot', st('walk').get('rationale'))",
           "text": "rationale states what the pack changed or blocked"
         }

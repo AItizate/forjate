@@ -3,6 +3,7 @@
 # scripts/toolchain/toolchain.sh finds them before anything else on PATH. Your own yq is not touched.
 #
 #   scripts/toolchain/install.sh
+# shellcheck source-path=SCRIPTDIR
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

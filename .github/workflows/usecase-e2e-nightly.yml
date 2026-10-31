@@ -63,8 +63,13 @@ jobs:
           tar xzf kubeconform-linux-amd64.tar.gz && sudo mv kubeconform /usr/local/bin/
           pipx install poetry && poetry install --no-root
 
-      - name: Crawl on k3d (ephemeral.sh up blocks on the verify Job)
-        run: ./scripts/ephemeral/ephemeral.sh up "${{ matrix.usecase }}"
+      - name: Crawl on k3d (ephemeral.sh up blocks on the verify Job, twice on the same seed)
+        # --stability asserts the two health signals (#41): no container restarted after either verify,
+        # and the verify's KPI/EVAL lines are equal on the second up. The HEALTH lines go to the summary.
+        run: |
+          set -euo pipefail
+          ./scripts/ephemeral/ephemeral.sh up "${{ matrix.usecase }}" --stability | tee up.log
+          { echo "### ${{ matrix.usecase }}: health"; echo '```'; grep '^HEALTH ' up.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Gates crawl->walk
         run: |

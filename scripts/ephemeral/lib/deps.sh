@@ -43,7 +43,7 @@ require_yq_v4() {
   local toolchain
   toolchain="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../toolchain" && pwd)/toolchain.sh"
   if [ -f "$toolchain" ]; then
-    # shellcheck source=../../toolchain/toolchain.sh
+    # shellcheck disable=SC1090,SC1091  # the pinned-toolchain helper, resolved at run time
     source "$toolchain"
     toolchain_path
     toolchain_check yq || exit 1

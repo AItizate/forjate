@@ -31,6 +31,8 @@ source "${SCRIPT_DIR}/lib/cluster.sh"
 source "${SCRIPT_DIR}/lib/usecase.sh"
 # shellcheck source=lib/job.sh
 source "${SCRIPT_DIR}/lib/job.sh"
+# shellcheck source=lib/health.sh
+source "${SCRIPT_DIR}/lib/health.sh"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -135,7 +137,8 @@ managed_namespaces() {
 
 # ── Commands ─────────────────────────────────────────────────────────────────
 
-cmd_up() {
+# One pass: cluster, images, overlay, then seed -> run -> verify, then the health signals.
+up_once() {
   local name="${1:?use case name required}"
   require_cmds k3d kubectl yq docker
   require_yq_v4
@@ -199,12 +202,53 @@ cmd_up() {
       || error "Use case '${name}' failed at the '${phase}' phase"
   done
 
+  section "Health"
+  record_health "$name" "$ns"
+  [ "$HEALTH_RESTARTS" -eq 0 ] || warn "${HEALTH_RESTARTS} container restart(s) after the verify Job"
+
   section "Ready"
   log "Use case '${name}' is up and validated"
   uc_print_outputs "$name"
   echo ""
   echo "  kubectl --kubeconfig $(kubeconfig_path "$cluster") -n ${ns} get pods"
   echo "  ./scripts/ephemeral/ephemeral.sh down ${name}"
+  rm -f "$manifest"
+}
+
+# up <use-case> [--stability]
+# --stability brings it up a second time on the same seed and asserts the two health signals: no container
+# restarted after either verify, and the verify's KPI/EVAL lines are equal. Without it `up` only prints them.
+cmd_up() {
+  local name="" stability=0 arg
+  for arg in "$@"; do
+    case "$arg" in
+      --stability) stability=1 ;;
+      -*) error "Unknown flag for up: ${arg}" ;;
+      *) name="$arg" ;;
+    esac
+  done
+  [ -n "$name" ] || error "use case name required"
+
+  up_once "$name"
+  [ "$stability" -eq 1 ] || return 0
+
+  local first_kpis="$HEALTH_KPIS" restarts="$HEALTH_RESTARTS" failed=0
+  section "Second up on the same seed"
+  up_once "$name"
+  section "Stability"
+  compare_kpis "$first_kpis" "$HEALTH_KPIS" || failed=1
+  restarts=$(( restarts + HEALTH_RESTARTS ))
+  echo "HEALTH restarts_total=${restarts}"
+  [ "$restarts" -eq 0 ] || failed=1
+  if [ -z "$first_kpis" ] && [ -z "$HEALTH_KPIS" ]; then
+    warn "The verify Job prints no KPI/EVAL line, so the second signal measured nothing"
+  fi
+  if [ "$failed" -ne 0 ]; then
+    echo "HEALTH stability=fail"
+    error "Use case '${name}' is not stable: restarts after verify ${restarts}, see the HEALTH lines above"
+  fi
+  echo "HEALTH stability=pass"
+  log "Use case '${name}' is stable: no restarts, same KPI on a second up"
 }
 
 # Re-run a single lifecycle Job against a live environment.
@@ -400,6 +444,7 @@ ephemeral.sh — runner for ephemeral use-case environments
 
 Usage:
   ./ephemeral.sh up <use-case>          Bring the environment up and validate it
+  ./ephemeral.sh up <use-case> --stability   ...twice on the same seed; fail on a restart after verify or a moved KPI
   ./ephemeral.sh seed <use-case>        Re-run only the seed Job
   ./ephemeral.sh validate <use-case>    Re-run only the verify Job
   ./ephemeral.sh down <use-case>        Tear the environment down
@@ -410,7 +455,9 @@ Usage:
 
 `up` is idempotent: it redeploys the overlay and re-runs seed -> run -> verify.
 It blocks until the verify Job exits 0, so a zero exit status means the
-environment is genuinely ready to use.
+environment is genuinely ready to use. It then prints HEALTH lines: the container
+restarts since the verify (expected 0) and, with --stability, whether a second
+`up` on the same seed gives the same KPI/EVAL lines (expected equal).
 
 Use cases live in k8s/overlays/usecases/<name>/ and declare themselves in a
 usecase.yaml contract. Create one with:
@@ -431,7 +478,7 @@ EOF
 # ── Dispatch ─────────────────────────────────────────────────────────────────
 
 case "${1:-help}" in
-  up)       cmd_up "${2:-}" ;;
+  up)       shift; cmd_up "$@" ;;
   seed)     cmd_run_phase seed "${2:-}" ;;
   validate) cmd_run_phase verify "${2:-}" ;;
   down)     cmd_down "${2:-}" ;;

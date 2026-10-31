@@ -8,7 +8,7 @@ category: usecases
 parent: overlays/usecases-invoice-intake
 consumed_by:
 - overlays/usecases-invoice-intake-stages-run
-source_last_commit: '2026-10-30'
+source_last_commit: '2026-10-31'
 summary: 'walk stage of invoice-intake: recomposes the Crawl root (base, Crawl components,
   the namespace child) and adds what the records require for walk, nothing the plan
   put out of scope'
@@ -77,8 +77,8 @@ summary_source: derived
 - `inline → Secret/postgres-secret (ns: uc-invoice-intake)`
 - `inline → Secret/minio-secret (ns: uc-invoice-intake)`
 - `inline → Secret/approval-secret (ns: uc-invoice-intake)`
-- `inline → Secret/litellm-secret (ns: uc-invoice-intake-baseline)`
 - `inline → Secret/gotrue-secret (ns: uc-invoice-intake-baseline)`
+- `inline → Secret/minio-storage-configuration (ns: uc-invoice-intake)`
 - `inline → Ingress/formbricks-ingress (ns: uc-invoice-intake-baseline)`
 - `patches/argocd-psa-patch.yaml → Namespace/argocd`
 - `patches/longhorn-system-psa-patch.yaml → Namespace/longhorn-system`
@@ -93,7 +93,7 @@ summary_source: derived
 
 ### Consumed by
 
-- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md)
+- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md) — resource, via relocated
 
 <!-- END DECLARED -->
 

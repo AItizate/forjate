@@ -52,7 +52,7 @@ Every arrow is a file in git, so a person can stop, read and change course at an
 | | Crawl | Walk | Run |
 |---|---|---|---|
 | proves | the automation on seeded data, one user, on k3d via `ephemeral.sh` | real users rely on it on one cluster under GitOps | SLAs, audits, multi-tenancy |
-| secrets | `secretGenerator` from `.env.example` | Sealed Secrets, every generated Secret deleted and replaced | External Secrets or Vault when a pack asks |
+| secrets | `secretGenerator` from `.env.example` | the first ranked `secrets-mechanism` (Sealed Secrets today), every generated Secret deleted and replaced | the top-ranked mechanism (External Secrets today) pulling from a `secrets-store` (OpenBao) when a pack asks |
 | hardening | restricted-compatible workloads, PSA warn/audit | PSA enforced, default-deny NetworkPolicies, egress allow-list, auth in front of every human surface | plus the per-workload matrix when required, pinned digests |
 | delivery | the working tree, the TTL is the rollback | ArgoCD Application on a tag with selfHeal, image write-back into `images:` | prune after a dry run, signed images |
 | model | the deterministic double in CI (`MODEL_MODE=replay` or `rules`), the local model for the demo | the live model | same |

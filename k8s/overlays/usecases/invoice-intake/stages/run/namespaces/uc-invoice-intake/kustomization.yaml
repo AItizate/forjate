@@ -2,9 +2,8 @@
 namespace: uc-invoice-intake
 resources:
 - externalsecrets/postgres-secret.yaml
-- externalsecrets/minio-secret.yaml
-- externalsecrets/approval-secret.yaml
 - externalsecrets/minio-storage-configuration.yaml
+- externalsecrets/approval-secret.yaml
 - externalsecrets/imap-mailbox-secret.yaml
 - externalsecrets/odoo-rest-api-secret.yaml
 - aliases.yaml

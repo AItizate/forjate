@@ -6,7 +6,7 @@ sources:
 compiled_at: '2026-10-31'
 category: usecases
 parent: overlays/usecases-invoice-intake
-source_last_commit: '2026-10-30'
+source_last_commit: '2026-10-31'
 summary: 'run stage of invoice-intake: extends ../walk and adds what the records require
   for run, nothing the plan put out of scope'
 summary_source: derived
@@ -28,7 +28,7 @@ summary_source: derived
 
 ### Declared resources
 
-- `../walk`
+- `./relocated`
 - `../../../../../components/apps/security/external-secrets`
 - `./namespaces/uc-invoice-intake`
 - `./namespaces/uc-invoice-intake-baseline`
@@ -41,7 +41,7 @@ summary_source: derived
 
 ### Depends on
 
-- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md)
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via relocated
 - [components/security-external-secrets](../components/security-external-secrets.md)
 - [components/ai-models-vllm](../components/ai-models-vllm.md) — resource, via namespaces/uc-invoice-intake-baseline
 - [components/monitoring-otel-collector](../components/monitoring-otel-collector.md) — resource, via namespaces/otel-collector
@@ -50,13 +50,11 @@ summary_source: derived
 
 - `patches/namespace-psa-patch.yaml → Namespace/uc-invoice-intake`
 - `inline → SealedSecret/postgres-secret (ns: uc-invoice-intake)`
-- `inline → SealedSecret/minio-secret (ns: uc-invoice-intake)`
-- `inline → SealedSecret/approval-secret (ns: uc-invoice-intake)`
 - `inline → SealedSecret/minio-storage-configuration (ns: uc-invoice-intake)`
+- `inline → SealedSecret/approval-secret (ns: uc-invoice-intake)`
 - `inline → SealedSecret/imap-mailbox-secret (ns: uc-invoice-intake)`
 - `inline → SealedSecret/odoo-rest-api-secret (ns: uc-invoice-intake)`
 - `inline → SealedSecret/postgres-secret (ns: uc-invoice-intake-baseline)`
-- `inline → SealedSecret/minio-secret (ns: uc-invoice-intake-baseline)`
 - `inline → SealedSecret/litellm-secret (ns: uc-invoice-intake-baseline)`
 - `inline → SealedSecret/gotrue-secret (ns: uc-invoice-intake-baseline)`
 - `inline → SealedSecret/formbricks-secret (ns: uc-invoice-intake-baseline)`

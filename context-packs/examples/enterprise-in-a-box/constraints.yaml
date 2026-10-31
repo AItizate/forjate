@@ -6,9 +6,9 @@ rules:
     stages: [crawl]
     reason: A PoC proves the reasoning, not the right to act; autonomy grows with evidence and a gate.
   AUT-2:
-    type: require_setting
+    type: deny_setting_value
     target: write_actions
-    value: approval-required
+    value: [registered-tools-only, autonomous]
     stages: [crawl, walk]
     reason: Writes outside registered tools, or without a human gate, are the failure mode regulators ask about first.
   EXE-1:
@@ -17,9 +17,9 @@ rules:
     value: "*"
     reason: Loops and cascades terminate deterministically only when steps, timeouts and delegation depth are bounded.
   EXE-2:
-    type: require_setting
+    type: deny_setting_value
     target: intent_validation
-    value: enabled
+    value: [disabled]
     reason: A judge step between proposed tool call and execution blocks hallucinated or out-of-policy actions.
   EXE-3:
     type: require_setting

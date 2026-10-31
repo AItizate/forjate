@@ -78,6 +78,7 @@ Every curated component in `wiki/catalog-overrides.yaml` carries, besides `capab
 | `secrets` | `takes`: `none`, `env`, `sealed`, `unknown`; `mechanism`, `rank` on secrets-mechanism components | what the overlay must supply; the ladder |
 | `data_classes` | subset of `internal`, `pii`, `financial`, `health`, `secret`; `[]` touches no use-case data | what the component can hold or transit when configured for it; the brief's classification must be in the list (or `none`) |
 | `licence`, `notes` | free text | for compliance; one line for the experts |
+| `wiring` | `service`, `port`, `protocol`, `label`, `workload`, `secret` (`name`, `keys`), `placeholder_secrets`, `config` (`name`, `literals`), `ingress`, `gpu_limit`, `hostpath_volumes`, `sizing`, `extra_ports` | **derived** by `wiki-compile.py` from the component's manifests (its Services, pod templates, Secret and ConfigMap references, shipped placeholders, Ingresses, `*.env.example` files); curated in `catalog-overrides.yaml` only for what the tree cannot say (the protocol, laptop sizing, a Secret a bare Pod takes but never references, the Service of a bundle that ships several). The kustomize assembly wires every component from it and names none; a curated service or secret the tree contradicts is a compile error |
 
 Selection order when several candidates remain: stage fitness, pack rules (`deny_components`, `allow_components_only`), data classes against the brief, GPU against the environment, HA against the stage's exit criteria, maturity, licence. Record the rejected candidates in `alternatives` with the criterion that excluded them.
 
@@ -106,6 +107,9 @@ The one shape every expert returns. Per stage: what was chosen (`choice`, catalo
 | `auth_in_front` | architecture, security, ux | cross-record consistency (check 6) |
 | `judge`, `kpi_metric_source`, `regression_trigger` | quality | `require_setting`, `deny_setting_value` |
 | `surface`, `feedback_capture` | ux | `deny_setting_value` (with `target`) |
+| `runtime` | architecture (`python` / `typescript` / `go`, within the brief's `constraints.stack`); app-scaffold copies it into `scaffold.yaml` and follows it | `require_setting`, `deny_setting_value`; the scaffold never falls back to another runtime silently |
+| `autonomy` | ai-engineering, ux, quality (from the plan's ceiling) | check 10 (never above the plan); cross-record consistency (check 6) |
+| `write_actions`, `intent_validation`, `kill_switch`, `model_pinning`, `fallback_policy`, `audit_artifacts`, `open_standards`, `scope_isolation` | the owner and the experts a pack rule applies to ("Governance settings") | cross-record consistency (check 6); `require_setting`, `deny_setting_value` |
 | any key | any | `require_setting`, `deny_setting_value` (with `target`) |
 
 The full key set each expert emits is documented in `experts.md`.
@@ -121,6 +125,37 @@ The use case's own namespace is never an exception and never lowered.
 
 Plus `estimated_cost_usd_month` at stage level, matched by `max_cost_usd_month`.
 
+### Governance settings
+
+The posture an enterprise expects of an agentic system (bounded execution, intent validation before a write, a kill switch, memory with a scope, audit artifacts per action, review that validates, an operating model) is written into the records as **settings every expert emits by default**, so it holds without a pack; a context pack only tightens the value with `require_setting` / `deny_setting_value` (`context-packs/examples/enterprise-in-a-box` is the reference pack and uses exactly these keys). Each skill documents the keys it owns in its `## Governance posture` section, with the rule and its reason; this table is the vocabulary, and a test keeps the table, the skills and the pack equal. A key has one **owner**; the experts a pack rule `applies_to` copy the owner's value (check 6 treats a silent difference as a conflict, like `psa_level`). Values are closed enums or lists of `<name>: <text>` lines, so the validator can match them.
+
+| key | values | owner | copied by | default Crawl → Walk → Run | pack rule |
+|-----|--------|-------|-----------|-----------------------------|-----------|
+| `autonomy` | `assistive` / `semi-autonomous` / `autonomous` | stage-planner (plan `stages.<s>.autonomy`) | ai-engineering, ux, quality | `assistive` → ≤ `semi-autonomous` → ≤ the brief's `autonomy` | AUT-1 (`require_setting`) |
+| `write_actions` | `none` / `approval-required` / `registered-tools-only` / `autonomous` | ai-engineering | security, quality | `none` when no tool writes (the person acts), `approval-required` as soon as one does → `approval-required` → `registered-tools-only`, `autonomous` only per action with a gate | AUT-2 (`deny_setting_value: [registered-tools-only, autonomous]` until Run) |
+| `execution_bounds` | list `max_steps=<n>`, `step_timeout_s=<n>`, `delegation_depth=<n>`, `budget_tokens=<n>` | ai-engineering | architecture, quality | set at every stage; Crawl may be generous, never absent | EXE-1 |
+| `intent_validation` | `disabled` / `schema` / `policy-judge` | ai-engineering | security | `schema` → `policy-judge` when any tool writes → `policy-judge` | EXE-2 (`deny_setting_value: [disabled]`) |
+| `kill_switch` | `none` / `gateway-key-revocation` / `ingress-permission` | security | ai-engineering, devops | `none` → `gateway-key-revocation` → `ingress-permission`, rehearsed (`G-SEC-<n>`) | EXE-3 (via `auth_in_front`) |
+| `model_pinning` | `pinned` / `floating` | ai-engineering | compliance | `pinned` at every stage | MOD-1 |
+| `fallback_policy` | `none` / `same-tier` / `lower-tier` / `any` | ai-engineering | security | `none` → `same-tier` → `same-tier` | MOD-2 (`deny_setting_value: [lower-tier, any]`) |
+| `semantic_memory_strategy` | `none` / `api-lookup` / `runtime-retrieval` / `compiled-knowledge` (list allowed) | ai-engineering | data-store | `api-lookup` when the facts live in an API or a table; `runtime-retrieval` or `compiled-knowledge` only with a corpus | — |
+| `memory_scopes` | list `<kind>: <scope>`, scope in `session` / `user` / `project` / `org` | data-store | ai-engineering | every kind in `memory_kinds` has a scope at every stage | MEM-1 |
+| `scope_isolation` | `key-prefix` / `schema-per-tenant` / `database-per-tenant` / `cluster-per-tenant` | data-store | security, devops | `key-prefix` → the floor the brief's `isolation` implies (`logical` ≥ `schema-per-tenant`, `physical` = `cluster-per-tenant`) | — |
+| `audit_artifacts` | `none` / `run-trace` / `per-action` | quality | compliance, ai-engineering, devops | `run-trace` → `per-action` (a gate) → `per-action` | AUD-1 |
+| `eval_dimensions` | list `<dimension>: <how measured>`; the seven factory dimensions are the floor | quality (consolidates) | any expert may contribute lines | the seven at every stage a model is in the loop | — |
+| `open_standards` | `all-layers` / `partial` / `n-a`; exceptions in `open_standards_exceptions` | architecture | devops, compliance | `all-layers` when the brief sets `open_standards_required`; otherwise `partial` with the exceptions named | STD-1 |
+| `review_mode` | `evidence-first` / `verdict-only` / `n-a` | ux | quality | `evidence-first` wherever a checkpoint exists | REVIEW |
+| `review_independence` | `independent` / `sequential` / `n-a` | ux | — | `independent` where the decision is regulated or irreversible (`risk_profile`) | REVIEW |
+| `control_levels` | list `<persona>: direct\|approve\|audit\|operate` | ux | security | one line per human actor from Walk | REVIEW |
+| `disclosure` | list `<point>: <what the user is told>`, or `none` with the reason | ux | — | required from Walk when the surface is `customer-facing` | REVIEW |
+| `raci` | list `<activity>: R=<role> A=<role>` | business | coordinator (report) | the four activities (agent design, operation and review, integration, risk and audit) | OPMODEL |
+| `operating_model` | `co-delivery` / `internal` / `vendor-delivered` | business | — | `co-delivery` unless the brief says the organisation builds alone | OPMODEL |
+| `adoption_frictions` | list `<friction>: <owner>, <mitigation>` for data readiness, Infosec approval, change management | business | — | the three, each with an owner, mirrored in `risks` | OPMODEL |
+| `severities` | list `S1: ...` to `S4: ...`, S1 with on-call | devops | — | from Walk | OPMODEL |
+| `model_register` | `none` / `in-record` / `org-register:<ref>` | compliance | — | `in-record` → `in-record` → `org-register:<ref>` or an open question | MODELGOV |
+
+The seven factory evaluation dimensions, and which expert measures each, are in `plugins/forjate/skills/quality/references/eval-dimensions.md`.
+
 ## What `validate.py` checks
 
 1. Schema validity of every artifact.
@@ -132,7 +167,10 @@ Plus `estimated_cost_usd_month` at stage level, matched by `max_cost_usd_month`.
 7. Gates consolidation: when `gates.yaml` exists, every gate id a record emits in `gate_to_next` for a stage with a transition out of it appears under that transition (warning otherwise), and every `pack_overrides.rule` exists in an active pack (error otherwise).
 8. `ci` gate refs: a gate whose `check.type` is `ci` names a script in `scripts/gates/checks/` (the directory is the enum the gates runner executes). An unknown ref is an error in `gates.yaml` and a warning in a record's `gate_to_next`; when no checks directory is reachable (a tenant repo without the factory checked out) the check is skipped with a warning and `FORJATE_ROOT` points the validator at one.
 
-9. PSA exceptions: an entry in `psa_exceptions` that names the use case's namespace or a component outside the catalog is an error; one at or above the stage's level, or listing a component no record runs at that stage, or putting a shared component in another namespace than the catalog's, is a warning. Every component a stage runs (the records' choices up to it: stage overlays add, never remove) whose catalog `psa_level` is below the stage's `psa_level` and that no entry covers is a warning, grouped per shared namespace or listed as would-run-in-`uc-<name>`. Where a component runs and the level it meets come from `wiki/catalog.json`; the validator names no component.
+9. PSA exceptions: an entry in `psa_exceptions` that names the use case's namespace or a component outside the catalog is an error; one at or above the stage's level, or listing a component no record runs at that stage, or putting a shared component in another namespace than the catalog's, is a warning. Every component a stage runs (the records' choices **at that stage**, the set the assembly builds the stage overlay from; see 11) whose catalog `psa_level` is below the stage's `psa_level` and that no entry covers is a warning, grouped per shared namespace or listed as would-run-in-`uc-<name>`. Where a component runs and the level it meets come from `wiki/catalog.json`; the validator names no component.
+10. Autonomy: the plan's Crawl `autonomy` is `assistive`; no stage's ceiling exceeds the brief's `autonomy`; no record's `settings.autonomy` exceeds the plan's ceiling for its stage. Errors: a wrong ceiling is a wrong contract.
+11. Supersede: a component some record chose at one stage and no record chooses at the next is superseded by a component of the same capability at that stage, or dropped on purpose; when neither a same-capability replacement exists nor a rationale at that stage names it, a warning says the stage overlay drops it. Stage overlays are built from each stage's own set (`common.stage_components`, shared by the validator and the assembly): a Crawl-only component (a dev object store, a CPU inference server) leaves the build at Walk through a `$patch: delete` in the stage's relocation layer, and its Secret leaves with it.
+12. Verify by reason: a quality record whose `verify_assertions` exercise the escalation or exception path separates the expected handoffs (the seed's refunds and mismatches) from failures (`lookup-failed`, `timeout`, `parse-failed`); otherwise a warning, because an unreachable dependency would read as a rate (the #21 nightly).
 
 Warnings never fail CI; errors do.
 

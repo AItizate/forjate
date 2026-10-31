@@ -207,7 +207,7 @@ spec:
       psa_exceptions:
         - namespace: uc-invoice-intake-baseline
           level: baseline
-          components: [apps/ai-models/ollama, apps/ai-models/litellm, apps/document-processing/docling, apps/databases/postgres, apps/minio/dev, apps/auth/gotrue-auth, apps/surveys/formbricks]
+          components: [apps/ai-models/ollama, apps/ai-models/litellm, apps/document-processing/docling, apps/databases/postgres, apps/auth/gotrue-auth, apps/surveys/formbricks]
           owner: platform team
           reason: >-
             the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is
@@ -311,7 +311,7 @@ spec:
       psa_exceptions:
         - namespace: uc-invoice-intake-baseline
           level: baseline
-          components: [apps/ai-models/ollama, apps/ai-models/litellm, apps/document-processing/docling, apps/databases/postgres, apps/minio/dev, apps/auth/gotrue-auth, apps/surveys/formbricks, apps/ai-models/vllm]
+          components: [apps/ai-models/litellm, apps/document-processing/docling, apps/databases/postgres, apps/auth/gotrue-auth, apps/surveys/formbricks, apps/ai-models/vllm]
           owner: platform team
           reason: >-
             the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is
@@ -319,7 +319,6 @@ spec:
             invoice workloads stay restricted in uc-invoice-intake
           risk: R4
         - { namespace: argocd, level: baseline, components: [apps/continuous-delivery/argocd], owner: platform team, reason: "ArgoCD is not proven under restricted in the catalog (psa_level baseline)" }
-        - { namespace: kube-system, level: privileged, components: [apps/sealed-secrets], owner: cluster admin, reason: "the controller runs in the cluster's own namespace, which a use case never labels" }
         - { namespace: longhorn-system, level: privileged, components: [apps/storage/longhorn], owner: platform team, reason: "the CSI driver and the engine need privileged containers and hostPath" }
         - { namespace: metallb-system, level: privileged, components: [apps/networking/metallb], owner: platform team, reason: "the speaker needs hostNetwork and NET_RAW" }
         - { namespace: monitoring, level: baseline, components: [apps/monitoring/prometheus, apps/monitoring/grafana], owner: platform team, reason: "not proven under restricted in the catalog (psa_level baseline)" }

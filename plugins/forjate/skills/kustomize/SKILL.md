@@ -18,7 +18,7 @@ You are the only skill in the forjate plugin that writes Kubernetes YAML. Expert
 python3 -c "import json;[print(c['path'],c['stages'],c['capabilities']) for c in json.load(open('wiki/catalog.json'))['components'] if 'semantic-memory' in c['capabilities']]"
 ```
 
-Then open `wiki/components/<name>.md` for the declared resources and `docs/apps/<name>.md` for how to configure it. A component that is not in the catalog does not exist for you; if an expert asked for one, hand back an open question instead of inventing a directory.
+Each record also carries `wiring` (service, port, protocol, pod label, the Secret and keys the overlay supplies, placeholders, a ConfigMap to generate, an Ingress, laptop sizing), derived from the manifests; the assembly wires every component from it. Then open `wiki/components/<name>.md` for the declared resources and `docs/apps/<name>.md` for how to configure it. A component that is not in the catalog does not exist for you; if an expert asked for one, hand back an open question instead of inventing a directory.
 
 ## Shape of a use-case overlay
 
@@ -56,7 +56,7 @@ Then wire in components, fill the Jobs, and add generators and patches. `k8s/ove
 - **Contract matches the overlay**: `metadata.name` equals the directory; every Job in `spec.jobs` exists in the built manifest and ships `spec.suspend: true` (the runner un-suspends them in order).
 - **Secrets**: every `.env` a `secretGenerator` reads, and every `sealed-*.yaml` from Walk, has a committed `.env.example` with placeholder values at the same path and a header carrying the `# To generate:` and `# To seal:` commands (the security skill's rule; the recipe travels with the secret). CI and the runner `cp` examples to real files. From Walk a factory placeholder Secret is removed with `$patch: delete` and replaced by a SealedSecret of the same name (`references/patterns.md`). No plaintext credential anywhere else: `plugins/forjate/scripts/builder/secret-scan.py <usecase-dir>` runs in CI (`validate-kustomize`) and as the `secret-scan` gate over `configMapGenerator` literals, `configs/`, patches, env values and tracked `.env` files.
 - **Namespace**: declared explicitly in `namespace.yaml`; the sub-overlay sets `namespace: uc-<name>`. Never put a global `namespace:` on the root kustomization, it collides with base namespaces.
-- **Component secrets**: catalog databases leave their Secret out and expect the overlay to supply one with the exact name they mount (`postgres-secret`, `mongodb-secret`). Check the component's wiki page for the name and keys.
+- **Component secrets**: catalog stores leave their Secret out and expect the overlay to supply one with the exact name they mount. The catalog's `wiring.secret` carries the name and the keys (derived from the component's manifests and examples); check it, or the component's wiki page, before writing an `.env.example`.
 - **Sizing**: catalog defaults are sized for tenants. Add `patches/<component>-resources.yaml` for Crawl so it fits k3d on a laptop.
 
 ## Assembling from the records

@@ -6,7 +6,7 @@ sources:
 compiled_at: '2026-10-31'
 category: usecases
 parent: overlays/usecases-support-copilot
-source_last_commit: '2026-10-30'
+source_last_commit: '2026-10-31'
 summary: 'walk stage of support-copilot: recomposes the Crawl root (base, Crawl components,
   the namespace child) and adds what the records require for walk, nothing the plan
   put out of scope'
@@ -30,7 +30,7 @@ summary_source: derived
 ### Declared resources
 
 - `../../../../../base`
-- `../../namespaces/uc-support-copilot`
+- `./relocated`
 - `../../../../../components/apps/cloudflare-tunnel`
 - `../../../../../components/apps/continuous-delivery/argocd`
 - `../../../../../components/apps/sealed-secrets`
@@ -52,7 +52,7 @@ summary_source: derived
 ### Depends on
 
 - [base/base](../base/base.md)
-- `k8s/overlays/usecases/support-copilot/namespaces/uc-support-copilot`
+- `k8s/overlays/usecases/support-copilot/namespaces/uc-support-copilot` — resource, via relocated
 - [components/cloudflare-tunnel](../components/cloudflare-tunnel.md)
 - [components/continuous-delivery-argocd](../components/continuous-delivery-argocd.md)
 - [components/sealed-secrets](../components/sealed-secrets.md)
@@ -72,7 +72,6 @@ summary_source: derived
 - `patches/replay-job-env-patch.yaml → Job/replay-job (ns: uc-support-copilot)`
 - `patches/copilot-validate-env-patch.yaml → Job/copilot-validate (ns: uc-support-copilot)`
 - `inline → Secret/postgres-secret (ns: uc-support-copilot)`
-- `inline → Secret/litellm-secret (ns: uc-support-copilot)`
 - `patches/cloudflare-tunnel-psa-patch.yaml → Namespace/cloudflare-tunnel`
 - `patches/argocd-psa-patch.yaml → Namespace/argocd`
 - `patches/longhorn-system-psa-patch.yaml → Namespace/longhorn-system`

@@ -1,4 +1,4 @@
-# apps/minio/dev ships a Pod only; the overlay adds the Service the contract advertises.
+# apps/minio/dev ships no Service; the overlay adds the one the contract advertises (catalog wiring).
 apiVersion: v1
 kind: Service
 metadata:

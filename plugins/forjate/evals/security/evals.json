@@ -55,8 +55,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
-          "expr": "all(len([c for c in choices(s) if c in ('apps/sealed-secrets','apps/security/external-secrets','apps/security/vault')]) <= 1 for s in stages)",
-          "text": "one secrets mechanism component per stage"
+          "expr": "all(len([c for c in choices(s) if 'secrets-mechanism' in capabilities_of(c)]) <= 1 for s in stages)",
+          "text": "one secrets-mechanism component per stage"
         },
         {
           "type": "yaml_expr",
@@ -129,6 +129,36 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
           "expr": "len(risks()) >= 2 and all(r.get('mitigation') for r in risks())",
           "text": "risks with mitigations"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('kill_switch', 'walk') in ('gateway-key-revocation', 'ingress-permission') and setting('kill_switch', 'run') in ('gateway-key-revocation', 'ingress-permission') and (setting('kill_switch', 'run') == 'ingress-permission' or any(has('ingress', a.get('option')) for a in alts()))",
+          "text": "a kill switch named from Walk; at Run the ingress permission, or the gateway key with the ingress rejected for a reason"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "any(has('kill|revoke|switch', g.get('text')) for g in gates())",
+          "text": "the kill-switch rehearsal is a gate"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('write_actions', 'walk') == 'approval-required' and setting('tool_write_gate', 'walk') == 'human-approval'",
+          "text": "write_actions copied from the agent's posture and tool_write_gate agrees"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('intent_validation', 'walk') == 'policy-judge'",
+          "text": "intent validation copied: a policy judge before the write"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "setting('scope_isolation', 'walk') in ('schema-per-tenant', 'database-per-tenant', 'cluster-per-tenant')",
+          "text": "scope isolation at least a schema per tenant (brief isolation: logical)"
         }
       ]
     },
@@ -192,8 +222,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
-          "expr": "setting('secrets_mechanism','walk') == 'sealed-secrets' and 'apps/sealed-secrets' in choices('walk')",
-          "text": "Sealed Secrets at Walk"
+          "expr": "setting('secrets_mechanism', 'walk') not in (None, 'secret-generator') and 'secrets-mechanism' in choice_capabilities('walk')",
+          "text": "a ranked secrets mechanism with its component at Walk"
         },
         {
           "type": "yaml_expr",
@@ -230,6 +260,18 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
           "expr": "len(alts()) >= 1 and all(a.get('rejected_because') for a in alts())",
           "text": "alternatives rejected with reasons"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "setting('kill_switch', 'walk') in ('gateway-key-revocation', 'ingress-permission')",
+          "text": "a kill switch named at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "any(has('customer|agent|support|operator', l) for l in listed(setting('access_by_persona', 'walk')))",
+          "text": "access by persona for the support agent and the operator"
         }
       ]
     },
@@ -286,8 +328,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
-          "expr": "setting('secrets_mechanism','walk') == 'sealed-secrets'",
-          "text": "Sealed Secrets at Walk"
+          "expr": "setting('secrets_mechanism', 'walk') not in (None, 'secret-generator') and 'secrets-mechanism' in choice_capabilities('walk')",
+          "text": "a ranked secrets mechanism with its component at Walk"
         },
         {
           "type": "yaml_expr",
@@ -351,8 +393,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
-          "expr": "setting('secrets_mechanism','walk') == 'sealed-secrets'",
-          "text": "secrets stay sealed at Walk"
+          "expr": "setting('secrets_mechanism', 'walk') not in (None, 'secret-generator') and setting('secret_scan', 'walk') == 'ci'",
+          "text": "secrets stay on a ranked mechanism at Walk, never a literal"
         },
         {
           "type": "yaml_expr",
@@ -404,8 +446,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
-          "expr": "not any('sealed-secrets' in c for c in choices())",
-          "text": "respects SEC-1: no Sealed Secrets"
+          "expr": "not any('sealed-secrets' in c for c in choices()) and all(setting('secrets_mechanism', s) != 'sealed-secrets' for s in stages)",
+          "text": "respects SEC-1: the denied mechanism is not chosen"
         },
         {
           "type": "yaml_expr",
@@ -432,10 +474,10 @@
           "text": "Sealed Secrets recorded as the rejected default"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_lacks_capability",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
-          "expr": "not any('gotrue' in c for c in choices())",
-          "text": "respects SEC-3: no GoTrue"
+          "capability": "identity-provider",
+          "text": "respects SEC-3: the denied identity provider is not chosen"
         },
         {
           "type": "yaml_expr",
@@ -452,8 +494,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
-          "expr": "setting('identity_provider','walk') != 'gotrue'",
-          "text": "GoTrue not named as the identity provider"
+          "expr": "setting('identity_provider', 'walk') not in ('gotrue', 'gotrue-auth', None)",
+          "text": "the identity provider is the organisation's, not the denied one"
         },
         {
           "type": "yaml_expr",

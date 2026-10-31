@@ -4,7 +4,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- ../walk
+- ./relocated
 - ../../../../../components/apps/security/external-secrets
 - ./namespaces/uc-invoice-intake
 - ./namespaces/uc-invoice-intake-baseline
@@ -22,19 +22,14 @@ patches:
   patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: postgres-secret\n"
 - target:
     kind: SealedSecret
-    name: minio-secret
+    name: minio-storage-configuration
     namespace: uc-invoice-intake
-  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: minio-secret\n"
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: minio-storage-configuration\n"
 - target:
     kind: SealedSecret
     name: approval-secret
     namespace: uc-invoice-intake
   patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: approval-secret\n"
-- target:
-    kind: SealedSecret
-    name: minio-storage-configuration
-    namespace: uc-invoice-intake
-  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: minio-storage-configuration\n"
 - target:
     kind: SealedSecret
     name: imap-mailbox-secret
@@ -50,11 +45,6 @@ patches:
     name: postgres-secret
     namespace: uc-invoice-intake-baseline
   patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: postgres-secret\n"
-- target:
-    kind: SealedSecret
-    name: minio-secret
-    namespace: uc-invoice-intake-baseline
-  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: minio-secret\n"
 - target:
     kind: SealedSecret
     name: litellm-secret

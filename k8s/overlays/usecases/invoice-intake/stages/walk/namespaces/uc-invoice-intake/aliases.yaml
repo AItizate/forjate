@@ -35,17 +35,6 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: minio
-  namespace: uc-invoice-intake
-  labels:
-    forjate.io/psa-exception: uc-invoice-intake-baseline
-spec:
-  type: ExternalName
-  externalName: minio.uc-invoice-intake-baseline.svc.cluster.local
----
-apiVersion: v1
-kind: Service
-metadata:
   name: litellm
   namespace: uc-invoice-intake
   labels:

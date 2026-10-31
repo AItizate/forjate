@@ -49,10 +49,14 @@
       ],
       "additionalProperties": false,
       "properties": {
+        "runtime": {
+          "$ref": "_defs.schema.json#/$defs/runtime",
+          "description": "The runtime the scaffold wrote the app in, copied from the architecture record's `runtime`."
+        },
         "package": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$",
-          "description": "Python package under app/src/."
+          "description": "Package or module name of the app (for python under app/src/, for other runtimes the project name)."
         },
         "image": {
           "type": "string",

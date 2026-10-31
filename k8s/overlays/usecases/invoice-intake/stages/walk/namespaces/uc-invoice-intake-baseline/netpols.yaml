@@ -1,5 +1,5 @@
 # NetworkPolicies for uc-invoice-intake-baseline at walk: the PSA exception namespace of invoice-intake (security: psa_exceptions), default-deny like uc-invoice-intake.
-# Components: apps/ai-models/ollama, apps/ai-models/litellm, apps/document-processing/docling, apps/databases/postgres, apps/minio/dev, apps/auth/gotrue-auth, apps/surveys/formbricks. Egress to anything outside the cluster is not allowed here; add it by hand if one of them needs it.
+# Components: apps/ai-models/ollama, apps/ai-models/litellm, apps/document-processing/docling, apps/databases/postgres, apps/auth/gotrue-auth, apps/surveys/formbricks. Egress to anything outside the cluster is not allowed here; add it by hand if one of them needs it.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -71,8 +71,6 @@ spec:
       port: 5001
     - protocol: TCP
       port: 5432
-    - protocol: TCP
-      port: 9000
     - protocol: TCP
       port: 9999
     - protocol: TCP

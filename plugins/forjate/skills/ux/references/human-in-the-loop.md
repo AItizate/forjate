@@ -24,6 +24,14 @@ Rules:
 - A checkpoint says what the person sees. A clerk approving an amount needs the extracted amount, the PO amount, the difference and the PDF; an agent receiving a refund needs the transcript, the order id and the reason. That is `escalation_context`, and the verify Job asserts it on the seeded exceptions.
 - Crawl has no `[token]` checkpoints (nothing real is written); it has the context shape and the verify assertion. The first token appears with the first real write, at Walk.
 
+## Review that validates
+
+Every `[token]` checkpoint states its `review_mode` and `review_independence`. `evidence-first`: the person sees the inputs (the PDF, the transcript), the sources consulted (the PO, the order), the reasoning path (which rule fired, which fields disagreed) and the recommendation last; the escalation context lists them in that order and the verify Job asserts they are present. `independent` where the decision is regulated or irreversible: the reviewer records their own call before the agent's is revealed, and the disagreement is logged with the trace, so the eval set grows from the cases the agent got wrong with confidence. The thresholds that trigger a `[deterministic]` handoff (confidence, amount, risk score, PII detected, budget) are named next to the checkpoint and reviewed; "the agent decides when to escalate" is not a criterion.
+
+## Control by persona
+
+`control_levels` has one line per human actor: `AP clerk: approve` (their token unlocks the write), `finance ops lead: direct, audit` (changes thresholds, reads every decision), `platform operator: operate` (pause, cancel, override a running process, with reviewer, decision and timestamp captured). The security record turns the lines into RBAC and IdP groups; a persona that can both approve and change the thresholds that route items to them is a separation-of-duties risk you name.
+
 ## Escalation context
 
 One line listing the fields a person receives when an item is handed over. The verify Job checks each seeded exception against it, so be concrete: `review_queue row: invoice id, supplier, extracted fields, PO fields side by side, reason, PDF object reference`. Missing one of those at Walk means the clerk opens three tools to decide.

@@ -4,9 +4,8 @@ resources:
 - netpols.yaml
 - ../../../../../../../components/apps/minio/single-server
 - secrets/sealed-postgres-secret.yaml
-- secrets/sealed-minio-secret.yaml
-- secrets/sealed-approval-secret.yaml
 - secrets/sealed-minio-storage-configuration.yaml
+- secrets/sealed-approval-secret.yaml
 - secrets/sealed-imap-mailbox-secret.yaml
 - secrets/sealed-odoo-rest-api-secret.yaml
 - review-api-ingress.yaml

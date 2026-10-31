@@ -31,14 +31,14 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
-          "expr": "not any('argocd' in c or 'longhorn' in c or 'monitoring' in c for c in choices('crawl'))",
-          "text": "no ArgoCD, Longhorn or monitoring at Crawl"
+          "expr": "not ({'gitops', 'block-storage', 'metrics', 'dashboards'} & set(choice_capabilities('crawl')))",
+          "text": "no GitOps, block storage or monitoring at Crawl"
         },
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
-          "expr": "setting('gitops','walk') == 'argocd' and 'apps/continuous-delivery/argocd' in choices('walk')",
-          "text": "ArgoCD from Walk"
+          "expr": "setting('gitops','walk') not in (None, 'none') and 'gitops' in choice_capabilities('walk')",
+          "text": "a GitOps engine from Walk"
         },
         {
           "type": "yaml_expr",
@@ -85,8 +85,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
-          "expr": "'apps/sealed-secrets' not in choices('run') and any(c in choices('run') for c in ('apps/security/external-secrets','apps/security/vault'))",
-          "text": "one secrets component at Run"
+          "expr": "len([c for c in choices('run') if 'secrets-mechanism' in capabilities_of(c)]) == 1 and setting('secrets_mechanism', 'run') != 'sealed-secrets'",
+          "text": "one secrets-mechanism component at Run, the higher-ranked one"
         },
         {
           "type": "grep",
@@ -109,8 +109,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
-          "expr": "not any('velero' in c for c in choices()) and (any(has('velero', q.get('question')) for q in oq()) or any(has('velero', r.get('text')) for r in risks()))",
-          "text": "Velero is a named gap, not an invented component"
+          "expr": "not any('velero' in c or 'backup' in c for c in choices()) and (any(has('velero|backup', q.get('question')) for q in oq()) or any(has('velero|backup', r.get('text')) for r in risks()))",
+          "text": "the backup capability is a named gap, not an invented component"
         },
         {
           "type": "yaml_expr",
@@ -133,8 +133,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
-          "expr": "setting('observability','walk') == 'prometheus+grafana' and 'apps/monitoring/prometheus' in choices('walk')",
-          "text": "monitoring baseline at Walk"
+          "expr": "'metrics' in choice_capabilities('walk') and 'dashboards' in choice_capabilities('walk')",
+          "text": "metrics and dashboards at Walk"
         },
         {
           "type": "yaml_expr",
@@ -145,14 +145,38 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
-          "expr": "(st('walk').get('estimated_cost_usd_month') or 0) <= 300 and (st('run').get('estimated_cost_usd_month') or 0) <= 300",
-          "text": "cost inside the 300 USD budget"
+          "expr": "(st('walk').get('estimated_cost_usd_month') or 0) <= 300 and ((st('run').get('estimated_cost_usd_month') or 0) <= 300 or any(q.get('blocks_stage') == 'run' and has('cost|envelope|usd|budget', q.get('question')) for q in oq()))",
+          "text": "cost inside the 300 USD budget, or the overrun is an open question blocking Run for the business expert"
         },
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
           "expr": "has('node|cpx|vcpu|gb', st('walk').get('rationale'))",
           "text": "cost stated as a shape"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "len(listed(setting('severities', 'walk'))) >= 4 and any(has('s1', l) and has('on.?call|page', l) for l in listed(setting('severities', 'walk')))",
+          "text": "four severities from Walk, S1 with on-call"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('kill_switch', 'run') == 'ingress-permission' and any(has('kill|revoke|switch', g.get('text')) and (g.get('check') or {}).get('type') == 'manual' for g in gates())",
+          "text": "the kill switch copied and rehearsed as a manual gate"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('audit_artifacts', 'walk') == 'per-action' and ('telemetry' in choice_capabilities('walk') or 'telemetry' in choice_capabilities('run'))",
+          "text": "per-action audit artifacts have a telemetry sink"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
+          "expr": "setting('open_standards', 'walk') == 'all-layers' and setting('auth_in_front', 'walk') not in (None, 'none')",
+          "text": "open standards and the choke point copied from the architecture record"
         }
       ]
     },
@@ -192,8 +216,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
-          "expr": "setting('gitops','walk') == 'argocd' and setting('target_revision','walk') == 'tag'",
-          "text": "ArgoCD on a tag at Walk"
+          "expr": "setting('gitops','walk') not in (None, 'none') and setting('target_revision','walk') == 'tag'",
+          "text": "GitOps on a tag at Walk"
         },
         {
           "type": "yaml_expr",
@@ -204,8 +228,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
-          "expr": "setting('secrets_mechanism','walk') == 'sealed-secrets'",
-          "text": "Sealed Secrets at Walk"
+          "expr": "setting('secrets_mechanism','walk') not in (None, 'secret-generator') and 'secrets-mechanism' in choice_capabilities('walk')",
+          "text": "a ranked secrets mechanism at Walk"
         },
         {
           "type": "yaml_expr",
@@ -216,8 +240,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
-          "expr": "setting('observability','walk') == 'prometheus+grafana' and setting('alerting','walk') == 'alertmanager'",
-          "text": "monitoring and alerting at Walk"
+          "expr": "'metrics' in choice_capabilities('walk') and setting('alerting','walk') == 'alertmanager'",
+          "text": "metrics and alerting at Walk"
         },
         {
           "type": "yaml_expr",
@@ -254,6 +278,12 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
           "expr": "sum(1 for g in gates() if (g.get('check') or {}).get('type') == 'ci') >= 2",
           "text": "at least two ci gates"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
+          "expr": "len(listed(setting('severities', 'walk'))) >= 4",
+          "text": "severities defined at Walk"
         }
       ]
     },
@@ -298,8 +328,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/devops.yaml",
-          "expr": "setting('gitops','walk') == 'argocd' and setting('storage_class','walk') == 'longhorn'",
-          "text": "GitOps and Longhorn at Walk"
+          "expr": "setting('gitops','walk') not in (None, 'none') and 'block-storage' in choice_capabilities('walk')",
+          "text": "GitOps and block storage at Walk"
         },
         {
           "type": "yaml_expr",
@@ -369,8 +399,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/devops.yaml",
-          "expr": "not any('argocd' in c or 'longhorn' in c for c in choices('crawl'))",
-          "text": "no ArgoCD or Longhorn at Crawl"
+          "expr": "not ({'gitops', 'block-storage'} & set(choice_capabilities('crawl')))",
+          "text": "no GitOps engine or block storage at Crawl"
         },
         {
           "type": "yaml_expr",
@@ -452,8 +482,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
-          "expr": "setting('secrets_mechanism','walk') == 'vault' and 'apps/security/vault' in choices('walk') and 'apps/sealed-secrets' not in choices('walk')",
-          "text": "Vault from Walk (OPS-2), not Sealed Secrets"
+          "expr": "'secrets-store' in choice_capabilities('walk') and setting('secrets_mechanism','walk') not in (None, 'secret-generator', 'sealed-secrets')",
+          "text": "the corporate secrets store from Walk (OPS-2), pulled through the top mechanism"
         },
         {
           "type": "grep",
@@ -470,7 +500,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml",
-          "expr": "has('vault|flux|block|cannot', st('walk').get('rationale'))",
+          "expr": "has('openbao|store|flux|block|cannot', st('walk').get('rationale'))",
           "text": "rationale states what the pack changed or blocked"
         }
       ]

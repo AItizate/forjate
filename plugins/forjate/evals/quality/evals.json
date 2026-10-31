@@ -138,7 +138,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
-          "expr": "any(g['id'] == 'G-DS-2' and g['check']['type'] == 'manual' and has('operator|devops|data-store|platform', g['text']) for g in d['spec']['transitions']['walk->run']['gates'])",
+          "expr": "any(g['id'] == 'G-DS-2' and g['check']['type'] == 'manual' and (has('operator|devops|data-store|platform', g['text']) or g.get('owner') in ('data-store', 'devops')) for g in d['spec']['transitions']['walk->run']['gates'])",
           "text": "restore rehearsal stays manual with the operator named"
         },
         {
@@ -152,6 +152,30 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
           "expr": "len(listed(setting('manual_gates_justified','crawl'))) + len(listed(setting('manual_gates_justified','walk'))) >= 1",
           "text": "manual gates justified"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "setting('audit_artifacts', 'walk') == 'per-action' and any(has('audit|per-action|trace', g.get('text')) and (g.get('check') or {}).get('type') == 'ci' for g in gates())",
+          "text": "per-action audit artifacts from Walk, as a ci gate"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "len(listed(setting('eval_dimensions', 'walk'))) >= 7 and all(any(has(d, x) for x in listed(setting('eval_dimensions', 'walk'))) for d in ('correct', 'ground', 'safety', 'policy', 'latency', 'cost', 'robust'))",
+          "text": "the seven evaluation dimensions at Walk, each with a measurement"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "setting('autonomy', 'crawl') == 'assistive' and setting('write_actions', 'walk') == 'approval-required'",
+          "text": "autonomy and write policy copied, so the suites test the posture"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "any(has('bound|max_steps|loop|out-of-policy|token', x) for x in listed(setting('test_pyramid', 'walk')) + listed(setting('verify_assertions', 'walk')) + listed(setting('eval_threshold', 'walk')))",
+          "text": "the bounds or the write policy are tested, not trusted"
         }
       ]
     },
@@ -258,6 +282,18 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/gates.yaml",
           "expr": "d['spec']['transitions']['crawl->walk'].get('approver')",
           "text": "approver named"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "len(listed(setting('eval_dimensions', 'walk'))) >= 5",
+          "text": "evaluation dimensions consolidated at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "any(has('expected|unexpected|lookup|reason|timeout', x) for x in listed(setting('verify_assertions','crawl')))",
+          "text": "the escalation verify counts by reason: expected handoffs apart from failures such as lookup-failed"
         }
       ]
     },
@@ -319,7 +355,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
-          "expr": "any(has('twice|second run|re-run|rerun|idempot', x) for x in listed(setting('verify_assertions','crawl')))",
+          "expr": "any(has('twice|second|re-?run|idempot|changes nothing', x) for x in listed(setting('verify_assertions','crawl')))",
           "text": "verify checks a second run"
         },
         {
@@ -331,7 +367,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
-          "expr": "any(has('no model|deterministic|without', x) for x in listed(setting('test_pyramid','crawl')))",
+          "expr": "any(has('no model|deterministic|without|no database|pure', x) for x in listed(setting('test_pyramid','crawl')))",
           "text": "unit layer explicitly model-free"
         },
         {
@@ -363,6 +399,12 @@
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/gates.yaml",
           "expr": "all(g.get('check') for t in d['spec']['transitions'].values() for g in t['gates'])",
           "text": "every gate has a check"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
+          "expr": "0 < len(listed(setting('eval_dimensions', 'crawl'))) <= 5 and not any(has('ground|safety', x) for x in listed(setting('eval_dimensions', 'crawl')))",
+          "text": "without a model, only the deterministic dimensions apply"
         }
       ]
     },

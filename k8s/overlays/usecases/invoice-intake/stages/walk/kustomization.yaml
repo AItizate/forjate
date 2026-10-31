@@ -61,14 +61,14 @@ patches:
   patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: approval-secret\n"
 - target:
     kind: Secret
-    name: litellm-secret
-    namespace: uc-invoice-intake-baseline
-  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: litellm-secret\n"
-- target:
-    kind: Secret
     name: gotrue-secret
     namespace: uc-invoice-intake-baseline
   patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: gotrue-secret\n"
+- target:
+    kind: Secret
+    name: minio-storage-configuration
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: minio-storage-configuration\n"
 - target:
     kind: Ingress
     name: formbricks-ingress

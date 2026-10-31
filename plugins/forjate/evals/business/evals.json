@@ -87,6 +87,36 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
           "expr": "len(oq()) >= 1",
           "text": "raises at least one open question the brief cannot answer"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "len(listed(setting('raci', 'crawl'))) >= 4 and all(has('r=', l) and has('a=', l) for l in listed(setting('raci', 'crawl')))",
+          "text": "a RACI with the four activities, each with R and A"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "all(has('data', ''.join(listed(setting('adoption_frictions', s)))) and has('infosec|security', ''.join(listed(setting('adoption_frictions', s)))) and has('change', ''.join(listed(setting('adoption_frictions', s)))) for s in stages)",
+          "text": "the three adoption frictions named at every stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "any(has('infosec|security|access|data.?readiness|change|trust|adopt', str(r.get('text', '')) + ' ' + str(r.get('mitigation', ''))) for r in risks())",
+          "text": "an adoption friction is also a risk with a mitigation"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "setting('operating_model', 'crawl') in ('co-delivery', 'internal', 'vendor-delivered')",
+          "text": "operating model stated"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "any(has('cost', x) for s in stages for x in listed(setting('eval_dimensions', s)))",
+          "text": "contributes cost as an eval dimension"
         }
       ]
     },
@@ -158,6 +188,12 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
           "pattern": "(?i)no (context )?packs|factory defaults",
           "text": "rationale says no packs are active and factory defaults apply"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "all(len(listed(setting('adoption_frictions', s))) >= 3 for s in stages)",
+          "text": "three adoption frictions with owners"
         }
       ]
     },
@@ -267,7 +303,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
-          "expr": "txt(setting('kpi_baseline', 'crawl')) in ('0%', '0', '0 %')",
+          "expr": "has(r'^0\\s*%', txt(setting('kpi_baseline', 'crawl')).strip()) or txt(setting('kpi_baseline', 'crawl')).strip() in ('0', '0%', '0 %')",
           "text": "baseline kept from the brief, not dropped"
         }
       ]

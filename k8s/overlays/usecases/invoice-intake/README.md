@@ -34,16 +34,15 @@ kubectl kustomize --enable-helm k8s/overlays/usecases/invoice-intake/stages/walk
 
 | Stage | Namespace | Level | Components | Owner | Reason |
 |---|---|---|---|---|---|
-| walk | `uc-invoice-intake-baseline` | baseline | `apps/ai-models/ollama`, `apps/ai-models/litellm`, `apps/document-processing/docling`, `apps/databases/postgres`, `apps/minio/dev`, `apps/auth/gotrue-auth`, `apps/surveys/formbricks` | platform team | the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the invoice workloads stay restricted in uc-invoice-intake |
+| walk | `uc-invoice-intake-baseline` | baseline | `apps/ai-models/ollama`, `apps/ai-models/litellm`, `apps/document-processing/docling`, `apps/databases/postgres`, `apps/auth/gotrue-auth`, `apps/surveys/formbricks` | platform team | the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the invoice workloads stay restricted in uc-invoice-intake |
 | walk | `argocd` | baseline | `apps/continuous-delivery/argocd` | platform team | ArgoCD is not proven under restricted in the catalog (psa_level baseline) |
 | walk | `kube-system` | privileged | `apps/sealed-secrets` | cluster admin | the controller runs in the cluster's own namespace, which a use case never labels |
 | walk | `longhorn-system` | privileged | `apps/storage/longhorn` | platform team | the CSI driver and the engine need privileged containers and hostPath |
 | walk | `metallb-system` | privileged | `apps/networking/metallb` | platform team | the speaker needs hostNetwork and NET_RAW |
 | walk | `monitoring` | baseline | `apps/monitoring/prometheus`, `apps/monitoring/grafana` | platform team | not proven under restricted in the catalog (psa_level baseline) |
 | walk | `default` | privileged | `apps/monitoring/reloader` | cluster admin | the upstream manifests install it in default, the cluster's own namespace |
-| run | `uc-invoice-intake-baseline` | baseline | `apps/ai-models/ollama`, `apps/ai-models/litellm`, `apps/document-processing/docling`, `apps/databases/postgres`, `apps/minio/dev`, `apps/auth/gotrue-auth`, `apps/surveys/formbricks`, `apps/ai-models/vllm` | platform team | the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the invoice workloads stay restricted in uc-invoice-intake |
+| run | `uc-invoice-intake-baseline` | baseline | `apps/ai-models/litellm`, `apps/document-processing/docling`, `apps/databases/postgres`, `apps/auth/gotrue-auth`, `apps/surveys/formbricks`, `apps/ai-models/vllm` | platform team | the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the invoice workloads stay restricted in uc-invoice-intake |
 | run | `argocd` | baseline | `apps/continuous-delivery/argocd` | platform team | ArgoCD is not proven under restricted in the catalog (psa_level baseline) |
-| run | `kube-system` | privileged | `apps/sealed-secrets` | cluster admin | the controller runs in the cluster's own namespace, which a use case never labels |
 | run | `longhorn-system` | privileged | `apps/storage/longhorn` | platform team | the CSI driver and the engine need privileged containers and hostPath |
 | run | `metallb-system` | privileged | `apps/networking/metallb` | platform team | the speaker needs hostNetwork and NET_RAW |
 | run | `monitoring` | baseline | `apps/monitoring/prometheus`, `apps/monitoring/grafana` | platform team | not proven under restricted in the catalog (psa_level baseline) |
@@ -92,5 +91,4 @@ kubectl kustomize --enable-helm k8s/overlays/usecases/invoice-intake/stages/walk
 ## Assembly notes
 
 - OPEN: the walk surface workload review-api is not in scaffold.yaml yet; the Ingress is written for the shape, the workload arrives with the walk scaffold
-- OPEN: apps/minio/dev's shipped manifests meet privileged in the catalog and uc-invoice-intake-baseline enforces baseline: confirm this overlay's patches bring it to baseline, or its pods are rejected there
 - OPEN: the catalog does not know the PSA level of external-secrets (apps/security/external-secrets); it is left unlabelled for its owner

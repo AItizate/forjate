@@ -7,6 +7,7 @@ spec:
       choice: []
       settings:
         topology: request-response
+        runtime: python
         workloads: [agent-api, replay-job, seed-job, verify-job, orders-stub]
         integrations: ["Telegram Bot API: replay", "orders API: stub"]
         integration_patterns: [batch]
@@ -22,6 +23,7 @@ spec:
       choice: [apps/cloudflare-tunnel]
       settings:
         topology: request-response
+        runtime: python
         workloads: [agent-api, escalation-worker, verify-job]
         integrations: ["Telegram Bot API: webhook", "orders API: rest-pull", "support queue: rest-push"]
         integration_patterns: [webhook, rest-pull, rest-push]

@@ -23,6 +23,12 @@ one block per decisions/*.yaml:
 - Risks: <ids and one-liners>
 - Constrained by: <pack refs>
 
+## Posture
+| Stage | Autonomy (plan) | Writes | Intent validation | Kill switch | Audit artifacts |
+one row per stage in scope, from stage-plan.yaml `autonomy` and the ai-engineering, security and quality records; a cell reads "not yet produced" when its record is missing
+Operating model: <business `operating_model`; RACI lines; the three adoption frictions with their owners; devops `severities` when present; `open_standards` with its exceptions>
+Review: <ux `review_mode` and `review_independence` per checkpoint; `control_levels` per persona; `disclosure` lines>
+
 ## Open questions
 <every open_questions entry across records, with the area and the blocking stage; a question caused by a pack rule shows the rule ref>
 Conflicts between experts: <every `cross-record conflict` line validate.py reported, each with the open question that acknowledges it, or "none">
@@ -36,7 +42,7 @@ Pack overrides: <from gates.yaml, or none>
 
 ## Assembly
 <from usecase.yaml, kustomization.yaml, stages/* and .builder/scaffold.yaml when present; otherwise "not assembled yet">
-- Workload: <scaffold package and image, workloads with their commands, tools with their flags; tests and scaffold-check result when known>
+- Workload: <scaffold runtime, package and image, workloads with their commands, tools with their flags; tests and scaffold-check result when known; "runtime <x> not yet available" when the scaffold does not implement the architecture's choice>
 - Overlay: <root and stages that build, kubeconform result, the gates.py ci table for crawl->walk when run>
 - Assembly notes: <every note the generator printed: surfaces the scaffold does not ship yet, guessed secret keys, matrices to write by hand>
 - Crawl proof: <ephemeral.sh up result and the KPI/EVAL lines from the verify Job, or "not run">

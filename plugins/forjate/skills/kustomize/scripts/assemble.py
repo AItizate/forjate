@@ -35,7 +35,7 @@ import yaml
 HERE = Path(__file__).resolve().parent
 BUILDER = HERE.parents[2] / "scripts" / "builder"
 sys.path.insert(0, str(BUILDER))
-from common import PSA_RANK, load_catalog, load_yaml  # noqa: E402
+from common import PSA_RANK, load_catalog, load_yaml, stage_components  # noqa: E402
 
 STAGES = ("crawl", "walk", "run")
 # Where a component runs and the PSA level its pods meet are catalog facts (`namespace`,
@@ -50,40 +50,10 @@ CLUSTER_SCOPED = {"Namespace", "ClusterRole", "ClusterRoleBinding", "CustomResou
 REMOTE = re.compile(r"^(https?://|ssh://|git@|github\.com/)")
 # What the assembly knows about catalog components it wires: service, port, protocol, the Secret the
 # component mounts (name, keys), the pod label for NetworkPolicies, laptop sizing, glue manifests.
-COMPONENTS: dict[str, dict] = {
-    "apps/databases/postgres": {"service": "postgres", "port": 5432, "protocol": "postgresql", "label": "postgres",
-                                "secret": ("postgres-secret", ["POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD"]),
-                                "sizing": ("StatefulSet", "postgres", "postgres", "100m", "256Mi", "1", "1Gi")},
-    "apps/databases/redis": {"service": "redis", "port": 6379, "protocol": "redis", "label": "redis",
-                             "sizing": ("Deployment", "redis", "redis", "50m", "64Mi", "500m", "256Mi")},
-    "apps/databases/mongodb": {"service": "mongodb", "port": 27017, "protocol": "mongodb", "label": "mongodb",
-                               "secret": ("mongodb-secret", ["MONGO_INITDB_ROOT_USERNAME", "MONGO_INITDB_ROOT_PASSWORD"]),
-                               "sizing": ("StatefulSet", "mongodb", "mongodb", "100m", "128Mi", "500m", "512Mi")},
-    "apps/minio/dev": {"service": "minio", "port": 9000, "protocol": "s3", "label": "minio",
-                       "secret": ("minio-secret", ["MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD"]), "glue": "minio-dev"},
-    "apps/minio/single-server": {"service": "minio", "port": 9000, "protocol": "s3", "label": "minio",
-                                 "secret": ("minio-storage-configuration", ["config.env"])},
-    "apps/document-processing/docling": {"service": "docling", "port": 5001, "protocol": "http", "label": "docling",
-                                         "sizing": ("Deployment", "docling", "docling", "250m", "1Gi", "2", "3Gi")},
-    "apps/ai-models/ollama": {"service": "ollama-service", "port": 11434, "protocol": "http", "label": "ollama",
-                              "sizing": ("StatefulSet", "ollama", "ollama", "250m", "1Gi", "2", "4Gi"), "glue": "ollama"},
-    "apps/ai-models/vllm": {"service": "vllm", "port": 8000, "protocol": "http", "label": "vllm"},
-    "apps/ai-models/litellm": {"service": "litellm", "port": 4000, "protocol": "http", "label": "litellm",
-                               "secret": ("litellm-secret", ["LITELLM_MASTER_KEY"]), "placeholder_secret": "litellm-secret"},
-    "apps/ai-models/open-webui": {"service": "open-webui", "port": 8080, "protocol": "http", "label": "open-webui"},
-    "apps/brokers/nats": {"service": "nats", "port": 4222, "protocol": "nats", "label": "nats"},
-    "apps/brokers/rabbitmq": {"service": "rabbitmq", "port": 5672, "protocol": "amqp", "label": "rabbitmq"},
-    "apps/databases/lancedb": {"service": "lancedb", "port": 8000, "protocol": "http", "label": "lancedb"},
-    "apps/databases/milvus": {"service": "milvus", "port": 19530, "protocol": "grpc", "label": "milvus"},
-    "apps/surveys/formbricks": {"service": "formbricks", "port": 3000, "protocol": "http", "label": "formbricks",
-                                "secret": ("formbricks-secret", ["NEXTAUTH_SECRET", "ENCRYPTION_KEY", "CRON_SECRET", "DATABASE_URL"]),
-                                "config": ("formbricks-config", ["WEBAPP_URL=http://formbricks:3000", "NEXTAUTH_URL=http://formbricks:3000"]), "ingress": "formbricks-ingress"},
-    "apps/auth/gotrue-auth": {"service": "gotrue-auth", "port": 9999, "protocol": "http", "label": "gotrue",
-                              "secret": ("gotrue-secret", ["GOTRUE_JWT_SECRET", "GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID", "GOTRUE_EXTERNAL_GOOGLE_SECRET", "DATABASE_URL"]),
-                              "placeholder_secret": "gotrue-secret"},
-    "apps/cloudflare-tunnel": {"secret": ("cloudflare-tunnel-secret", ["TUNNEL_TOKEN"]), "namespace": "cloudflare-tunnel"},
-    "bundles/temporal-stack": {"service": "temporal-frontend", "port": 7233, "protocol": "grpc", "label": "temporal"},
-}
+# No component is named here. What an overlay needs to wire a component (its Service and port, the pod label,
+# the Secret it mounts and its keys, placeholders to replace, a ConfigMap to generate, an Ingress to put behind
+# auth, a GPU limit or a hostPath a laptop cannot satisfy, laptop sizing) is a catalog fact: wiki-compile.py derives
+# `wiring` from the component's manifests and catalog-overrides.yaml curates the rest. See Assembly.meta().
 CONTRACT_COMPONENT = re.compile(r"^apps/[a-z0-9-]+/[a-z0-9-]+$")
 PLACEHOLDER_SHA = "0" * 40
 PLACEHOLDER_DIGEST = "sha256:" + "0" * 64
@@ -99,6 +69,8 @@ def dump(doc) -> str:
 
 class Assembly:
     def __init__(self, uc_dir: Path, *, org: str, factory_ref: str, force: bool):
+        self._meta: dict[str, dict] = {}
+        self._noted_keys: set[str] = set()
         self.uc = uc_dir.resolve()
         self.name = self.uc.name
         self.ns = f"uc-{self.name}"
@@ -149,12 +121,52 @@ class Assembly:
         """Shared infrastructure: the catalog gives it a namespace of its own."""
         return bool(self.fact(c, "namespace"))
 
-    def runs(self, stage: str) -> list[str]:
-        """Every component the stage's build contains: stage overlays add, never remove."""
-        out: list[str] = []
-        for s in STAGES[:STAGES.index(stage) + 1]:
-            out += [c for c in self.choices(s) if c not in out]
+    def meta(self, c: str) -> dict:
+        """The wiring of a component, from the catalog's `wiring` facts (derived from its manifests by wiki-compile.py,
+        curated in catalog-overrides.yaml where the tree cannot say: protocol, laptop sizing, a Secret the component
+        takes but documents nowhere). Shape: service, port, protocol, label, secret (name, keys) or None, placeholders
+        (shipped Secrets a pod references, replaced from Walk), config (name, literals) or None, ingress, sizing
+        (kind, name, container, requests, limits) or None, bare_service (a workload with no Service of its own),
+        secret_mounted, hostpath_volumes, gpu_drop (a GPU limit a laptop cannot satisfy on an optional-GPU component)."""
+        if c in self._meta:
+            return self._meta[c]
+        w = self.fact(c, "wiring") or {}
+        sec = w.get("secret") or {}
+        if sec.get("name") and not sec.get("keys") and c not in self._noted_keys:
+            self._noted_keys.add(c)
+            self.notes.append(f"OPEN: {c} mounts {sec['name']} but documents no keys; add them to wiring.secret.keys in wiki/catalog-overrides.yaml or write the .env.example by hand")
+        wl = w.get("workload") or {}
+        sz = w.get("sizing") or {}
+        shipped_services = {n for k, n in ((o["kind"], (o.get("metadata") or {}).get("name")) for o in self.local_objects(self.k8s / "components" / c)) if k == "Service"}
+        out = {
+            "service": w.get("service"), "port": w.get("port"), "protocol": w.get("protocol") or "tcp", "label": w.get("label"),
+            "secret": (sec["name"], list(sec["keys"])) if sec.get("name") and sec.get("keys") else None,
+            "placeholders": list(w.get("placeholder_secrets") or []),
+            "config": (w["config"]["name"], list(w["config"]["literals"])) if (w.get("config") or {}).get("literals") else None,
+            "ingress": w.get("ingress"),
+            "sizing": (wl["kind"], wl["name"], wl.get("container") or wl["name"], sz["requests"]["cpu"], sz["requests"]["memory"], sz["limits"]["cpu"], sz["limits"]["memory"]) if sz and wl else None,
+            "bare_service": bool(w.get("service")) and w.get("service") not in shipped_services,
+            "extra_ports": dict(w.get("extra_ports") or {}),
+            "secret_mounted": bool(w.get("secret_mounted")),
+            "hostpath_volumes": list(w.get("hostpath_volumes") or []),
+            "gpu_drop": bool(w.get("gpu_limit")) and self.fact(c, "gpu_required") != "required",
+            "workload": wl,
+        }
+        self._meta[c] = out
         return out
+
+    def runs(self, stage: str) -> list[str]:
+        """Every component the stage's build contains: what the records choose at that stage, the same set
+        validate.py reads (common.stage_components). A Crawl choice no Walk record repeats is superseded or
+        dropped, and the stage overlay deletes its objects from the build it recomposes."""
+        return stage_components(self.records, stage)
+
+    def dropped_at(self, stage: str) -> list[str]:
+        """Use-case-scoped components the previous stage ran and this stage does not."""
+        if stage == "crawl":
+            return []
+        prev = STAGES[STAGES.index(stage) - 1]
+        return [c for c in self.runs(prev) if c not in self.runs(stage) and not self.infra(c)]
 
     def psa_exceptions(self, stage: str) -> list[dict]:
         r = self.records.get("security")
@@ -195,9 +207,9 @@ class Assembly:
         including the glue and the config the assembly adds for it."""
         objs = [(o["kind"], o["metadata"]["name"]) for o in self.local_objects(self.k8s / "components" / c)
                 if o["kind"] not in CLUSTER_SCOPED and (o.get("metadata") or {}).get("name")]
-        meta = COMPONENTS.get(c) or {}
-        if meta.get("glue") == "minio-dev":
-            objs.append(("Service", "minio"))
+        meta = self.meta(c)
+        if meta.get("bare_service"):
+            objs.append(("Service", meta["service"]))
         if meta.get("config"):
             objs.append(("ConfigMap", meta["config"][0]))
         if self.fact(c, "remote_refs") or not objs:
@@ -229,7 +241,7 @@ class Assembly:
         """(secret name, keys, origin) the Crawl overlay generates: component Secrets and scaffold secrets."""
         out: list[tuple[str, list[str], str]] = []
         for c in self.choices("crawl"):
-            meta = COMPONENTS.get(c) or {}
+            meta = self.meta(c)
             if meta.get("secret"):
                 name, keys = meta["secret"]
                 out.append((name, keys, c))
@@ -244,7 +256,7 @@ class Assembly:
         out: list[tuple[str, list[str], str]] = []
         known = {s[0] for s in self.crawl_secrets()}
         for c in self.new_at(stage):
-            meta = COMPONENTS.get(c) or {}
+            meta = self.meta(c)
             if meta.get("secret") and meta["secret"][0] not in known:
                 out.append((meta["secret"][0], meta["secret"][1], c)); known.add(meta["secret"][0])
         for line in self.setting("architecture", stage, "integrations", []) or []:
@@ -254,6 +266,25 @@ class Assembly:
             sname = f"{slug(system)}-secret"
             if sname not in known:
                 out.append((sname, [f"{slug(system).upper().replace('-', '_')}_TOKEN"], f"integration: {line}")); known.add(sname)
+        return out
+
+    def secrets_at(self, stage: str) -> list[tuple[str, list[str], str]]:
+        """(secret name, keys, origin) the stage's build needs: the Secrets of the components that run at the
+        stage, the scaffold's, and the integration tokens of this and the earlier stages. A dropped
+        component's Secret leaves with it."""
+        out: list[tuple[str, list[str], str]] = []
+        names: set[str] = set()
+        for c in self.runs(stage):
+            meta = self.meta(c)
+            if meta.get("secret") and meta["secret"][0] not in names:
+                out.append((meta["secret"][0], meta["secret"][1], c)); names.add(meta["secret"][0])
+        for s in self.crawl_secrets():
+            if s[2].startswith("scaffold:") and s[0] not in names:
+                out.append(s); names.add(s[0])
+        for st in STAGES[1:STAGES.index(stage) + 1]:
+            for s in self.stage_secrets(st):
+                if s[2].startswith("integration:") and s[0] not in names:
+                    out.append(s); names.add(s[0])
         return out
 
     def env_example(self, name: str, keys: list[str], origin: str, *, stage: str) -> str:
@@ -344,26 +375,37 @@ class Assembly:
         patches: list[dict] = []
         # glue and sizing per component
         for c in uc_components:
-            meta = COMPONENTS.get(c) or {}
+            meta = self.meta(c)
+            wl = meta.get("workload") or {}
+            pod_prefix = "/spec" if wl.get("kind") == "Pod" else "/spec/template/spec"
             if meta.get("sizing"):
                 kind, name, cname, rc, rm, lc, lm = meta["sizing"]
-                self.write(nsdir / "patches" / f"{name}-resources-patch.yaml", f"# Laptop sizing for {c} (catalog defaults are sized for tenants).\n" + dump(
-                    {"apiVersion": "apps/v1", "kind": kind, "metadata": {"name": name}, "spec": {"template": {"spec": {"containers": [
-                        {"name": cname, "resources": {"requests": {"cpu": rc, "memory": rm}, "limits": {"cpu": lc, "memory": lm}}}]}}}}))
+                container = {"name": cname, "resources": {"requests": {"cpu": rc, "memory": rm}, "limits": {"cpu": lc, "memory": lm}}}
+                doc = {"apiVersion": "v1", "kind": "Pod", "metadata": {"name": name}, "spec": {"containers": [container]}} if kind == "Pod" else \
+                      {"apiVersion": "apps/v1", "kind": kind, "metadata": {"name": name}, "spec": {"template": {"spec": {"containers": [container]}}}}
+                self.write(nsdir / "patches" / f"{name}-resources-patch.yaml", f"# Laptop sizing for {c} (catalog defaults are sized for tenants; strategic merge on the container name).\n" + dump(doc))
                 patches.append({"path": f"patches/{name}-resources-patch.yaml", "target": {"kind": kind, "name": name}})
-            if meta.get("glue") == "minio-dev":
-                self.write(nsdir / "minio-service.yaml", "# apps/minio/dev ships a Pod only; the overlay adds the Service the contract advertises.\n" + dump(
-                    {"apiVersion": "v1", "kind": "Service", "metadata": {"name": "minio"}, "spec": {"selector": {"app": "minio"}, "ports": [{"name": "api", "port": 9000, "targetPort": 9000}, {"name": "console", "port": 9090, "targetPort": 9090}]}}))
-                resources.append("minio-service.yaml")
-                self.write(nsdir / "patches" / "minio-env-patch.yaml", "# apps/minio/dev has no credentials; mount the overlay's minio-secret (strategic merge on the container name).\n# The component's hostPath is root-owned on k3d and the image runs as 1001: an emptyDir is the laptop's disk at Crawl.\n" + dump(
-                    {"apiVersion": "v1", "kind": "Pod", "metadata": {"name": "minio"}, "spec": {"containers": [{"name": "minio", "envFrom": [{"secretRef": {"name": "minio-secret"}}],
-                        "resources": {"requests": {"cpu": "100m", "memory": "256Mi"}, "limits": {"cpu": "1", "memory": "1Gi"}}}]}}))
-                patches.append({"path": "patches/minio-env-patch.yaml", "target": {"kind": "Pod", "name": "minio"}})
-                patches.append({"target": {"kind": "Pod", "name": "minio"},
-                                "patch": "# assumes volumes[0] is localvolume (upstream pod.yaml); the hostPath is root-owned on k3d and the image runs as 1001\n- op: replace\n  path: /spec/volumes/0\n  value: {name: localvolume, emptyDir: {}}\n"})
-            if meta.get("glue") == "ollama":
-                patches.append({"target": {"kind": "StatefulSet", "name": "ollama"},
-                                "patch": "# assumes containers[0] is ollama (upstream statefulset.yaml); drops the GPU limit a laptop cannot satisfy\n- op: remove\n  path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu\n"})
+            if meta.get("bare_service"):
+                # the component ships a workload and no Service: the overlay adds the one the contract advertises
+                ports = [{"name": "api", "port": meta["port"], "targetPort": meta["port"]}] + [{"name": n, "port": p, "targetPort": p} for n, p in meta["extra_ports"].items()]
+                self.write(nsdir / f"{meta['service']}-service.yaml", f"# {c} ships no Service; the overlay adds the one the contract advertises (catalog wiring).\n" + dump(
+                    {"apiVersion": "v1", "kind": "Service", "metadata": {"name": meta["service"]}, "spec": {"selector": {"app": meta["label"]}, "ports": ports}}))
+                resources.append(f"{meta['service']}-service.yaml")
+            if meta.get("secret") and not meta.get("secret_mounted") and wl:
+                # the component takes credentials its manifests never reference: mount the overlay's Secret on the container
+                container = {"name": wl.get("container") or wl["name"], "envFrom": [{"secretRef": {"name": meta["secret"][0]}}]}
+                doc = {"apiVersion": "v1", "kind": "Pod", "metadata": {"name": wl["name"]}, "spec": {"containers": [container]}} if wl["kind"] == "Pod" else \
+                      {"apiVersion": "apps/v1", "kind": wl["kind"], "metadata": {"name": wl["name"]}, "spec": {"template": {"spec": {"containers": [container]}}}}
+                self.write(nsdir / "patches" / f"{wl['name']}-env-patch.yaml", f"# {c} has no credentials in its manifests; mount the overlay's {meta['secret'][0]} (strategic merge on the container name).\n" + dump(doc))
+                patches.append({"path": f"patches/{wl['name']}-env-patch.yaml", "target": {"kind": wl["kind"], "name": wl["name"]}})
+            for v in meta.get("hostpath_volumes") or []:
+                # a hostPath is root-owned on k3d and the image rarely runs as root: an emptyDir is the laptop's disk at Crawl
+                prefix = "/spec" if v.get("kind") == "Pod" else "/spec/template/spec"
+                patches.append({"target": {"kind": v["kind"], "name": v["workload"]},
+                                "patch": f"# assumes volumes[{v['index']}] is {v['name']} (upstream manifest); the hostPath is root-owned on k3d, an emptyDir is the laptop's disk at Crawl\n- op: replace\n  path: {prefix}/volumes/{v['index']}\n  value: {{name: {v['name']}, emptyDir: {{}}}}\n"})
+            if meta.get("gpu_drop") and wl:
+                patches.append({"target": {"kind": wl["kind"], "name": wl["name"]},
+                                "patch": f"# assumes containers[0] is {wl.get('container') or wl['name']} (upstream manifest); drops the GPU limit a laptop cannot satisfy (catalog gpu_required: {self.fact(c, 'gpu_required')})\n- op: remove\n  path: {pod_prefix}/containers/0/resources/limits/nvidia.com~1gpu\n"})
         # workloads
         for w in workloads:
             self.write(nsdir / f"{w['name']}.yaml", self.workload_manifest(w, image=image))
@@ -375,7 +417,7 @@ class Assembly:
             secret_gen.append({"name": sname, "envs": [f"secrets/{sname}.env"], "options": {"disableNameSuffixHash": True}})
         config_gen = []
         for c in uc_components:
-            meta = COMPONENTS.get(c) or {}
+            meta = self.meta(c)
             if meta.get("config"):
                 cname, literals = meta["config"]
                 config_gen.append({"name": cname, "literals": literals, "options": {"disableNameSuffixHash": True}})
@@ -408,7 +450,7 @@ class Assembly:
             self.notes.append("OPEN: the scaffold declares no seed or verify Job; usecase.yaml needs both before ephemeral.sh can run")
         endpoints, secrets = [], []
         for c in crawl:
-            meta = COMPONENTS.get(c) or {}
+            meta = self.meta(c)
             if meta.get("service"):
                 endpoints.append({"name": c.split("/")[-1], "service": meta["service"], "port": meta["port"], "protocol": meta.get("protocol", "tcp")})
             if meta.get("secret"):
@@ -439,10 +481,10 @@ class Assembly:
             {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"name": "allow-dns", "namespace": ns},
              "spec": {"podSelector": {}, "policyTypes": ["Egress"], "egress": [{"to": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}}}], "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}]}]}},
         ]
-        comps = [c for c in self.choices(stage) if not self.infra(c) and (COMPONENTS.get(c) or {}).get("label")]
+        comps = [c for c in self.choices(stage) if not self.infra(c) and self.meta(c).get("label")]
         workloads = (self.scaffold or {}).get("spec", {}).get("workloads", [])
         # (pod label, port, namespace): a component a psa_exceptions entry moved is reached across namespaces
-        targets = [(COMPONENTS[c]["label"], COMPONENTS[c]["port"], self.home(c, stage)) for c in comps] + [(w["name"], w.get("port", 8000), ns) for w in workloads if w["kind"] == "deployment"]
+        targets = [(self.meta(c)["label"], self.meta(c)["port"], self.home(c, stage)) for c in comps] + [(w["name"], w.get("port", 8000), ns) for w in workloads if w["kind"] == "deployment"]
 
         def peer(lbl: str, home: str) -> dict:
             sel = {"podSelector": {"matchLabels": {"app": lbl}}}
@@ -484,8 +526,8 @@ class Assembly:
     def exception_netpols(self, stage: str, n: str, comps: list[str]) -> str:
         """default-deny in an exception namespace: DNS, traffic inside it, the use case's namespace to the
         moved components' ports, and the ingress controller to the ones it serves (an Ingress or the IdP)."""
-        ports = sorted({(COMPONENTS.get(c) or {}).get("port") for c in comps} - {None})
-        served = [c for c in comps if (COMPONENTS.get(c) or {}).get("ingress") or "identity-provider" in (self.fact(c, "capabilities") or [])]
+        ports = sorted({self.meta(c).get("port") for c in comps} - {None})
+        served = [c for c in comps if self.meta(c).get("ingress") or "identity-provider" in (self.fact(c, "capabilities") or [])]
         from_uc = {"from": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": self.ns}}}]}
         if ports:
             from_uc["ports"] = [{"protocol": "TCP", "port": p} for p in ports]
@@ -551,7 +593,10 @@ class Assembly:
         place = self.placement(stage)
         prev_place = self.placement("walk") if stage == "run" else {}
         before = self.runs(STAGES[STAGES.index(stage) - 1])
+        dropped = self.dropped_at(stage)
         for c, n in prev_place.items():
+            if c in dropped:
+                continue
             if place.get(c) != n:
                 self.notes.append(f"OPEN: {c} was moved to {n} at walk and the {stage} record says {place.get(c) or 'nothing'}; a stage overlay never moves a component back, edit the walk exception")
         relocate = {c: n for c, n in place.items() if c in before and c not in prev_place}
@@ -560,11 +605,23 @@ class Assembly:
         for c, n in list(relocate.items()) + list(placed.items()):
             arriving.setdefault(n, []).append(c)
         wrapped = f"../../namespaces/{ns}" if stage == "walk" else "../walk"
-        if relocate:
+        if relocate or dropped:
             moves = [{"target": {"kind": kind, "name": name, "namespace": ns}, "patch": f"- op: replace\n  path: /metadata/namespace\n  value: {n}\n"}
                      for c, n in relocate.items() for kind, name in self.objects_of(c)]
+            # a component the previous stage ran and no record repeats at this stage leaves the build:
+            # superseded by one that covers its capability (the records' choice), or dropped on purpose
+            prev_stage = STAGES[STAGES.index(stage) - 1]
+            for c in dropped:
+                home = self.home(c, prev_stage)
+                targets = [(kind, name, home) for kind, name in self.objects_of(c) if kind != "Secret"]  # the stage's secrets are written from what runs at the stage
+                if home != ns:  # a relocated component left ExternalName aliases of its Services in uc-<name>
+                    targets += [("Service", svc, ns) for svc in self.services_of(c)]
+                for kind, name, where in targets:
+                    moves.append({"target": {"kind": kind, "name": name, "namespace": where},
+                                  "patch": f"# {c} ran at {prev_stage} and no record chooses it at {stage}\n$patch: delete\nkind: {kind}\nmetadata:\n  name: {name}\n"})
             self.write(sdir / "relocated" / "kustomization.yaml",
-                       f"# {stage}: the build so far with the PSA exceptions moved out of {ns} (security: psa_exceptions).\n"
+                       f"# {stage}: the build so far with the PSA exceptions moved out of {ns} (security: psa_exceptions)"
+                       + (f" and the components {stage} no longer runs deleted ({', '.join(dropped)})" if dropped else "") + ".\n"
                        "# A layer of its own because the aliases left in the use case's namespace would collide with the originals here.\n"
                        + dump({"apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization", "resources": ["../" + wrapped], "patches": moves}))
             wrapped = "./relocated"
@@ -611,7 +668,7 @@ class Assembly:
         mech = self.setting("security", stage, "secrets_mechanism", "sealed-secrets")
         # Walk writes the NetworkPolicies and the surface; Run inherits them from ../walk and adds only what changes.
         sub_resources = (["netpols.yaml"] if stage == "walk" else []) + [self.rel_component(c, 7) for c in scoped if c not in placed]
-        all_secrets = self.crawl_secrets() + self.stage_secrets("walk") + (self.stage_secrets("run") if stage == "run" else [])
+        all_secrets = self.secrets_at(stage)
         # a component's Secret stays in uc-<name> while a workload there consumes it or the component runs there
         consumed = {x for w in sc.get("workloads", []) for x in w.get("secrets") or []}
         all_secrets = [t for t in all_secrets if t[2] not in self.catalog or self.home(t[2], stage) == ns or t[0] in consumed]
@@ -619,8 +676,7 @@ class Assembly:
             for sname, keys, origin in self.crawl_secrets():
                 patches.append({"target": {"kind": "Secret", "name": sname, "namespace": ns}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {sname}\n"})
             for c in scoped:
-                ph = (COMPONENTS.get(c) or {}).get("placeholder_secret")
-                if ph:
+                for ph in self.meta(c)["placeholders"]:
                     patches.append({"target": {"kind": "Secret", "name": ph, "namespace": self.home(c, stage)}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {ph}\n"})
             for sname, keys, origin in all_secrets:
                 self.write(sdir / "namespaces" / ns / "secrets" / f"sealed-{sname}.yaml", self.sealed_placeholder(sname, keys))
@@ -653,8 +709,8 @@ class Assembly:
         # component Ingresses in the namespace sit behind the auth middleware (security: auth_in_front)
         if stage == "walk" and auth == "oauth2-proxy":
             for c in scoped:
-                ing_name = (COMPONENTS.get(c) or {}).get("ingress")
-                if ing_name:
+                ing_name = self.meta(c).get("ingress")
+                if ing_name and "identity-provider" not in (self.fact(c, "capabilities") or []):  # the IdP's own Ingress is never behind itself
                     patches.append({"target": {"kind": "Ingress", "name": ing_name, "namespace": self.home(c, stage)},
                                     "patch": f"- op: add\n  path: /metadata/annotations/traefik.ingress.kubernetes.io~1router.middlewares\n  value: {mw}\n"})
         # netpols (Walk; Run keeps them and the matrix is a Run recommendation the reviewer asks for)
@@ -671,7 +727,7 @@ class Assembly:
             sub_resources.append("aliases.yaml")
         sub = {"namespace": ns, "resources": sub_resources}
         for c in scoped:
-            meta = COMPONENTS.get(c) or {}
+            meta = self.meta(c)
             if meta.get("config") and c not in placed:
                 sub.setdefault("configMapGenerator", []).append({"name": meta["config"][0], "literals": meta["config"][1], "options": {"disableNameSuffixHash": True}})
         self.write(sdir / "namespaces" / ns / "kustomization.yaml", f"# {stage}: what the records add inside {ns} (components fit for {stage}, NetworkPolicies, the secrets mechanism, the surface).\n" + dump(sub))
@@ -708,7 +764,7 @@ class Assembly:
     def secret_files(self, ndir: Path, n: str, c: str, stage: str, mech: str) -> list[str]:
         """The Secret a component mounts, in the namespace it runs in: a sealed placeholder with its recipe,
         or an ExternalSecret at Run when the mechanism moved to a central store."""
-        meta = COMPONENTS.get(c) or {}
+        meta = self.meta(c)
         if not meta.get("secret"):
             return []
         sname, keys = meta["secret"]
@@ -759,16 +815,16 @@ class Assembly:
             res += [self.rel_component(c, 7) for c in comps if placed.get(c) == n]
             config = []
             for c in comps:
-                meta = COMPONENTS.get(c) or {}
+                meta = self.meta(c)
                 if meta.get("config") and placed.get(c) == n:
                     config.append({"name": meta["config"][0], "literals": meta["config"][1], "options": {"disableNameSuffixHash": True}})
                 res += self.secret_files(ndir, n, c, stage, mech)
             if central:
                 for c in dict.fromkeys(self.exception_secrets.get(n, [])):
-                    sname = COMPONENTS[c]["secret"][0]
+                    sname = self.meta(c)["secret"][0]
                     patches.append({"target": {"kind": "SealedSecret", "name": sname, "namespace": n}, "patch": f"$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: {sname}\n"})
                     res += self.secret_files(ndir, n, c, stage, mech)
-            self.exception_secrets.setdefault(n, []).extend(c for c in comps if (COMPONENTS.get(c) or {}).get("secret"))
+            self.exception_secrets.setdefault(n, []).extend(c for c in comps if self.meta(c).get("secret"))
             if net and first:
                 every = [c for c, m in self.placement(stage).items() if m == n]
                 self.write(ndir / "netpols.yaml", self.exception_netpols(stage, n, every))
@@ -835,7 +891,7 @@ class Assembly:
         ns = self.ns
         nsdir = k8s / "namespaces" / ns
         stage = "walk" if "walk" in self.in_scope else "crawl"
-        everything = [c for c in self.choices("crawl") + self.new_at("walk") if not self.infra(c)] if stage == "walk" else [c for c in self.choices("crawl") if not self.infra(c)]
+        everything = [c for c in self.runs(stage) if not self.infra(c)]
         place = self.placement(stage)
         comps = [c for c in everything if c not in place]
         infra = [c for c in self.choices(stage) if self.infra(c)]
@@ -886,13 +942,12 @@ class Assembly:
             resources.append(f"{w['name']}.yaml")
         patches: list[dict] = []
         for c in comps:
-            meta = COMPONENTS.get(c) or {}
-            if meta.get("glue") == "minio-dev":
-                self.write(nsdir / "minio-service.yaml", dump({"apiVersion": "v1", "kind": "Service", "metadata": {"name": "minio"}, "spec": {"selector": {"app": "minio"}, "ports": [{"port": 9000, "targetPort": 9000}]}}))
-                resources.append("minio-service.yaml")
-            if meta.get("config"):
-                pass
-        secrets = self.crawl_secrets() + (self.stage_secrets("walk") if stage == "walk" else [])
+            meta = self.meta(c)
+            if meta.get("bare_service"):
+                ports = [{"name": "api", "port": meta["port"], "targetPort": meta["port"]}] + [{"name": n, "port": p, "targetPort": p} for n, p in meta["extra_ports"].items()]
+                self.write(nsdir / f"{meta['service']}-service.yaml", dump({"apiVersion": "v1", "kind": "Service", "metadata": {"name": meta["service"]}, "spec": {"selector": {"app": meta["label"]}, "ports": ports}}))
+                resources.append(f"{meta['service']}-service.yaml")
+        secrets = self.secrets_at(stage)
         consumed = {x for w in sc.get("workloads", []) for x in w.get("secrets") or []}
         secrets = [t for t in secrets if t[2] not in self.catalog or self.home(t[2], stage) == ns or t[0] in consumed]
         aliases = [{"apiVersion": "v1", "kind": "Service", "metadata": {"name": svc, "labels": {"forjate.io/psa-exception": n}},
@@ -907,13 +962,13 @@ class Assembly:
             self.write(nsdir / "secrets" / f"{sname}.env.example", self.env_example(sname, keys, origin, stage="walk"))
             resources.append(f"secrets/sealed-{sname}.yaml")
         for c in comps:
-            ph = (COMPONENTS.get(c) or {}).get("placeholder_secret")
-            if ph and ph not in [s[0] for s in secrets]:
-                patches.append({"target": {"kind": "Secret", "name": ph}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {ph}\n"})
+            for ph in self.meta(c)["placeholders"]:
+                if ph not in [s[0] for s in secrets]:
+                    patches.append({"target": {"kind": "Secret", "name": ph}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {ph}\n"})
         self.write(nsdir / "netpols.yaml", self.netpols(stage, depth_note=""))
         doc = {"namespace": ns, "resources": resources, "patches": patches}
         for c in comps:
-            meta = COMPONENTS.get(c) or {}
+            meta = self.meta(c)
             if meta.get("config"):
                 doc.setdefault("configMapGenerator", []).append({"name": meta["config"][0], "literals": meta["config"][1], "options": {"disableNameSuffixHash": True}})
         if image:
@@ -949,19 +1004,20 @@ class Assembly:
             patches = []
             for c in cs:
                 res += self.secret_files(ndir, n, c, "walk", "sealed-secrets")
-                meta = COMPONENTS.get(c) or {}
+                meta = self.meta(c)
                 if meta.get("secret"):
                     patches.append({"target": {"kind": "Secret", "name": meta["secret"][0]}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {meta['secret'][0]}\n"})
-                if meta.get("placeholder_secret") and meta["placeholder_secret"] != (meta.get("secret") or ("",))[0]:
-                    patches.append({"target": {"kind": "Secret", "name": meta["placeholder_secret"]}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {meta['placeholder_secret']}\n"})
+                for ph in meta["placeholders"]:
+                    if ph != (meta.get("secret") or ("",))[0]:
+                        patches.append({"target": {"kind": "Secret", "name": ph}, "patch": f"$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: {ph}\n"})
             if self.setting("security", stage, "network_policy") == "default-deny":
                 self.write(ndir / "netpols.yaml", self.exception_netpols(stage, n, cs))
                 res.append("netpols.yaml")
             sub = {"namespace": n, "resources": res}
             if patches:
                 sub["patches"] = patches
-            config = [{"name": COMPONENTS[c]["config"][0], "literals": COMPONENTS[c]["config"][1], "options": {"disableNameSuffixHash": True}}
-                      for c in cs if (COMPONENTS.get(c) or {}).get("config")]
+            config = [{"name": self.meta(c)["config"][0], "literals": self.meta(c)["config"][1], "options": {"disableNameSuffixHash": True}}
+                      for c in cs if self.meta(c).get("config")]
             if config:
                 sub["configMapGenerator"] = config
             self.write(ndir / "kustomization.yaml", f"# {n}: the PSA exceptions of {self.name} at {e['level']} (owner {e['owner']}: {e['reason']}).\n" + dump(sub))

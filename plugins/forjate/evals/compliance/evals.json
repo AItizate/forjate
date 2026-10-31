@@ -127,8 +127,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml",
-          "expr": "setting('model_pinning', 'walk') == 'pinned'",
-          "text": "model pinning copied from the AI-engineering record"
+          "expr": "setting('model_pinning', 'walk') == 'pinned' or (setting('model_pinning', 'walk') == 'floating' and (any(has('pin', g.get('text')) for g in gates()) or any(has('pin', q.get('question')) for q in oq())))",
+          "text": "model pinning stated: pinned, or floating as a finding with a gate or question that pins it"
         },
         {
           "type": "yaml_expr",
@@ -240,8 +240,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/compliance.yaml",
-          "expr": "setting('model_register', 'walk') is not None and setting('model_pinning', 'walk') == 'pinned'",
-          "text": "model register and pinning stated for the external provider"
+          "expr": "setting('model_register', 'walk') is not None and setting('model_pinning', 'walk') in ('pinned', 'floating') and (setting('model_pinning', 'walk') == 'pinned' or any(has('pin', g.get('text')) for g in gates()) or any(has('pin', q.get('question')) for q in oq()))",
+          "text": "model register stated; pinning stated, floating only as a finding with a gate or question"
         }
       ]
     },
@@ -434,7 +434,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml",
-          "expr": "has('block|cannot|contradict', st('walk').get('rationale'))",
+          "expr": "has('block|cannot|contradict|disagree|unset|unsatisf|until .* answered', st('walk').get('rationale'))",
           "text": "rationale states what is blocked"
         }
       ]

@@ -85,4 +85,4 @@ jobs:
             echo "### ${{ matrix.usecase }}: disk"
             echo "Root volume used: $((first / 1024)) MiB at start, $((peak / 1024)) MiB at peak (+$(((peak - first) / 1024)) MiB); free now $(df -h --output=avail / | tail -1 | tr -d ' ')."
             echo '```'; docker system df; echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"

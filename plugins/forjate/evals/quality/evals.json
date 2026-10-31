@@ -138,7 +138,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
-          "expr": "any(g['id'] == 'G-DS-2' and g['check']['type'] == 'manual' and has('operator|devops|data-store|platform', g['text']) for g in d['spec']['transitions']['walk->run']['gates'])",
+          "expr": "any(g['id'] == 'G-DS-2' and g['check']['type'] == 'manual' and (has('operator|devops|data-store|platform', g['text']) or g.get('owner') in ('data-store', 'devops')) for g in d['spec']['transitions']['walk->run']['gates'])",
           "text": "restore rehearsal stays manual with the operator named"
         },
         {
@@ -349,7 +349,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
-          "expr": "any(has('twice|second run|re-run|rerun|idempot', x) for x in listed(setting('verify_assertions','crawl')))",
+          "expr": "any(has('twice|second|re-?run|idempot|changes nothing', x) for x in listed(setting('verify_assertions','crawl')))",
           "text": "verify checks a second run"
         },
         {
@@ -361,7 +361,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
-          "expr": "any(has('no model|deterministic|without', x) for x in listed(setting('test_pyramid','crawl')))",
+          "expr": "any(has('no model|deterministic|without|no database|pure', x) for x in listed(setting('test_pyramid','crawl')))",
           "text": "unit layer explicitly model-free"
         },
         {

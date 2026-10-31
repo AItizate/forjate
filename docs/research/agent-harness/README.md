@@ -28,6 +28,7 @@ Working notes toward an **agent harness**: a system that runs agent tasks automa
 | 05 | [AI-assisted workflow builders and UI](05-ai-assisted-workflow-builders-ui.md) | What OSS builders generate graphs with AI, and what blocks exist to build a custom one? |
 | 06 | [Portable workflow DSL and interchange](06-portable-workflow-dsl-and-interchange.md) | Which declarative format should be the canonical IR, and how does it compile to each executor? |
 | 07 | [Google AX (Agent Executor) and Agent Substrate](07-google-ax-agent-executor.md) | What google/ax really is (a sandboxed-task runtime, not a workflow engine), and where it fits in the layering. |
+| 08 | [kagent](08-kagent.md) | The CNCF agent control plane on Substrate: agents as CRDs, A2A, HITL, typed outputs. Compared with AX for the agent-step slot. |
 
 ## How these relate to Forjate today
 

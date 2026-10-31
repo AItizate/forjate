@@ -33,7 +33,7 @@ IR             Open Workflow Spec 1.0 profile + x-forjate-* metadata + bindings 
 Compilers      IR -> Temporal interpreter | Elsa JSON | GH Actions YAML | Conductor | Argo
 Engine         Temporal (Go SDK) today; Dapr Workflow as the CNCF alternative
 Node runtime   Go: ADK Go 2.0 or Eino; Python: Pydantic AI + TemporalDurability on its own task queue
-Agent sandbox  pluggable executor per agent node: Kubernetes Job / Crucible first, Google AX on Agent Substrate later
+Agent sandbox  pluggable executor per agent node: Kubernetes Job / Crucible first; kagent (preferred) or Google AX on Agent Substrate later
 Tools/models   MCP servers; LiteLLM gateway; OTel GenAI attributes on every span
 ```
 
@@ -53,7 +53,9 @@ The name turned out to mean a fourth project, not the three guessed in [04](04-a
 - It is a **runtime for sandboxed agent tasks** on **Agent Substrate** (Apache-2.0, **CNCF Sandbox since October 2026**, gVisor or microVM actors with suspend/resume). Three resources: `Task`, `Workspace` (git, files, MCP servers, skills) and `Model`.
 - It is **not a workflow engine** and says so: no edges, dependencies, retries, timers, approvals, outputs or exit status today. Budgets, approval policies and trajectories are roadmap items.
 - In the layering it sits **under** the engine as the executor of agent nodes, where a Temporal activity creates a Task and waits for it. It complements Temporal and the Open Workflow IR rather than replacing them.
-- Verdict in [07](07-google-ax-agent-executor.md): track, do not build on it yet. Reuse its Workspace shape and runner contract in the harness schema so an AX executor is a plug-in later. Evaluate **kagent** (CNCF Sandbox, also on Substrate) alongside.
+- Verdict in [07](07-google-ax-agent-executor.md): track, do not build on it yet. Reuse its Workspace shape and runner contract in the harness schema so an AX executor is a plug-in later.
+
+**kagent** ([08](08-kagent.md)) was evaluated for the same slot and is the stronger candidate: CNCF Sandbox since 2025-05-22 (incubation under review), Apache-2.0, agents as CRDs with behaviour and runtime separated, A2A as invocation API, a framework-neutral human-in-the-loop extension, typed outputs via `outputSchema`, token usage, checkpoints and forks, Helm charts and a UI. Like AX it is not a workflow engine (composition is LLM-routed subagents, no DAG) and from `v1.0.0-rc1` (2026-10-30) it also requires Agent Substrate. Risks: Solo.io writes most of the code and sells an enterprise layer; 1.0 is a release candidate with breaking changes from 0.10.
 
 The three projects originally analysed remain relevant on their own: Google ADK (node runtime candidate in Go), Genkit (model/tool layer) and ax-llm/ax (unrelated to Google, single maintainer).
 
@@ -62,7 +64,7 @@ The three projects originally analysed remain relevant on their own: Google ADK 
 1. **Engine kernel: Temporal or Dapr Workflow.** Temporal is already a Forjate component, has the richest agent integrations and a UI that is separable by design. Dapr is the only option where engine *and* agent framework are CNCF-governed, at the cost of a sidecar model and a second control plane. Recommendation in the documents: Temporal now, interpreter written so the engine is swappable; Dapr re-evaluated when Dapr Agents has an OSS workflow UI.
 2. **Canonical IR: Open Workflow Spec or GitHub Actions schema.** Open Workflow is foundation-governed, has `call: mcp` and `call: a2a` in core, `listen`/`emit`/`wait`/`fork`/`try` for HITL and durability, a Go SDK and a Temporal interpreter. Its risks are Sandbox maturity and a small community. GitHub Actions is what every model writes fluently and what existing CI already is, but it is lossy for durable semantics. Recommendation in the documents: Open Workflow as the IR, GitHub Actions as a first-class importer and exporter.
 3. **Builder: build thin or adopt Conductor.** The documents recommend a thin designer (React Flow, Dagre, RJSF, Monaco, Yjs, CopilotKit, AG-UI, Vercel AI SDK through LiteLLM) with compile adapters as plugins. Conductor OSS is the fallback if the interpreter is judged not worth building.
-4. **Agent-step executor.** Pluggable from day one: Kubernetes Job or Crucible now; Google AX on Agent Substrate when `v1alpha1` stabilises and exit status, budgets and approvals exist ([07](07-google-ax-agent-executor.md)).
+4. **Agent-step executor.** Pluggable from day one: Kubernetes Job or Crucible now; **kagent** at 1.0 GA as the preferred Substrate-based executor (CNCF, A2A, HITL, typed outputs; [08](08-kagent.md)); Google AX only if its Workspace primitive or one-shot Task model turns out to matter more ([07](07-google-ax-agent-executor.md)). The A2A `input-required` state maps directly onto a Temporal signal, so HITL needs no custom protocol.
 5. **Language split.** Go for interpreter, compilers and the Forjate-owned schema; Python agent activities on a separate task queue only where the Python ecosystem (OpenAI Agents SDK, Pydantic AI) is wanted. Hybrid workers are idiomatic in Temporal.
 
 ## Gaps to build regardless of the decisions

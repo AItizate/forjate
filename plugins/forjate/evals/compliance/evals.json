@@ -133,7 +133,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml",
-          "expr": "setting('audit_artifacts', 'walk') == 'per-action' and any(has('prompt|model|tool|action', x) for x in listed(setting('audit_evidence', 'walk')))",
+          "expr": "setting('audit_artifacts', 'walk') == 'per-action' and any(has('prompt|model|tool|action|request|approval|gateway|trace|log', x) for x in listed(setting('audit_evidence', 'walk')))",
           "text": "per-action audit artifacts are the Walk evidence"
         },
         {

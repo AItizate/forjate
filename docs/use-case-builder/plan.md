@@ -406,6 +406,16 @@ Tests: L4 on every skill; MCP server contract tests; full L1–L3 re-run as regr
 | #33 | Release v1.2.0, first remote consumer, `builder-p5` (5) | all | Sonnet |
 | #38 | Walk-on-k3d rehearsal harness (GitOps source, Sealed Secrets, controller key); blocks the deploy criterion of #24 and #25 | — | Opus |
 
+**#21 done (2026-10-31).** The nightly had been running on its schedule and was red on both days. support-copilot: the replay Job waited for the agent API but not for the orders stub, which only listens once Postgres accepts connections and was restarted by its liveness probe meanwhile, so lookups failed into false escalations; the baseline sits exactly at the 60 % threshold, so it passed or failed by timing. Fixed in the replay and, in the generator, with a startup probe on every health-checked workload. invoice-intake: G-SEC-6 found no Ingress on the runner and one locally against the same commit; `auth-check` now reads one row per document instead of `select` plus an alternative, which evaluates differently across yq 4.x (the root cause under yq 4.44.3 was not reproduced separately). Two manual runs on the branch were green.
+
+| Per use case on `ubuntu-latest` | Runtime | Peak disk above start |
+|---|---|---|
+| invoice-intake | 4m30s to 4m41s | 18.4 GiB |
+| support-copilot | 2m26s to 2m53s | 10.8 GiB |
+| Whole nightly (jobs in parallel) | about 5m | 18.4 GiB per job; the root volume held 60 GiB at start and 78 GiB at the peak |
+
+No image, model or disk change was needed on the runner, so the issue's disk and image criterion is met with no workaround. Local k3d runs on a laptop with a warm Docker cache took 2m15s and 8m06s.
+
 **Walk on a real cluster: what is missing (2026-10-31).** Both golden use cases build `stages/walk`, pass kubeconform and the `ci` gates, and Crawl runs on k3d in the nightly. No source records `stages/walk` applied to a cluster, so everything Walk adds (ArgoCD syncing it, Sealed Secrets decrypting, the identity chain, PSA admitting the exception namespaces) is untested. #24 and #25 each ask for "a deploy of `stages/walk` on k3d" but do not say how the cluster-level pieces get resolved; proving Walk needs:
 
 1. **A cluster shaped like Walk.** The stage installs ArgoCD, Longhorn (3 replicas), MetalLB, Traefik, Prometheus and Grafana. A k3d cluster has no replicated storage and no LoadBalancer pool. The test needs a named *Walk-on-k3d* profile (local-path storage, a MetalLB pool taken from the Docker network, or Traefik behind a port-forward) written down as a deviation, not passed off as the homelab shape.

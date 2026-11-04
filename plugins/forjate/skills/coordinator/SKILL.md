@@ -61,7 +61,7 @@ Roles the plan wants but that have no agent yet are not an error: list them in t
 
 ### 5. Scaffold and assembly
 
-Two builders, not experts; they decide nothing the records decided. Both run after wave 3 so `gates.yaml` is what the assembly honours.
+Two builders, not experts; they decide nothing the records decided. Both run after wave 3 so `gates.yaml` is what the assembly honours. Delegate each in the foreground and wait for it to return before the next step: the scaffold writes what the assembly reads, and in a non-interactive run a turn that ends while a builder still works ends the run with the builder cut off (`app/` half written, no overlay, no report).
 
 **Scaffold.** When the architecture record lists workloads (anything but a pure operator Job), delegate to the `app-scaffold` agent with the use-case directory. It writes `app/` (entrypoints per workload, one typed tool module per AI-engineering tool line, the model double for CI, the seed and verify scripts, tests, a Dockerfile, the workflows that call the shared CI templates) and `.builder/scaffold.yaml`, and reports its tests and `scaffold-check.py`. Log: `- <date> scaffold: app/ generated, tests <pass|fail>, scaffold-check <clean|n findings>`.
 

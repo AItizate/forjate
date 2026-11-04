@@ -64,4 +64,6 @@ caffeinate -i -s &
 python3 plugins/forjate/evals/grade.py --all evals-workspace/coordinator-e2e/iteration-N   # needs Docker and k3d
 ```
 
+An interrupted run (usage limit, timeout, a crash) is not lost: its worktree stays, and `run.sh coordinator-e2e --iteration N --eval <id> --only with --resume` continues it there, resuming the claude session by its `session_id` (a fresh session with a continuation prompt when it cannot be), moving the earlier result to `segments/<n>/` and summing every segment in `timing.json` (`resumed: true`). A resumed run regenerates records as well as a whole one; its problem-to-Crawl time is the sum of the segments, and the benchmark says so. `run.sh` sets `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`: `claude -p` otherwise stops a background agent 10 minutes after the coordinator's last turn, which cut the first G1 run's scaffold in half.
+
 With skill only: without the plugin there are no expert agents to delegate to, and the per-skill suites already measure each skill against its baseline. On demand, not nightly in CI: the repository has no model credentials for Actions, one run costs tens of dollars and an hour or more, and grading needs a k3d cluster with the Crawl images. The deterministic half of L3 (the golden overlays up on k3d) is the nightly `usecase-e2e-nightly.yml`.

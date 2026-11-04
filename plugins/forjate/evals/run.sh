@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Run a skill's evals with and without the plugin, each in a fresh git worktree.
-# Usage: run.sh <skill> [--iteration N] [--eval <name>] [--only with|without] [--max-turns N] [--model <alias>] [--timeout SECONDS]
+# Usage: run.sh <skill> [--iteration N] [--eval <name>] [--only with|without] [--max-turns N] [--model <alias>] [--timeout SECONDS] [--resume]
+# --resume (with --iteration and --eval) continues an interrupted run in its own worktree: the claude session is
+# resumed by its session_id (a fresh session with the same continuation prompt when it cannot be), the earlier
+# result and timing move to segments/<n>/, and timing.json sums every segment and says resumed: true.
 # Default model for eval runs is opus; pass --model to compare. Builders (app-scaffold, kustomize assembly) write
 # dozens of files: run them with --max-turns 120 (FORJATE_EVAL_MAX_TURNS); 40 ends in error_max_turns. A run that exceeds
 # the timeout (default 1800 s, FORJATE_EVAL_TIMEOUT) is killed and recorded as is_error.
@@ -10,7 +13,7 @@ PLUGIN_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO="$(git -C "$PLUGIN_DIR" rev-parse --show-toplevel)"
 
 skill="${1:?usage: run.sh <skill> [--iteration N] [--eval name] [--only with|without]}"; shift
-iteration=""; only_eval=""; only_cfg=""; max_turns="${FORJATE_EVAL_MAX_TURNS:-40}"; model="${FORJATE_EVAL_MODEL:-opus}"; timeout_s="${FORJATE_EVAL_TIMEOUT:-1800}"
+iteration=""; only_eval=""; only_cfg=""; resume=0; max_turns="${FORJATE_EVAL_MAX_TURNS:-40}"; model="${FORJATE_EVAL_MODEL:-opus}"; timeout_s="${FORJATE_EVAL_TIMEOUT:-1800}"
 while [[ $# -gt 0 ]]; do
   case $1 in
     --iteration) iteration="$2"; shift ;;
@@ -19,12 +22,14 @@ while [[ $# -gt 0 ]]; do
     --max-turns) max_turns="$2"; shift ;;
     --model) model="$2"; shift ;;
     --timeout) timeout_s="$2"; shift ;;
+    --resume) resume=1 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac; shift
 done
 
 evals_file="${SCRIPT_DIR}/${skill}/evals.json"
 [[ -f "$evals_file" ]] || { echo "no evals for skill '$skill' ($evals_file)" >&2; exit 2; }
+if (( resume )) && [[ -z "$iteration" || -z "$only_eval" ]]; then echo "--resume needs --iteration and --eval" >&2; exit 2; fi
 ws="${REPO}/evals-workspace/${skill}"
 if [[ -z "$iteration" ]]; then
   iteration=1; while [[ -d "${ws}/iteration-${iteration}" ]]; do iteration=$((iteration+1)); done
@@ -38,6 +43,18 @@ run_one() {  # <eval-name> <prompt> <with|without>
   local dir="${out_root}/${name}/${cfg}_skill"
   local wt="${dir}/repo"
   mkdir -p "$dir"
+  local sid="" seg=0
+  if (( resume )); then
+    [[ -d "$wt" ]] || { echo "    --resume: no worktree at $wt" >&2; return 1; }
+    sid="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('session_id') or '')" "$dir/result.json" 2>/dev/null || true)"
+    while [[ -d "$dir/segments/$seg" ]]; do seg=$((seg+1)); done
+    mkdir -p "$dir/segments/$seg"
+    for f in result.json timing.json stderr.log grading.json; do [[ -f "$dir/$f" ]] && mv "$dir/$f" "$dir/segments/$seg/"; done
+    prompt="The previous session on this task was interrupted (usage limit, timeout or a crash). Continue the same task from where it stopped: read what already exists under k8s/overlays/usecases/, validate it, redo any step whose artifact is missing or invalid, and finish every remaining step of the original request, ending as it asks. Do not redo steps whose artifacts validate. The original request:
+
+$prompt"
+    echo "  [$cfg] $name (resume, segment $((seg+1)), session ${sid:-new})"
+  else
   git -C "$REPO" worktree remove --force "$wt" 2>/dev/null || true
   git -C "$REPO" worktree add --quiet --detach "$wt" HEAD
   # The worktree has no virtualenv; share the main checkout's so `poetry run`
@@ -70,18 +87,23 @@ run_one() {  # <eval-name> <prompt> <with|without>
   fi
   # Seed gitignored .env files so overlays build, as CI does.
   find "$wt/k8s/overlays" -name '*.env.example' | while read -r ex; do [[ -f "${ex%.example}" ]] || cp "$ex" "${ex%.example}"; done
-  # Evals run in a throwaway worktree, so the build/validate commands the skills
-  # rely on are pre-approved; everything else still goes through the default policy.
-  local allowed="Read Edit Write Glob Grep Agent Skill Bash(cd *) Bash(kubectl kustomize *) Bash(kustomize *) Bash(kubeconform *) Bash(poetry run *) Bash(python3 *) Bash(yq *) Bash(./scripts/ephemeral/create-usecase.sh *) Bash(cp *) Bash(mkdir *) Bash(ls *) Bash(cat *) Bash(git diff *) Bash(git status *)"
   # The plugin is checked into this repo, so a worktree carries the skills on
   # disk even without --plugin-dir. Strip them for the baseline so it is a real
   # control; the builder scripts and schemas stay because the prompts cite them.
   if [[ "$cfg" == "without" ]]; then
     rm -rf "$wt/plugins/forjate/skills" "$wt/plugins/forjate/agents" "$wt/docs/use-case-builder"
   fi
+  fi  # resume
+  # Evals run in a throwaway worktree, so the build/validate commands the skills
+  # rely on are pre-approved; everything else still goes through the default policy.
+  local allowed="Read Edit Write Glob Grep Agent Skill Bash(cd *) Bash(kubectl kustomize *) Bash(kustomize *) Bash(kubeconform *) Bash(poetry run *) Bash(python3 *) Bash(yq *) Bash(./scripts/ephemeral/create-usecase.sh *) Bash(cp *) Bash(mkdir *) Bash(ls *) Bash(cat *) Bash(git diff *) Bash(git status *)"
+  # A coordinator delegates to agents that may run in the background; claude -p stops them 10 min after its
+  # last turn unless told to wait. The wall-clock deadline below stays the only limit.
+  export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0
   local args=(-p "$prompt" --output-format json --permission-mode acceptEdits --max-turns "$max_turns" --model "$model" --allowedTools "$allowed")
   [[ "$cfg" == "with" ]] && args+=(--plugin-dir "$PLUGIN_DIR")
-  echo "  [$cfg] $name"
+  [[ -n "$sid" ]] && args+=(--resume "$sid")
+  (( resume )) || echo "  [$cfg] $name"
   # A hung `claude -p` must not block the batch: kill it after the timeout and
   # record the run as an error so the grader and the benchmark show it as such.
   local rc=0
@@ -99,6 +121,17 @@ run_one() {  # <eval-name> <prompt> <with|without>
     sleep 15
   done
   wait "$pid" || rc=$?
+  if [[ -n "$sid" && $rc -ne 0 && ! -s "$dir/result.json" ]]; then
+    echo "    session $sid could not be resumed; continuing in a fresh session"
+    args=("${args[@]:0:${#args[@]}-2}"); rc=0
+    ( cd "$wt" && exec claude "${args[@]}" < /dev/null > "$dir/result.json" 2> "$dir/stderr.log" ) &
+    pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+      if (( $(date +%s) - started >= timeout_s )); then kill -TERM "$pid" 2>/dev/null || true; sleep 5; kill -KILL "$pid" 2>/dev/null || true; break; fi
+      sleep 15
+    done
+    wait "$pid" || rc=$?
+  fi
   [[ $rc -ne 0 ]] && echo "    claude exited $rc (see stderr.log)"
   local wall=$(( $(date +%s) - started ))
   python3 - "$dir" "$rc" "$timeout_s" "$wall" <<'PY'
@@ -127,6 +160,13 @@ try:
         print("    RATE LIMITED: " + str(j.get("result"))[:120])
 except Exception as e:
     print(f"    could not parse result.json: {e}")
+segs = sorted((d / "segments").glob("*/timing.json")) if (d / "segments").is_dir() else []
+if segs and (d / "timing.json").exists():
+    t = json.loads((d / "timing.json").read_text()); parts = [json.loads(f.read_text()) for f in segs] + [dict(t)]
+    for k in ("wall_seconds", "num_turns", "total_cost_usd", "total_tokens"):
+        t[k] = sum((x.get(k) or 0) for x in parts)
+    t["resumed"] = True; t["segments"] = len(parts)
+    (d / "timing.json").write_text(json.dumps(t, indent=2))
 PY
 }
 

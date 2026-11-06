@@ -1,0 +1,126 @@
+# run stage of invoice-intake: extends ../walk and adds what the records require for run, nothing the plan put out of scope.
+# images: is the write-back surface: sync-app-image.yml (repository_dispatch app-image-updated) sets the SHA with yq, never sed.
+# Every remote ref is a tag (ref-pinning-check); the Application tracks a tag with selfHeal (argocd-revision-check).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ./relocated
+- ../../../../../components/apps/security/external-secrets
+- ../../../../../components/apps/security/openbao
+- ./namespaces/uc-invoice-intake
+- ./namespaces/uc-invoice-intake-baseline
+- argocd/application.yaml
+patches:
+- path: patches/namespace-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: uc-invoice-intake
+# Hand edit (data-store): the tenant credentials move to External Secrets with the rest; the admin secret lives only in the sibling namespace.
+- target:
+    kind: SealedSecret
+    name: working-postgres-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: working-postgres-secret\n"
+- target:
+    kind: SealedSecret
+    name: episodic-postgres-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: episodic-postgres-secret\n"
+- target:
+    kind: SealedSecret
+    name: postgres-init-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: postgres-init-secret\n"
+- target:
+    kind: SealedSecret
+    name: temporal-postgres-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: temporal-postgres-secret\n"
+- target:
+    kind: SealedSecret
+    name: litellm-postgres-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: litellm-postgres-secret\n"
+- target:
+    kind: SealedSecret
+    name: backup-postgres-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: backup-postgres-secret\n"
+- target:
+    kind: SealedSecret
+    name: bank-hash-salt
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: bank-hash-salt\n"
+- target:
+    kind: SealedSecret
+    name: double-admin-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: double-admin-token\n"
+- target:
+    kind: SealedSecret
+    name: mailbox-list-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: mailbox-list-token\n"
+- target:
+    kind: SealedSecret
+    name: mailbox-fetch-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: mailbox-fetch-token\n"
+- target:
+    kind: SealedSecret
+    name: odoo-lookup-po-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: odoo-lookup-po-token\n"
+- target:
+    kind: SealedSecret
+    name: odoo-find-payable-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: odoo-find-payable-token\n"
+- target:
+    kind: SealedSecret
+    name: odoo-bank-ref-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: odoo-bank-ref-token\n"
+- target:
+    kind: SealedSecret
+    name: shared-imap-mailbox-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: shared-imap-mailbox-secret\n"
+- target:
+    kind: SealedSecret
+    name: shared-imap-mailbox-attachments-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: shared-imap-mailbox-attachments-secret\n"
+- target:
+    kind: SealedSecret
+    name: odoo-purchase-orders-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: odoo-purchase-orders-secret\n"
+- target:
+    kind: SealedSecret
+    name: odoo-payables-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: odoo-payables-secret\n"
+- target:
+    kind: SealedSecret
+    name: postgres-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: postgres-secret\n"
+- target:
+    kind: SealedSecret
+    name: litellm-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: litellm-secret\n"
+- target:
+    kind: SealedSecret
+    name: gotrue-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n  name: gotrue-secret\n"
+- path: patches/security-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: security
+images:
+- name: invoice-intake
+  newName: ghcr.io/aitizate/invoice-intake
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

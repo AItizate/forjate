@@ -1,0 +1,17 @@
+# Walk sizing of the one server, from decisions/data-store.yaml postgres_sizing (ASSUMED there, not measured). max_connections stays the image's default of 100, as the record states.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  template:
+    spec:
+      containers:
+      - name: postgres
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 2Gi

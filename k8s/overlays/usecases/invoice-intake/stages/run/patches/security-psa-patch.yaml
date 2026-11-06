@@ -1,0 +1,9 @@
+# PSA of security at its own level: shared infrastructure, catalog psa_level of apps/security/openbao.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

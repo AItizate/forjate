@@ -1,0 +1,14 @@
+# Drops the component's CREATE ROLE postgres WITH LOGIN SUPERUSER: the gotrue role cannot run it, and the bootstrap superuser is already named postgres (data-store).
+# ASSUMED that gotrue's migrations need nothing more; proven when it starts (data-store R15).
+# A JSON patch by index, because a strategic merge moves this initContainer ahead of wait-for-postgres. The test fails the build if the index ever stops being init-gotrue-db.
+- op: test
+  path: /spec/template/spec/initContainers/1/name
+  value: init-gotrue-db
+- op: replace
+  path: /spec/template/spec/initContainers/1/command
+  value:
+  - sh
+  - -c
+  - |
+    DB_BASE=$(echo "$DATABASE_URL" | sed 's/?.*//')
+    psql "$DB_BASE" -c "CREATE SCHEMA IF NOT EXISTS auth;"

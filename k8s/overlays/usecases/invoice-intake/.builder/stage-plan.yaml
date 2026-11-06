@@ -1,0 +1,252 @@
+apiVersion: forjate.io/v0
+kind: StagePlan
+metadata:
+  usecase: invoice-intake
+  version: 1
+spec:
+  stages:
+    crawl:
+      in_scope: true
+      goal: >-
+        Prove on a disposable cluster, with synthetic invoices and doubles of the mailbox and of Odoo,
+        that one invoice PDF goes from attachment to extracted fields and a purchase-order match using
+        only an in-cluster model, with every result a recommendation that a person acts on.
+      forjate_tier: lab
+      autonomy: assistive
+      estimated_cost_usd_month: 5
+      exit_criteria:
+        - id: G-SEC-1
+          text: >-
+            Before the first deployment, the organisation's security owner approves the sandbox and the
+            access grants, because the use case handles financial data, will write to a system of record
+            and carries a risk profile.
+          owner: security
+          check: { type: manual, ref: .builder/decisions/security.yaml }
+        - id: G-Q-1
+          text: >-
+            The use case's verify Job exits 0 on the seeded dataset: seeded PDFs flow from the mailbox
+            double to extracted supplier, amount, date and PO number, and each is matched against the
+            Odoo double. `ephemeral.sh up invoice-intake` returning 0 is the proof.
+          owner: quality
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-Q-2
+          text: >-
+            On the seeded golden set, the share of invoices needing no field correction is measured once
+            and 0 amounts are wrong; the target of 80% is reported against but does not have to be met
+            at this stage.
+          owner: quality
+          check: { type: metric, ref: seeded-golden-set straight_through_rate and wrong_amount_count }
+        - id: G-Q-3
+          text: >-
+            The assistive ceiling holds: the verify Job proves the Odoo double received 0 write calls,
+            and every seeded mismatch came out as an exception for the AP clerk.
+          owner: quality
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-SEC-2
+          text: >-
+            Extraction reaches only an in-cluster model: the verify Job proves no call goes to an external
+            model provider, even at this stage (pack:regulated-corp#AI-2, pack:regulated-corp#RES-1).
+          owner: security
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-SEC-3
+          text: No plaintext credential anywhere in the use case; mailbox and Odoo credentials are placeholders.
+          owner: security
+          check: { type: ci, ref: secret-scan }
+        - id: G-SEC-4
+          text: Workload logs carry no invoice payload and no bank account number.
+          owner: security
+          check: { type: ci, ref: log-content-scan }
+        - id: G-BIZ-1
+          text: The CFO sees the number measured by G-Q-2 and signs the Crawl to Walk transition.
+          owner: business
+          check: { type: manual, ref: Crawl report }
+        - id: G-DS-1
+          text: >-
+            The retention of invoice data, including bank account numbers, is decided by the CFO with
+            compliance before any real invoice enters at Walk; Crawl data is synthetic and dies with the
+            cluster.
+          owner: data-store
+          check: { type: manual, ref: .builder/decisions/data-store.yaml }
+      out_of_scope:
+        - Real invoices, real bank account numbers, the real mailbox and any real Odoo instance; Crawl runs on synthetic data and doubles only.
+        - Any write to Odoo, including draft bills; the agent recommends and a person acts.
+        - Authentication, high availability, backups and a production-grade review queue.
+        - >-
+          OPEN: Who are the organisation's security owner and compliance owner? The brief names neither,
+          and G-SEC-1 blocks the first deployment until someone can sign it.
+        - >-
+          OPEN: Does "80% straight-through" mean no human touches a matched invoice? That is what the
+          problem statement implies, but the brief's `semi-autonomous` means writes go behind approval.
+          The plan honours the ceiling: unattended posting is not planned unless G-AUT-1 is signed, and
+          the brief's autonomy may have to be revisited for it.
+        - >-
+          OPEN: How long must invoices and bank account numbers be retained, and under which regime? The
+          brief says regulated without naming one. G-DS-1 cannot close without the answer.
+        - >-
+          OPEN: What counts as a match (amount tolerance, partial deliveries, invoices without a PO)? The
+          brief is silent; the plan assumes exact match on supplier, amount and PO number, and anything
+          else goes to the AP clerk.
+        - >-
+          OPEN: Over what window is the success target measured? The brief gives none; the plan assumes
+          30 consecutive days and at least 300 real invoices.
+        - >-
+          OPEN: Which Odoo version and API does the integration use, and is a non-production instance
+          available for Walk? The brief says REST, and the API surface varies by Odoo version.
+        - >-
+          OPEN: What share of the PDFs are scanned rather than digital, and in which languages? This sizes
+          the extraction work and the seeded dataset; the plan assumes a mix of both until told otherwise.
+        - >-
+          OPEN: Where does the EU cluster run, and what hardware serves the in-cluster model? No figure in
+          this plan includes inference hardware, and the brief does not say whether the USD 300 budget
+          must cover it.
+    walk:
+      in_scope: true
+      goal: >-
+        Prove that the AP clerk can rely on the system on real invoices on one EU cluster, with registered
+        tools, every Odoo write behind a person's approval, and the `logical` isolation the brief asks for.
+      forjate_tier: mvp
+      autonomy: semi-autonomous
+      estimated_cost_usd_month: 150
+      exit_criteria:
+        - id: G-Q-4
+          text: >-
+            Success metric on real invoices, over 30 consecutive days and at least 300 invoices (assumed
+            window): at least 80% are approved by the AP clerk with no field corrected, and 0 posted
+            amounts are wrong. Every write is still approved at this stage, so this measures the share that
+            could go straight through, not unattended posting.
+          owner: quality
+          check: { type: metric, ref: straight_through_eligible_rate and wrong_amount_count }
+        - id: G-Q-5
+          text: >-
+            The verify Job proves the write path: no Odoo write exists without an approval record, every
+            mismatch reaches the AP clerk, and a re-delivered invoice creates no second payable.
+          owner: quality
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-Q-6
+          text: The golden-set regression passes on every change of model, prompt or matching rule.
+          owner: quality
+          check: { type: ci, ref: eval-regression }
+        - id: G-SEC-5
+          text: >-
+            PSA `restricted` is enforced on the namespace from Walk, above the factory's Walk default of
+            `baseline` (pack:regulated-corp#SEC-1).
+          owner: security
+          check: { type: ci, ref: psa-check }
+        - id: G-SEC-6
+          text: >-
+            The namespace is default-deny with a documented egress allow-list that holds the mailbox and
+            Odoo and no external model provider, which is the network isolation for financial data
+            (pack:regulated-corp#AI-2, pack:regulated-corp#RES-1).
+          owner: security
+          check: { type: ci, ref: netpol-check }
+        - id: G-SEC-7
+          text: >-
+            The injection suite passes: instructions planted in a supplier PDF cannot change an extracted
+            amount, a match result or a tool call, since the attachments are untrusted input.
+          owner: security
+          check: { type: ci, ref: injection-suite }
+        - id: G-SEC-8
+          text: Every Ingress of the namespace, including the AP clerk's review surface, sits behind the auth the security record names.
+          owner: security
+          check: { type: ci, ref: auth-check }
+        - id: G-OPS-1
+          text: Rollback is rehearsed once from git by the operator the business expert's RACI assigns.
+          owner: devops
+          check: { type: manual, ref: rollback rehearsal record }
+        - id: G-OPS-2
+          text: >-
+            Golden signals are exported and alerting: intake backlog, extraction failures, exception queue
+            age and Odoo posting errors.
+          owner: devops
+          check: { type: metric, ref: invoice-intake golden-signal series and alert rules }
+        - id: G-BIZ-2
+          text: The CFO signs the Walk report and the Walk to Run transition, with G-Q-4's number and the actual monthly cost in it.
+          owner: business
+          check: { type: manual, ref: Walk report }
+      out_of_scope:
+        - Any Odoo write without a person's approval, even on a fully matched invoice.
+        - Physical isolation or a dedicated cluster; the brief asks for logical isolation.
+        - Multi-tenancy, offsite backup and SLAs, which belong to Run.
+    run:
+      in_scope: true
+      goal: >-
+        Prove the system holds under audit in production: 80% of invoices posted without manual typing and
+        0 wrong amounts, kept at `semi-autonomous` because the `regulated-decision` risk profile and the
+        brief both cap it there unless a named gate per action says otherwise.
+      forjate_tier: production
+      autonomy: semi-autonomous
+      estimated_cost_usd_month: 500
+      exit_criteria:
+        - id: G-Q-7
+          text: >-
+            Over each rolling 30 days in production, at least 80% of invoices are posted without manual
+            typing and 0 amounts are wrong; the metric reports separately how many had a person's approval.
+          owner: quality
+          check: { type: metric, ref: straight_through_rate and wrong_amount_count }
+        - id: G-SEC-9
+          text: PSA `restricted` is enforced on the namespace (pack:regulated-corp#SEC-1).
+          owner: security
+          check: { type: ci, ref: psa-check }
+        - id: G-SEC-10
+          text: >-
+            Egress stays default-deny with no external model provider on the allow-list, and all data stays
+            in the EU (pack:regulated-corp#AI-2, pack:regulated-corp#RES-1).
+          owner: security
+          check: { type: ci, ref: netpol-check }
+        - id: G-SEC-11
+          text: Secrets come from External Secrets and no plain Secret ships in the overlay (pack:regulated-corp#SEC-2).
+          owner: security
+          check: { type: ci, ref: secrets-check }
+        - id: G-COMP-1
+          text: >-
+            The compliance record is signed, with data residency, egress, retention and the
+            `regulated-decision` handling documented, as the regulated flag and the risk profile require.
+          owner: compliance
+          check: { type: manual, ref: .builder/decisions/compliance.yaml }
+        - id: G-AUT-1
+          text: >-
+            Named action: posting a fully matched invoice to Odoo without per-invoice approval. It stays
+            behind approval until the CFO signs this gate for this action alone, citing the G-Q-4 evidence.
+            Any other action needs its own gate.
+          owner: business
+          check: { type: manual, ref: .builder/gates.yaml }
+        - id: G-OPS-3
+          text: >-
+            Kill-switch rehearsal, required by the `high-impact-action` risk profile: a drill Job trips the
+            switch in production and proves that no further Odoo write happens and that pending invoices
+            wait for the AP clerk.
+          owner: devops
+          check: { type: verify-job, ref: invoice-intake-killswitch-drill }
+        - id: G-OPS-4
+          text: A restore drill Job restores the latest backup and proves that invoice state and approval records are intact.
+          owner: devops
+          check: { type: verify-job, ref: invoice-intake-restore-drill }
+      out_of_scope:
+        - >-
+          Budget: the Run estimate of USD 500 a month exceeds the brief's USD 300, before any managed
+          services or inference hardware. To fit, the sizing, offsite backup tier and managed services
+          would have to give, or the budget must rise; the PSA, egress and compliance gates do not give.
+          The business expert negotiates this.
+        - Any `autonomous` ceiling; the brief does not ask for it, and the risk profile would not allow it by default.
+        - Unattended action other than the one named in G-AUT-1, such as correcting, cancelling or paying a bill.
+  experts:
+    - role: business
+      run: true
+    - role: architecture
+      run: true
+    - role: ai-engineering
+      run: true
+    - role: data-store
+      run: true
+    - role: data-pipeline
+      run: true
+    - role: security
+      run: true
+    - role: compliance
+      run: true
+    - role: quality
+      run: true
+    - role: devops
+      run: true
+    - role: ux
+      run: true

@@ -1,0 +1,370 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata:
+  area: business
+  usecase: invoice-intake
+  author: forjate:business
+  version: 1
+  language: en
+spec:
+  stages:
+    crawl:
+      choice: []
+      estimated_cost_usd_month: 5
+      settings:
+        value_hypothesis: >-
+          At about 300 invoices/month, posting 80% to Odoo without manual typing (baseline 0%) with 0 wrong
+          amounts removes the typing from about 240 invoices/month; the clerk hours saved are 240 x typing
+          minutes per invoice minus review minutes x the invoices a person still reviews (all 300 until
+          G-AUT-1 is signed, about 60 after), and no hour is claimed until Q3 supplies the minutes.
+        kpi_metric: straight_through_rate
+        kpi_baseline: 0%
+        kpi_target: >-
+          At least 50% on the seeded golden set, measured once in one run, 0 wrong amounts, every seeded
+          mismatch routed to the AP clerk. Nothing is written at Crawl, so a straight-through invoice here
+          is one needing no field correction.
+        as_is_process:
+          - "shared IMAP mailbox: a supplier invoice arrives as a PDF attachment"
+          - "AP clerk: opens and reads the PDF"
+          - "AP clerk: types supplier, amount, date and PO number into Odoo"
+          - "AP clerk: compares the invoice with the purchase order in Odoo and flags mismatches"
+          - "AP clerk: decides each flagged exception (ASSUMED: contacting the supplier where needed, escalating to finance ops when it cannot be settled)"
+        as_is_exceptions:
+          - "amount, supplier or PO number differs from the purchase order: AP clerk (the brief names the clerk as approver of every exception)"
+          - "ASSUMED: PO number missing or unreadable on the invoice: AP clerk searches Odoo by supplier and amount"
+          - "ASSUMED: partial delivery, so the invoice covers part of a purchase order: AP clerk"
+          - "ASSUMED: duplicate or re-sent invoice: AP clerk, caught only if the first one is remembered or found in Odoo"
+          - "ASSUMED: bank details differ from those known for the supplier: AP clerk, escalating to finance ops; reading the PDF is today's only chance to notice"
+          - "ASSUMED: attachment is illegible or is not an invoice: AP clerk"
+        as_is_sla: >-
+          unknown. ASSUMED: the brief states no turnaround, so none is written here; the working rule is that
+          the automation must not lengthen today's, whatever Q7 finds it to be.
+        actors:
+          - finance ops (requester)
+          - AP clerk (end-user)
+          - CFO (approver)
+          - Odoo (system)
+          - shared IMAP mailbox (system)
+        systems_of_record:
+          - Odoo purchase orders and payables (REST API)
+        approver: CFO
+        go_no_go: conditional
+        eval_dimensions:
+          - "cost: USD per item within the stage envelope, from the gateway's spend per key and the node shape"
+        raci:
+          - "agent design: R=delivery team (ASSUMED, Q2) A=finance ops"
+          - "operation and review: R=AP clerk (reviews the exceptions on seeded data), delivery team (runs the disposable cluster) A=finance ops"
+          - "integration: R=tenant IT (ASSUMED, Q2; confirms the doubles match the real mailbox and Odoo API) A=finance ops"
+          - "risk and audit: R=delivery team (keeps the records) A=compliance owner (unnamed, Q1)"
+        operating_model: co-delivery
+        adoption_frictions:
+          - "data-readiness: finance ops, supplies the shape of real invoices (scanned share, languages, layouts) so the synthetic set resembles them, with no real invoice entering Crawl"
+          - "infosec-approval: finance ops until the security owner named by Q1 takes it, asks in week one for the sandbox and access grant G-SEC-1 requires, not at the end of the stage"
+          - "change-management: finance ops, frees the AP clerk two to three hours a week to review seeded exceptions and shows the results before any real invoice is touched"
+      rationale: >-
+        Crawl proves the mechanism on seeded data, so its target is a fraction of the brief's 80% with zero
+        tolerance on amounts. The 50% is this record's floor for calling the mechanism worth continuing
+        (ASSUMED, the brief gives no Crawl figure), not a forecast; plan gate G-Q-2 still reports the number
+        against 80%. It only reads correctly if the seeded set states its mismatch share, because deliberate
+        mismatches lower the rate. The 0% baseline is the brief's. The USD 5 is the stage figure (k3d or one
+        small VPS, a CPU-only local model, placeholder secrets), inside the USD 300 budget, and no external
+        API line exists because the brief sets llm_egress_allowed false. Recommendation is conditional on one
+        thing: G-SEC-1 blocks the first deployment and nobody is named to sign it (Q1). The approver, the
+        hypothesis, the baseline and the budget are otherwise in place. People are not in the USD figure.
+        Operating model is co-delivery because the brief does not say the organisation builds alone; tenant
+        IT, delivery team and compliance owner are roles the brief does not name, so each is marked ASSUMED
+        or unnamed and goes to Q1 or Q2. Odoo stays the system of record; the automation keeps no competing
+        copy of purchase orders or payables. The regulated-corp pack is active but resolves no entry for this
+        role, so factory cost figures apply and constrained_by is empty.
+      alternatives:
+        - option: Quote a clerk-hours or headcount saving now, using a typical minutes-per-invoice figure.
+          rejected_because: >-
+            The brief gives volume but no minutes per invoice and no clerk count, so no saving can be derived
+            from it. The hypothesis states the 240 invoices/month it can show and leaves the hours to Q3.
+        - option: Add cycle time or exception-queue age as a second KPI.
+          rejected_because: >-
+            One KPI. Turnaround is a guard-rail that must not lengthen (R5 at Walk), and queue age is already
+            signalled by plan gate G-OPS-2.
+      risks:
+        - id: R1
+          text: "Data readiness: synthetic invoices that do not resemble real ones make the Crawl number meaningless."
+          mitigation: Finance ops supplies the shape of real invoices (friction data-readiness); the Crawl report says the number comes from synthetic data and promises nothing about real traffic.
+          severity: medium
+        - id: R2
+          text: "Infosec approval: no security owner is named, G-SEC-1 cannot be signed, and the first deployment waits. The calendar assumes a security owner is available; each day without one moves the stage start by a day."
+          mitigation: Q1 is answered before any deployment; finance ops holds the friction until then and asks for the sandbox in week one.
+          severity: high
+        - id: R3
+          text: "Change management: the calendar assumes the AP clerk has two to three hours a week; without them the seeded exceptions go unreviewed and the stage slips by the weeks lost."
+          mitigation: Finance ops books the time before Crawl starts and reports slippage to the CFO in the Crawl report.
+          severity: medium
+      gate_to_next:
+        - id: G-BIZ-3
+          text: >-
+            straight_through_rate is measured once on the seeded golden set, is at least 50%, and
+            wrong_amount_count is 0.
+          owner: business
+          check: { type: metric, ref: seeded-golden-set straight_through_rate and wrong_amount_count }
+        - id: G-BIZ-1
+          text: The CFO sees the number measured by G-Q-2 and signs the Crawl to Walk transition.
+          owner: business
+          check: { type: manual, ref: Crawl report }
+    walk:
+      choice: []
+      estimated_cost_usd_month: 350
+      settings:
+        kpi_metric: straight_through_rate
+        kpi_target: >-
+          At least 80% over 30 consecutive days and at least 300 real invoices (window extended until 300 is
+          reached; ASSUMED, Q9), 0 wrong amounts. A person still approves every write, so the figure counts
+          invoices approved with no field typed or corrected and reports the approvals alongside.
+        approver: CFO
+        go_no_go: conditional
+        eval_dimensions:
+          - "cost: USD per item within the stage envelope, from the gateway's spend per key and the node shape; USD 350 / 300 invoices = USD 1.17 per invoice"
+        raci:
+          - "agent design: R=delivery team (ASSUMED, Q2) with tenant IT A=finance ops"
+          - "operation and review: R=AP clerk (reviews every invoice), tenant IT (ASSUMED, Q2; operator of the running system, performs the G-OPS-1 rollback) A=finance ops"
+          - "integration: R=tenant IT (ASSUMED, Q2) A=finance ops"
+          - "risk and audit: R=delivery team (keeps the records) with compliance owner A=compliance owner (unnamed, Q1)"
+        operating_model: co-delivery
+        adoption_frictions:
+          - "data-readiness: finance ops with tenant IT, has mailbox read access and a non-production Odoo granted before Walk starts, and has the scanned share, languages and Odoo version answered (plan OPEN items)"
+          - "infosec-approval: security owner (unnamed, Q1), co-approves the egress allow-list, guardrails and access grants in week one of Walk, before a real invoice enters"
+          - "change-management: finance ops, keeps the AP clerk two to three hours a week for feedback and uses the Walk window as the shadow period, where every write is approved, to build trust before G-AUT-1 is asked for"
+      rationale: >-
+        Walk gets the brief's target on real traffic. The estimate is the top of the stage infrastructure
+        range, USD 150 (the figure the stage plan carries, which excludes inference hardware), plus up to USD
+        200 for a GPU node, because llm_egress_allowed false on financial data removes the external API line
+        and the factory figure puts the GPU node here instead. That USD 350 is USD 50 over the brief's USD
+        300, so the recommendation is conditional and the honest figure stands. The GPU is not decided here:
+        about 300 invoices/month is about 14 per working day (ASSUMED 21 working days), a batch load the
+        ai-engineering expert may prove can run on CPU, which would bring the stage to USD 150. Inside budget
+        only then, or if the CFO raises it (Q5). Further conditions: Q1 to Q10 answered, and G-DS-1 closed
+        before a real invoice enters. Q3 must be measured before Walk changes how the clerk works, or the
+        as-is minutes are lost. Q4 decides whether 80% is reachable at all: if more than 20% of invoices
+        genuinely do not match, perfect extraction still misses the target. The KPI keeps one name across
+        stages; the plan's straight_through_eligible_rate in G-Q-4 is this same metric at this stage, and the
+        quality expert names the query straight_through_rate. Escalation is not failure: an invoice correctly
+        sent to the clerk counts against the rate but never as an error, whereas one silently wrong amount
+        fails the window. The human review time is not in the USD figure. The regulated-corp pack resolves no
+        entry for this role, so factory cost figures apply.
+      alternatives:
+        - option: Count only invoices with no human touch at all as the KPI at Walk.
+          rejected_because: >-
+            Every write is behind approval at Walk, so it would read 0% whatever the system achieves. The
+            brief's metric is posting without manual typing, which an approval without corrections satisfies;
+            the approval count is reported next to it so nobody mistakes one for the other.
+        - option: Fit USD 300 by dropping dashboards and alerting.
+          rejected_because: >-
+            Plan gate G-OPS-2 requires the golden signals, and a blind pilot on financial data cannot produce
+            the evidence the CFO signs. If something gives it is the GPU node, not the signals.
+      risks:
+        - id: R4
+          text: "Budget: the USD 350 estimate exceeds the brief's USD 300 by USD 50, before any cluster hosting the brief may or may not already pay for (Q6)."
+          mitigation: "What gives first is the GPU node, if ai-engineering proves CPU extraction meets the turnaround, at the cost of latency. Otherwise the CFO raises the budget (Q5). Security gates do not give."
+          severity: medium
+        - id: R5
+          text: "Turnaround: every invoice now waits for a person's approval, and the exception queue may lengthen the wait the business lives with, which is unknown today (Q7)."
+          mitigation: Finance ops states the turnaround in Q7; the exception queue age signal in G-OPS-2 alerts against it, and the Walk report shows it next to the KPI.
+          severity: medium
+        - id: R6
+          text: "Rubber-stamping: if the clerk approves without reading, wrong amounts go unseen, the straight-through rate is inflated and the 0 wrong amounts figure means nothing. G-AUT-1 would then be signed on false evidence."
+          mitigation: The quality expert defines an independent check of approved amounts against the source PDFs, by someone other than the approver, and the Walk report carries its result.
+          severity: high
+        - id: R7
+          text: "Target out of reach: the rate is capped by the real share of invoices that do not match, which is unknown (Q4). Above 20% the 80% cannot be met by any extraction quality."
+          mitigation: Finance ops measures the share before Walk; if above 20% the CFO revises the target or the matching rule (Q8) before the window starts, and it never loosens the 0 wrong amounts.
+          severity: high
+        - id: R8
+          text: "Data readiness: the calendar assumes mailbox and Odoo access within five business days; each day beyond moves the start of the 30-day window by a day. The real inputs may also contain more scanned PDFs than the seed."
+          mitigation: Finance ops and tenant IT request the access before Walk starts; the first real week compares the real invoice shape with the seed and reports the difference.
+          severity: medium
+        - id: R9
+          text: "Infosec approval: the security owner's availability is a calendar assumption; a late review of the allow-list or review surface holds back real invoices by the length of the delay."
+          mitigation: Security owner engaged in week one and co-approves guardrails and access up front; gates G-SEC-5 to G-SEC-8 are known in advance.
+          severity: medium
+        - id: R10
+          text: "Change management and key person: reviewing all invoices adds to the clerk's work before typing falls away, and the brief names one clerk role with no backup (Q10). Absence stops posting; losing the two to three hours a week delays the window by the time lost."
+          mitigation: Finance ops names a backup reviewer and protects the feedback hours; the Walk window serves as the shadow period.
+          severity: medium
+      gate_to_next:
+        - id: G-BIZ-4
+          text: >-
+            straight_through_rate is at least 80% over 30 consecutive days and at least 300 real invoices,
+            wrong_amount_count is 0, and the count of invoices with a person's approval is reported with it.
+          owner: business
+          check: { type: metric, ref: straight_through_rate and wrong_amount_count }
+        - id: G-BIZ-2
+          text: The CFO signs the Walk report and the Walk to Run transition, with G-Q-4's number and the actual monthly cost in it.
+          owner: business
+          check: { type: manual, ref: Walk report }
+    run:
+      choice: []
+      estimated_cost_usd_month: 700
+      settings:
+        kpi_metric: straight_through_rate
+        kpi_target: >-
+          At least 80% in every rolling 30-day window, sustained over rolling 90 days of all production
+          invoices (ASSUMED, Q9), 0 wrong amounts, with evidence per invoice and the invoices that had a
+          person's approval reported separately.
+        approver: CFO
+        go_no_go: conditional
+        eval_dimensions:
+          - "cost: USD per item within the stage envelope, from the gateway's spend per key and the node shape; USD 700 / 300 invoices = USD 2.33 per invoice"
+        raci:
+          - "agent design: R=tenant IT (ASSUMED, Q2) A=finance ops"
+          - "operation and review: R=AP clerk (reviews), tenant IT (ASSUMED, Q2; operator of the running system) A=finance ops"
+          - "integration: R=tenant IT (ASSUMED, Q2) A=finance ops"
+          - "risk and audit: R=compliance owner (unnamed, Q1) A=compliance owner"
+        operating_model: co-delivery
+        adoption_frictions:
+          - "data-readiness: tenant IT, keeps production mailbox and Odoo access current and flags Odoo upgrades and new invoice layouts before they reach the system"
+          - "infosec-approval: security owner (unnamed, Q1), co-approves production access and External Secrets wiring before the first production deployment and reviews them on a set calendar"
+          - "change-management: finance ops, retrains the AP clerk for exception-only review if G-AUT-1 is signed, and keeps a return path to per-invoice approval"
+      rationale: >-
+        Run sustains the brief's target with evidence. The estimate is USD 500, the top of the stage range and
+        the plan's figure, plus up to USD 200 for the GPU node the plan excludes: USD 700, USD 400 over the
+        brief's USD 300, so the recommendation is conditional on the CFO's budget decision (Q5). The top of the
+        range is deliberate: financial data under a regulated flag with regulated-decision and
+        high-impact-action in the risk profile raises the envelope and never lowers the target. Audit
+        retention and compliance tooling beyond that are not priced, because no source here gives a number;
+        the compliance record prices them and they would add to USD 700. To approach USD 300, in this order:
+        drop the GPU if CPU extraction holds, self-host instead of managed services, then take a cheaper offsite
+        backup tier that still passes G-OPS-4. The PSA, egress, External Secrets and compliance gates do not
+        give. Whether those cuts reach USD 300 is unproven until architecture and devops price them. Autonomy
+        has a price too: until G-AUT-1 is signed the clerk still reviews all 300 invoices/month and the saving
+        is typing only; after it, about 60. Whether USD 700/month pays back cannot be stated until Q3 gives
+        the minutes, so payback_months is omitted, and no pack or user asked for it. At Run the tenant holds
+        every RACI role and the delivery team holds none; G-BIZ-7 says so. The operating model stays
+        co-delivery as the route by which the tenant arrives at that handover. The regulated-corp pack resolves
+        no entry for this role, so factory cost figures apply.
+      alternatives:
+        - option: Fit Run inside the brief's USD 300 now by planning to the bottom of the stage range.
+          rejected_because: >-
+            It would write a number no record can support: the USD 200 floor excludes inference hardware and
+            audit evidence, and this regulated profile pushes the range to its top. The honest estimate stands
+            and the CFO decides (Q5); architecture and devops can later show a lower figure with the cuts named.
+        - option: Make the Run KPI the share of invoices with no human touch.
+          rejected_because: >-
+            The ceiling is semi-autonomous and unattended posting exists only if G-AUT-1 is signed, so this
+            would make the KPI depend on a sign-off. The rate stays posting without typing, with approvals
+            reported separately, so the evidence reads the same before and after.
+      risks:
+        - id: R11
+          text: "Budget: USD 700 exceeds the brief's USD 300 by USD 400, and audit retention and compliance tooling are not yet priced."
+          mitigation: The CFO decides in Q5 before Run; the cut order in the rationale is what gives, while the PSA, egress, External Secrets and compliance gates do not. If neither budget nor cuts close the gap, Run is no-go and the system stays at Walk with every write approved.
+          severity: high
+        - id: R12
+          text: "Value below cost: until G-AUT-1 is signed the clerk still reviews every invoice, so the Run cost may exceed the time saved; the minutes that would show it are unknown (Q3)."
+          mitigation: The Walk report places measured clerk minutes beside the actual monthly cost, so the CFO signs Walk to Run on a shown comparison; no saving is asserted before that.
+          severity: high
+        - id: R13
+          text: "A brief expecting human approval only on mismatches meets a ceiling requiring approval on every write until G-AUT-1 is signed (Q11)."
+          mitigation: The CFO answers Q11 before Run; G-AUT-1 stays one named action, signed on the Walk evidence.
+          severity: medium
+        - id: R14
+          text: "Data readiness: Odoo upgrades or new supplier layouts degrade the rate silently after handover."
+          mitigation: Tenant IT holds the friction; the rolling window and the golden-set regression (G-Q-6) catch the drop.
+          severity: medium
+        - id: R15
+          text: "Infosec approval: the production access and audit review wait on a security owner still unnamed; the delay moves the production date by the same amount."
+          mitigation: Q1 closes it at Crawl; the same owner reviews Run access before the first production deployment.
+          severity: medium
+        - id: R16
+          text: "Change management: exception-only review after G-AUT-1 removes the clerk's daily contact with matched invoices, and vigilance falls on the ones remaining."
+          mitigation: Finance ops keeps the independent amount check from R6 running and can return to per-invoice approval through the kill switch path of G-OPS-3.
+          severity: medium
+      gate_to_next:
+        - id: G-BIZ-5
+          text: >-
+            straight_through_rate is at least 80% in every rolling 30-day window over rolling 90 days of all
+            production invoices, and wrong_amount_count is 0.
+          owner: business
+          check: { type: metric, ref: straight_through_rate and wrong_amount_count }
+        - id: G-BIZ-6
+          text: The CFO signs the Run report with the sustained number, the measured clerk minutes and the actual monthly cost in it.
+          owner: business
+          check: { type: manual, ref: Run report }
+        - id: G-BIZ-7
+          text: >-
+            Handover: the tenant holds every RACI role for agent design, operation and review, integration, and
+            risk and audit, with named people, and the delivery team holds none.
+          owner: business
+          check: { type: manual, ref: handover record }
+        - id: G-AUT-1
+          text: >-
+            Named action: posting a fully matched invoice to Odoo without per-invoice approval. It stays behind
+            approval until the CFO signs this gate for this action alone, citing the G-Q-4 evidence. Any other
+            action needs its own gate.
+          owner: business
+          check: { type: manual, ref: .builder/gates.yaml }
+  open_questions:
+    - id: Q1
+      question: >-
+        Who are the organisation's security owner and compliance owner? Finance ops or the CFO names them. G-SEC-1
+        blocks the first deployment until the security owner can sign; the compliance owner is needed by G-DS-1
+        before Walk.
+      blocks_stage: crawl
+    - id: Q2
+      question: >-
+        Who is tenant IT, meaning the named operator of the running system (brief assumption, G-OPS-1), and who is
+        the delivery team? Does the organisation accept co-delivery? Finance ops answers. If no IT function exists,
+        the handover at Run has nobody to receive it.
+      blocks_stage: walk
+    - id: Q3
+      question: >-
+        How many minutes does the AP clerk spend per invoice typing and matching, and per exception? Finance ops
+        times a sample of real invoices before Walk changes the process. No hours, headcount or payback are claimed
+        until this is answered.
+      blocks_stage: walk
+    - id: Q4
+      question: >-
+        What share of invoices today do not match their purchase order or have no PO? Finance ops counts it on a
+        recent sample from Odoo and the mailbox. Above 20%, the 80% target cannot be reached.
+      blocks_stage: walk
+    - id: Q5
+      question: >-
+        Will the CFO raise the USD 300 budget to the estimated USD 350 at Walk and USD 700 at Run plus audit costs
+        once priced, or accept the named cuts, including latency from CPU-only extraction, and a possible stop at
+        Walk? Does the USD 300 include inference hardware?
+      blocks_stage: walk
+    - id: Q6
+      question: >-
+        Where does the EU cluster run, on whose bill, and does the organisation already own hardware that can serve
+        the in-cluster model? Finance ops with tenant IT answers. An existing cluster would lower both estimates.
+      blocks_stage: walk
+    - id: Q7
+      question: >-
+        What turnaround does the business live with today from invoice arrival to posting, and what supplier payment
+        terms depend on it? Finance ops answers; the exception queue alert in G-OPS-2 needs the number.
+      blocks_stage: walk
+    - id: Q8
+      question: >-
+        What counts as a match: amount tolerance, partial deliveries, invoices without a PO? Finance ops answers. The
+        plan assumes exact match on supplier, amount and PO number, with the rest going to the AP clerk; this moves
+        the KPI directly.
+      blocks_stage: walk
+    - id: Q9
+      question: >-
+        Does the CFO accept the assumed windows: 30 consecutive days and at least 300 invoices at Walk, every rolling
+        30 days over rolling 90 days at Run? At about 300 invoices/month a short month does not reach 300, so this
+        record extends the Walk window until it does.
+      blocks_stage: walk
+    - id: Q10
+      question: >-
+        How many AP clerks are there, and who reviews invoices when the clerk is absent? Finance ops answers.
+      blocks_stage: walk
+    - id: Q11
+      question: >-
+        Does the CFO expect a person to stop reviewing matched invoices, as the problem statement implies, or is
+        per-invoice approval acceptable indefinitely as the brief's semi-autonomous says? The first needs G-AUT-1
+        signed for that action; the second leaves review time on all 300 invoices/month in the value case.
+      blocks_stage: run
+  references:
+    - k8s/overlays/usecases/invoice-intake/.builder/brief.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml
+    - plugins/forjate/skills/business/references/cost-envelope.md
+    - plugins/forjate/skills/business/references/kpi-per-stage.md
+    - plugins/forjate/skills/business/references/as-is-process.md
+    - context-packs/examples/regulated-corp/pack.yaml

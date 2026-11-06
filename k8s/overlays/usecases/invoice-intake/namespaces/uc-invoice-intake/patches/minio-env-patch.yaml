@@ -1,0 +1,11 @@
+# apps/minio/dev has no credentials in its manifests; mount the overlay's minio-secret (strategic merge on the container name).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: minio
+spec:
+  containers:
+  - name: minio
+    envFrom:
+    - secretRef:
+        name: minio-secret

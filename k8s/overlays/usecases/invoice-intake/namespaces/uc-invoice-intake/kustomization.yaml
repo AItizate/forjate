@@ -1,0 +1,97 @@
+# uc-invoice-intake: the use case's namespace at Crawl. Components from the records' choices, the scaffold's workloads,
+# secretGenerators from gitignored .env files seeded from the committed .env.example (the runner and CI copy them),
+# the image built by ephemeral.sh from usecase.yaml spec.build and pinned to :dev here (Walk replaces the tag by write-back).
+namespace: uc-invoice-intake
+resources:
+- namespace.yaml
+- ../../../../../components/apps/ai-models/ollama
+- ../../../../../components/apps/document-processing/docling
+- ../../../../../components/apps/databases/postgres
+- ../../../../../components/apps/minio/dev
+- minio-service.yaml
+- invoice-intake-seed.yaml
+- worker.yaml
+- invoice-intake-verify.yaml
+- invoice-intake-eval.yaml
+- odoo-stub.yaml
+- shared-imap-mailbox-stub.yaml
+secretGenerator:
+- name: postgres-secret
+  envs:
+  - secrets/postgres-secret.env
+  options:
+    disableNameSuffixHash: true
+- name: minio-secret
+  envs:
+  - secrets/minio-secret.env
+  options:
+    disableNameSuffixHash: true
+- name: bank-hash-salt
+  envs:
+  - secrets/bank-hash-salt.env
+  options:
+    disableNameSuffixHash: true
+- name: double-admin-token
+  envs:
+  - secrets/double-admin-token.env
+  options:
+    disableNameSuffixHash: true
+- name: mailbox-list-token
+  envs:
+  - secrets/mailbox-list-token.env
+  options:
+    disableNameSuffixHash: true
+- name: mailbox-fetch-token
+  envs:
+  - secrets/mailbox-fetch-token.env
+  options:
+    disableNameSuffixHash: true
+- name: odoo-lookup-po-token
+  envs:
+  - secrets/odoo-lookup-po-token.env
+  options:
+    disableNameSuffixHash: true
+- name: odoo-find-payable-token
+  envs:
+  - secrets/odoo-find-payable-token.env
+  options:
+    disableNameSuffixHash: true
+- name: odoo-bank-ref-token
+  envs:
+  - secrets/odoo-bank-ref-token.env
+  options:
+    disableNameSuffixHash: true
+patches:
+- path: patches/ollama-resources-patch.yaml
+  target:
+    kind: StatefulSet
+    name: ollama
+- target:
+    kind: StatefulSet
+    name: ollama
+  patch: "# assumes containers[0] is ollama (upstream manifest); drops the GPU limit a laptop cannot satisfy (catalog gpu_required:\
+    \ optional)\n- op: remove\n  path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu\n"
+- path: patches/docling-resources-patch.yaml
+  target:
+    kind: Deployment
+    name: docling
+- path: patches/postgres-resources-patch.yaml
+  target:
+    kind: StatefulSet
+    name: postgres
+- path: patches/minio-resources-patch.yaml
+  target:
+    kind: Pod
+    name: minio
+- path: patches/minio-env-patch.yaml
+  target:
+    kind: Pod
+    name: minio
+- target:
+    kind: Pod
+    name: minio
+  patch: "# assumes volumes[0] is localvolume (upstream manifest); the hostPath is root-owned on k3d, an emptyDir is the laptop's\
+    \ disk at Crawl\n- op: replace\n  path: /spec/volumes/0\n  value: {name: localvolume, emptyDir: {}}\n"
+images:
+- name: invoice-intake
+  newTag: dev

@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "invoice-intake"
+version = "0.1.0"
+description = "Supplier invoice intake: PDF attachment to extracted fields and a purchase-order match, every result a recommendation for the AP clerk."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi~=0.115.0",
+  "uvicorn~=0.30.6",
+  "httpx~=0.27.2",
+  "pydantic~=2.9.2",
+  "psycopg[binary]~=3.2.3",
+  "minio~=7.2.9",
+  "pillow~=10.4.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest~=8.3.3", "pyyaml~=6.0.2"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+filterwarnings = ["ignore:You should not use the 'timeout' argument with the TestClient:DeprecationWarning"]
+markers = [
+  "eval: the golden set through the deterministic double (eval-regression gate)",
+  "injection: planted instructions change no field, match or routing (injection-suite gate)",
+  "redaction: no bank account number reaches a prompt, a trace or a log (redaction-check gate)",
+]

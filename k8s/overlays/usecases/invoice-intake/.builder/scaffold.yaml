@@ -1,0 +1,183 @@
+apiVersion: forjate.io/v0
+kind: Scaffold
+metadata:
+  usecase: invoice-intake
+  version: 1
+  author: forjate:app-scaffold
+spec:
+  runtime: python
+  package: invoice_intake
+  image: invoice-intake
+  model_modes: [replay, rules, live]
+  workloads:
+    - name: invoice-intake-seed
+      kind: job
+      phase: seed
+      command: [python, -m, invoice_intake.seed]
+      env:
+        - STAGE=crawl
+        - WORKLOAD=invoice-intake-seed
+        - SCOPE=invoice-intake
+        - DATA_CLASS=financial
+        - WRITE_ACTIONS=none
+        - MODEL_MODE=replay
+        - POSTGRES_HOST=postgres
+        - POSTGRES_PORT=5432
+        - MINIO_ENDPOINT=minio:9000
+        - DOCLING_URL=http://docling:5001
+        - OLLAMA_URL=http://ollama-service:11434
+        - OLLAMA_MODEL=ollama/qwen2.5:7b-instruct
+        - ODOO_URL=http://odoo-stub:8001
+        - MAILBOX_URL=http://shared-imap-mailbox-stub:8001
+        - MAX_STEPS=10
+        - STEP_TIMEOUT_S=600
+        - DELEGATION_DEPTH=0
+        - BUDGET_TOKENS=8000
+        - MAX_MODEL_CALLS=2
+        - READY_TIMEOUT_S=300
+      secrets: [postgres-secret, minio-secret, bank-hash-salt, double-admin-token]
+      writable_paths: [/tmp]
+    - name: worker
+      kind: job
+      phase: run
+      command: [python, -m, invoice_intake.worker]
+      env:
+        - STAGE=crawl
+        - WORKLOAD=worker
+        - SCOPE=invoice-intake
+        - DATA_CLASS=financial
+        - WRITE_ACTIONS=none
+        - MODEL_MODE=replay
+        - POSTGRES_HOST=postgres
+        - POSTGRES_PORT=5432
+        - MINIO_ENDPOINT=minio:9000
+        - DOCLING_URL=http://docling:5001
+        - OLLAMA_URL=http://ollama-service:11434
+        - OLLAMA_MODEL=ollama/qwen2.5:7b-instruct
+        - ODOO_URL=http://odoo-stub:8001
+        - MAILBOX_URL=http://shared-imap-mailbox-stub:8001
+        - MAX_STEPS=10
+        - STEP_TIMEOUT_S=600
+        - DELEGATION_DEPTH=0
+        - BUDGET_TOKENS=8000
+        - MAX_MODEL_CALLS=2
+        - READY_TIMEOUT_S=300
+        - WORKER_PASSES=2
+      secrets: [postgres-secret, minio-secret, bank-hash-salt, mailbox-list-token, mailbox-fetch-token, odoo-lookup-po-token, odoo-find-payable-token, odoo-bank-ref-token]
+      writable_paths: [/tmp]
+    - name: invoice-intake-verify
+      kind: job
+      phase: verify
+      command: [python, -m, invoice_intake.verify]
+      env:
+        - STAGE=crawl
+        - WORKLOAD=invoice-intake-verify
+        - SCOPE=invoice-intake
+        - DATA_CLASS=financial
+        - WRITE_ACTIONS=none
+        - MODEL_MODE=replay
+        - POSTGRES_HOST=postgres
+        - POSTGRES_PORT=5432
+        - MINIO_ENDPOINT=minio:9000
+        - DOCLING_URL=http://docling:5001
+        - OLLAMA_URL=http://ollama-service:11434
+        - OLLAMA_MODEL=ollama/qwen2.5:7b-instruct
+        - ODOO_URL=http://odoo-stub:8001
+        - MAILBOX_URL=http://shared-imap-mailbox-stub:8001
+        - MAX_STEPS=10
+        - STEP_TIMEOUT_S=600
+        - DELEGATION_DEPTH=0
+        - BUDGET_TOKENS=8000
+        - MAX_MODEL_CALLS=2
+        - READY_TIMEOUT_S=300
+      secrets: [postgres-secret, minio-secret, bank-hash-salt, double-admin-token, mailbox-list-token, mailbox-fetch-token, odoo-lookup-po-token, odoo-find-payable-token, odoo-bank-ref-token]
+      writable_paths: [/tmp]
+    - name: invoice-intake-eval
+      kind: job
+      command: [python, -m, invoice_intake.eval_run]
+      env:
+        - STAGE=crawl
+        - WORKLOAD=invoice-intake-eval
+        - SCOPE=invoice-intake
+        - DATA_CLASS=financial
+        - WRITE_ACTIONS=none
+        - MODEL_MODE=live
+        - POSTGRES_HOST=postgres
+        - POSTGRES_PORT=5432
+        - MINIO_ENDPOINT=minio:9000
+        - DOCLING_URL=http://docling:5001
+        - OLLAMA_URL=http://ollama-service:11434
+        - OLLAMA_MODEL=ollama/qwen2.5:7b-instruct
+        - ODOO_URL=http://odoo-stub:8001
+        - MAILBOX_URL=http://shared-imap-mailbox-stub:8001
+        - MAX_STEPS=10
+        - STEP_TIMEOUT_S=600
+        - DELEGATION_DEPTH=0
+        - BUDGET_TOKENS=8000
+        - MAX_MODEL_CALLS=2
+        - READY_TIMEOUT_S=300
+        - EVAL_LIMIT_S=10800
+      secrets: [postgres-secret, minio-secret, bank-hash-salt, double-admin-token, mailbox-list-token, mailbox-fetch-token, odoo-lookup-po-token, odoo-find-payable-token, odoo-bank-ref-token]
+      writable_paths: [/tmp]
+    - name: odoo-stub
+      kind: deployment
+      command: [python, -m, invoice_intake.odoo_stub]
+      port: 8001
+      health_path: /healthz
+      env:
+        - WORKLOAD=odoo-stub
+        - DATA_CLASS=financial
+        - POSTGRES_HOST=postgres
+        - POSTGRES_PORT=5432
+      secrets: [postgres-secret, double-admin-token, odoo-lookup-po-token, odoo-find-payable-token, odoo-bank-ref-token]
+      writable_paths: [/tmp]
+    - name: shared-imap-mailbox-stub
+      kind: deployment
+      command: [python, -m, invoice_intake.shared_imap_mailbox_stub]
+      port: 8001
+      health_path: /healthz
+      env:
+        - WORKLOAD=shared-imap-mailbox-stub
+        - DATA_CLASS=financial
+        - POSTGRES_HOST=postgres
+        - POSTGRES_PORT=5432
+      secrets: [postgres-secret, double-admin-token, mailbox-list-token, mailbox-fetch-token]
+      writable_paths: [/tmp]
+  tools:
+    - { name: list_mailbox_messages, module: invoice_intake/tools/list_mailbox_messages.py, flags: [read-only, page of 50] }
+    - { name: fetch_invoice_attachment, module: invoice_intake/tools/fetch_invoice_attachment.py, flags: [read-only, max 10 MB] }
+    - { name: lookup_po, module: invoice_intake/tools/lookup_po.py, flags: [read-only] }
+    - { name: find_payable, module: invoice_intake/tools/find_payable.py, flags: [read-only] }
+    - { name: get_supplier_bank_ref, module: invoice_intake/tools/get_supplier_bank_ref.py, flags: [read-only] }
+    - { name: request_approval, module: invoice_intake/tools/request_approval.py, flags: [idempotent, requires deterministic check result, max 1 per invoice version] }
+    - { name: post_invoice, module: invoice_intake/tools/post_invoice.py, flags: [idempotent, requires approval token, max 1 per invoice] }
+  constrained_by:
+    - pack:regulated-corp#TOOLS
+  notes:
+    - "REFUSED: a build, scan or push step in a workflow. The workflows only call AItizate/gh-actions-templates at @v1 and dispatch app-image-updated (devops ci_templates_ref v1)."
+    - "OPEN: only Crawl is implemented. cron-job, posting-worker, review-api, the Temporal worker and workflows, the LiteLLM client and the Walk verify assertions are not generated, so the Walk and Run gates they serve (G-Q-5, G-SEC-25, G-SEC-38, G-ARCH-3 to G-ARCH-8, G-UX-3, G-PIPE-3) cannot pass on this code. Several of their inputs are still open questions blocking Walk (architecture Q1, Q3, Q7; ux Q2)."
+    - "OPEN: post_invoice is written with its flags, token check first, judge and lookup before create, but its only verifier at Crawl refuses every token. The Ed25519 verifier (security approval_token_signing) arrives with review-api. App tests use a test verifier, so they prove the gate's order and not the signature: G-AI-7's expired, spent and other-key cases are not proven."
+    - "OPEN: request_approval raises NotImplementedError past the judge, because the review queue behind it is review-api's. At Crawl the judge refuses it first (write_actions none)."
+    - "OPEN: the kill switch's paused state has no table yet (security Q6). The judge reads an injected reader and fails closed without one, and PausedRefusal is typed, but the workflow wait of G-AI-14 needs the Walk worker. Crawl's kill_switch is none."
+    - "OPEN: the Walk assembly patches MODEL_MODE=live and ERP_URL onto every scaffold workload, the verify Job and the stubs included (quality R6). The verify Job refuses to start when the Odoo target is not the double, so that patch stops it rather than aiming it at real Odoo; the assembly must exempt it."
+    - "OPEN: quality Q12 (who generates the injection suite) is answered by assumption with the quality record's proposal: the same generator with a separate manifest, 10 items across text layer, hidden text, metadata, scan image, email fields and a supplier-authored Odoo field."
+    - "OPEN: the clean scan depends on docling's real OCR reading amount, date and PO number literally. Not run here, since no cluster and no docling were available to this scaffold. A misread lands the item as low-confidence and verify fails naming docling OCR, which is the honest result; digits are printed at 40 px at 200 dpi with no thousands separator to give OCR the best case."
+    - "OPEN: never executed by this scaffold: PgStore and PgKV (all SQL), MinioObjects, the verify Job's subprocess harness, the live Ollama call and the real docling route. The tests cover their logic over memory stores and mock transports; the first run of that code is ephemeral.sh up. The image was not built either, because docker and pip install were not permitted in the scaffold's session."
+    - "OPEN: the corrupt PDF assumes docling-serve answers a failure status or a 4xx/5xx for it. A 500 caused by something else would read as parse-failed; verify's exact count by reason would catch the extra one."
+    - "OPEN: the verify and seed timeouts the assembly writes (600 s) and run (900 s) hold only at the data-pipeline record's ASSUMED parse time. The first docling conversion loads models; DOCLING_SERVE_MAX_SYNC_WAIT answers 504 past its limit, so the client retries within the 600 s step bound. If the run Job passes 900 s, the assembly raises the timeout in usecase.yaml."
+    - "ASSUMED: every bound in execution_bounds is enforced in toolkit.Attempt and read in config.py (MAX_STEPS, STEP_TIMEOUT_S, DELEGATION_DEPTH, BUDGET_TOKENS, plus MAX_MODEL_CALLS from the budget guardrail). max_steps counts the record's ten steps; the file-bound exit and land are inside fetch."
+    - "ASSUMED: intent_validation lives in each tool's closed argument model at Crawl (schema) and in policy.py from Walk (policy-judge), which is rule-based and exercised in CI. There is no model-backed judge: the ai-engineering record rejects one."
+    - "ASSUMED: audit_artifacts run-trace at Crawl is the JSON log line in logs.py, mirrored per item to episodic.run_trace because the verify Job has no Kubernetes API access and must read the worker's lines from somewhere. Per-action records at Walk are not written; the episodic row has only the fields Crawl needs (G-COMP-14 is not served yet)."
+    - "ASSUMED: kill_switch is none at Crawl and gateway none means Ollama directly. All credentials come only through the environment and there is no provider client in the package, so gateway-key-revocation at Walk has one door to close."
+    - "ASSUMED: each tool has its own credential Secret, per pack:regulated-corp#TOOLS. At Crawl the generated placeholders all read CHANGE_ME, so the doubles cannot tell them apart by value. G-SEC-38's scope proof needs distinct values at Walk. The odoo-post-invoice-token Secret is mounted nowhere at Crawl, so no workload holds a write credential."
+    - "ASSUMED: the doubles' routes, fields and errors are invented to a REST shape, since the real Odoo version and API are architecture Q1 and the mailbox access method is architecture Q4. G-ARCH-2 compares them. Tool arguments identify the mailbox message by UID, the mailbox's own message id."
+    - "ASSUMED: the doubles keep their state in a `doubles` schema on the use case's Postgres, so a stub restart loses nothing. It is outside the working and episodic memory and is not a copy of purchase orders in this use case's stores: it stands in for Odoo's own database."
+    - "ASSUMED: the workload list adds odoo-stub and shared-imap-mailbox-stub (integrations marked stub) and invoice-intake-eval (quality eval_run, no phase, so ephemeral.sh never runs it) to the architecture record's seed-job, worker and verify-job. Job names follow the gates' check.ref (invoice-intake-verify)."
+    - "ASSUMED: the kill-test in the verify Job (G-ARCH-1) kills a worker process it started, SIGKILL after 3 terminal items, under a throwaway scope tag, reusing the labels and parsed output of the main scope through SOURCE_SCOPE so it costs no second parse. It proves the worker, not the Job controller."
+    - "ASSUMED: the replay labels sit in a `labels` bucket keyed by attachment sha256 under the scope tag, the manifest travels in the image. Bucket names inbox, parsed, labels; a parsed object holds the raw parser text, bank numbers included, as compliance R17 records."
+    - "ASSUMED: a labelled non-IBAN number and any IBAN-shaped string are masked before the prompt. An IBAN failing mod-97 is masked but not hashed, so a misread account compares as unknown instead of raising a false bank-details-differ."
+    - "ASSUMED: PO numbers, invoice numbers and suppliers compare with O and 0 folded in the literal-source check only, as OCR's commonest confusion. Amounts compare by cents. The match itself stays exact."
+    - "DEVIATION from the skill's Model Protocol: only extract exists. The record's pattern is single-call and the model holds no tools, so classify and chat would be dead code; document_type is a field of the extraction. rules is a label reader over the parsed text, used for the injection suite."
+    - "DEVIATION from pack:regulated-corp#TOOLS result size: the attachment and JSON bounds are checked after the body is read, not while streaming. Harmless against the doubles; the real IMAP client at Walk must bound the read."
+    - "NOTE: the log line repeats the data class as scan=data_class=<class> so that scripts/gates/checks/log-dataclass-scan.sh, which greps that literal, passes on a JSON log (quality R8). The verify Job prints replay_wrong_amount_count and not wrong_amount_count, so a replay value cannot satisfy the Walk metric gate by name."
+    - "NOTE: Pillow is added beyond the skill's dependency list, for the image-only seed PDFs (README)."

@@ -1,0 +1,70 @@
+apiVersion: forjate.io/v0
+kind: UseCaseBrief
+metadata:
+  name: invoice-intake
+  created: "2026-11-04"
+  requested_by: finance ops
+spec:
+  problem: >-
+    Supplier invoices arrive as PDF attachments in a shared mailbox. Someone reads
+    each one, types supplier, amount, date and PO number into the ERP, and flags
+    mismatches against the purchase order. We want this automated with a human
+    approving anything that does not match.
+  language: en
+  context_packs:
+    - regulated-corp
+  actors:
+    - name: finance ops
+      role: requester
+      notes: Asks for the automation and owns the outcome.
+    - name: AP clerk
+      role: end-user
+      notes: Accounts-payable clerk. Approves every exception, meaning any invoice that does not match its purchase order.
+    - name: CFO
+      role: approver
+      notes: Approves the stages; signs off each stage transition.
+    - name: Odoo
+      role: system
+      notes: ERP, reached over its REST API. System of record for purchase orders and payables.
+    - name: shared IMAP mailbox
+      role: system
+      notes: Where supplier invoices arrive as PDF attachments.
+  data:
+    sources:
+      - name: shared IMAP mailbox (supplier invoice PDF attachments)
+        kind: email
+        volume: about 300 invoices/month
+        system_of_record: false
+      - name: Odoo purchase orders and payables (REST API)
+        kind: api
+        volume: about 500 open purchase orders
+        system_of_record: true
+    classification: financial
+    residency: eu
+  constraints:
+    regulated: true
+    budget_per_month_usd: 300
+    must_integrate_with:
+      - Odoo (REST API)
+      - shared IMAP mailbox
+    llm_egress_allowed: false
+    open_standards_required: true
+    notes: >-
+      Bank account numbers appear on invoices. The data must stay in the EU and must
+      not go to an external model provider. ASSUMED: no deadline was given, so none
+      is set. ASSUMED: no build stack was stated, so `stack` is absent and the
+      architecture expert decides. ASSUMED: no operator was named; the operator of
+      the running system is left for the business expert's RACI to assign.
+  success:
+    metric: Invoices posted to the ERP without manual typing
+    baseline: 0%
+    target: 80% straight-through with 0 wrong amounts
+  stages_requested:
+    - crawl
+    - walk
+    - run
+  autonomy: semi-autonomous
+  risk_profile:
+    - regulated-decision
+    - high-impact-action
+  isolation: logical

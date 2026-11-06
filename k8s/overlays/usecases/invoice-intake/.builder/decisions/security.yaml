@@ -1,0 +1,794 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata:
+  area: security
+  usecase: invoice-intake
+  author: forjate:security
+  version: 1
+  language: en
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        data_classification: financial
+        secrets_mechanism: secret-generator
+        env_example_per_secret: true
+        secret_scan: ci
+        psa_level: privileged
+        network_policy: none
+        egress_allowlist: []
+        egress_matrix: none
+        security_context: restricted-compatible
+        auth_in_front: none
+        identity_provider: none
+        kill_switch: none
+        data_egress: none
+        audit_trail: none
+        audit_log_content: data-class-not-payload
+        encryption_at_rest: none
+        untrusted_inputs:
+          - supplier invoice PDF attachments, including their text layer, OCR output and metadata
+          - email subject, body, sender and filename of the message carrying the attachment
+          - free-text fields returned from Odoo that a supplier originally authored
+        write_actions: none
+        intent_validation: schema
+        fallback_policy: none
+        tool_write_gate: none
+        scope_isolation: key-prefix
+        llm_threats:
+          - "prompt-injection via invoice PDFs and email text: content delimited as data, the model holds no tools, so injected text can at most produce a wrong field, which the literal-source check catches (ai-engineering)"
+          - "excessive-agency: no tool writes at this stage; the verify Job proves the Odoo double received 0 write calls, G-Q-3 (ai-engineering, quality)"
+          - "model-egress: the only model is in-cluster; the verify Job proves no call to an external provider, G-SEC-2 (ai-engineering)"
+          - "secret-leakage-into-context: credentials and bank account numbers never in context; logs carry the data class, not the payload, G-SEC-4 (ai-engineering, app-scaffold)"
+          - "hallucinated-regulated-fields: schema validation, every amount found literally in the source and compared by code, mismatches go to the AP clerk (ai-engineering, quality)"
+        image_policy: any
+        deploy_from: branch
+        access_by_persona:
+          - "AP clerk: no login, reads the seeded exception report, read"
+          - "finance ops: no login, reads the Crawl report, read"
+          - "CFO: no login, reads the Crawl report and signs G-BIZ-1, read"
+          - "delivery team: kubeconfig of the disposable cluster, operate"
+          - "agent workloads: own ServiceAccount, automountServiceAccountToken false, no verbs"
+      rationale: >-
+        The class is financial and the brief sets llm_egress_allowed false, so data_egress is none at every
+        stage even with synthetic data (pack:regulated-corp#AI-2), which matches the AI-engineering and compliance
+        records. Everything at Crawl is a double on a disposable cluster with placeholder credentials, so the
+        factory floor holds: secret-generator from gitignored .env files seeded from .env.example, which keeps
+        SECBASE item 3 true because nothing secret is in git and no real credential exists. PSA is privileged,
+        with restricted on warn and audit so a violation shows up now; SEC-1 starts at Walk. That also accepts
+        what the data-store record asks of this record: apps/minio/dev at the catalog's privileged level with
+        hostPath, on synthetic data, at Crawl only. There is no NetworkPolicy, surface or login (the plan puts
+        auth out of scope, and architecture and UX have none); G-SEC-2 proves the absence of egress by Job. One
+        deviation above the factory default: secret_scan is ci, not none, because the plan's G-SEC-3 requires it.
+        The use case's own workloads (seed-job, worker, verify-job) are restricted-compatible from now on, with
+        an emptyDir for /tmp and any runtime cache, because readOnlyRootFilesystem is on. SECBASE is titled what
+        a reviewer checks before a use case leaves Crawl, but items 2 and 4 name controls Crawl deliberately
+        lacks and no gate script can judge another stage from here, so G-SEC-12 has the owner review the built
+        Walk overlay before Crawl closes, and each item becomes a scripted gate at Walk. Copied without
+        change: write_actions, intent_validation and fallback_policy from AI-engineering, scope_isolation from
+        data-store, auth_in_front from architecture.
+      alternatives:
+        - option: Sealed Secrets from Crawl, reading SECBASE item 3's floor as applying to placeholders too.
+          rejected_because: >-
+            The catalog admits sealed-secrets from Walk, a disposable cluster has no key worth keeping, and
+            gitignored placeholders put nothing secret in git. The floor applies as soon as a real secret exists.
+        - option: Default-deny at Crawl to satisfy SECBASE item 2 literally.
+          rejected_because: >-
+            There is no real data or real destination to protect, and G-SEC-2 already proves no egress to a
+            model provider. Reviewing the Walk build shows the reviewer the policies that will protect real data.
+      risks:
+        - id: R1
+          text: A real credential or real invoice placed in the disposable cluster would run with no NetworkPolicy, no auth and privileged PSA.
+          mitigation: The plan excludes real data and systems at Crawl; G-SEC-3 scans for credentials and the doubles are the only configured endpoints.
+          severity: medium
+        - id: R2
+          text: No security owner is named, so G-SEC-1 cannot be signed and the first deployment is blocked.
+          mitigation: Q1 is answered before any deployment; the business record's Q1 asks the same.
+          severity: high
+      gate_to_next:
+        - id: G-SEC-1
+          text: >-
+            Before the first deployment, the organisation's security owner approves the sandbox and the
+            access grants, because the use case handles financial data, will write to a system of record and
+            carries a risk profile.
+          owner: security
+          check: { type: manual, ref: .builder/decisions/security.yaml }
+        - id: G-SEC-2
+          text: >-
+            Extraction reaches only an in-cluster model: the verify Job proves no call goes to an external
+            model provider, even at this stage (pack:regulated-corp#AI-2, pack:regulated-corp#RES-1).
+          owner: security
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-SEC-3
+          text: No plaintext credential anywhere in the use case; mailbox and Odoo credentials are placeholders.
+          owner: security
+          check: { type: ci, ref: secret-scan }
+        - id: G-SEC-4
+          text: Workload logs carry no invoice payload and no bank account number.
+          owner: security
+          check: { type: ci, ref: log-content-scan }
+        - id: G-SEC-12
+          text: >-
+            The security owner named by Q1 reviews the built stages/walk overlay against SECBASE items 1 to 6, using
+            the gate scripts run for Walk, before Crawl closes and before a real invoice enters.
+          owner: security
+          check: { type: manual, ref: security-baseline-review }
+        - id: G-SEC-13
+          text: Every secret the overlay consumes has a committed .env.example with placeholder values and the generate and seal commands in its header.
+          owner: security
+          check: { type: ci, ref: env-example-check }
+      constrained_by:
+        - pack:regulated-corp#AI-2
+        - pack:regulated-corp#RES-1
+    walk:
+      choice:
+        - apps/sealed-secrets
+        - apps/auth/gotrue-auth
+      settings:
+        data_classification: financial
+        secrets_mechanism: sealed-secrets
+        env_example_per_secret: true
+        secret_scan: ci
+        psa_level: restricted
+        network_policy: default-deny
+        egress_allowlist:
+          - "odoo.corp.example.com:443  # placeholder, Q9; Odoo REST API, worker (read credentials) and posting-worker (create-only and find_payable read-only credentials)"
+          - "imap.corp.example.com:993  # placeholder, Q9; shared mailbox, cron-job only, read-only account"
+        egress_matrix: required
+        security_context: restricted-compatible
+        auth_in_front: oauth2-proxy
+        identity_provider: auth-gotrue-auth
+        kill_switch: gateway-key-revocation
+        data_egress: none
+        audit_trail: app-log
+        audit_log_content: data-class-not-payload
+        encryption_at_rest: volume
+        untrusted_inputs:
+          - supplier invoice PDF attachments, including their text layer, OCR output and metadata
+          - email subject, body, sender and filename of the message carrying the attachment
+          - free-text fields returned from Odoo that a supplier originally authored
+        write_actions: approval-required
+        intent_validation: policy-judge
+        fallback_policy: same-tier
+        tool_write_gate: human-approval
+        approval_token_signing: asymmetric; review-api alone holds the private key, posting-worker holds only the public key
+        scope_isolation: schema-per-tenant
+        llm_threats:
+          - "prompt-injection via invoice PDFs and email text: content delimited as data; the model holds no tools; post_invoice runs in posting-worker, which has no route to the model and waits for the AP clerk's approval token; planted-instruction suite in CI, G-SEC-7 (ai-engineering, quality)"
+          - "excessive-agency: post_invoice requires a single-use, expiring token bound to the hash of the fields; the deterministic policy judge's verdict is logged with the call; its Odoo credential is create-only on payables and find_payable's is read-only on payables; correcting, cancelling or paying is refused, G-SEC-25 and G-SEC-38 (ai-engineering)"
+          - "exfiltration-through-tools: no tool takes a free-form URL or address; arguments schema-validated; each workload reaches only its own allow-listed host, G-SEC-15 (ai-engineering, kustomize)"
+          - "model-egress: data_egress none; the gateway is the only path to the in-cluster model, holds no provider key and logs which model saw which data class; pack AI-1 lists claude-* but AI-2 excludes it for this class, G-SEC-16 (ai-engineering, compliance)"
+          - "fallback: same-tier is gemma3:12b in-cluster, after the same golden set; no gateway route leaves the egress rule (ai-engineering)"
+          - "secret-leakage-into-context: credentials and bank account numbers never in context, the text is masked and tools hold handles; logs carry the data class, not the payload (ai-engineering, app-scaffold)"
+          - "hallucinated-regulated-fields: amounts found literally in the source and compared by code, never by the model; a person approves every write; changed bank details go to the clerk as possible supplier fraud (ai-engineering, quality)"
+          - "denial-of-wallet: max_steps, step timeout and token budget per invoice from the AI-engineering record; a hostile PDF exhausts its own budget and goes to the clerk (ai-engineering, devops)"
+          - "prompt-and-tool-tampering: prompts and tool definitions are versioned, reviewed and eval-gated, G-Q-6 (ai-engineering, quality)"
+          - "shared-model-endpoint: a NetworkPolicy admits only the gateway to the model server and only worker to the gateway; the use case has its own gateway key (kustomize, devops)"
+        image_policy: pinned-digest
+        deploy_from: tag
+        access_by_persona:
+          - "AP clerk: IdP group invoice-intake-ap-clerk, read the review queue, approve or reject an invoice; approve control level"
+          - "finance ops: IdP group invoice-intake-finance-ops, read reports, queue and audit log, direct the matching rules by reviewed change; direct and audit control levels"
+          - "CFO: IdP group invoice-intake-cfo, read reports and the audit log; audit control level"
+          - "compliance owner: IdP group invoice-intake-audit, read the audit log and the audit bucket; audit control level"
+          - "tenant IT: IdP group invoice-intake-operator bound to a namespaced Role, get, list, watch and restart workloads, trip the kill switch; no read of Secrets, no approve; operate control level"
+          - "agent workloads (cron-job, worker, posting-worker, review-api, seed-job, verify-job): own ServiceAccount each, automountServiceAccountToken false, no verbs, no admin credential anywhere"
+      psa_exceptions:
+        - namespace: uc-invoice-intake-baseline
+          level: baseline
+          components:
+            - apps/ai-models/ollama
+            - apps/ai-models/litellm
+            - apps/databases/postgres
+            - apps/document-processing/docling
+            - bundles/temporal-stack
+            - apps/auth/gotrue-auth
+          owner: security owner (unnamed, Q1), accepted through G-SEC-17
+          reason: >-
+            The catalog gives each of these psa_level baseline and no namespace of their own, so they cannot run in
+            uc-invoice-intake under pack:regulated-corp#SEC-1. They move out together with their Secrets and keep
+            their short names through aliases; cron-job, worker, posting-worker and review-api stay restricted.
+          risk: R3
+        - namespace: kube-system
+          level: baseline
+          components:
+            - apps/sealed-secrets
+          owner: platform-team (Q11)
+          reason: The catalog runs the controller in kube-system at baseline; the assembly never labels Kubernetes' own namespaces, so this is recorded for the reviewer.
+        - namespace: argocd
+          level: baseline
+          components:
+            - apps/continuous-delivery/argocd
+          owner: platform-team (Q11)
+          reason: The catalog runs GitOps in its own namespace at psa_level baseline.
+        - namespace: monitoring
+          level: baseline
+          components:
+            - apps/monitoring/prometheus
+            - apps/monitoring/grafana
+          owner: platform-team (Q11)
+          reason: The catalog runs metrics and dashboards in their own namespace at psa_level baseline.
+        - namespace: default
+          level: baseline
+          components:
+            - apps/monitoring/reloader
+          owner: platform-team (Q11)
+          reason: The catalog runs the reloader in default at baseline; the assembly never labels that namespace, so this is recorded for the reviewer.
+        - namespace: otel-collector
+          level: privileged
+          components:
+            - apps/monitoring/otel-collector
+          owner: platform-team (Q11)
+          reason: The catalog gives the collector psa_level privileged because its node agent needs host access.
+          risk: R10
+        - namespace: longhorn-system
+          level: privileged
+          components:
+            - apps/storage/longhorn
+          owner: platform-team (Q11)
+          reason: The catalog gives storage psa_level privileged because it needs host access to the node's disks.
+          risk: R10
+      rationale: >-
+        pack:regulated-corp#SEC-1 moves PSA restricted enforce to Walk, above the factory's baseline; the plan's
+        G-SEC-5 asks the same, and devops agrees. Whatever cannot meet it leaves the namespace instead of lowering
+        it. This answers architecture Q3, data-store Q5, data-pipeline Q1 and AI-engineering R9 from this side:
+        postgres, docling, ollama, litellm, the Temporal bundle and gotrue-auth go to uc-invoice-intake-baseline,
+        and the use case's four services stay restricted. apps/minio/single-server stays in uc-invoice-intake because the catalog
+        proves it restricted. The acceptance is the security owner's (G-SEC-17), and SECBASE item 1 makes it a
+        real question because it says every workload (Q14). Sealed Secrets is the first ranked mechanism and SECBASE
+        item 3's floor, so the overlay is complete in git, and G-SEC-28 demands the controller key backup before
+        any real secret is sealed. The catalog's placeholders gotrue-secret and minio-storage-configuration are
+        deleted and replaced by sealed secrets of the same name. Per the AI-engineering record's tool credentials
+        and the architecture record's split, cron-job alone holds the read-only mailbox login, worker read-only
+        Odoo credentials, posting-worker alone a create-only Odoo credential, and review-api the token's private key.
+        Architecture Q8 changes this split, and this record's answer is yes. On one side, a process that writes
+        should hold nothing else; on the other, post_invoice must run find_payable in the same activity as the
+        create, or a late first attempt slips past the lookup and a second payable appears, which is a worse harm
+        than a read. So posting-worker also holds find_payable's own read-only credential, scoped to looking up
+        payables, as pack:regulated-corp#TOOLS' one credential per tool asks. It does not get worker's other read
+        credentials (lookup_po, get_supplier_bank_ref), and worker gets nothing that writes. The added read leaks
+        little: posting-worker has no route to the model and its only external destination is Odoo. It also reaches
+        the working store for the paused state. G-SEC-38 proves the scopes and Q17 asks whether Odoo can grant them.
+        On architecture Q7 (one Postgres or two), the choice stays with data-store; either way this record requires
+        the engine to have its own role and credential, never the admin login, so the psa_exceptions list is unchanged.
+        The approval token signing AI-engineering leaves here is asymmetric so that the process that spends
+        tokens cannot mint them. Default-deny and the two external hosts are the egress decision, with no model
+        provider, which is the network side of AI-2. Depth is one step above the factory's Walk default for one reason:
+        SECBASE item 2 is a must and says egress is allow-listed per workload, so egress_matrix is required and
+        G-ARCH-7's matrix (Odoo write and read as above, IMAP on cron-job, the gateway on worker only, the working store on posting-worker) is the
+        content; Q13 covers who generates it. Auth is oauth2-proxy with gotrue-auth, matching the architecture and
+        UX records and SECBASE item 4; Temporal's UI Ingress is deleted, as architecture says, and the login
+        provider is Q7. Kill switch: setting gateway-key-revocation, and this record defines the switch that
+        UX Q6, devops Q3 and AI-engineering R5 ask for, and which the architecture record now follows. The operator's one action revokes the use
+        case's gateway key and in the same script sets a paused state with who and when in the working store. Worker
+        stops at its next model call; the deterministic policy judge reads the state before each post_invoice and
+        fails closed, so an already issued token cannot post; review-api reads it to hold approve and show
+        paused. It is a state rather than a key check because posting-worker has by design no route to the gateway.
+        Workflows wait in the engine. intent_validation policy-judge, write_actions approval-required and
+        fallback_policy same-tier are copied from AI-engineering, with tool_write_gate human-approval following.
+        scope_isolation schema-per-tenant is copied from data-store. audit_trail is app-log with the data class per
+        entry. image_policy pinned-digest answers devops Q4 with the record's values kept: the write-back has to
+        set a digest. deploy_from tag is what devops implements as target_revision tag and auto-selfheal. encryption_at_rest
+        answers data-store R7: financial data at rest sits on encrypted volumes, each workload has its own bucket
+        credential, and only the audit role reads the audit bucket (Q16 covers feasibility). The rbac component is
+        not chosen because no workload talks to the API server.
+      alternatives:
+        - option: Label uc-invoice-intake baseline so that the catalog's components can stay in it.
+          rejected_because: pack:regulated-corp#SEC-1 is a must; shared infrastructure and exceptions never lower the use case's level.
+        - option: Patch postgres, docling, ollama, litellm and the Temporal bundle to restricted and keep them in uc-invoice-intake.
+          rejected_because: >-
+            None is proven under restricted, and restricted enforce rejects a pod that fails. It stays open to a
+            component whose patch the verify Job proves, as a later version of this record (Q14).
+        - option: External Secrets already at Walk.
+          rejected_because: >-
+            The catalog admits external-secrets at Run, SEC-2 asks for it at Run, and it needs a store no record has
+            named (Q8). One mechanism per stage; the move is a devops gate.
+        - option: The catalog `rbac` component for the workloads' ServiceAccounts.
+          rejected_because: >-
+            It declares a ClusterRole and ClusterRoleBinding, and no workload needs cluster scope. Per-workload
+            ServiceAccounts with no token, plus a namespaced Role for the operator, are enough.
+        - option: Stopping posting-worker and its egress as the switch, as an earlier version of the architecture record proposed.
+          rejected_because: >-
+            Scaling to zero is an operator's recovery that does not stop an in-flight call, and it gives the review page
+            no state to read. The paused state fails closed at the judge and serves the page too.
+        - option: Revoking the post_invoice Odoo credential as part of the switch, as AI-engineering R5 offers.
+          rejected_because: >-
+            It would make the switch depend on a second system outside the cluster and on whoever administers Odoo. It
+            remains the operator's fallback if the working store is unavailable.
+      risks:
+        - id: R3
+          text: >-
+            Six components run at baseline with no restricted proof and hold the sensitive parts: docling and the
+            model server see invoice text, postgres holds invoice state, and gotrue-auth holds identities.
+          mitigation: A namespace of their own with default-deny, traffic only from uc-invoice-intake to their ports, Secrets sealed for that namespace, encrypted volumes, and an explicit acceptance in G-SEC-17.
+          severity: high
+        - id: R4
+          text: Plaintext key in git next to correct sealed secrets, such as an Odoo key or a mailbox password in a configMapGenerator literal or an env patch.
+          mitigation: G-SEC-19 scans literals, patches, configs/ and manifests, not only secrets/.
+          severity: high
+        - id: R5
+          text: Injection to a write tool, as a planted instruction steers extraction toward a wrong approved field, or a rubber-stamping clerk approves it (business R6).
+          mitigation: The model holds no tools, posting-worker is separated, literal-source and arithmetic checks apply, G-SEC-7 and G-SEC-25 run, and quality owns the independent amount check.
+          severity: high
+        - id: R6
+          text: Second door around the kill switch; the paused state is the only stop on a post with a token, and a workload reaching the model server directly would bypass the gateway key.
+          mitigation: G-SEC-23 fails unless a post with a live token is refused after the trip; the judge fails closed when it cannot read the state; a NetworkPolicy admits only the gateway to the model server.
+          severity: high
+        - id: R7
+          text: Loss of the sealed-secrets controller key loses every secret in the repo.
+          mitigation: G-SEC-28, an offsite backup inside the EU before any real secret is sealed, which devops operates.
+          severity: high
+        - id: R8
+          text: The assembly's policy for an external host selects every pod (podSelector empty), so as generated any workload could reach Odoo, and its placeholder CIDR must be replaced because a NetworkPolicy has no FQDN selector.
+          mitigation: G-SEC-15 (netpol-matrix-check) stays red until per-workload policies exist, including seed-job and verify-job; Q9 gives the real address ranges and Q13 the author.
+          severity: high
+        - id: R9
+          text: NetworkPolicy absent on a shared cluster, or a CNI that does not enforce it, would make default-deny decorative while the cluster's location is unknown (business Q6, devops Q7).
+          mitigation: G-SEC-6 checks the manifests; the verify Job attempts a denied connection and must fail.
+          severity: medium
+        - id: R10
+          text: Privileged node agents (otel-collector and storage) share nodes with financial data, and a telemetry agent could capture what workloads emit.
+          mitigation: Platform-team owns the namespaces and accepts them (Q11); logs hold no payload by G-SEC-26; no privileged workload is in the use case's namespaces.
+          severity: medium
+        - id: R11
+          text: People with mailbox or direct Odoo access keep bank numbers visible outside the review surface (UX Q5).
+          mitigation: UX Q5 goes to finance ops and the security owner before Walk; the cron-job account stays read-only either way.
+          severity: medium
+      gate_to_next:
+        - id: G-SEC-5
+          text: PSA `restricted` is enforced on the namespace from Walk, above the factory's Walk default of `baseline` (pack:regulated-corp#SEC-1).
+          owner: security
+          check: { type: ci, ref: psa-check }
+        - id: G-SEC-6
+          text: >-
+            The namespace is default-deny with a documented egress allow-list that holds the mailbox and Odoo
+            and no external model provider, which is the network isolation for financial data
+            (pack:regulated-corp#AI-2, pack:regulated-corp#RES-1).
+          owner: security
+          check: { type: ci, ref: netpol-check }
+        - id: G-SEC-7
+          text: >-
+            The injection suite passes: instructions planted in a supplier PDF cannot change an extracted
+            amount, a match result or a tool call, since the attachments are untrusted input.
+          owner: security
+          check: { type: ci, ref: injection-suite }
+        - id: G-SEC-8
+          text: Every Ingress of the namespace, including the AP clerk's review surface, sits behind oauth2-proxy and the identity provider this record names.
+          owner: security
+          check: { type: ci, ref: auth-check }
+        - id: G-SEC-14
+          text: "SECBASE 1: the use case's workloads run under PSA restricted enforce, with exception namespaces at their recorded level and nothing else below it."
+          owner: security
+          check: { type: ci, ref: psa-check }
+        - id: G-SEC-15
+          text: "SECBASE 2: every architecture workload has its own NetworkPolicy, so egress is allow-listed per workload."
+          owner: security
+          check: { type: ci, ref: netpol-matrix-check }
+        - id: G-SEC-19
+          text: "SECBASE 3: the secret scan covers configMapGenerator literals, configs/, patches and inline env values, workload manifests and non-ignored .env files, with no finding."
+          owner: security
+          check: { type: ci, ref: secret-scan }
+        - id: G-SEC-20
+          text: Every SealedSecret has a committed .env.example with the generate and seal commands in its header, and no factory placeholder Secret survives in the build.
+          owner: security
+          check: { type: ci, ref: env-example-check }
+        - id: G-SEC-26
+          text: "SECBASE 5: prompts and tool calls touching financial data are logged with the data class, not the payload."
+          owner: security
+          check: { type: ci, ref: log-dataclass-scan }
+        - id: G-SEC-16
+          text: "SECBASE 6: the gateway routes only to the in-cluster model and the AI-engineering record documents model, provider, region and data classes."
+          owner: security
+          check: { type: ci, ref: litellm-egress-check }
+        - id: G-SEC-21
+          text: The ArgoCD Application's targetRevision is a tag or commit and selfHeal is true; the devops record carries the setting.
+          owner: security
+          check: { type: ci, ref: argocd-revision-check }
+        - id: G-SEC-22
+          text: Every image of the use case is pinned by digest.
+          owner: security
+          check: { type: ci, ref: image-policy-check }
+        - id: G-SEC-23
+          text: >-
+            Kill-switch rehearsal by tenant IT (ASSUMED, business Q2): trip the switch, watch model calls stop, see a
+            post carrying a live approval token refused and the review page show paused, restore, note the time it took.
+          owner: security
+          check: { type: manual, ref: kill-switch-rehearsal }
+        - id: G-SEC-24
+          text: "Rotation rehearsal by tenant IT (ASSUMED, business Q2): re-seal every secret with the script, consumers restart, the use case still works."
+          owner: security
+          check: { type: manual, ref: rotation-rehearsal }
+        - id: G-SEC-25
+          text: >-
+            The verify Job calls post_invoice with no token, an expired token, a spent token, a token over changed
+            fields and a token signed by another key, and all are refused; each accepted call has a logged judge verdict
+            and the approving identity.
+          owner: security
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-SEC-27
+          text: >-
+            The security owner reviews access: each persona has its own IdP group with the verbs in access_by_persona,
+            no shared login reaches the review queue, and agent ServiceAccounts mount no token and have no RoleBinding.
+          owner: security
+          check: { type: manual, ref: access-review }
+        - id: G-SEC-17
+          text: The security owner accepts in writing, or refuses, each PSA exception of this stage, with platform-team for the shared namespaces.
+          owner: security
+          check: { type: manual, ref: psa-exception-acceptance }
+        - id: G-SEC-28
+          text: The sealed-secrets controller key is backed up offsite, inside the EU, before any real secret is sealed.
+          owner: devops
+          check: { type: manual, ref: sealed-secrets-key-backup }
+        - id: G-SEC-18
+          text: Volumes holding financial data are encrypted at rest, each workload has its own bucket credential, and only the audit role can read the audit bucket.
+          owner: security
+          check: { type: manual, ref: storage-access-review }
+        - id: G-SEC-38
+          text: >-
+            The verify Job proves the Odoo credential scopes: post_invoice's cannot read, change or pay; find_payable's
+            cannot write or read beyond payables; worker's cannot write; and posting-worker holds no lookup_po or
+            get_supplier_bank_ref credential. Checked against the Odoo stub, and on the non-production Odoo once Q17 is answered.
+          owner: security
+          check: { type: verify-job, ref: invoice-intake-verify }
+      constrained_by:
+        - pack:regulated-corp#SEC-1
+        - pack:regulated-corp#AI-2
+        - pack:regulated-corp#RES-1
+    run:
+      choice:
+        - apps/security/external-secrets
+        - apps/security/openbao
+        - apps/auth/gotrue-auth
+      settings:
+        data_classification: financial
+        secrets_mechanism: external-secrets
+        env_example_per_secret: true
+        secret_scan: ci
+        psa_level: restricted
+        network_policy: default-deny
+        egress_allowlist:
+          - "odoo.corp.example.com:443  # placeholder, Q9; Odoo REST API, worker (read credentials) and posting-worker (create-only and find_payable read-only credentials)"
+          - "imap.corp.example.com:993  # placeholder, Q9; shared mailbox, cron-job only, read-only account"
+        egress_matrix: required
+        security_context: restricted-compatible
+        auth_in_front: oauth2-proxy
+        identity_provider: auth-gotrue-auth
+        kill_switch: gateway-key-revocation
+        data_egress: none
+        audit_trail: cdc
+        audit_log_content: data-class-not-payload
+        encryption_at_rest: volume
+        untrusted_inputs:
+          - supplier invoice PDF attachments, including their text layer, OCR output and metadata
+          - email subject, body, sender and filename of the message carrying the attachment
+          - free-text fields returned from Odoo that a supplier originally authored
+        write_actions: approval-required
+        intent_validation: policy-judge
+        fallback_policy: same-tier
+        tool_write_gate: human-approval
+        approval_token_signing: asymmetric; review-api alone holds the private key, posting-worker holds only the public key
+        scope_isolation: schema-per-tenant
+        llm_threats:
+          - "prompt-injection via invoice PDFs and email text: content delimited as data; the model holds no tools; post_invoice runs in posting-worker, which has no route to the model and waits for the AP clerk's approval token; planted-instruction suite in CI on every change (ai-engineering, quality)"
+          - "excessive-agency: post_invoice requires a single-use, expiring token bound to the hash of the fields; the single exception is the action G-AUT-1 names, if signed, then behind a deterministic check and a new version of this record (ai-engineering, business)"
+          - "exfiltration-through-tools: no tool takes a free-form URL or address; arguments schema-validated; each workload reaches only its own allow-listed host, G-SEC-36 (ai-engineering, kustomize)"
+          - "model-egress: data_egress none; the gateway is the only path to the in-cluster model, holds no provider key and logs which model saw which data class; pack AI-1 lists claude-* but AI-2 excludes it for this class (ai-engineering, compliance)"
+          - "fallback: same-tier stays an in-cluster model after the same golden set; no gateway route leaves the egress rule (ai-engineering)"
+          - "secret-leakage-into-context: credentials and bank account numbers never in context, the text is masked and tools hold handles; logs carry the data class, not the payload (ai-engineering, app-scaffold)"
+          - "hallucinated-regulated-fields: amounts found literally in the source and compared by code; 0 wrong amounts is the eval threshold; changed bank details always go to a person (ai-engineering, quality)"
+          - "denial-of-wallet: max_steps, step timeout and token budget per invoice, with an alert on cost per request (ai-engineering, devops)"
+          - "prompt-and-tool-tampering: prompts and tool definitions are versioned, reviewed and eval-gated, G-Q-6 (ai-engineering, quality)"
+          - "shared-model-endpoint: per-consumer NetworkPolicy to the model server and a gateway key per use case (kustomize, devops)"
+        image_policy: signed
+        deploy_from: tag
+        access_by_persona:
+          - "AP clerk: IdP group invoice-intake-ap-clerk, read the review queue, approve or reject an invoice; approve control level"
+          - "finance ops: IdP group invoice-intake-finance-ops, read reports, queue and audit log, direct the matching rules by reviewed change; direct and audit control levels"
+          - "CFO: IdP group invoice-intake-cfo, read reports and the audit log, sign G-AUT-1; audit control level"
+          - "compliance owner: IdP group invoice-intake-audit, read the audit log, the audit copy and the CDC trail; audit control level"
+          - "tenant IT: IdP group invoice-intake-operator bound to a namespaced Role, get, list, watch and restart workloads, trip the kill switch; no read of Secrets, no approve; operate control level"
+          - "agent workloads (cron-job, worker, posting-worker, review-api, seed-job, verify-job): own ServiceAccount each, automountServiceAccountToken false, no verbs, no admin credential anywhere"
+      psa_exceptions:
+        - namespace: uc-invoice-intake-baseline
+          level: baseline
+          components:
+            - apps/ai-models/vllm
+            - apps/ai-models/litellm
+            - apps/databases/postgres
+            - apps/document-processing/docling
+            - bundles/temporal-stack
+            - apps/auth/gotrue-auth
+          owner: security owner (unnamed, Q1), accepted through G-SEC-37
+          reason: >-
+            The catalog gives each of these psa_level baseline and no namespace of their own, so they stay out of
+            uc-invoice-intake under pack:regulated-corp#SEC-1. The model server changes to vllm per AI-engineering; the
+            use case's own workloads stay restricted.
+          risk: R14
+        - namespace: external-secrets
+          level: baseline
+          components:
+            - apps/security/external-secrets
+          owner: platform-team (Q11)
+          reason: >-
+            The catalog gives external-secrets psa_level unknown and its own namespace. Baseline is the level expected
+            of the owner, unproven; devops G-OPS-15 states it once proved.
+          risk: R13
+        - namespace: argocd
+          level: baseline
+          components:
+            - apps/continuous-delivery/argocd
+          owner: platform-team (Q11)
+          reason: The catalog runs GitOps in its own namespace at psa_level baseline.
+        - namespace: monitoring
+          level: baseline
+          components:
+            - apps/monitoring/prometheus
+            - apps/monitoring/grafana
+          owner: platform-team (Q11)
+          reason: The catalog runs metrics and dashboards in their own namespace at psa_level baseline.
+        - namespace: default
+          level: baseline
+          components:
+            - apps/monitoring/reloader
+          owner: platform-team (Q11)
+          reason: The catalog runs the reloader in default at baseline; the assembly never labels that namespace, so this is recorded for the reviewer.
+        - namespace: otel-collector
+          level: privileged
+          components:
+            - apps/monitoring/otel-collector
+          owner: platform-team (Q11)
+          reason: The catalog gives the collector psa_level privileged because its node agent needs host access.
+          risk: R10
+        - namespace: longhorn-system
+          level: privileged
+          components:
+            - apps/storage/longhorn
+          owner: platform-team (Q11)
+          reason: The catalog gives storage psa_level privileged because it needs host access to the node's disks.
+          risk: R10
+      rationale: >-
+        pack:regulated-corp#SEC-2 sets external-secrets at Run, the top of the ladder, and devops agrees. The sealed
+        secrets leave in one move that is a devops gate: every sealed secret replaced by an ExternalSecret of the same
+        name, old files deleted, pods restarted (G-OPS-15 proves the cutover and G-SEC-11 the end state). The brief
+        names no store, so the factory pairing applies: apps/security/openbao in `security`, whose catalog psa_level
+        restricted needs no exception, with its openbao/eso-store sub-component applied on top by the kustomize skill.
+        Q8 replaces it if the organisation runs its own; devops Q12 asks the same. sealed-secrets is no longer chosen,
+        so it needs no exception here. PSA restricted and default-deny hold per SEC-1 and SECBASE item 2; egress_matrix
+        stays required for the same reason as Walk, and on a cluster shared with other tenants namespace isolation,
+        ResourceQuota and LimitRange are expected per namespace (Q11). kill_switch departs from the Run default of
+        ingress-permission, as the posture table allows when the condition fails: cron-job's IMAPS poll and the Odoo
+        calls leave the workloads directly, IMAP cannot pass an HTTP ingress, and after a signed G-AUT-1 an
+        unattended post never crosses the ingress, so removing an ingress permission would stop none of them. The
+        switch keeps the Walk definition (gateway key plus the paused state the judge reads), which devops already
+        carries and AI-engineering now copies. write_actions stays approval-required per
+        AI-engineering and the plan until G-AUT-1 is signed, for that action alone. audit_trail is cdc because the data
+        is regulated, which answers compliance's question, and it is a request to the pipeline expert that has
+        not been met (Q15). image_policy is signed; the catalog has no signing component (Q12). deploy_from is tag, with
+        selfHeal and prune after a dry run. encryption_at_rest stays volume, and an artifact store is still unset at Run
+        by data-store; whichever is chosen inherits G-SEC-18's rule and needs its PSA checked.
+      alternatives:
+        - option: kill_switch ingress-permission, the factory's Run default.
+          rejected_because: >-
+            It holds only when every path in and out of the agent passes the ingress; the mailbox poll and the Odoo calls
+            do not, so it would look like a switch and leave two doors open.
+        - option: Stay on Sealed Secrets at Run to avoid the store's cost and operation.
+          rejected_because: pack:regulated-corp#SEC-2 is a must, and business R11 lists it among the things that do not give.
+        - option: Sealed Secrets and External Secrets side by side during the migration.
+          rejected_because: Two mechanisms in one stage means nobody knows where the truth is; the move is a devops gate.
+      risks:
+        - id: R14
+          text: Six components stay at baseline in production with no restricted proof and hold invoice text, invoice state and identities.
+          mitigation: Their own namespace with default-deny and per-namespace credentials, encrypted volumes, and a renewed acceptance in G-SEC-37.
+          severity: high
+        - id: R13
+          text: The catalog cannot read external-secrets' pods (psa_level unknown), and that controller can read every secret it syncs, so a compromise exposes the Odoo and mailbox credentials.
+          mitigation: Its own namespace with the owner setting and confirming the level (Q11); the store policy limited to this use case's paths.
+          severity: high
+        - id: R12
+          text: >-
+            external-secrets and openbao are lab maturity, exercised by an ephemeral test only with no tenant in the
+            factory on them, and openbao is single-replica, so a store outage stops rotation and new syncs. Its licence
+            (MPL-2.0) is compliance's to confirm.
+          mitigation: Q8 prefers the organisation's store if there is one; otherwise G-SEC-33 rehearses rotation before production, and openbao's raft snapshot joins the devops restore drill.
+          severity: high
+        - id: R15
+          text: The assembly writes ExternalSecrets against a ClusterSecretStore named corporate-store, while openbao's eso-store declares one named openbao; left as is, no secret syncs.
+          mitigation: Q8 settles the store and the kustomize skill matches the name; G-SEC-11 and G-OPS-15 fail until the secrets sync.
+          severity: medium
+        - id: R16
+          text: A write path outside approval after G-AUT-1 is signed, with the record still saying approval-required.
+          mitigation: A signed G-AUT-1 re-versions this record and the AI-engineering record for that one action; G-SEC-34 keeps proving every other write needs a token.
+          severity: high
+        - id: R17
+          text: Branch deploys or manual drift reach production with financial data.
+          mitigation: G-SEC-30; tag only, selfHeal on, prune after a dry run.
+          severity: medium
+        - id: R18
+          text: The audit_trail this record requires has no implementation, because the data-pipeline record has CDC none and the catalog's Postgres connectors need a broker that architecture has as none.
+          mitigation: Q15 decides before Run; G-SEC-35 stays red until then, and app-log with the per-action artifacts remains in place.
+          severity: high
+      gate_to_next:
+        - id: G-SEC-9
+          text: PSA `restricted` is enforced on the namespace (pack:regulated-corp#SEC-1).
+          owner: security
+          check: { type: ci, ref: psa-check }
+        - id: G-SEC-10
+          text: >-
+            Egress stays default-deny with no external model provider on the allow-list, and all data stays in
+            the EU (pack:regulated-corp#AI-2, pack:regulated-corp#RES-1).
+          owner: security
+          check: { type: ci, ref: netpol-check }
+        - id: G-SEC-11
+          text: Secrets come from External Secrets and no plain Secret ships in the overlay (pack:regulated-corp#SEC-2).
+          owner: security
+          check: { type: ci, ref: secrets-check }
+        - id: G-SEC-29
+          text: The secret scan stays green with the same coverage as G-SEC-19.
+          owner: security
+          check: { type: ci, ref: secret-scan }
+        - id: G-SEC-30
+          text: The Run ArgoCD Application points at a tag, selfHeal is true, and prune is true after a dry run.
+          owner: security
+          check: { type: ci, ref: argocd-revision-check }
+        - id: G-SEC-31
+          text: Every image of the use case is signed and its signature verified in CI (Q12).
+          owner: security
+          check: { type: ci, ref: image-policy-check }
+        - id: G-SEC-32
+          text: >-
+            Kill-switch rehearsal in production by tenant IT (ASSUMED, business Q2): trip the switch, see no further Odoo
+            write happen and pending invoices wait for the AP clerk, restore, note the time it took. The devops
+            drill G-OPS-3 automates the same proof.
+          owner: security
+          check: { type: manual, ref: kill-switch-rehearsal }
+        - id: G-SEC-33
+          text: "Rotation rehearsal in the central store by tenant IT (ASSUMED, business Q2): rotate a credential, consumers pick it up within the refresh interval, the use case still works."
+          owner: security
+          check: { type: manual, ref: rotation-rehearsal }
+        - id: G-SEC-34
+          text: >-
+            The verify Job proves that a post_invoice call with no valid token is refused, excepting only the action
+            named by a signed G-AUT-1, and that each accepted call has a logged judge verdict.
+          owner: security
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-SEC-35
+          text: Decisions and approvals appear in the CDC trail with the data class and no payload (Q15).
+          owner: security
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-SEC-36
+          text: Every architecture workload keeps its own NetworkPolicy in the Run build.
+          owner: security
+          check: { type: ci, ref: netpol-matrix-check }
+        - id: G-SEC-37
+          text: The security owner, with platform-team for the shared namespaces, renews the acceptance of each PSA exception for production, including the expected level of external-secrets.
+          owner: security
+          check: { type: manual, ref: psa-exception-acceptance }
+        - id: G-SEC-39
+          text: The verify Job repeats G-SEC-38 against the production credentials, with the same scopes, after they move to External Secrets.
+          owner: security
+          check: { type: verify-job, ref: invoice-intake-verify }
+      constrained_by:
+        - pack:regulated-corp#SEC-1
+        - pack:regulated-corp#SEC-2
+        - pack:regulated-corp#AI-2
+        - pack:regulated-corp#RES-1
+  open_questions:
+    - id: Q1
+      question: >-
+        Who is the organisation's security owner? Finance ops or the CFO names them (business record Q1). They sign
+        G-SEC-1, G-SEC-12, G-SEC-27 and G-SEC-17. G-SEC-1 blocks the first deployment.
+      blocks_stage: crawl
+    - id: Q6
+      question: >-
+        AI-engineering and UX confirm the switch this record defines: one script revokes the gateway key and writes a
+        paused state with who and when; the policy judge reads it before each post_invoice and fails closed; review-api
+        reads it to hold approve and show paused. Does the judge's contract take this on, and which table holds the
+        state? Data-store confirms the working store is the place. G-SEC-23 fails without it.
+      blocks_stage: walk
+    - id: Q14
+      question: >-
+        Security owner with the pack's owner: SECBASE item 1 says every workload has a securityContext compatible with
+        restricted, and the catalog proves neither postgres, docling, ollama, vllm, litellm, the Temporal bundle nor
+        gotrue-auth under it. They run in uc-invoice-intake-baseline under psa_exceptions, which satisfies SEC-1 for the use case's
+        namespace and does not satisfy item 1 as written. Is the sibling namespace accepted for each, or must each be
+        patched and proved first? A refusal for docling removes OCR (data-pipeline Q1), and a refusal for the
+        Temporal bundle triggers architecture Q3's outbox fallback. Refused components leave the Walk overlay.
+      blocks_stage: walk
+      caused_by_rule: pack:regulated-corp#SEC-1
+    - id: Q15
+      question: >-
+        Audit trail at Run, a disagreement between records: this record says audit_trail cdc for regulated data, and
+        compliance is waiting on it, while the data-pipeline record says CDC none and the architecture record says broker
+        none, and the catalog's Postgres connectors (debezium-postgres-*) need a broker. Either the pipeline and
+        architecture experts add CDC on the decision and approval tables with a broker, or the security owner and
+        compliance accept the per-action audit artifacts in an immutable store as the audit trail instead, and this record
+        changes to app-log with that reason. Who decides: the security owner with the compliance owner.
+      blocks_stage: run
+    - id: Q7
+      question: >-
+        Security owner with tenant IT (this meets architecture Q5): the catalog's gotrue-auth is wired for Google sign-in
+        only. Does the organisation log in with Google, or does an org OIDC provider replace it and leave the choice? Google
+        needs egress from uc-invoice-intake-baseline to Google's hosts, and clerks' identity data would leave the
+        cluster, which pack:regulated-corp#RES-1 may affect. Those hosts are deliberately not on egress_allowlist because the
+        assembly grants that list to uc-invoice-intake, where the financial-data workloads run, so login fails closed until this is answered.
+      blocks_stage: walk
+      caused_by_rule: pack:regulated-corp#RES-1
+    - id: Q8
+      question: >-
+        Security owner with platform-team (this meets devops Q12): does the organisation already run a central secret store inside
+        the EU? SEC-2's reason says production secrets are managed centrally, yet no store is named. If yes,
+        external-secrets points at it and apps/security/openbao leaves the Run choice. If no, openbao stays, at lab
+        maturity and a single replica, adding to Run's cost.
+      blocks_stage: run
+      caused_by_rule: pack:regulated-corp#SEC-2
+    - id: Q9
+      question: >-
+        Tenant IT (with architecture Q1 and architecture Q4): what are the real Odoo and IMAP hostnames, their address ranges, and does the CNI
+        support FQDN policies? The two egress_allowlist entries are placeholders and G-SEC-6 cannot truthfully pass on them.
+        The mailbox and Odoo must be in the EU (pack:regulated-corp#RES-1).
+      blocks_stage: walk
+      caused_by_rule: pack:regulated-corp#RES-1
+    - id: Q10
+      question: >-
+        Pack owner (this meets devops Q5): pack:regulated-corp#NAM-1 requires namespaces matching ^corp-[a-z0-9-]+$, while the
+        factory's convention, assembly and validator use uc-invoice-intake and uc-invoice-intake-baseline, and the shared
+        namespaces are outside the pattern too. Is an exception granted, or does the factory learn to rename them? This record
+        does not bend the rule; its namespaces use the factory convention until it is answered.
+      blocks_stage: walk
+      caused_by_rule: pack:regulated-corp#NAM-1
+    - id: Q11
+      question: >-
+        Platform-team (with business Q6 and devops Q7): is the cluster shared with other tenants? If so, does the owner accept
+        each shared namespace in psa_exceptions, in particular otel-collector and longhorn-system at privileged, and
+        external-secrets at the expected baseline at Run, whose real level the catalog does not know?
+      blocks_stage: walk
+    - id: Q12
+      question: >-
+        Security owner: which signing does the organisation use for image_policy signed at Run? The catalog has no signing
+        component; Cosign in CI is the assumption. Without an answer G-SEC-31 cannot pass.
+      blocks_stage: run
+    - id: Q13
+      question: >-
+        Kustomize with architecture: SECBASE item 2 and G-ARCH-7 require a NetworkPolicy per workload, and the assembly writes
+        podSelector-empty policies at Walk and only raises a note about the matrix at Run. Who writes the per-workload policies
+        at Walk, including for seed-job and verify-job, so that netpol-matrix-check passes? Security will not relax
+        egress_matrix required while the rule stands.
+      blocks_stage: walk
+    - id: Q16
+      question: >-
+        Devops with data-store: can the Walk and Run storage give encrypted volumes for the data this record marks
+        encryption_at_rest volume? The catalog declares no encryption for these stores, and Longhorn encryption needs host support
+        and a key that itself becomes a secret to rotate. If it cannot, the security owner decides whether object or
+        application-level encryption replaces it; real invoices wait on G-SEC-18 meanwhile.
+      blocks_stage: walk
+    - id: Q17
+      question: >-
+        Tenant IT (with architecture Q1), answering the second half of architecture Q8: can Odoo grant separate API users
+        for create-only on payables and read-only on payables, on the version in use? This record gives posting-worker both,
+        because the crash retry needs the lookup in the same activity as the create. If Odoo's access rules cannot separate
+        them, for example if a create requires read rights, the security owner decides between one payables-only
+        credential for both tools, recorded as a deviation from pack:regulated-corp#TOOLS, and keeping posting manual.
+      blocks_stage: walk
+  references:
+    - k8s/overlays/usecases/invoice-intake/.builder/brief.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml
+    - context-packs/examples/regulated-corp/guidelines/tool-development.md
+    - context-packs/examples/regulated-corp/constraints.yaml
+    - context-packs/examples/regulated-corp/guidelines/security-baseline.md
+    - wiki/catalog.json
+    - wiki/concepts/secret-strategy.md
+    - scripts/gates/checks/netpol-matrix-check.sh
+    - scripts/gates/checks/psa-check.sh
+    - plugins/forjate/skills/security/references/secrets-ladder.md
+    - plugins/forjate/skills/security/references/network-and-psa.md
+    - plugins/forjate/skills/security/references/llm-threats.md
+    - plugins/forjate/skills/kustomize/references/assembly.md

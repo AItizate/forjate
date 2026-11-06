@@ -1,0 +1,9 @@
+- 2026-11-04 intake: brief written, packs: regulated-corp
+- 2026-11-04 plan: v1 approved (requester said to treat it as approved)
+- 2026-11-04 experts: business done
+- 2026-11-04 experts: architecture, ai-engineering, data-store, data-pipeline, security, compliance, devops, ux, quality done, 0 conflict(s) open
+- 2026-11-04 gates: consolidated, 67 automated / 43 manual
+- 2026-11-04 scaffold: app/ generated, tests pass (130), scaffold-check clean
+- 2026-11-04 assembly: overlay written, root and stages build, ci gates crawl->walk 10 pass / 0 fail / 1 skipped, walk->run 17 pass / 1 fail / 5 skipped
+- 2026-11-04 experts: data-store decided architecture Q7 (one Postgres server); architecture, devops refreshed
+- 2026-11-04 gates: re-consolidated, 68 automated / 44 manual; scaffold: tests pass (132) after secret-scan fixes, scaffold-check clean

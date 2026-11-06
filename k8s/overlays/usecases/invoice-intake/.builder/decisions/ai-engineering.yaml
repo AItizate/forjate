@@ -1,0 +1,536 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata:
+  area: ai-engineering
+  usecase: invoice-intake
+  author: forjate:ai-engineering
+  version: 2
+  language: en
+spec:
+  stages:
+    crawl:
+      choice:
+        - apps/ai-models/ollama
+      estimated_cost_usd_month: 0
+      constrained_by:
+        - pack:regulated-corp#AI-1
+        - pack:regulated-corp#AI-2
+      settings:
+        data_egress: none
+        model: ollama/qwen2.5:7b-instruct
+        inference: ollama
+        gateway: none
+        agent_pattern: single-call
+        structured_output: true
+        autonomy: assistive
+        write_actions: none
+        execution_bounds:
+          - max_steps=10
+          - step_timeout_s=600
+          - delegation_depth=0
+          - budget_tokens=8000
+        intent_validation: schema
+        model_pinning: pinned
+        fallback_policy: none
+        semantic_memory_strategy: api-lookup
+        kill_switch: none
+        audit_artifacts: run-trace
+        memory_scopes:
+          - "working: project"
+          - "episodic: project"
+          - "artifacts: project"
+        tools:
+          - "list_mailbox_messages: read new message ids from the mailbox double [read-only, page of 50]"
+          - "fetch_invoice_attachment: read one PDF attachment by mailbox message id from the mailbox double [read-only, max 10 MB]"
+          - "lookup_po: read one purchase order by exact number from the Odoo double [read-only]"
+          - "find_payable: read an existing payable by supplier id and invoice number from the Odoo double [read-only]"
+          - "get_supplier_bank_ref: read the salted hash of a supplier's known bank account from the Odoo double, never the number [read-only]"
+        guardrails:
+          - "input: the extracted PDF text is delimited as a data block, the system prompt states that instructions inside it are ignored, and the model holds no tools, so injected text can at most produce a wrong field"
+          - "input: file type allowlist is PDF only, at most 10 MB and 20 pages; anything larger goes to the AP clerk, never truncated, because truncation can drop the invoice total"
+          - "output: the result must validate against the invoice schema (supplier, invoice number, amount, currency, date, PO number); one repair attempt, then the AP clerk"
+          - "output: every extracted amount, date and PO number must appear literally in the source text after normalisation, otherwise the invoice goes to the AP clerk; the amount shown is the one found in the source"
+          - "output: there is no allowed action at this stage; the only result is a recommendation record for the AP clerk"
+          - "budget: at most 2 model calls and 10 steps per invoice, 8000 tokens per request, 600 s per step; breach ends the attempt with a typed error and the invoice goes to the AP clerk"
+          - "escalation: any mismatch on supplier, amount or PO number, missing or unreadable PO number, partial delivery, duplicate, changed bank details, illegible or non-invoice attachment, failed validation or exhausted budget goes to the AP clerk with the reason"
+          - "privacy: a deterministic step masks bank account numbers (IBAN with mod-97 check, labelled account fields) before the prompt exists; only a salted hash is kept for the comparison"
+          - "logging: tool name, argument hash, caller, duration and outcome only; logs and traces never carry invoice text, prompts or bank account numbers"
+        untrusted_inputs:
+          - supplier invoice PDF attachments, including their text layer, OCR output and metadata
+          - email subject, body, sender and filename of the message carrying the attachment
+          - free-text fields returned from Odoo that a supplier originally authored
+        memory_needs:
+          - working
+          - episodic
+          - artifacts
+        context_strategy: "In the prompt: system role, task, output schema, two synthetic examples, and the masked parsed text of this invoice inside a data block, ceiling 8000 tokens with examples dropped first. Retrieved: nothing, since PO and supplier facts are compared by code after the model returns. Never in context: bank account numbers, credentials, purchase orders, other invoices, the raw PDF."
+        prompt_versioning: "git: app/prompts/extract/v<n>.md, referenced by version from code, changed by pull request with a golden-set run"
+        eval_strategy: "Golden set of 50 synthetic invoices (ASSUMED size), the verify seed extended, digital and scanned, including stated deliberate mismatches, injection-free with the injection suite apart; labelled by the seed's author and sampled by the AP clerk. Rule-based judge, per-field exact comparison. Two runs that answer different questions: invoice-intake-verify runs 12 items on the replay double and proves routing, not the model; invoice-intake-eval runs the 50 items through the real CPU model and is what G-Q-2 reads. Pass, on the eval run: live_wrong_amount_count 0 and live_straight_through_rate at least 0.50, reported against 80%, with the denominator quality Q2 settles. Reruns on every prompt, model or matching-rule change."
+        eval_dimensions:
+          - "correctness: per-field exact match against the labelled golden set, live_wrong_amount_count reported apart, from the invoice-intake-eval run on the real model"
+          - "groundedness: share of extracted amount, date and PO number found literally in the source text, counted by the output validator in the invoice-intake-eval run"
+          - "policy-adherence: the Odoo double's write-call count is 0 and every seeded mismatch reached the exception list, asserted by invoice-intake-verify on the replay double"
+        estimated_cost_per_1k_requests_usd: 0
+      rationale: >-
+        Financial data, llm_egress_allowed false and pack AI-2 make data_egress none at every stage, on synthetic
+        data too, as plan gate G-SEC-2 requires. About 300 invoices/month is about 300 to 900 model requests with
+        repairs. The catalog gives one inference component fit for Crawl: ollama, gpu_required optional, data
+        class financial accepted. A 7B instruct model with structured output is the class for schema extraction;
+        the eval promotes it if it falls short. The id carries a tag and not `latest`, and it matches ollama/*
+        in AI-1. Crawl calls the server directly: no gateway is needed on a disposable cluster with no real data,
+        and the consequence, no per-key spend, is accepted because nothing writes and the data dies with the
+        cluster. Cost is 0 at the factory's CPU figure, time only, inside the plan's USD 5, which assumes a host
+        that can hold the model (R3). The model is exercised by invoice-intake-eval, the operator's separate run on
+        the CPU model; invoice-intake-verify runs on the replay double as the quality and data-pipeline records now
+        set, so CPU latency no longer sizes the verify seed, and a replay figure is evidence about routing and never
+        about extraction. The flow has one model step, extraction, and it holds no tools. Pattern
+        single-call inside the architecture record's Job. Deterministic and model-free: mailbox fetch, PDF parsing
+        and OCR (the data-pipeline expert's document parsing), bank number masking and hash comparison, schema and
+        literal-source validation, PO lookup, supplier, amount and PO comparison (exact, per plan assumption),
+        duplicate detection and routing. Tool lines are called by that code, never by the model, which is the
+        structural defence for PDF injection. Tools follow pack:regulated-corp#TOOLS (a guideline, cited here because
+        constrained_by accepts only numbered rule ids): typed, per-tool credential, bounded, hash-only logging, typed
+        errors; each returns a typed not-found rather than an empty result. They cover the integrations the
+        architecture record lists. write_actions is none because no tool writes; recommendation records are the
+        app's own state. max_steps counts the ten steps per invoice: fetch, parse, mask, extract, repair, validate,
+        lookup_po, find_payable, bank reference, compare and route. This record owns execution_bounds; the architecture
+        record's Crawl values (8 steps, 16000 tokens) were placeholders pending it and should be copied from here.
+        kill_switch is copied from the security record, memory_scopes from the data-store record and memory_needs
+        aligned with its kinds; audit_artifacts is copied from the quality record.
+      alternatives:
+        - option: claude-* through the gateway, allowed by name in pack AI-1
+          rejected_because: Violates llm_egress_allowed false and pack AI-2 on financial data, and the brief forbids an external model provider. The name is allowlisted but the egress is not.
+        - option: gpt-4o-mini
+          rejected_because: Violates the same egress rules and is also outside the AI-1 allowlist.
+        - option: apps/ai-models/vllm at Crawl
+          rejected_because: "Catalog stages are walk and run, with gpu_required: required; not fit for Crawl."
+        - option: ollama/gemma3:12b as the primary model
+          rejected_because: Larger and slower on CPU; not until the golden set shows a gap the 7B cannot close.
+        - option: A vision model reading the PDF page directly
+          rejected_because: It puts bank account numbers in front of the model with no masking step and cannot show the amount exists in a text source; deterministic parsing and OCR come first.
+        - option: tool-loop agent that looks up the PO itself
+          rejected_because: PO matching is a lookup and comparison is arithmetic. Letting a turn that read an untrusted PDF call tools opens the injection path for no gain.
+      risks:
+        - id: R1
+          text: "Hallucinated or misread amount: a small model, or OCR before it, returns a plausible wrong number on a scanned or multi-currency invoice, against a target of 0 wrong amounts."
+          mitigation: The literal-source check, the comparison with the PO in code and exact-match routing send doubt to the AP clerk; invoice-intake-eval counts wrong amounts apart on the real model and any one fails G-Q-2.
+          severity: high
+        - id: R2
+          text: "Prompt injection via invoice text: a planted instruction tries to change an amount, supplier or match result."
+          mitigation: The model has no tools, content is delimited as data, and the output is validated against the source and the PO by code; G-AI-2 runs the injection suite through the double in CI and through the real model in the eval run.
+          severity: high
+        - id: R3
+          text: "The catalog's ollama manifest limits memory to 4 Gi and floats on ollama/ollama:latest. A 7B model with an 8000-token context will not hold reliably there, and a USD 5 host may not have the memory at all."
+          mitigation: The overlay patches the memory limit to 8 Gi (ASSUMED, measured by G-AI-5) and pins the image; the kustomize and devops experts apply it. The verify Job needs no weights under replay, so a host that cannot hold the model fails invoice-intake-eval, loudly, and leaves G-Q-2 unread.
+          severity: medium
+        - id: R4
+          text: "Masking misses a bank number in an unusual format or in bad OCR. There is no egress, but the number could reach model traces."
+          mitigation: Prompts are not logged, the masking tests run under G-AI-3 with non-IBAN formats in the seed, and plan gate G-SEC-4 scans the logs.
+          severity: medium
+      gate_to_next:
+        - id: G-AI-1
+          text: "The eval-regression suite, which at this stage runs through the replay double, passes with every output guardrail exercised on labelled items. The check skipping because no eval test exists does not close this gate. It proves the code path and not the model; the model's 0 wrong amounts and live_straight_through_rate come from invoice-intake-eval and are read by G-Q-2."
+          owner: ai-engineering
+          check: { type: ci, ref: eval-regression }
+        - id: G-AI-2
+          text: "The injection suite passes: instructions planted in seeded PDFs, text layer and metadata change no extracted field, no match result and no routing, and no instruction leaks. The ci check runs through the double; invoice-intake-eval reports live_injection_ignored_rate on the real model, which must be 100%."
+          owner: ai-engineering
+          check: { type: ci, ref: injection-suite }
+        - id: G-AI-3
+          text: "Redaction tests prove that no bank account number in the seeded formats reaches a prompt, a trace or a log."
+          owner: ai-engineering
+          check: { type: ci, ref: redaction-check }
+        - id: G-AI-4
+          text: "App tests prove the execution bounds in code: a third model call, an eleventh step, an over-budget request and a timed-out step each stop the attempt and route the invoice to the AP clerk."
+          owner: ai-engineering
+          check: { type: ci, ref: app-tests }
+        - id: G-AI-5
+          text: "p95 seconds per invoice and peak memory are measured on the real CPU model by invoice-intake-eval over the 50-item golden set, reported, and used to decide CPU or GPU at Walk against the turnaround in Q2."
+          owner: ai-engineering
+          check: { type: metric, ref: invoice-intake-eval seconds_per_invoice_p95 and model_memory_peak }
+
+    walk:
+      choice:
+        - apps/ai-models/ollama
+        - apps/ai-models/litellm
+      estimated_cost_usd_month: 50
+      constrained_by:
+        - pack:regulated-corp#AI-1
+        - pack:regulated-corp#AI-2
+      settings:
+        data_egress: none
+        model: ollama/qwen2.5:7b-instruct
+        fallback_model: ollama/gemma3:12b
+        inference: ollama
+        gateway: litellm
+        agent_pattern: workflow-steps
+        structured_output: true
+        autonomy: semi-autonomous
+        write_actions: approval-required
+        execution_bounds:
+          - max_steps=12
+          - step_timeout_s=300
+          - delegation_depth=0
+          - budget_tokens=8000
+        intent_validation: policy-judge
+        model_pinning: pinned
+        fallback_policy: same-tier
+        semantic_memory_strategy: api-lookup
+        kill_switch: gateway-key-revocation
+        audit_artifacts: per-action
+        memory_scopes:
+          - "working: project"
+          - "episodic: project"
+          - "artifacts: project"
+        tools:
+          - "list_mailbox_messages: read new message ids from the shared IMAP mailbox [read-only, page of 50]"
+          - "fetch_invoice_attachment: read one PDF attachment by mailbox message id from the shared IMAP mailbox [read-only, max 10 MB]"
+          - "lookup_po: read one purchase order by exact number from Odoo [read-only]"
+          - "find_payable: read an existing payable by supplier id and invoice number from Odoo [read-only]"
+          - "get_supplier_bank_ref: read the salted hash of a supplier's known bank account from Odoo, never the number [read-only]"
+          - "request_approval: create one approval request for the AP clerk with the fields and the source reference [idempotent, requires deterministic check result, max 1 per invoice version]"
+          - "post_invoice: create one payable in Odoo [idempotent, requires approval token, max 1 per invoice]"
+        guardrails:
+          - "input: the extracted PDF text is delimited as a data block, the system prompt states that instructions inside it are ignored, and the model holds no tools; no write is reachable without a deterministic check and a person in between"
+          - "input: file type allowlist is PDF only, at most 10 MB and 20 pages; anything larger goes to the AP clerk, never truncated"
+          - "output: the result must validate against the invoice schema; one repair attempt, then the AP clerk"
+          - "output: every extracted amount, date and PO number must appear literally in the source text after normalisation, otherwise the invoice goes to the AP clerk with the reason"
+          - "output: allowed actions are request_approval and post_invoice only; correcting, cancelling or paying a bill is refused and counted"
+          - "output: before post_invoice, the policy judge (deterministic code, no model) reads the paused state and fails closed, then checks the token is valid, unexpired, unused and bound to the clerk's identity and the hash of the exact fields, that the amount equals the approved amount, and that the stage allows the action; the verdict is logged with the call"
+          - "budget: at most 2 model calls and 12 steps per invoice, 8000 tokens per request, 300 s per step, enforced in code and by the gateway key's budget; breach routes the invoice to the AP clerk"
+          - "budget: a stop is a wait, not a failure. A model call refused under the revoked gateway key, or a post_invoice the judge refuses on the paused state, returns a typed paused refusal, never a retryable error; the workflow waits for the resume signal, spends no model call, step, token or retry, runs no step timer, writes no review_queue row and no reason=timeout, and on resume repeats the same step under the same idempotency key"
+          - "budget: a key refusal with no paused state set is a fault, not a stop: the workflow waits the same way, spends nothing, and an alert names the gateway key; a token that expired during a pause sends the item back to waiting for the clerk, not to an exception"
+          - "escalation: any mismatch on supplier, amount or PO number, missing or unreadable PO number, partial delivery, duplicate, changed bank details, illegible or non-invoice attachment, failed validation or exhausted budget goes to the AP clerk with the reason and the source; finance ops takes what the clerk cannot settle"
+          - "escalation: matched invoices also wait for the AP clerk's approval token; there is no unattended posting at this stage"
+          - "privacy: a deterministic step masks bank account numbers before the prompt exists and the clerk checks changed bank details on the source document; only a salted hash is kept for the comparison"
+          - "logging: tool name, argument hash, caller, duration and outcome only; gateway prompt and response logging is off; logs never carry invoice text or bank account numbers, and the per-action record stores the masked prompt in artifacts"
+        untrusted_inputs:
+          - supplier invoice PDF attachments, including their text layer, OCR output and metadata
+          - email subject, body, sender and filename of the message carrying the attachment
+          - free-text fields returned from Odoo that a supplier originally authored
+        memory_needs:
+          - working
+          - episodic
+          - artifacts
+        context_strategy: "In the prompt: system role, task, output schema, two synthetic examples, and the masked parsed text of this invoice inside a data block, ceiling 8000 tokens with examples dropped first. Retrieved: nothing, since PO and supplier facts are compared by code after the model returns. Never in context: bank account numbers, credentials, purchase orders, other invoices or suppliers, the raw PDF."
+        prompt_versioning: "git: app/prompts/extract/v<n>.md, referenced by version from code, changed by pull request with a golden-set run; each action record names the prompt version"
+        eval_strategy: "Golden set of 200 (ASSUMED size): the 50 seeded plus 150 real invoices with bank numbers masked, sampled across suppliers, scanned share and languages, labelled independently of the approver and doubled by the AP clerk (Q3). Rule-based judge, per-field exact comparison. Pass: 0 wrong amounts and clean_invoice_rate at least 80%, where clean_invoice_rate is the share of invoices labelled as genuine matches that need no field corrected. It is this record's measure of extraction, not the KPI: straight_through_rate stays the business record's metric, with the denominator quality Q2 settles, and is reported beside it. The synthetic subset runs in CI on every prompt, model or matching-rule change; invoice-intake-eval runs the full set through the in-cluster model in the EU, and the real subset never runs on a hosted runner."
+        eval_dimensions:
+          - "correctness: per-field exact match against the labelled golden set and clean_invoice_rate, plus field corrections made by the AP clerk on live invoices"
+          - "groundedness: share of extracted amount, date and PO number found literally in the source text, counted by the output validator per invoice"
+          - "policy-adherence: post_invoice calls without a valid token must be 0; policy-judge refusals and refused out-of-list actions are counted by reason, from the per-action records"
+        estimated_cost_per_1k_requests_usd: 83.33
+      rationale: >-
+        Egress stays none. The gateway enters here as the one route to the model: per-key spend, telemetry and the
+        kill switch by key revocation; it routes only to the in-cluster model and holds no provider key, so a
+        misrouted call has nowhere to go. Ollama stays for Walk, and the answer to the GPU question the business
+        record leaves here is CPU first: about 300 invoices/month is about 14 per working day (the business record's
+        ASSUMED 21 days), a batch load that is not interactive and waits for a person anyway. At about 3 minutes per
+        invoice (ASSUMED) that is under an hour of compute per day, subject to the measurement in G-AI-5 and the
+        turnaround in Q2. A CPU node is priced at USD 50/month, the floor of the factory's node range and an ASSUMED
+        figure for an EU node of about 8 vCPU and 16 GiB (Q2); the plan's USD 150 excludes inference hardware. That
+        gives about USD 200 for the stage, inside the brief's USD 300, against the business record's USD 350 with a
+        GPU node. The business record's USD 150 for the CPU path should read USD 200. The cost per 1k is USD 50 over
+        about 600 requests/month, the midpoint of 300 to 900; at this volume the node figure is flat, so more
+        requests only lower it. If G-AI-5 fails the turnaround, the GPU path costs USD 200, about USD 333 per 1k,
+        and takes the stage to USD 350 (business Q5). Pattern workflow-steps because the architecture record makes
+        the flow durable from Walk: each step is an activity with one fixed prompt at most, and only extraction uses a
+        model, holding no tools. max_steps counts the twelve steps per invoice: fetch, parse, mask, extract, repair,
+        validate, lookup_po, find_payable, bank reference, compare and route, request_approval, post_invoice. Write
+        policy is approval-required as the plan's out-of-scope line demands, even for fully matched invoices. post_invoice runs
+        in the architecture record's posting-worker, which holds no gateway key, and is idempotent on a key of
+        supplier id plus normalised invoice number, which is what makes a re-delivered invoice harmless under G-Q-5.
+        The approval token comes from the AP clerk's review surface, with the signing as the security record says;
+        the agent asks and cannot issue it. It is single-use, expiring and bound to the clerk and to the hash of the
+        fields, so a corrected field needs the approval to cover the corrected value. The policy judge is deterministic
+        code, not a second model. This record confirms the kill-switch contract asked for by security Q6, devops Q3 and
+        data-pipeline R11, as a contract the app must implement and G-AI-14 must prove, since no activity code exists
+        yet: the judge reads the paused state before each post_invoice and fails closed, and a refused model call or a
+        refused post is a typed paused refusal that makes the workflow wait for the resume signal without spending the
+        budget of 2 model calls, the steps, the tokens or a retry, without a running step timer, and without becoming
+        reason=timeout or an exception for the clerk. An execution bound measures work done, and a paused invoice is doing
+        none. The wait itself is unbounded on purpose, because an operator ends it; G-OPS-2's backlog signal keeps it
+        visible. The schedule-to-start setting and the table holding the state stay with the architecture and data-store
+        records. Per pack:regulated-corp#TOOLS each tool has its own credential: read-only on the
+        mailbox and on Odoo POs, payables and supplier references, and create-only on payables for post_invoice, with
+        no right to pay, as the security record requires. Fallback same-tier means gemma3:12b, still in the 7B to 14B
+        extraction class, still local and inside AI-1, and only after it passes the same golden set (G-AI-6); until
+        then an unavailable primary means the invoice waits, and a single ollama replica means an outage waits anyway.
+        This record's extraction gate is named clean_invoice_rate so it no longer shares a name with the KPI: its
+        denominator leaves out invoices that genuinely do not match, so it does not imply the KPI. At 20% genuine
+        mismatches, 80% clean reads as about 64% straight-through on the business reading, so passing G-AI-6 does not
+        predict G-Q-4 or G-BIZ-4, which stay the CFO's numbers. kill_switch is copied from the security record,
+        audit_artifacts from the quality record, memory_scopes from the data-store record. Memory: working for
+        in-flight state and pending approval, episodic for each invoice's history and duplicates, artifacts for PDFs
+        and masked prompts. No semantic memory: facts live in Odoo and are looked up.
+      alternatives:
+        - option: apps/ai-models/vllm at Walk
+          rejected_because: "gpu_required: required at this volume is USD 200/month for concurrency nobody needs, its maturity is lab, and a model it serves does not carry the ollama/ prefix pack AI-1 approves."
+        - option: GPU node for ollama now
+          rejected_because: Not until G-AI-5 and the turnaround show CPU cannot hold; it costs USD 150/month more and breaks the brief's budget at this stage.
+        - option: claude-* or any external model for hard invoices only
+          rejected_because: The same data class and the same egress rule apply to the hard invoices; pack AI-2 and the brief forbid it.
+        - option: A redaction step that would permit data_egress anonymized
+          rejected_because: Brief and pack AI-2 say none, and supplier names and amounts are still financial data after masking the bank number. The masking step here is defence in depth, not an egress licence.
+        - option: A second model as policy judge
+          rejected_because: The policy is token, hash, amount and stage, which code decides exactly; a model adds an eval surface and an injection surface.
+        - option: write_actions registered-tools-only at Walk
+          rejected_because: The plan keeps every Odoo write behind a person's approval at Walk, and the regulated-decision profile gives no reason to exceed it.
+        - option: Keep the name straight_through_rate for the extraction gate, with the exclusion in the text
+          rejected_because: One name with two denominators is the clash quality Q2 found, and 40 of 40 would read like the CFO's number.
+        - option: Count a paused model call against the budget of 2 and route the invoice on exhaustion
+          rejected_because: A drill or a real stop would turn pending invoices into exceptions for the clerk, which is what data-pipeline R11 and G-OPS-3 forbid.
+      risks:
+        - id: R5
+          text: "Revoking the gateway key stops model calls only. A post_invoice call carrying an already issued approval token goes to Odoo through its own credential, so the key alone does not guarantee no further write."
+          mitigation: The security record's switch also sets a paused state, which this record's policy judge reads before each post_invoice and fails closed; G-AI-14 proves the contract in app tests, and G-SEC-23 and plan gate G-OPS-3 rehearse it.
+          severity: high
+        - id: R6
+          text: "Rubber-stamping by the clerk removes the human defence and inflates correctness evidence (business R6)."
+          mitigation: The review shows the source next to the extraction, with the literal-source check result per field, and corrections are counted; the independent amount check stays with the quality expert.
+          severity: high
+        - id: R7
+          text: "Real invoices differ from the seed: layouts, languages and scanned share move accuracy on day one of the window."
+          mitigation: The first real week compares field corrections with the golden result, real samples enter the golden set, and Q3 sizes it. Prompt changes rerun the set.
+          severity: medium
+        - id: R8
+          text: "The real-derived golden set holds financial data and could leak into a repository or a hosted CI runner, which would be egress by another route."
+          mitigation: It stays in the use case's artifact store, masked, runs as an in-cluster Job and is under the retention decided by G-DS-1; only the synthetic subset is in git and CI.
+          severity: high
+        - id: R9
+          text: "Ollama and LiteLLM are not proven under PSA restricted in the catalog (baseline), while plan gate G-SEC-5 and pack SEC-1 enforce restricted from Walk. They hold the masked invoice text during a call."
+          mitigation: The security record's psa_exceptions and Q14 carry them in uc-invoice-intake-baseline, with a NetworkPolicy admitting only worker to the gateway and only the gateway to the model server; this record does not set the level.
+          severity: high
+        - id: R10
+          text: "Floating images: the catalog deploys ollama/ollama:latest and ghcr.io/berriai/litellm:main-stable. A pinned model on a floating server still changes behaviour silently."
+          mitigation: The overlay pins both images by tag or digest; a change goes through G-AI-6, and the image-policy check holds the line.
+          severity: medium
+        - id: R11
+          text: "An autonomy increase nobody rehearsed: pressure from the 80% target to stop per-invoice approval before the evidence holds."
+          mitigation: Nothing changes without G-AUT-1, and the code path is off by configuration until G-AI-13 at Run.
+          severity: medium
+        - id: R17
+          text: "A paused workflow that retries a refused call on the engine's default policy would exhaust retries or trip a timer, which turns a stop into failures; the contract exists only on paper until the activities are written."
+          mitigation: The refusal is typed and non-retryable, the app-scaffold skill implements the guardrail line literally, and G-AI-14 fails if a paused item spends budget or gets a reason.
+          severity: high
+      gate_to_next:
+        - id: G-AI-6
+          text: "On the 200-invoice golden set, including the real subset run in-cluster through invoice-intake-eval: 0 wrong amounts and clean_invoice_rate at least 80%, the share of invoices labelled as genuine matches that need no field corrected. This is a gate on extraction and not the KPI, which G-Q-4 and G-BIZ-4 hold. A fallback model is admitted only by passing the same set."
+          owner: ai-engineering
+          check: { type: metric, ref: golden-set wrong_amount_count and clean_invoice_rate per model and prompt version }
+        - id: G-AI-7
+          text: "App tests prove the write gate: post_invoice is refused with no token, an expired or reused token, a token for other fields or another identity, or a changed amount, and a repeated idempotency key creates no second payable."
+          owner: ai-engineering
+          check: { type: ci, ref: app-tests }
+        - id: G-AI-8
+          text: "The LiteLLM configuration routes only to in-cluster endpoints and carries no provider key. The check skipping because no configuration exists does not close this gate."
+          owner: ai-engineering
+          check: { type: ci, ref: litellm-egress-check }
+        - id: G-AI-9
+          text: "Over the Walk window, p95 tokens per invoice, p95 seconds per invoice and inference cost per 1k requests stay within the execution bounds and the USD figure in this record, or the record is updated before the Walk report."
+          owner: ai-engineering
+          check: { type: metric, ref: "gateway spend and tokens per key, seconds_per_invoice_p95" }
+        - id: G-AI-10
+          text: "Q1 is answered: a model approved by pack AI-1 and a server fit for Run are both named, and that pair has passed G-AI-6's golden set unchanged on the Run hardware. Without this, Run has no model and the system stays at Walk."
+          owner: ai-engineering
+          check: { type: manual, ref: .builder/decisions/ai-engineering.yaml Q1 }
+        - id: G-AI-14
+          text: "App tests prove the stop contract: under a revoked gateway key a model call makes the workflow wait, and with the paused state set the judge refuses post_invoice with a live token; in both, the item spends no model call, step, token or retry, gets no reason and no review_queue row, and on resume repeats the step and creates one payable. A key refusal with no paused state waits and raises the alert."
+          owner: ai-engineering
+          check: { type: ci, ref: app-tests }
+
+    run:
+      choice:
+        - apps/ai-models/vllm
+        - apps/ai-models/litellm
+      estimated_cost_usd_month: 200
+      constrained_by:
+        - pack:regulated-corp#AI-1
+        - pack:regulated-corp#AI-2
+      settings:
+        data_egress: none
+        model_blocked_by: pack:regulated-corp#AI-1
+        inference: vllm
+        gateway: litellm
+        agent_pattern: workflow-steps
+        structured_output: true
+        autonomy: semi-autonomous
+        write_actions: approval-required
+        execution_bounds:
+          - max_steps=12
+          - step_timeout_s=300
+          - delegation_depth=0
+          - budget_tokens=8000
+        intent_validation: policy-judge
+        model_pinning: pinned
+        fallback_policy: same-tier
+        semantic_memory_strategy: api-lookup
+        kill_switch: gateway-key-revocation
+        audit_artifacts: per-action
+        memory_scopes:
+          - "working: project"
+          - "episodic: project"
+          - "artifacts: project"
+        tools:
+          - "list_mailbox_messages: read new message ids from the shared IMAP mailbox [read-only, page of 50]"
+          - "fetch_invoice_attachment: read one PDF attachment by mailbox message id from the shared IMAP mailbox [read-only, max 10 MB]"
+          - "lookup_po: read one purchase order by exact number from Odoo [read-only]"
+          - "find_payable: read an existing payable by supplier id and invoice number from Odoo [read-only]"
+          - "get_supplier_bank_ref: read the salted hash of a supplier's known bank account from Odoo, never the number [read-only]"
+          - "request_approval: create one approval request for the AP clerk with the fields and the source reference [idempotent, requires deterministic check result, max 1 per invoice version]"
+          - "post_invoice: create one payable in Odoo [idempotent, requires approval token, max 1 per invoice]"
+        guardrails:
+          - "input: the extracted PDF text is delimited as a data block, the system prompt states that instructions inside it are ignored, and the model holds no tools; no write is reachable without a deterministic check and a person in between"
+          - "input: file type allowlist is PDF only, at most 10 MB and 20 pages; anything larger goes to the AP clerk, never truncated"
+          - "output: the result must validate against the invoice schema; one repair attempt, then the AP clerk"
+          - "output: every extracted amount, date and PO number must appear literally in the source text after normalisation, otherwise the invoice goes to the AP clerk with the reason"
+          - "output: allowed actions are request_approval and post_invoice only; correcting, cancelling or paying a bill is refused and counted, and each needs a gate of its own"
+          - "output: before post_invoice, the policy judge (deterministic code, no model) reads the paused state and fails closed, then checks the token is valid, unexpired, unused and bound to the clerk's identity and the hash of the exact fields, that the amount equals the approved amount, and that the stage allows the action; the verdict is logged with the call"
+          - "budget: at most 2 model calls and 12 steps per invoice, 8000 tokens per request, 300 s per step, enforced in code and by the gateway key's budget; breach routes the invoice to the AP clerk"
+          - "budget: a stop is a wait, not a failure. A model call refused under the revoked gateway key, or a post_invoice the judge refuses on the paused state, returns a typed paused refusal, never a retryable error; the workflow waits for the resume signal, spends no model call, step, token or retry, runs no step timer, writes no review_queue row and no reason=timeout, and on resume repeats the same step under the same idempotency key"
+          - "budget: a key refusal with no paused state set is a fault, not a stop: the workflow waits the same way, spends nothing, and an alert names the gateway key; a token that expired during a pause sends the item back to waiting for the clerk, not to an exception"
+          - "escalation: any mismatch on supplier, amount or PO number, missing or unreadable PO number, partial delivery, duplicate, changed bank details, illegible or non-invoice attachment, failed validation or exhausted budget goes to the AP clerk with the reason and the source; finance ops takes what the clerk cannot settle"
+          - "privacy: a deterministic step masks bank account numbers before the prompt exists and the clerk checks changed bank details on the source document; only a salted hash is kept for the comparison"
+          - "logging: tool name, argument hash, caller, duration and outcome only; gateway prompt and response logging is off; logs never carry invoice text or bank account numbers, and the per-action record stores the masked prompt in artifacts"
+        untrusted_inputs:
+          - supplier invoice PDF attachments, including their text layer, OCR output and metadata
+          - email subject, body, sender and filename of the message carrying the attachment
+          - free-text fields returned from Odoo that a supplier originally authored
+        memory_needs:
+          - working
+          - episodic
+          - artifacts
+        context_strategy: "In the prompt: system role, task, output schema, two synthetic examples, and the masked parsed text of this invoice inside a data block, ceiling 8000 tokens with examples dropped first. Retrieved: nothing, since PO and supplier facts are compared by code after the model returns. Never in context: bank account numbers, credentials, purchase orders, other invoices or suppliers, the raw PDF."
+        prompt_versioning: "git: app/prompts/extract/v<n>.md, referenced by version from code, changed by pull request with a golden-set run; each action record names the prompt and model version"
+        eval_strategy: "The Walk golden set of 200, refreshed quarterly (ASSUMED cadence) with real invoices from new layouts and from any production miss, same independent labelling. Rule-based judge, per-field exact comparison. Pass: 0 wrong amounts and clean_invoice_rate at least 80%, the share of invoices labelled as genuine matches that need no field corrected; this measures extraction and is not the KPI straight_through_rate, which the business record owns. Runs on every prompt, model, server image or matching-rule change; the synthetic subset in CI, the full set through invoice-intake-eval in-cluster."
+        eval_dimensions:
+          - "correctness: per-field exact match on the golden set and clean_invoice_rate, plus the rolling 30-day rate of fields corrected by the AP clerk in production"
+          - "groundedness: share of extracted amount, date and PO number found literally in the source text, per invoice, alerting on a fall"
+          - "policy-adherence: post_invoice calls without a valid token or passed gate must be 0; policy-judge refusals counted by reason, from the per-action records"
+        estimated_cost_per_1k_requests_usd: 333.33
+      rationale: >-
+        BLOCKED: settings.model is deliberately unset at Run, and Run cannot start until Q1 is answered. Three facts
+        cannot all hold. Zero egress requires an inference component fit for Run, and vllm is the only one in the
+        catalog (ollama's stages are crawl and walk). Pack AI-1 approves only claude-* and ollama/*. A model served by
+        vllm is not on that allowlist, and claude-* breaks the brief's egress and pack AI-2. Writing an ollama/ id
+        over a vllm server would pass the validator while saying something false about what runs, so this record does
+        not do it. Serving Run from ollama would be a stretch of the catalog, which is not this record's to make. vllm
+        stays in choice as the catalog's only Run answer, provisional on Q1; the gateway stays, and ollama is dropped
+        at Run for this reason. The expected candidate for G-AI-10 is the same qwen2.5 7B-class weights that passed
+        Walk, at a pinned revision, so that the evidence carries across. Cost: the catalog's gpu_required required means
+        a GPU node, priced at USD 200, the top of the factory's range and the figure in the business record's USD 700;
+        about USD 333 per 1k at about 600 requests/month. That spend buys concurrency this volume does not use, so Q1
+        names the cheaper route. The component's default MAX_MODEL_LEN is 2048, under the 8000-token budget, so the
+        overlay must raise it. Autonomy stays semi-autonomous and writes stay approval-required, tighter than the
+        factory's Run default of registered-tools-only: the plan caps this stage, regulated-decision is in the risk
+        profile, and only G-AUT-1 can lift the one named action of posting a fully matched invoice. kill_switch is copied
+        from the security record, which stays on gateway-key-revocation with its paused state at Run and states why
+        ingress-permission would not stop IMAP and Odoo calls; memory_scopes is copied from the data-store record and
+        audit_artifacts from the quality record. Pattern, tools, guardrails and the Walk stop contract are unchanged from
+        Walk, on purpose, so the Walk evidence holds and G-OPS-3 drills what G-AI-14 tested. Fallback stays same-tier: no
+        fallback model is named until Q1 settles the server, and an unavailable model means the invoice waits.
+      alternatives:
+        - option: Label a vllm-served model with an ollama/ id
+          rejected_because: It satisfies the validator and misstates the server to the reviewer who relies on this record. Pack AI-1 is a rule to answer, not a string to match.
+        - option: Keep apps/ai-models/ollama at Run without a decision
+          rejected_because: The catalog does not list it as fit for Run. It is one answer to Q1, for the catalog's owner to give, with its single replica accepted.
+        - option: claude-* at Run, allowlisted by AI-1
+          rejected_because: Violates llm_egress_allowed false and pack AI-2 on financial data.
+        - option: write_actions registered-tools-only at Run, the factory default
+          rejected_because: The plan's ceiling and out-of-scope lines keep writes behind approval until G-AUT-1 is signed for one named action.
+        - option: A larger or frontier-class local model at Run
+          rejected_because: Not until the golden set shows a gap. Extraction under schema and validation does not need one.
+      risks:
+        - id: R12
+          text: "Run has no approved model until Q1 is answered. A late answer leaves the system at Walk, or tempts someone to fill the field with a model that merely matches the glob."
+          mitigation: "G-AI-10 blocks the transition. Q1 goes to the pack owner before Walk's evidence window closes, so the answer can be tested on the same golden set."
+          severity: high
+        - id: R13
+          text: "vllm's catalog maturity is lab and its HA is single, at a stage whose plan tier is production, and its image floats on latest."
+          mitigation: "Invoices queue while it is down since the load is batch; the overlay pins the image; Q1 lets the owner weigh this, and devops carries the restart in its golden signals."
+          severity: medium
+        - id: R14
+          text: "A server change between Walk and Run changes behaviour for the same weights: tokeniser defaults, structured-output enforcement and quantisation differ."
+          mitigation: G-AI-10 reruns the unchanged golden set on the Run pair before any production invoice.
+          severity: medium
+        - id: R15
+          text: "Silent drift: new supplier layouts or Odoo upgrades lower accuracy gradually, and clerks correct without anyone seeing the trend."
+          mitigation: G-AI-12 alerts on the rolling correction rate; misses feed the golden set.
+          severity: medium
+        - id: R16
+          text: "Unattended posting after G-AUT-1 removes the person between an untrusted PDF and a write; the deterministic match then becomes the only defence."
+          mitigation: "G-AI-13: the path is limited to exact matches with an unchanged bank reference and no duplicate, stays off by configuration until signed, and goes back to per-invoice approval by one configuration change."
+          severity: high
+      gate_to_next:
+        - id: G-AI-11
+          text: "Any change of model, prompt or server image runs the golden set and passes it before reaching production, with 0 wrong amounts; model id and image are pinned in configuration."
+          owner: ai-engineering
+          check: { type: ci, ref: eval-regression }
+        - id: G-AI-12
+          text: "The rolling 30-day field-correction rate and groundedness share stay within 2 percentage points of the Walk baseline (ASSUMED tolerance), alerting beyond it."
+          owner: ai-engineering
+          check: { type: metric, ref: field_correction_rate_30d and groundedness_rate_30d }
+        - id: G-AI-13
+          text: >-
+            Before the action named in plan gate G-AUT-1 is enabled: post_invoice accepts a deterministic check result
+            instead of an approval token only for an exact match with an unchanged bank reference and no duplicate; tests
+            prove every other case still needs the token; the path is off by configuration until the CFO signs G-AUT-1;
+            and returning to per-invoice approval is rehearsed once.
+          owner: ai-engineering
+          check: { type: ci, ref: app-tests }
+  open_questions:
+    - id: Q1
+      question: >-
+        Which model and server serve Run? Pack AI-1 approves only claude-* and ollama/*, zero egress excludes claude-*,
+        and the catalog's only inference component fit for Run is vllm, whose served model the allowlist does not cover,
+        while ollama is listed only for crawl and walk. The owner of the regulated-corp pack, with the catalog's owner and
+        the CFO for cost, decides between (a) adding an approved vllm entry to AI-1 after legal review, at about USD 200 a
+        month for a GPU node, on a lab-maturity server, or (b) accepting ollama at Run for this batch load, which needs
+        the catalog to list it fit for Run, or an accepted exception, and can avoid the GPU cost. Until answered, model
+        is unset at Run and Run does not start.
+      blocks_stage: run
+      caused_by_rule: pack:regulated-corp#AI-1
+    - id: Q2
+      question: >-
+        Where does the in-cluster model run at Walk, and what turnaround must it meet? Finance ops with tenant IT answers
+        (business Q5, Q6, Q7). This record assumes one EU node of about 8 vCPU and 16 GiB at USD 50 a month, CPU only, a
+        batch of about 14 invoices a working day and minutes per invoice being acceptable. If the turnaround is shorter
+        than G-AI-5 shows, the GPU path applies and the stage goes to USD 350.
+      blocks_stage: walk
+    - id: Q3
+      question: >-
+        Who labels the real part of the golden set, independently of the clerk who approves, and may masked real invoices
+        be kept for regression and for how long? Finance ops names the labeller; the compliance owner (business Q1) and
+        G-DS-1 settle the retention. Without it the Walk set stays synthetic and G-AI-6 cannot close.
+      blocks_stage: walk
+    - id: Q4
+      question: >-
+        What share of the PDFs is scanned and in which languages? Finance ops answers (a plan OPEN item). A high scanned
+        share or non-Latin text may promote the model to the 14B class, or show that OCR, not the model, is the limit.
+      blocks_stage: walk
+    - id: Q5
+      question: >-
+        Do the licences of the qwen2.5 and gemma3 weights pass legal review for this commercial use? Pack AI-1's reason is
+        legal review of approved vendors, but its ollama/* glob approves a server prefix and not a set of weights, and
+        each model carries its own licence. The compliance owner or the pack owner decides; a failed review changes the
+        model, reruns the golden set and leaves the rest of this record intact.
+      blocks_stage: walk
+      caused_by_rule: pack:regulated-corp#AI-1
+  references:
+    - k8s/overlays/usecases/invoice-intake/.builder/brief.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml
+    - wiki/catalog.json
+    - k8s/components/apps/ai-models/ollama/statefulset.yaml
+    - k8s/components/apps/ai-models/vllm/configmap.yaml
+    - context-packs/examples/regulated-corp/guidelines/tool-development.md
+    - docs/use-case-builder/contracts.md
+    - plugins/forjate/skills/ai-engineering/references/model-selection.md
+    - plugins/forjate/skills/ai-engineering/references/tools-and-guardrails.md
+    - plugins/forjate/skills/ai-engineering/references/context-and-evals.md

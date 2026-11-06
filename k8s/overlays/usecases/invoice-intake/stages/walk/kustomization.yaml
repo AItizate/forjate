@@ -1,0 +1,164 @@
+# walk stage of invoice-intake: recomposes the Crawl root (base, Crawl components, the namespace child) and adds what the records require for walk, nothing the plan put out of scope.
+# images: is the write-back surface: sync-app-image.yml (repository_dispatch app-image-updated) sets the SHA with yq, never sed.
+# Every remote ref is a tag (ref-pinning-check); the Application tracks a tag with selfHeal (argocd-revision-check).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../../../../base
+- ./relocated
+- ../../../../../components/apps/continuous-delivery/argocd
+- ../../../../../components/apps/sealed-secrets
+- ../../../../../components/apps/storage/longhorn
+- ../../../../../components/apps/monitoring/prometheus
+- ../../../../../components/apps/monitoring/grafana
+- ../../../../../components/apps/monitoring/reloader
+- ./namespaces/uc-invoice-intake
+- ./namespaces/uc-invoice-intake-baseline
+- ./namespaces/monitoring
+- ./namespaces/otel-collector
+- argocd/application.yaml
+- argocd/secrets/sealed-argocd-ssh-keys.yaml
+- argocd/secrets/sealed-argocd-repo-creds.yaml
+patches:
+- path: patches/namespace-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: uc-invoice-intake
+# Only worker gets MODEL_MODE=live and ERP_URL. Hand edit over the generator: invoice-intake-verify is exempt (quality R6: it must
+# never aim at real Odoo and refuses to start if it does). Its fixtures stay on the doubles too: seed and eval POST /_double/seed with
+# the double's admin token through ERP_URL, and the stubs are not deployed against real systems (architecture Walk rationale).
+- path: patches/worker-env-patch.yaml
+  target:
+    kind: Job
+    name: worker
+    namespace: uc-invoice-intake
+# Hand edit (data-store): tenant credentials replace the admin postgres-secret on every workload.
+- path: patches/job-postgres-credentials-patch.yaml
+  target:
+    kind: Job
+    name: invoice-intake-seed
+    namespace: uc-invoice-intake
+- path: patches/job-postgres-credentials-patch.yaml
+  target:
+    kind: Job
+    name: worker
+    namespace: uc-invoice-intake
+- path: patches/job-postgres-credentials-patch.yaml
+  target:
+    kind: Job
+    name: invoice-intake-verify
+    namespace: uc-invoice-intake
+- path: patches/job-postgres-credentials-patch.yaml
+  target:
+    kind: Job
+    name: invoice-intake-eval
+    namespace: uc-invoice-intake
+- path: patches/stub-postgres-credentials-patch.yaml
+  target:
+    kind: Deployment
+    name: odoo-stub
+    namespace: uc-invoice-intake
+- path: patches/stub-postgres-credentials-patch.yaml
+  target:
+    kind: Deployment
+    name: shared-imap-mailbox-stub
+    namespace: uc-invoice-intake
+# Hand edit: the architecture record's workload names on the pods, so the matrix policies select real pods (netpol-matrix-check reads app=seed-job, app=verify-job).
+- target:
+    kind: Job
+    name: invoice-intake-seed
+    namespace: uc-invoice-intake
+  patch: "- op: replace\n  path: /spec/template/metadata/labels/app\n  value: seed-job\n"
+- target:
+    kind: Job
+    name: invoice-intake-verify
+    namespace: uc-invoice-intake
+  patch: "- op: replace\n  path: /spec/template/metadata/labels/app\n  value: verify-job\n"
+- target:
+    kind: Secret
+    name: postgres-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: postgres-secret\n"
+- target:
+    kind: Secret
+    name: minio-secret
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: minio-secret\n"
+- target:
+    kind: Secret
+    name: bank-hash-salt
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: bank-hash-salt\n"
+- target:
+    kind: Secret
+    name: double-admin-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: double-admin-token\n"
+- target:
+    kind: Secret
+    name: mailbox-list-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: mailbox-list-token\n"
+- target:
+    kind: Secret
+    name: mailbox-fetch-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: mailbox-fetch-token\n"
+- target:
+    kind: Secret
+    name: odoo-lookup-po-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: odoo-lookup-po-token\n"
+- target:
+    kind: Secret
+    name: odoo-find-payable-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: odoo-find-payable-token\n"
+- target:
+    kind: Secret
+    name: odoo-bank-ref-token
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: odoo-bank-ref-token\n"
+- target:
+    kind: Secret
+    name: gotrue-secret
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: gotrue-secret\n"
+- target:
+    kind: Secret
+    name: minio-storage-configuration
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\napiVersion: v1\nkind: Secret\nmetadata:\n  name: minio-storage-configuration\n"
+# Hand edit over the generator: deleted, not patched with the auth middleware (architecture R3 and G-ARCH-5, security Walk rationale).
+# The operator reaches the UI by port-forward under cluster RBAC.
+- target:
+    kind: Ingress
+    name: temporal-ui-ingress
+    namespace: uc-invoice-intake-baseline
+  patch: "$patch: delete\napiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: temporal-ui-ingress\n"
+- path: patches/argocd-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: argocd
+- path: patches/longhorn-system-psa-patch.yaml
+  target:
+    kind: Namespace
+    name: longhorn-system
+- path: argocd/repo-server-ssh-patch.yaml
+  target:
+    kind: Deployment
+    name: argocd-repo-server
+    namespace: argocd
+- path: argocd/cmd-params-cm-patch.yaml
+  target:
+    kind: ConfigMap
+    name: argocd-cmd-params-cm
+    namespace: argocd
+labels:
+- pairs:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/overlay: invoice-intake
+images:
+- name: invoice-intake
+  newName: ghcr.io/aitizate/invoice-intake
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

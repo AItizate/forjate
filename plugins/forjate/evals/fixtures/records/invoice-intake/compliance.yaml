@@ -1,6 +1,11 @@
 apiVersion: forjate.io/v0
 kind: Decision
-metadata: { area: compliance, usecase: invoice-intake, author: "forjate:compliance", version: 1, language: en }
+metadata:
+  area: compliance
+  usecase: invoice-intake
+  author: forjate:compliance
+  version: 2
+  language: en
 spec:
   stages:
     crawl:
@@ -9,384 +14,647 @@ spec:
         data_classification: financial
         data_residency: eu
         transfer_mechanism: none
-        legal_basis: not-applicable
-        legal_retention_session: n/a
-        legal_retention_working: none
+        legal_retention_working: until-purpose-ends
+        legal_retention_episodic: until-purpose-ends
+        legal_retention_artifacts: until-purpose-ends
         retention_reconciled: true
         dpia_required: true
         dpia_status: pending
+        subject_rights_path: open
         licences:
-          - "apps/databases/postgres: PostgreSQL (permissive)"
-          - "apps/minio/dev: AGPL-3.0"
-          - "apps/ai-models/ollama: MIT (server); the ollama/qwen2.5:7b weights carry their own licence"
+          - "apps/ai-models/ollama: MIT"
+          - "apps/databases/postgres: PostgreSQL"
           - "apps/document-processing/docling: MIT"
-        licence_flags:
-          - "apps/ai-models/ollama: MIT server, but the weights ollama/qwen2.5:7b chosen in decisions/ai-engineering.yaml carry the Qwen model terms; legal confirms the commercial-use clause"
+          - "apps/minio/dev: AGPL-3.0"
+          - "model ollama/qwen2.5:7b-instruct: not in the catalog, unverified"
+        licence_flags: []
         model_provider: local
         model_provider_terms: n/a-local
         data_egress: none
-        audit_evidence: [brief, stage-plan, decision-records, verify-job-output, seed-strategy]
+        model_register: in-record
+        model_pinning: pinned
+        audit_artifacts: run-trace
+        open_standards: all-layers
+        audit_evidence:
+          - brief and stage plan
+          - decision records
+          - verify Job output on the seeded set
+          - seed strategy
         evidence_bundle:
           - "brief and stage plan: .builder/brief.yaml, .builder/stage-plan.yaml"
           - "decision records: .builder/decisions/"
-          - "verify Job output: inv-validate Job logs printed by the ephemeral runner"
-          - "seed strategy: decisions/data-pipeline.yaml#crawl.seed_strategy = synthetic"
-        signoff: compliance-officer
+          - "verify Job output: the invoice-intake-verify Job logs the runner prints, gone with the cluster unless the Crawl report copies them"
+          - "seed strategy: decisions/data-pipeline.yaml, seed_strategy synthetic"
+        signoff: compliance officer (holder unnamed, business Q1)
       rationale: >-
-        No regulated datum exists at Crawl. The pipeline record seeds 20 synthetic PDFs and the
-        architecture record stubs Odoo, so there is no data subject, no accounting record and no
-        legal basis to state: legal_basis is not-applicable and retention is the 4 h ephemeral TTL
-        the data-store record sets, which is why retention_reconciled is true here and nowhere
-        else. The one thing Crawl must not do is seed real invoices into a lab namespace that has
-        no audit copy and no retention; seed_strategy stays synthetic and the verify assertions are
-        pinned to the synthetic counts, which makes a swap visible. Residency is satisfied
-        structurally rather than contractually: Postgres, MinIO and Ollama all run in-cluster, so
-        every hop is inside the EU region and transfer_mechanism is none. Inference is local
-        (ollama/qwen2.5:7b, an approved family under pack:regulated-corp#AI-1), so nothing reaches
-        an external provider, model_provider_terms is n/a-local and no DPA is needed at any stage
-        while that holds. The DPIA is already required by the data class the use case is being
-        built for and is listed here so the organisation starts drafting during Crawl rather than
-        discovering it at the Walk gate; it stays pending because items 5 and 6 of its scope
-        (retention and erasure, the hops out of the cluster) have no answer yet; item 7, the
-        security controls, is sourced from decisions/security.yaml. The MinIO AGPL-3.0 licence is a note, not a
-        flag: it is used unmodified and internally, and it becomes a flag only if the organisation
-        forks it or offers it as a service to third parties.
-      constrained_by: ["pack:regulated-corp#RES-1", "pack:regulated-corp#AI-2", "pack:regulated-corp#AI-1"]
+        Facts: class financial, residency eu in both the brief and pack:regulated-corp#RES-1, so they agree and
+        nothing is unsatisfiable; regulated; llm_egress_allowed false and pack:regulated-corp#AI-2 both say nothing
+        leaves. At Crawl the data-pipeline record's seed_strategy is synthetic, with doubles of the mailbox and of
+        Odoo, on a disposable cluster, so no real datum exists to transfer (transfer_mechanism none), no legal basis
+        is needed (legal_basis deliberately absent) and no legal retention applies. That is why legal_retention_*
+        read until-purpose-ends here: it states no figure, only that synthetic data carries none. The data-store
+        record's 4h TTL on working, episodic and artifacts sits inside it, so retention_reconciled is true at this
+        stage only, and only while the seed stays synthetic. Where the Crawl cluster runs is data-store Q8 and G-DS-3;
+        data_residency stays eu since RES-1 has no stage carve-out. dpia_required is true because the class is
+        financial and an LLM reads invoices carrying personal data; it applies from the first real invoice and nothing
+        about Crawl approves it. Licences come from the catalog's licence field for every component a record chooses at
+        this stage; apps/minio/dev is AGPL-3.0, a note and not a flag, because it runs unmodified, internally, on
+        synthetic data and is gone at Walk. The model's own licence is not in the catalog and a synthetic PoC does not
+        yet raise it; it is flagged from Walk.
+        Model register, in-record. Foundation: ollama/qwen2.5:7b-instruct, local Ollama, in-cluster, versioned tag,
+        hosting per data-store Q8, terms n/a-local. OCR: whatever the docling image embeds, local, version and model
+        unstated (Q8). Embedding and reranker: none, semantic_memory_strategy api-lookup. Judge: rules, no model.
+        model_pinning pinned is copied from the ai-engineering record; audit_artifacts run-trace from quality;
+        open_standards all-layers from architecture, with no exceptions. Packs: AI-1, AI-2 and RES-1 decide here;
+        pack:regulated-corp#SECBASE also applies and shapes the log and egress evidence, cited only in prose because its
+        ref has no numeric suffix and the decision schema rejects it in constrained_by.
       alternatives:
-        - option: Seed the lab from a copy of the real mailbox so extraction is tested on real layouts
+        - option: Write a legal_retention_artifacts default of 7y or 10y now so the record looks complete.
           rejected_because: >-
-            That puts financial data and bank account numbers in an ephemeral namespace with a 4 h
-            TTL, no audit copy and no retention basis; the anonymised-copy strategy the pipeline
-            record already plans for Walk is the earliest point where real layouts are defensible.
+            Nobody gave that figure and the brief names no regime. The range and the owner are stated at Walk; the
+            number is the organisation's (Q1).
+        - option: Mark the DPIA not-required at Crawl because the data is synthetic.
+          rejected_because: >-
+            The requirement belongs to the use case, not to one stage; not-required at Crawl would read as a decision
+            that the scoping can wait until a real invoice is already due to enter.
       risks:
         - id: R1
-          text: >-
-            The synthetic seed is replaced by a real invoice export to debug a parsing failure,
-            putting regulated data in a namespace with no legal copy and no access control.
-          mitigation: >-
-            seed_strategy is synthetic in decisions/data-pipeline.yaml and the verify assertions
-            fix the counts (20 items, 3 mismatches, 1 duplicate, 1 parse failure); a real export
-            fails them. Reviewed at the crawl sign-off.
-          severity: medium
+          text: "The Crawl evidence dies with the cluster: run-trace lives in Job logs that the 4h TTL removes, and the CFO signs Crawl to Walk on that number."
+          mitigation: The Crawl report copies the verify Job's output and the G-Q-2 figures into the evidence the CFO reads; G-COMP-7 signs only against that copy.
+          severity: low
+        - id: R2
+          text: "A seed copied from real invoices would put real bank account numbers on a disposable cluster with no legal basis, DPIA or auth, and on a privileged hostPath store."
+          mitigation: The data-pipeline record rejects anonymised-copy and fixes seed_strategy synthetic at every stage.
+          severity: low
       gate_to_next:
         - id: G-COMP-2
           text: >-
-            The processing region of the IMAP mailbox provider and of the Odoo instance is
-            documented, and every hop outside the EU is covered by an adequacy decision or signed
-            SCCs; the DPO records the mechanism before the first real invoice is read.
+            Before any real invoice enters, the CFO with finance and legal states the accounting regime and the
+            retention figure for invoices, per-invoice decisions and prompts and outputs on invoice data, in answer to
+            Q1. This is what lets the plan's G-DS-1 close.
           owner: compliance
-          check: { type: manual, ref: decisions/compliance.yaml }
+          check: { type: manual, ref: .builder/decisions/compliance.yaml }
         - id: G-COMP-3
           text: >-
-            The subject-rights procedure for supplier contact data is signed by the DPO, naming
-            what access and erasure do to the operational record and what is kept on the legal copy.
+            Before any real invoice enters, tenant IT states in writing where the cluster, the mailbox, Odoo, the
+            telemetry sink, the identity upstream, the dump target and any tunnel are hosted, and the compliance officer
+            signs that each is in the EU or has a named transfer mechanism (Q3).
           owner: compliance
-          check: { type: manual, ref: decisions/compliance.yaml }
+          check: { type: manual, ref: .builder/decisions/compliance.yaml }
         - id: G-COMP-4
           text: >-
-            The licence inventory in decisions/compliance.yaml matches the components every record
-            chooses for Walk, and the Qwen model-weights licence is attached to it.
+            Before any real invoice enters, the DPO has reviewed a DPIA draft covering the seven items of the scope and
+            has stated whether approval is needed before Walk rather than before Run (Q4).
+          owner: compliance
+          check: { type: manual, ref: the organisation's DPIA }
+        - id: G-COMP-5
+          text: The licence inventory in the compliance record lists every component any record chooses at the stage.
           owner: compliance
           check: { type: ci, ref: licence-inventory }
+        - id: G-COMP-6
+          text: >-
+            The compliance officer confirms the model register has one line per model in use, each local, in the EU, with
+            a pinned version copied from the ai-engineering record, including what the docling image uses for OCR; a
+            floating model is pinned before Walk (Q8).
+          owner: compliance
+          check: { type: manual, ref: .builder/decisions/compliance.yaml }
+        - id: G-COMP-7
+          text: The compliance officer signs this record for the Crawl to Walk transition.
+          owner: compliance
+          check: { type: manual, ref: .builder/decisions/compliance.yaml }
+      constrained_by:
+        - pack:regulated-corp#AI-1
+        - pack:regulated-corp#AI-2
+        - pack:regulated-corp#RES-1
     walk:
       choice: []
       settings:
         data_classification: financial
         data_residency: eu
         transfer_mechanism: unknown
-        legal_basis: [contract, legal-obligation, legitimate-interest]
-        legal_retention_working: none
-        legal_retention_owner: finance+legal
+        legal_basis:
+          - contract
+          - legal-obligation
+        legal_retention_working: until-purpose-ends
         retention_reconciled: false
         dpia_required: true
         dpia_status: pending
         subject_rights_path: open
         licences:
-          - "apps/databases/postgres: PostgreSQL (permissive)"
-          - "apps/minio/single-server: AGPL-3.0"
-          - "apps/ai-models/ollama: MIT (server); the ollama/qwen2.5:7b weights carry their own licence"
-          - "apps/ai-models/litellm: MIT (enterprise features licensed separately)"
+          - "apps/ai-models/litellm: MIT"
+          - "apps/ai-models/ollama: MIT"
           - "apps/auth/gotrue-auth: MIT"
-          - "apps/document-processing/docling: MIT"
-          - "apps/sealed-secrets: Apache-2.0"
           - "apps/continuous-delivery/argocd: Apache-2.0"
-          - "apps/storage/longhorn: Apache-2.0"
-          - "apps/networking/metallb: Apache-2.0"
-          - "apps/monitoring/prometheus: Apache-2.0"
+          - "apps/databases/postgres: PostgreSQL"
+          - "apps/document-processing/docling: MIT"
+          - "apps/minio/single-server: AGPL-3.0"
           - "apps/monitoring/grafana: AGPL-3.0"
+          - "apps/monitoring/otel-collector: Apache-2.0"
+          - "apps/monitoring/prometheus: Apache-2.0"
           - "apps/monitoring/reloader: Apache-2.0"
-          - "apps/surveys/formbricks: AGPL-3.0"
+          - "apps/sealed-secrets: Apache-2.0"
+          - "apps/storage/longhorn: Apache-2.0"
+          - "bundles/temporal-stack: MIT"
+          - "model ollama/qwen2.5:7b-instruct: not in the catalog, unverified"
+          - "model ollama/gemma3:12b: not in the catalog, unverified"
+          - "OCR models in the docling image: not in the catalog, unverified"
         licence_flags:
-          - "apps/ai-models/ollama: MIT server, but the weights ollama/qwen2.5:7b chosen in decisions/ai-engineering.yaml carry the Qwen model terms; legal confirms the commercial-use clause"
-          - "apps/monitoring/grafana and apps/surveys/formbricks: AGPL-3.0, used unmodified and internally like MinIO; a fact in the inventory, a flag only if forked or offered to third parties"
+          - "apps/minio/single-server: AGPL-3.0, holds real invoices under co-delivery; chosen by data-store, legal confirms (Q12)"
+          - "apps/monitoring/grafana: AGPL-3.0, internal dashboards under co-delivery; chosen by devops, legal confirms (Q12)"
+          - "model ollama/qwen2.5:7b-instruct: own licence unread, commercial use; chosen by ai-engineering (Q6)"
+          - "model ollama/gemma3:12b: own licence unread, commercial use; chosen by ai-engineering (Q6)"
+          - "OCR models in the docling image: unidentified, commercial use; chosen by data-pipeline (Q8)"
         model_provider: local
         model_provider_terms: n/a-local
         data_egress: none
+        model_register: in-record
+        model_pinning: pinned
+        audit_artifacts: per-action
+        open_standards: all-layers
         audit_evidence:
-          - decision-records
-          - gates-file
-          - prompt-and-tool-logs-with-data-class
-          - idp-access-logs
-          - secret-scan-results
-          - licence-inventory
-          - dead-letter-report
+          - brief, stage plan and decision records
+          - gates file with the automated checks' results
+          - app logs with the data class per prompt and tool call, no payload
+          - per-action records with masked prompts
+          - approval records with the approving identity
+          - IdP access logs
+          - secret-scan and env-example check results
+          - licence inventory
+          - residency inventory
+          - restore rehearsal record
+          - independent amount audit
         evidence_bundle:
-          - "decision records: .builder/decisions/"
-          - "automated gate results: .builder/gates.yaml"
-          - "prompt and tool-call logs with the data class and no payload: the log backend the devops record names"
-          - "AP clerk access to the review queue: GoTrue / oauth2-proxy access logs"
-          - "secret scan and .env.example check: CI"
-          - "licence inventory: decisions/compliance.yaml#walk.licences"
-          - "weekly dead-letter report to finance ops: decisions/data-pipeline.yaml#walk.dead_letter"
-        signoff: compliance-officer
+          - "brief, plan and records: .builder/"
+          - "gates and check results: .builder/gates.yaml, CI"
+          - "app logs and traces: the separate EU bucket devops Q2 proposes, untested; not the record of evidence"
+          - "per-action records: episodic store row (quality, architecture); masked prompts: audit bucket, apps/minio/single-server"
+          - "approval records: working and episodic databases, engine history as second witness"
+          - "access logs: apps/auth/gotrue-auth and oauth2-proxy"
+          - "licence inventory: this record, settings.licences"
+          - "residency inventory: G-DS-6, kept by tenant IT"
+          - "restore rehearsal record: G-DS-4 and G-OPS-12, kept by tenant IT"
+          - "independent amount audit: G-Q-15, in the Walk report"
+        signoff: compliance officer (holder unnamed, business Q1); DPO for the DPIA; CFO with finance and legal for retention
       rationale: >-
-        Walk is where the use case acquires data subjects, an accounting record and two hops it
-        does not control. The data class stays financial, but supplier contact names and the AP
-        clerk's approvals are personal data riding on the same records, so three bases apply at
-        once: contract for processing the supplier's invoice under the commercial relationship,
-        legal-obligation for keeping the resulting accounting record, and legitimate-interest for
-        the supplier contact details that make the invoice attributable. Residency stays eu as the
-        requirement (pack:regulated-corp#RES-1), but transfer_mechanism is unknown, not none: the
-        IMAP mailbox and the Odoo REST API are hops whose hosting regions nobody has stated, and a
-        SaaS mailbox or a hosted Odoo outside the EU is a transfer that needs adequacy or SCCs.
-        That is Q2 and it blocks Walk; it is the only residency finding, because inference stays
-        in-cluster and no payload reaches an external model provider.
-        Retention is where this record refuses to help. Invoices and the posting decision about
-        them are accounting records; in the EU the statutory period is commonly 5 to 10 years
-        depending on the member state, and which state and which figure is finance's and legal's
-        answer, not a number this record invents. legal_retention_episodic and
-        legal_retention_artifacts are therefore absent, not defaulted. Against that,
-        decisions/data-store.yaml keeps episodic and artifacts for 90 days at Walk, which is a
-        reasonable operational figure but destroys the accounting record long before any statutory
-        period ends unless a separate immutable audit copy is written at the legal figure. Its own
-        rationale says the audit copy is retained for "the legal period the compliance expert
-        sets", which is the wrong direction: the operational copy is its decision, the legal floor
-        is this one, and neither exists until finance answers. retention_reconciled is false and
-        this record does not edit data-store.yaml.
-        Subject rights are open for the same reason: erasure of a supplier contact and a
-        multi-year immutable copy of the decisions about their invoices only coexist with a stated
-        path (pseudonymise the operational row, keep the legal copy under legal-obligation with
-        the basis documented), and that paragraph does not exist yet. The DPIA stays pending
-        rather than draft because two of its seven required items are unanswered (retention and
-        the hops out of the cluster); the audit trail, the log redaction that keeps bank account
-        numbers out of the logs and the egress allow-list the corporate security baseline requires
-        (items 2, 5 and 6 of context-packs/examples/regulated-corp/guidelines/security-baseline.md)
-        are owned by decisions/security.yaml (audit_trail app-log, audit_log_content
-        data-class-not-payload, egress_allowlist with the two external hosts), and the evidence
-        bundle above lists the log and IdP evidence as what Walk must produce.
-      constrained_by: ["pack:regulated-corp#RES-1", "pack:regulated-corp#AI-2", "pack:regulated-corp#AI-1"]
+        Walk is the first stage with real invoices and real bank account numbers, so everything legal starts here.
+        Residency eu (brief and pack:regulated-corp#RES-1); all records agree. The intended transfer is none: inference,
+        gateway, stores, parser and engine are in-cluster, and G-SEC-6 denies external model providers. Provider terms
+        are n/a-local and no DPA is needed for a model; pack:regulated-corp#AI-1 lists claude-* but that does not lift AI-2,
+        as the ai-engineering record says. transfer_mechanism is still unknown, not none, because the hops are open.
+        Hops, each a transfer if outside the EU: the cluster, provider undecided (business Q6, devops Q7); the mailbox
+        host (architecture Q4); the Odoo host (security Q9); the EU S3-compatible bucket outside the cluster that devops
+        Q13 proposes for client-side encrypted dumps and bucket mirrors, provider unnamed; the telemetry sink, whose catalog
+        default is Grafana Cloud us-east and for which devops Q2 proposes a separate EU bucket, untested (devops R3); the
+        clerks' login, since gotrue-auth is wired for Google only, so identity data of AP clerks would leave the cluster
+        (architecture Q5, security Q7); and a tunnel, if the review surface needs one, whose traffic would transit Cloudflare
+        carrying invoice fields (architecture Q2). GitHub and GHCR (devops Q9) hold code, images and sealed ciphertext; this
+        record reads them as no hop for the financial class while git holds only synthetic data, and the compliance officer
+        confirms it. It drops to none when G-COMP-3 is signed with every hop in the EU (Q3).
+        Legal basis: contract with the supplier plus legal-obligation for accounting records, per the data class. Contact
+        people at corporate suppliers are not party to that contract, and the approving AP clerks are named in per-person
+        approval records and in review-time signals, so the DPO confirms both bases in the DPIA (Q4).
+        Retention, stated as ranges with owners and no figure. Episodic (per-invoice history, the person's decision,
+        per-action records): the legal copy is the accounting-records period, commonly 5 to 10 years by jurisdiction; owner
+        finance and legal. Artifacts: source PDFs and parsed output follow the same period, owner finance and legal; masked
+        prompts and responses follow the audit period the organisation sets, owner DPO with legal. Working: no legal copy,
+        so until-purpose-ends, on two conditions: its window is data-store Q1 and the approval reaches the episodic trail
+        before working state expires (data-store R4). Session and semantic: data-store refuses both. The legal_retention
+        episodic and artifacts keys stay absent because the brief says regulated without a regime (Q1). Reconciliation: the
+        data-store record leaves retention_working, retention_episodic and retention_artifacts unset at Walk (its Q1), so
+        there are no two numbers to compare and retention_reconciled is false, with neither record inventing one (Q2). The
+        skill's default is that the figure blocks Run; plan gate G-DS-1 is stricter, deciding before any real invoice
+        enters, so Q1 blocks Walk and no TTL can delete real evidence meanwhile. Whether Odoo and the mailbox already hold
+        the legal copy is part of Q1.
+        Bank numbers, data-store Q3: the ai-engineering record masks them before the prompt and keeps a salted hash for the
+        comparison, which also answers business's changed-bank-details exception without storing the number. The numbers
+        remain in the source PDFs and in the parsed bucket (data-pipeline landing_zones), so those two stay financial at full
+        sensitivity (R17). Deleting the operational PDF before the audit copy expires is the intended shape, provided one
+        legal copy exists; finance ops and the compliance owner decide.
+        DPIA pending. Scope the organisation must draft: (1) purpose and as-is process, from the business record; (2) classes,
+        sources, volumes, from the brief and the pipeline record, about 300 invoices/month; (3) the model's role and untrusted
+        inputs: extraction only, no tools held, from ai-engineering and security; (4) the human in the loop: one evidence-first
+        approval on every write, from ux; (5) retention and erasure, not answered (Q1, Q5); (6) residency and hops, not answered
+        (Q3); (7) risks and controls, from security, including encrypted volumes for the stores holding bank numbers
+        (encryption_at_rest volume, G-SEC-18, G-OPS-18), whose feasibility is security Q16. Items 5 and 6 are missing, so it is
+        pending rather than draft. Nothing here approves it.
+        Subject rights open. Candidate shape, for the DPO to define rather than adopted here: find records by supplier id on
+        episodic rows and object keys, pseudonymise the operational record on a valid erasure request, keep the legal copy
+        under legal-obligation with the basis documented (Q5).
+        Licences: read from the catalog's licence field for every component in any record at this stage; only AGPL-3.0 and
+        the model licences need a decision. data-store passed apps/minio/single-server here as a flag (its R8), and grafana
+        shares the family. Unmodified and internal, each would normally be a note; both stay flags until legal confirms that
+        co-delivery by an outside team does not offer them to a third party (Q12). Each model carries its own licence, which
+        the catalog does not state and this record does not recall from memory; ai-engineering Q5 asks the same and AI-1's
+        ollama/* glob approves a prefix and not a set of weights (Q6). oauth2-proxy is base, chosen by no record, so it is not
+        inventoried here. Catalog data_classes: grafana and prometheus list internal only, otel-collector internal and pii,
+        gotrue-auth internal and pii; none of them may carry financial payloads, which is the same requirement as G-SEC-26.
+        Model register, in-record. Foundation: ollama/qwen2.5:7b-instruct, local Ollama behind LiteLLM, in-cluster, versioned
+        tag, EU subject to Q3, n/a-local. Fallback: ollama/gemma3:12b, same terms, only after passing G-AI-6. OCR: inside the
+        docling image, unidentified, image floating until pinned (data-pipeline R6, Q8). Embedding and reranker: none. Judge:
+        deterministic policy code and rules, no model. There is no automated model supply-chain feed in the factory; every
+        upgrade is a reviewed change under G-COMP-13.
+        Evidence. audit_artifacts per-action is copied from quality. Q9 is answered: quality and architecture make the episodic
+        store's row the per-action evidence, written before each Odoo write, with masked prompts in the audit bucket and the
+        engine's references-only history as a second witness, and quality needs no dedicated ledger at Walk. This record
+        accepts that design for Walk, on three conditions. The row carries subject, masked prompt reference, model and version,
+        tool, parameter hash, result, output, cost, duration, status and timestamps, and each human gate its reviewer, decision
+        and timestamp, as quality's verify assertion checks against a schema on seeded actions. The compliance officer's sample
+        of real actions in G-COMP-14 stays the human acceptance, because this record signs nothing and the assertion never sees
+        a real action. And the row is kept to the legal figure (Q1), inside the backup scope (R15), with immutability settled for
+        Run (Q14). The telemetry export of devops Q2 is acceptable for logs and traces once tested, inside the EU and under the
+        Q1 retention, and is never the record of evidence; the compliance officer confirms it under G-COMP-3. Payload and bank
+        numbers stay out of logs (G-SEC-4, G-SEC-26, pack:regulated-corp#SECBASE). A known defect stays with quality: its R8 says
+        log-dataclass-scan can fail on a correct JSON log line and finds only IBANs, to be aligned before Walk. audit_trail is
+        app-log from security at this stage.
       alternatives:
-        - option: Write a 7-year retention into legal_retention_artifacts as a safe default
+        - option: Set transfer_mechanism none at Walk because the brief says the data stays in the EU.
           rejected_because: >-
-            The brief names no jurisdiction and the figure belongs to finance and legal. A plausible
-            default that turns out to be wrong is worse than a blank: it reads as a decided policy,
-            so nobody asks, and it is the finding an auditor remembers.
-        - option: Route extraction to an external model API with a DPA and SCCs
+            The brief states a requirement. Three hops have a default or a provider that may fall outside it, and nobody has
+            stated where the mailbox, Odoo or the cluster are.
+        - option: Require DPO approval of the DPIA before Walk as a fixed gate.
           rejected_because: >-
-            pack:regulated-corp#AI-2 forbids financial data leaving the cluster and the brief sets
-            llm_egress_allowed false. Local inference removes the transfer, the DPA and the
-            sub-processor review entirely, which is why model_provider_terms is n/a-local.
-        - option: Treat the MinIO AGPL-3.0 licence as a flag requiring legal sign-off
+            The factory's sign-off table sets before Run for financial data, while the pack names GDPR and real bank details
+            enter at Walk, so an earlier approval may well be right. That is the DPO's call (Q4), not a rule written here;
+            G-COMP-4 forces the question before the first real invoice.
+        - option: Require a dedicated structured ledger per tool call before Walk.
           rejected_because: >-
-            It is used unmodified and internally; AGPL obligations bite on modification or on
-            offering it as a service to third parties. It stays in the inventory as a fact, and
-            becomes a flag the day the organisation forks it or exposes it externally.
+            The reference architecture has none, and the episodic row with a schema check and a human sample proves the same
+            fields at about 300 invoices a month. Refused as a Walk requirement; Run's immutable form is Q14.
+        - option: Leave the AGPL-3.0 components out of licence_flags as internal-use notes.
+          rejected_because: >-
+            The data-store record passed one as a flag, and whether co-delivery is purely internal use is for legal to confirm.
       risks:
-        - id: R1
-          text: >-
-            The 90-day operational retention runs with no audit copy behind it, so the accounting
-            record of an invoice is destroyed before the statutory period ends and cannot be
-            recovered.
-          mitigation: >-
-            G-COMP-5 holds Run until finance and legal confirm the figure and data-store.yaml
-            writes one immutable audit copy at it; until then Walk keeps the 90-day copy and the
-            MinIO bucket is not lifecycled below it.
+        - id: R3
+          text: "Retention unreconciled: both records leave Walk figures unset. A TTL set below the legal figure deletes accounting evidence, and one set above it keeps bank account numbers longer than justified."
+          mitigation: G-DS-1 keeps real invoices out until Q1 closes; G-COMP-2 and G-COMP-11 name the signers; G-DS-7 proves the retention job deletes only what has expired.
           severity: high
-        - id: R2
-          text: >-
-            The mailbox provider or the Odoo instance turns out to sit outside the EU, making every
-            invoice read an undocumented international transfer.
-          mitigation: "G-COMP-2 blocks the first real invoice until both regions and the transfer mechanism are documented."
+        - id: R4
+          text: "A hop outside the EU: a mailbox or an Odoo hosted by a vendor outside the region, Google sign-in for the clerks, or a Cloudflare tunnel carrying invoice fields, each inherited rather than chosen."
+          mitigation: G-COMP-3 requires the hop list before any real invoice; a hop outside goes to the compliance officer with its mechanism, and this record never accepts it silently.
           severity: high
+        - id: R14
+          text: "Telemetry default: the collector's catalog exporter sends to Grafana Cloud us-east and the catalog gives no EU backend. Unpatched, logs and traces of financial workloads leave the EU."
+          mitigation: Devops R3 and G-OPS-10 patch and prove it on the built overlay; devops Q2 proposes a separate EU bucket, untested, and holds real invoices out until answered. Its retention is part of Q1 and Q2.
+          severity: high
+        - id: R5
+          text: "Evidence against masking: per-action artifacts need enough of the input to prove a decision, while logs must carry no payload, so an auditor may be unable to tie a posted amount to its PDF."
+          mitigation: Artifacts reference the invoice by its idempotency key, with the source in the audit bucket readable only by the audit role (data-store R7, G-SEC-18); G-COMP-14 samples this on real actions.
+          severity: medium
+        - id: R6
+          text: "The accepted per-action evidence is a row in an ordinary database, checked by schema only on seeded actions; G-Q-12's scan proves the data class in logs, not the row's content, and nothing makes the row immutable at Walk."
+          mitigation: G-COMP-14's manual sample on real actions, the backup in R15, and Q14 for immutability at Run; a factory audit-artifact check is the lasting fix (quality R8).
+          severity: medium
+        - id: R12
+          text: "Licence flags open while real invoices flow: two AGPL-3.0 components and model weights nobody has read the licence of."
+          mitigation: Q6, Q8 and Q12 to legal; G-COMP-12 keeps them from reaching Run unresolved. The S3 API keeps the store replaceable (data-store R8), and a failed model review reruns the golden set without changing other records (ai-engineering Q5).
+          severity: medium
+        - id: R15
+          text: "Approval records and per-action evidence are the one thing Odoo and the mailbox cannot rebuild. Devops Q13 proposes a nightly client-side encrypted dump to an EU bucket outside the cluster, ahead of the plan's Run offsite, so up to a day could still be lost (devops R5). If the CFO refuses, this evidence lives on one cluster until Run."
+          mitigation: The CFO accepts the plan change at about USD 30 a month or accepts cluster-only recovery in writing (devops Q13); the bucket joins the Q3 hop list and G-DS-6, its expiry follows Q1, and the AP clerk re-approves what a lost day takes.
+          severity: high
+        - id: R16
+          text: "Real-derived golden set: ai-engineering keeps 150 masked real invoices for regression, a purpose beyond accounting, with no retention and masking as the only reduction."
+          mitigation: Q7 to the DPO; it stays in-cluster and out of git (ai-engineering R8, quality's alternatives), and without an answer the set stays synthetic as ai-engineering Q3 says.
+          severity: medium
+        - id: R17
+          text: "The records read differently on bank numbers: the data-store record says they are not extracted and ai-engineering keeps only a salted hash, while data-pipeline's parsed bucket holds them in clear, so a backup or mirror of it carries the same numbers."
+          mitigation: The DPIA states the real places (PDF, parsed bucket, backups); security sets encrypted volumes and audit-role-only bucket access (G-SEC-18); retention and backup expiry treat parsed output like the PDF.
+          severity: medium
       gate_to_next:
-        - id: G-COMP-1
-          text: compliance record signed; residency eu and zero model egress documented
-          owner: compliance
-          check: { type: manual, ref: decisions/compliance.yaml }
         - id: G-COMP-5
-          text: >-
-            Finance and legal confirm in writing the statutory retention for invoice documents and
-            for the posting decision, and decisions/data-store.yaml is updated so every operational
-            retention sits at or below it with one immutable audit copy at the legal figure.
+          text: The licence inventory in the compliance record lists every component any record chooses at the stage.
           owner: compliance
-          check: { type: manual, ref: decisions/data-store.yaml }
-        - id: G-COMP-6
-          text: >-
-            The DPIA is approved by the DPO, covering purpose, data classes and volumes, the
-            model's role and its untrusted inputs, the AP clerk in the loop, retention and the
-            erasure path, residency with every hop, and the risks and controls from
-            decisions/security.yaml.
-          owner: compliance
-          check: { type: manual, ref: dpia }
-        - id: G-COMP-7
-          text: >-
-            Prompt and tool-call logs carry the data class and contain no invoice payload and no
-            bank account number, proven by a scan over a day of logs.
+          check: { type: ci, ref: licence-inventory }
+        - id: G-COMP-8
+          text: Live logs of the use case carry the data class on prompts and tool calls and no invoice payload, IBAN or contact detail (pack:regulated-corp#SECBASE).
           owner: compliance
           check: { type: ci, ref: log-dataclass-scan }
+        - id: G-COMP-9
+          text: The DPO approves the DPIA; this record never does.
+          owner: compliance
+          check: { type: manual, ref: the organisation's DPIA }
+        - id: G-COMP-10
+          text: The DPO defines the subject-rights procedure, including erasure against the legal copy (Q5).
+          owner: compliance
+          check: { type: manual, ref: the subject-rights procedure }
+        - id: G-COMP-11
+          text: >-
+            Finance and legal sign that every data-store retention figure sits at or below the legal figure and that one
+            audit copy exists at the legal figure, naming both numbers per kind, including backups and the telemetry sink (Q2).
+          owner: compliance
+          check: { type: manual, ref: .builder/decisions/compliance.yaml }
+        - id: G-COMP-12
+          text: Legal resolves every entry of licence_flags by accepting, replacing or buying, each with the record that chose the component (Q6, Q8, Q12).
+          owner: compliance
+          check: { type: manual, ref: .builder/decisions/compliance.yaml }
+        - id: G-COMP-13
+          text: >-
+            Each model upgrade, deprecation or fine-tune change is evaluated against the approved baseline and the live golden
+            set in the EU cluster (G-Q-11, since G-Q-6 runs on the double) and approved by the compliance officer before it
+            ships; rollback is a configuration change.
+          owner: compliance
+          check: { type: manual, ref: .builder/gates.yaml }
+        - id: G-COMP-14
+          text: >-
+            The compliance officer samples real Walk actions and finds, for each, subject, masked prompt reference, model and
+            version, tool, parameter hash, result, output, cost, duration, status and timestamps in the episodic row, with the
+            reviewer, decision and timestamp of each human gate, and accepts or refuses that row as the per-action evidence.
+          owner: compliance
+          check: { type: manual, ref: .builder/decisions/quality.yaml }
+        - id: G-COMP-15
+          text: The compliance officer signs this record for the Walk to Run transition.
+          owner: compliance
+          check: { type: manual, ref: .builder/decisions/compliance.yaml }
+      constrained_by:
+        - pack:regulated-corp#AI-1
+        - pack:regulated-corp#AI-2
+        - pack:regulated-corp#RES-1
     run:
       choice: []
       settings:
         data_classification: financial
         data_residency: eu
         transfer_mechanism: unknown
-        legal_basis: [contract, legal-obligation, legitimate-interest]
-        legal_retention_working: none
-        legal_retention_owner: finance+legal
+        legal_basis:
+          - contract
+          - legal-obligation
+        legal_retention_working: until-purpose-ends
         retention_reconciled: false
         dpia_required: true
         dpia_status: pending
         subject_rights_path: open
         licences:
-          - "apps/databases/postgres: PostgreSQL (permissive)"
-          - "apps/minio/single-server: AGPL-3.0"
-          - "apps/ai-models/vllm: Apache-2.0 (server); the ollama/qwen2.5:7b weights carry their own licence"
-          - "apps/ai-models/litellm: MIT (enterprise features licensed separately)"
+          - "apps/ai-models/litellm: MIT"
+          - "apps/ai-models/vllm: Apache-2.0"
           - "apps/auth/gotrue-auth: MIT"
-          - "apps/document-processing/docling: MIT"
-          - "apps/security/external-secrets: Apache-2.0"
           - "apps/continuous-delivery/argocd: Apache-2.0"
-          - "apps/storage/longhorn: Apache-2.0"
-          - "apps/networking/metallb: Apache-2.0"
-          - "apps/monitoring/prometheus: Apache-2.0"
+          - "apps/databases/postgres: PostgreSQL"
+          - "apps/document-processing/docling: MIT"
           - "apps/monitoring/grafana: AGPL-3.0"
           - "apps/monitoring/otel-collector: Apache-2.0"
+          - "apps/monitoring/prometheus: Apache-2.0"
           - "apps/monitoring/reloader: Apache-2.0"
-          - "apps/surveys/formbricks: AGPL-3.0"
+          - "apps/security/external-secrets: Apache-2.0"
+          - "apps/security/openbao: MPL-2.0"
+          - "apps/storage/longhorn: Apache-2.0"
+          - "bundles/temporal-stack: MIT"
+          - "model at Run: unset by ai-engineering, licence unknown (Q10)"
+          - "OCR models in the docling image: not in the catalog, unverified"
         licence_flags:
-          - "apps/monitoring/grafana and apps/surveys/formbricks: AGPL-3.0, used unmodified and internally; a fact, not a flag, unless forked or offered to third parties"
-          - "apps/ai-models/vllm: Apache-2.0 server, but the weights ollama/qwen2.5:7b chosen in decisions/ai-engineering.yaml carry the Qwen model terms; legal signs before Run"
+          - "apps/monitoring/grafana: AGPL-3.0, internal dashboards; chosen by devops, cleared at Run only by legal's answer to Q12"
+          - "model at Run: unset, licence cannot be read until ai-engineering Q1 closes (Q10)"
+          - "OCR models in the docling image: unidentified, commercial use; chosen by data-pipeline (Q8)"
         model_provider: local
         model_provider_terms: n/a-local
         data_egress: none
+        model_register: in-record
+        model_pinning: pinned
+        audit_artifacts: per-action
+        open_standards: all-layers
         audit_evidence:
-          - decision-records
-          - gates-file
-          - immutable-decision-stream
-          - prompt-and-tool-logs-with-data-class
-          - idp-access-logs
-          - restore-test-report
-          - licence-inventory
-          - approved-dpia
-          - subject-rights-procedure
+          - everything Walk lists
+          - audit trail of decisions and approvals, form open (Q14)
+          - object-lock refusal proof
+          - restore-test report
+          - rotation rehearsal
+          - approved DPIA
+          - subject-rights procedure
         evidence_bundle:
-          - "decision records and gate results: .builder/decisions/, .builder/gates.yaml"
-          - "immutable record of every posting decision: the CDC stream of the decisions table decisions/data-pipeline.yaml#run names, archived to the audit bucket"
-          - "invoice documents and the decision per invoice: the MinIO audit bucket under versioning and object lock"
-          - "prompt and tool-call logs with the data class: the log backend the devops record names"
-          - "restore of Postgres and the audit bucket: the G-DS-2 rehearsal report"
-          - "licence inventory: decisions/compliance.yaml#run.licences"
-          - "approved DPIA and the subject-rights procedure: the organisation's document store"
-          - "no DPA: inference is local, nothing is sent to a model provider"
-        signoff: [dpo, compliance-officer]
+          - "Walk's bundle: as listed at Walk"
+          - "audit trail: security asks for CDC, no record implements it (Q14)"
+          - "object-lock proof: invoice-intake-verify Job (G-DS-10), once Q13 gives the store"
+          - "restore-test report: invoice-intake-restore-drill Job (G-OPS-4), G-DS-8, G-ARCH-9"
+          - "rotation rehearsal: G-SEC-33"
+          - "residency inventory: G-DS-11, signed by the compliance owner"
+          - "approved DPIA and subject-rights procedure: the organisation's document store"
+          - "G-AUT-1 signature, if ever signed: .builder/gates.yaml"
+        signoff: compliance officer (holder unnamed, business Q1); DPO for the DPIA and subject rights; legal for licence flags; finance and legal for retention
       rationale: >-
-        Run is the stage the evidence bundle is built for, and it is also where the retention gap
-        stops being theoretical. decisions/data-store.yaml sets retention_episodic to 1 year at Run
-        and states no retention_artifacts at all, while the posting decision and the invoice itself
-        are the accounting record that the statutory period (commonly 5 to 10 years in the EU,
-        member state to be named) applies to. One year is below any figure in that range and a
-        missing figure for the documents themselves is worse, so retention_reconciled stays false
-        and Q1 blocks Run. The shape that resolves it is already half-built: the MinIO Tenant with
-        versioning and object lock that data-store plans is the immutable audit copy, the CDC
-        stream of the decisions table that the pipeline and security records describe is its
-        append-only counterpart, and both only need the number.
-        What is genuinely clean here is the model. Inference is vLLM in-cluster on the same
-        weights, so there is no provider, no DPA, no sub-processor list and no retention
-        commitment to negotiate, and pack:regulated-corp#AI-2 is satisfied by construction rather
-        than by contract; the plan's G-COMP-1 is carried as the walk-to-run sign-off above and is
-        what records that fact. The residual licence question is the model weights, not the
-        serving stack: vLLM is Apache-2.0, but Qwen's terms travel with the weights and a
-        commercial production deployment is exactly the case where they have to be read. The
-        flag names decisions/ai-engineering.yaml as the record that chose them; replacing the
-        model is that expert's call, never this one's.
-        Subject rights stay open until the DPO writes the path, and at Run the conflict is sharp:
-        a supplier contact asking for erasure cannot be served by deleting an object-locked
-        invoice. The defensible answer is to pseudonymise the operational row in Postgres, keep
-        the locked copy under legal-obligation, and document that split in the procedure; this
-        record names it but does not sign it. Nothing in this file is signed by its author: every
-        manual gate names a human role, because in this organisation compliance and security are
-        reviewed by different people and a record that approves itself is worth less than none.
-      constrained_by: ["pack:regulated-corp#RES-1", "pack:regulated-corp#AI-2", "pack:regulated-corp#AI-1"]
+        Same residency, basis, ranges and owners as Walk, and data_egress none in all records. transfer_mechanism stays unknown,
+        and Run adds hops: the offsite backup target of velero+pitr, which no component implements (data-store Q7, devops Q1);
+        the central secret store (security Q8, devops Q12); and a possible S3 service for artifacts (data-store Q4), which devops
+        now recommends over a multi-server Tenant, with the platform owner deciding. A service or offsite target outside the EU
+        would break pack:regulated-corp#RES-1 (Q3).
+        The legal copy has no home at Run. It must be one, immutable, object-locked, separate from the operational store, kept
+        to the Q1 figure and no longer; the data-store record leaves artifact_store unset at Run because the catalog marks
+        apps/minio/single-server for crawl and walk only (its Q4). So there is no store to reconcile against nor any evidence
+        of a legal copy until that closes (Q13), and retention_reconciled is false for both reasons. data-store R11 hands this
+        record the collision between the lock period and data protection: the lock period should equal the legal figure and not
+        exceed it, erasure is Q5, and backups carrying bank numbers are copies, so their expiry belongs in the same answer (Q2).
+        The audit trail has a gap between records, the disagreement security Q15 and data-pipeline Q4 also name. Security sets
+        audit_trail cdc at Run; data-pipeline has cdc_connector none, architecture has broker none and recommends the per-action
+        artifacts in an immutable store, and the catalog's connectors need a broker. The evidence the skill expects at Run
+        therefore does not exist in the plan (Q14). This record does not resolve it; the per-action rows and the engine history
+        are what exist today.
+        Licences: read from the catalog as at Walk. No artifact store is inventoried because none is chosen; apps/minio/single-server
+        leaves at Run. If Q13 answers with the same Tenant its AGPL-3.0 flag returns; if with the S3 service devops recommends, it is a
+        hop needing an EU region and a DPA, and only grafana stays in Q12. openbao is MPL-2.0, permissive, as security's R12 asked to
+        confirm from the catalog; verify upstream only if legal wants it signed. Provider terms and model: ai-engineering leaves
+        settings.model unset at Run because vllm is the only Run server in the catalog while AI-1 allows only claude-* and ollama/* (its
+        Q1, blocks Run); this record does not pick one. The register therefore has no Run foundation line, model_pinning pinned is copied
+        as stated with no model to pin (the finding is G-AI-10's), and local inference stays n/a-local whichever answer comes. Open
+        standards hold if architecture Q5 resolves to an OIDC upstream; no exception exists today, so no migration risk is listed.
+        dpia_status stays pending in this record until the organisation reports otherwise; the record never says approved, and the
+        approval is evidence at G-COMP-9.
+        Regulated-decision handling, as G-COMP-1 requires it documented: the ceiling stays semi-autonomous, ux keeps review_independence
+        independent and evidence-first, and every Odoo write sits behind a person's approval token. G-AUT-1 alone could release the one
+        named action, posting a fully matched invoice, off by configuration (G-AI-13), and only the CFO signs it. Quality records that no
+        decision here is about a person; the DPO confirms that in the DPIA for sole-trader suppliers, since approval of the Walk evidence
+        is not that confirmation.
+        model_register stays in-record: the default at Run is org-register, but no reference exists to point at and inventing one would
+        be a false pointer (Q11). Pricing, Q15 answered: devops accepts pricing the legal copy's storage. Its USD 470 at Run carries about
+        USD 50 for object storage, USD 50 for the offsite target and USD 50 for observability and operational logs, as ladder figures, and
+        leaves the legal copy out until Q1, data-store Q10 and Q13 give the period, the sizes and the store. This record has none of those,
+        so estimated_cost_usd_month stays absent.
       alternatives:
-        - option: Keep one copy in Postgres for the full statutory period instead of a separate audit copy
+        - option: Write model_register org-register:<placeholder> to match the Run default.
           rejected_because: >-
-            An operational store that is also the legal record cannot be pruned, pseudonymised on
-            erasure or restored from a test backup without touching evidence. One immutable copy
-            under object lock plus a short operational copy keeps the two obligations separable.
+            A register reference that nobody owns misleads an auditor. in-record is true; Q11 and G-COMP-17 say who moves it.
+        - option: Delete real invoices on the operational TTL and rely on Odoo as the only legal copy without asking.
+          rejected_because: >-
+            It may turn out right, but whether Odoo holds a qualifying copy of the original is finance and legal's answer (Q1),
+            not a saving to assume.
+        - option: Count the Walk apps/minio/single-server audit bucket as the Run legal copy.
+          rejected_because: >-
+            The catalog does not mark it for Run and it has no redundancy; years of accounting evidence on one server is what an
+            auditor would ask about, and the data-store record already refused to stretch it.
+        - option: Write audit_evidence as the CDC stream because the security record asks for it.
+          rejected_because: >-
+            No record implements it. Evidence is what exists, so it stays an open question naming all three records.
       risks:
-        - id: R1
-          text: >-
-            A supplier contact exercises erasure against an object-locked audit copy that cannot be
-            deleted, and the organisation has no documented answer.
-          mitigation: >-
-            G-COMP-3 requires the DPO to define the split (pseudonymise the operational row, retain
-            the locked copy under legal-obligation) before real data arrives at Walk.
+        - id: R7
+          text: "Erasure against the immutable legal copy: a supplier contact's erasure request cannot be met on an object-locked copy of the invoice and of the decisions about it."
+          mitigation: The DPO defines the path under Q5, operational record pseudonymised and legal copy kept under legal-obligation with the basis documented; subject_rights_path stays open until then.
           severity: high
-        - id: R2
-          text: >-
-            Run goes live on the data-store figures as written (episodic 1 year, artifacts
-            unspecified) and the accounting record is lost before the statutory period ends.
-          mitigation: "Q1 blocks Run and G-COMP-5 requires both records to agree before the transition."
-          severity: high
-        - id: R3
-          text: >-
-            The Qwen weights licence turns out to restrict the commercial use the production
-            deployment makes of it, after the stack is built around that model.
-          mitigation: >-
-            G-COMP-4 puts the weights licence in the inventory at Walk, so legal reads it one stage
-            before Run rather than after.
+        - id: R8
+          text: "The legal copy's storage is unpriced and adds to devops' USD 470 at Run, already over the brief's budget, so a budget cut could reach it."
+          mitigation: Devops prices it once Q1, data-store Q10 and Q13 close, before the CFO's decision in business Q5; the legal copy is not one of the named cuts.
+          severity: medium
+        - id: R9
+          text: "A flagged licence reaching Run: grafana, the unread Run model and the docling OCR models, plus apps/minio/single-server if Q13 keeps the same Tenant."
+          mitigation: G-COMP-12 keeps a flag from reaching Run without legal's decision; Q10, Q12 and Q13 name them.
+          severity: medium
+        - id: R10
+          text: "Register held in a pilot record at Run: nobody outside this use case sees which models process financial data, or a provider or licence change affecting them."
+          mitigation: Q11 names the owner; G-COMP-17 requires the role that holds it until then.
           severity: low
+        - id: R13
+          text: "No legal copy has a store at Run, so the evidence G-COMP-16 lists cannot exist and Run cannot be signed."
+          mitigation: Q13 goes with data-store Q4; the signer stays blocked until the store exists and G-DS-10 passes on it.
+          severity: high
+        - id: R18
+          text: "Run has no approved model, and the only server in the catalog for that stage cannot serve one AI-1 allows, so every register line, licence and pin for Run is pending."
+          mitigation: ai-engineering G-AI-10 blocks the transition; Q10 asks legal to review the pair the pack owner chooses before any production invoice.
+          severity: high
+        - id: R19
+          text: "No record implements the CDC audit trail security requires at Run; G-SEC-35 cannot pass and the auditor's immutable stream does not exist."
+          mitigation: Q14 to the security owner with the compliance owner; until answered G-COMP-16 requires whichever form they settle on, and nothing is claimed.
+          severity: high
+      gate_to_next:
+        - id: G-COMP-1
+          text: >-
+            The compliance record is signed, with data residency, egress, retention and the
+            `regulated-decision` handling documented, as the regulated flag and the risk profile require.
+          owner: compliance
+          check: { type: manual, ref: .builder/decisions/compliance.yaml }
+        - id: G-COMP-5
+          text: The licence inventory in the compliance record lists every component any record chooses at the stage.
+          owner: compliance
+          check: { type: ci, ref: licence-inventory }
+        - id: G-COMP-8
+          text: Live logs of the use case carry the data class on prompts and tool calls and no invoice payload, IBAN or contact detail (pack:regulated-corp#SECBASE).
+          owner: compliance
+          check: { type: ci, ref: log-dataclass-scan }
+        - id: G-COMP-16
+          text: >-
+            The compliance officer is the signer of G-COMP-1 and signs only against the full list: the object-locked legal copy
+            with G-DS-10 passing, the audit trail settled by Q14, the restore report from G-OPS-4, the residency inventory of
+            G-DS-11, the rotation rehearsal of G-SEC-33, the DPO's approved DPIA, the subject-rights procedure and the licence
+            inventory.
+          owner: compliance
+          check: { type: manual, ref: .builder/decisions/compliance.yaml }
+        - id: G-COMP-17
+          text: The compliance officer confirms the model register sits in the organisation's register, or names the role that holds it in-record and until when (Q11).
+          owner: compliance
+          check: { type: manual, ref: .builder/decisions/compliance.yaml }
+      constrained_by:
+        - pack:regulated-corp#AI-1
+        - pack:regulated-corp#AI-2
+        - pack:regulated-corp#RES-1
   open_questions:
     - id: Q1
       question: >-
-        Which jurisdiction's accounting law applies and what is the statutory retention for invoice
-        documents and for the posting decision per invoice? The EU range is commonly 5 to 10 years
-        and finance and legal own the figure. decisions/data-store.yaml currently sets
-        retention_episodic 1y at Run with no retention_artifacts, and 90d for both at Walk; until
-        the figure exists the two records disagree and retention_reconciled stays false.
-      blocks_stage: run
+        Under which accounting and tax regime, in which jurisdictions, are these invoices kept, and for how long? The brief says
+        regulated without naming one, and data-store Q1 and Q2 and devops Q2 wait on this answer. The record states only the usual
+        range: invoices and per-invoice decisions commonly 5 to 10 years by jurisdiction; masked prompts, responses and logs, the audit
+        period the organisation sets. The CFO decides with finance and legal; the DPO sets the prompts, responses and logs figure with
+        legal. Also: do Odoo and the mailbox already hold the legal copy, or must this system keep its own? Plan gate G-DS-1 needs this
+        before any real invoice, so it blocks Walk rather than only Run.
+      blocks_stage: walk
     - id: Q2
       question: >-
-        In which region are the shared IMAP mailbox and the Odoo instance hosted, and for any hop
-        outside the EU, is it covered by an adequacy decision or by signed SCCs? Residency is
-        required as eu but transfer_mechanism is unknown until both are documented.
-      blocks_stage: walk
-      caused_by_rule: "pack:regulated-corp#RES-1"
+        Data-store record, once Q1 is answered: is each of retention_working, retention_episodic and retention_artifacts, unset today at
+        Walk and Run, at or below the legal figure, and does one immutable audit copy sit at that figure, separate from the operational
+        store? The same check covers places outside that record: the engine's workflow history (architecture), Longhorn snapshots, the
+        offsite dumps and backups and the telemetry sink (devops), and the parsed bucket (data-pipeline). The experts state their figures;
+        finance and legal sign (G-COMP-11); this record never edits those files. G-DS-7 says the legal retention is written into the
+        data-store record; the legal figure lives in this record's legal_retention_* and the data-store expert decides whether to copy it there.
+      blocks_stage: run
     - id: Q3
       question: >-
-        What does the subject-rights path look like for supplier contact data: how is a person found
-        across the Postgres rows and the MinIO objects, what does erasure do to the operational copy
-        (delete or pseudonymise), and on what basis is the immutable audit copy retained? The DPO
-        defines it; subject_rights_path stays open until that paragraph exists.
+        Where is each hop hosted, by whom, and with which sub-processors: the cluster, the shared IMAP mailbox, Odoo, the Walk dump and
+        mirror bucket of devops Q13, the telemetry sink, the identity upstream, any tunnel for the review surface, and at Run the offsite
+        backup target, central secret store and artifact store? Tenant IT answers (business Q6, architecture Q2, Q4, Q5, security Q7, Q8, Q9,
+        devops Q1, Q2, Q7, Q9, Q12, Q13); the compliance officer signs. transfer_mechanism stays unknown at Walk and Run until then and
+        drops to none only if every hop is in the EU; a hop outside needs a named mechanism or breaks the rule, which the compliance officer
+        decides. Any vendor that holds invoice data, including the dump bucket or an S3 service, needs a signed DPA naming the region; legal
+        decides whether client-side encryption changes that.
       blocks_stage: walk
+      caused_by_rule: pack:regulated-corp#RES-1
     - id: Q4
       question: >-
-        What are the licence terms of the ollama/qwen2.5:7b model weights chosen in
-        decisions/ai-engineering.yaml, and do they permit this commercial production use? The
-        catalog records the licence of the serving stack (Ollama MIT, vLLM Apache-2.0), not of the
-        weights. Legal reads the model card; the options are accept, replace with another approved
-        family under pack:regulated-corp#AI-1, or buy a licence. The model is the AI-engineering
-        expert's choice, not this record's.
+        Who is the DPO, and who is legal counsel for this use case? Business Q1 asks only for the security and compliance owners; finance ops
+        or the CFO names these too. The DPO then decides: must the DPIA be approved before real invoices enter at Walk, given that real bank
+        details enter there and the pack names GDPR, or does the factory's before Run stand? What basis covers contact people at corporate
+        suppliers, who are not party to the contract? And what basis and notice cover AP clerks, whose approvals, review seconds and
+        unopened-PDF signals are recorded per person (quality's R10, ux's approval record)?
       blocks_stage: walk
+    - id: Q5
+      question: >-
+        What is the subject-rights procedure? For a supplier contact or sole trader: how are the records found by subject, and what does erasure do
+        to the operational record, the object-locked legal copy, the salted bank hash and backups? The DPO defines it. Candidate path to accept or
+        replace: pseudonymise the operational record and keep the legal copy under legal-obligation.
+      blocks_stage: run
+    - id: Q6
+      question: >-
+        Do the licences of ollama/qwen2.5:7b-instruct and ollama/gemma3:12b, chosen by the ai-engineering record, pass legal review for this commercial
+        use? The catalog does not carry model licences and pack:regulated-corp#AI-1's ollama/* glob approves a prefix, as ai-engineering Q5 also asks.
+        Legal or the pack owner decides, against the upstream licence text. A failed review changes the model, and that is the ai-engineering expert's.
+      blocks_stage: walk
+      caused_by_rule: pack:regulated-corp#AI-1
+    - id: Q7
+      question: >-
+        May real invoices, masked, be kept as a golden set for regression, under which basis and for how long? ai-engineering Q3 asks this for its 150 real
+        invoices, and quality's G-Q-11 depends on them. It is a purpose beyond accounting and masking removes only the bank number. The DPO decides with
+        the compliance owner; without an answer the Walk set stays synthetic and G-AI-6 cannot close.
+      blocks_stage: walk
+    - id: Q8
+      question: >-
+        Data-pipeline and ai-engineering experts: which OCR models does the apps/document-processing/docling image embed or fetch, at what version, under what
+        licence, and are they fixed by the digest pin? The catalog states none of these and data-pipeline R6 leaves the fetch at start unknown. The answer fills
+        the register's OCR line, and a fetch at start is also an egress the default-deny policy would stop.
+      blocks_stage: walk
+    - id: Q10
+      question: >-
+        Which model and server serve Run? ai-engineering Q1 owns this, with the pack owner, and leaves the model unset at Run. Once answered: what is its pinned
+        revision and licence, reviewed by legal, so the register can hold the line? Adding a vllm entry to AI-1 is a legal review of the pack itself; this record names
+        no model.
+      blocks_stage: run
+      caused_by_rule: pack:regulated-corp#AI-1
+    - id: Q11
+      question: >-
+        Who owns the organisation's model register, and what is its reference? The compliance owner (business Q1) or the CFO names the owner. Until then Run stays
+        in-record and G-COMP-17 names who holds it. If none exists, does the organisation want one for a single-use-case deployment?
+      blocks_stage: run
+    - id: Q12
+      question: >-
+        apps/minio/single-server (chosen by data-store) and apps/monitoring/grafana (chosen by devops) are AGPL-3.0. Legal decides for each: accept, given they run
+        unmodified and internally, and confirm that the delivery team under co-delivery is not offering them to a third party; replace, for MinIO with an S3 service inside
+        the EU, which the catalog note names and which adds a hop; or buy a commercial licence. No pack denies them. Verify against the upstream LICENSE before signing.
+      blocks_stage: run
+    - id: Q13
+      question: >-
+        Where does the legal copy live at Run? data-store Q4 leaves artifact_store unset because the catalog has no candidate for Run. The architecture and devops experts
+        recommend, devops favouring an S3-compatible service inside the EU, and the platform owner decides, as that question says; this record adds the conditions: object
+        locking, in the EU, separate from the operational store. If a multi-server Tenant, Q12's flag carries over; if an S3 service, legal also needs the provider, region and
+        a signed DPA before the first real object reaches it.
+      blocks_stage: run
+      caused_by_rule: pack:regulated-corp#RES-1
+    - id: Q14
+      question: >-
+        What is the audit trail at Run? The security record sets audit_trail cdc (its Q15, G-SEC-35); the data-pipeline record has cdc_connector none and broker none (its Q4),
+        and the architecture record has broker none and recommends the per-action artifacts in an immutable store, while the catalog's connectors need a broker. The security owner
+        decides with the compliance owner: add the connector and its broker, or accept locked exports of the episodic per-action rows and masked prompts, with the compliance officer
+        confirming they meet the audit requirement. The records must agree before G-COMP-16.
+      blocks_stage: run
   references:
     - k8s/overlays/usecases/invoice-intake/.builder/brief.yaml
     - k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml
     - k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml
-    - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml
-    - k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml
     - k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml
     - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml
     - k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml
+    - wiki/catalog.json
+    - context-packs/examples/regulated-corp/pack.yaml
     - context-packs/examples/regulated-corp/constraints.yaml
     - context-packs/examples/regulated-corp/guidelines/security-baseline.md
-    - wiki/catalog.json
+    - plugins/forjate/skills/compliance/references/residency-and-retention.md
+    - plugins/forjate/skills/compliance/references/licences-and-providers.md
+    - plugins/forjate/skills/compliance/references/evidence-bundle.md
+    - scripts/gates/checks/licence-inventory.sh
+    - scripts/gates/checks/log-dataclass-scan.sh

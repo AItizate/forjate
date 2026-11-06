@@ -1,0 +1,16 @@
+# PSA exception namespace of invoice-intake at walk (security: psa_exceptions). uc-invoice-intake keeps its own level.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uc-invoice-intake-baseline
+  labels:
+    forjate.io/usecase: invoice-intake
+    forjate.io/psa-exception: 'true'
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+  annotations:
+    forjate.io/psa-exception-owner: security owner (unnamed, Q1), accepted through G-SEC-17
+    forjate.io/psa-exception-reason: The catalog gives each of these psa_level baseline and no namespace of their own, so
+      they cannot run in uc-invoice-intake under pack:regulated-corp#SEC-1. They move out together with their Secrets and
+      keep their short names through aliases; cron-job, worker, posting-worker and review-api stay restricted.

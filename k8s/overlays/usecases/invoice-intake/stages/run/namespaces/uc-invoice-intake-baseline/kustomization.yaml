@@ -1,0 +1,12 @@
+# run: uc-invoice-intake-baseline, where the PSA exceptions of invoice-intake run at baseline (exception owned by security owner (unnamed, Q1), accepted through G-SEC-37: The catalog gives each of these psa_level baseline and no namespace of their own, so they stay out of uc-invoice-intake under pack:regulated-corp#SEC-1. The model server changes to vllm per AI-engineering; the use case's own workloads stay restricted.).
+# Hand edit (architecture Q7, data-store: one server): the one postgres-secret and the tenants' credentials, from the central store.
+namespace: uc-invoice-intake-baseline
+resources:
+- ../../../../../../../components/apps/ai-models/vllm
+- externalsecrets/postgres-secret.yaml
+- externalsecrets/postgres-init-secret.yaml
+- externalsecrets/temporal-postgres-secret.yaml
+- externalsecrets/litellm-postgres-secret.yaml
+- externalsecrets/backup-postgres-secret.yaml
+- externalsecrets/litellm-secret.yaml
+- externalsecrets/gotrue-secret.yaml

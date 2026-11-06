@@ -1,0 +1,15 @@
+# apps/minio/dev ships no Service; the overlay adds the one the contract advertises (catalog wiring).
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  selector:
+    app: minio
+  ports:
+  - name: api
+    port: 9000
+    targetPort: 9000
+  - name: console
+    port: 9090
+    targetPort: 9090

@@ -1,0 +1,9 @@
+# Helm-rendered components and seven SSH clones per refresh need these (devops record, tenant-patterns.md).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+data:
+  reposerver.enable.kustomize.helm: 'true'
+  timeout.reconciliation: 600s

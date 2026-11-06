@@ -1,0 +1,6 @@
+apiVersion: forjate.io/v0
+kind: ActivePacks
+spec:
+  packs:
+    - name: regulated-corp
+      source: context-packs/examples/regulated-corp

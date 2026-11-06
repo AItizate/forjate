@@ -1,0 +1,22 @@
+# walk: what the records add inside uc-invoice-intake (components fit for walk, NetworkPolicies, the secrets mechanism, the surface).
+# Hand edit: no admin postgres-secret here (data-store); workloads hold working-postgres-secret and episodic-postgres-secret. netpols.yaml holds the per-workload matrix in place of the generated blanket egress.
+namespace: uc-invoice-intake
+resources:
+- netpols.yaml
+- ../../../../../../../components/apps/minio/single-server
+- secrets/sealed-working-postgres-secret.yaml
+- secrets/sealed-episodic-postgres-secret.yaml
+- secrets/sealed-minio-storage-configuration.yaml
+- secrets/sealed-bank-hash-salt.yaml
+- secrets/sealed-double-admin-token.yaml
+- secrets/sealed-mailbox-list-token.yaml
+- secrets/sealed-mailbox-fetch-token.yaml
+- secrets/sealed-odoo-lookup-po-token.yaml
+- secrets/sealed-odoo-find-payable-token.yaml
+- secrets/sealed-odoo-bank-ref-token.yaml
+- secrets/sealed-shared-imap-mailbox-secret.yaml
+- secrets/sealed-shared-imap-mailbox-attachments-secret.yaml
+- secrets/sealed-odoo-purchase-orders-secret.yaml
+- secrets/sealed-odoo-payables-secret.yaml
+- review-api-ingress.yaml
+- aliases.yaml

@@ -1,0 +1,611 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata:
+  area: data-store
+  usecase: invoice-intake
+  author: forjate:data-store
+  version: 1
+  language: en
+spec:
+  stages:
+    crawl:
+      choice:
+        - apps/databases/postgres
+        - apps/minio/dev
+      settings:
+        memory_kinds: [working, episodic, artifacts]
+        memory_scopes:
+          - "working: project"
+          - "episodic: project"
+          - "artifacts: project"
+        scope_isolation: key-prefix
+        semantic_memory_strategy: api-lookup
+        session_store: none
+        working_store: apps/databases/postgres
+        episodic_store: apps/databases/postgres
+        semantic_store: none
+        artifact_store: apps/minio/dev
+        retention_working: 4h
+        retention_episodic: 4h
+        retention_artifacts: 4h
+        backup: none
+        data_residency: eu
+        systems_of_record:
+          - Odoo purchase orders and payables (REST API)
+      rationale: >-
+        Inventory. `working`: the mailbox cursor, idempotency keys, match status and the exception awaiting the
+        AP clerk. `episodic`: what happened per invoice (extraction, match result, the person's decision).
+        `artifacts`: seeded PDFs, parsed output, prompts and responses. Refused: `session`, because there is
+        no conversation, each invoice is a unit of work and the review surface's login is not agent memory;
+        `semantic`, because purchase orders and payables are answered by the Odoo API, so retrieval is a
+        lookup and no vector store or embedding model exists. The AI-engineering record does not exist yet, so
+        semantic_memory_strategy is this skill's default for facts living in an API (api-lookup); if that
+        record asks for retrieval, this record is re-run. All three kinds are `project` scope: the extraction
+        log, the queue and the files belong to the use case, not to one clerk. Short-term and long-term share
+        one Postgres at Crawl because a second store is not worth it for a synthetic PoC: one database, two
+        schemas (`working`, `episodic`), and that splits into two databases at Walk. Every row and object key
+        is tagged with the project scope, which is the `key-prefix` isolation the Crawl default allows; the
+        brief's `logical` floor starts at Walk. Postgres is the mvp relational candidate; `apps/minio/dev` is
+        the crawl-only object store, fit here because the data is synthetic and the Pod dies with the
+        environment, and it leaves the build at Walk. Its catalog PSA level is privileged and it mounts a
+        hostPath, which the security record must accept for Crawl; pack:regulated-corp#SEC-1 starts at Walk.
+        Retention is the ephemeral environment's TTL, 4h, the default of the environment contract's
+        `spec.ttl`; it is a property of a disposable cluster holding only synthetic data, not a business
+        retention, and the plan's G-DS-1 says the same. Backup is none: the seed Job recreates everything.
+        Storage class `local-path`. Residency is `eu`: the brief and pack:regulated-corp#RES-1 agree, the rule
+        has no stage carve-out, and where the Crawl cluster runs is unanswered (Q8). MongoDB is denied by
+        pack:regulated-corp#DATA-1. Odoo stays the system of record: the stores keep references (PO number,
+        invoice number), extracted fields and the trail, never a copy of purchase orders or payables.
+      alternatives:
+        - option: apps/minio/single-server at Crawl
+          rejected_because: >-
+            Fit for the stage, more mature and restricted-compatible, but an operated Tenant with four PVCs is
+            more than synthetic files in a disposable cluster need. It is the Walk store; the swap is proven
+            at Walk's first deployment.
+        - option: apps/databases/mariadb
+          rejected_because: >-
+            Maturity lab against Postgres's mvp, and the catalog offers it as the alternative when a pack denies
+            Postgres, which this one does not.
+        - option: apps/databases/mongodb for episodic
+          rejected_because: Denied by pack:regulated-corp#DATA-1 (SSPL, no licence), and the history is not document-shaped chat state.
+        - option: apps/databases/redis for session or working
+          rejected_because: >-
+            No session exists, and working state is transactional. A separate cache adds a component with no
+            state to hold.
+        - option: apps/databases/lancedb
+          rejected_because: The facts live in the Odoo API and in tables; no corpus is retrieved by similarity.
+      risks:
+        - id: R1
+          text: >-
+            `apps/minio/dev` behaves differently from the Walk object store (bare Pod against operated Tenant), so
+            a Crawl pass says nothing about bucket policies or credentials.
+          mitigation: G-DS-5 proves bucket and credential isolation at Walk, on the Walk store.
+          severity: low
+        - id: R2
+          text: One Postgres with two schemas hides any coupling between working and episodic state until the Walk split.
+          mitigation: >-
+            The code talks to them through separate connection settings from Crawl and never joins or shares a
+            transaction across them, so the split changes configuration, not behaviour.
+          severity: low
+      gate_to_next:
+        - id: G-DS-1
+          text: >-
+            The retention of invoice data, including bank account numbers, is decided by the CFO with compliance
+            before any real invoice enters at Walk; Crawl data is synthetic and dies with the cluster.
+          owner: data-store
+          check: { type: manual, ref: .builder/decisions/data-store.yaml }
+        - id: G-DS-2
+          text: >-
+            The verify Job reads working, episodic and artifact state under a scope tag other than this project's
+            and gets nothing back; a read that returns a row or an object fails the Job.
+          owner: data-store
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-DS-3
+          text: >-
+            The location of the Crawl cluster is recorded and is in the EU, or the compliance owner records how
+            pack:regulated-corp#RES-1 applies to synthetic data (Q8).
+          owner: data-store
+          check: { type: manual, ref: Crawl report }
+      constrained_by:
+        - pack:regulated-corp#DATA-1
+        - pack:regulated-corp#RES-1
+    walk:
+      choice:
+        - apps/databases/postgres
+        - apps/minio/single-server
+      settings:
+        memory_kinds: [working, episodic, artifacts]
+        memory_scopes:
+          - "working: project"
+          - "episodic: project"
+          - "artifacts: project"
+        scope_isolation: schema-per-tenant
+        semantic_memory_strategy: api-lookup
+        session_store: none
+        working_store: apps/databases/postgres
+        episodic_store: apps/databases/postgres
+        semantic_store: none
+        artifact_store: apps/minio/single-server
+        backup: snapshot+dump
+        restore_tested: false
+        data_residency: eu
+        systems_of_record:
+          - Odoo purchase orders and payables (REST API)
+        postgres_topology: one-server
+        postgres_instance: StatefulSet and Service `postgres`, one PVC, one `postgres-secret`, in uc-invoice-intake-baseline; one ExternalName alias `postgres` in uc-invoice-intake
+        postgres_databases: [invoice_working, invoice_episodic, temporal, temporal_visibility, gotrue_auth, litellm]
+        postgres_roles:
+          - "postgres (bootstrap superuser): every database; mounted by the StatefulSet and the postgres-init Job only, never by a workload"
+          - "invoice_working: invoice_working only"
+          - "invoice_episodic: invoice_episodic only"
+          - "temporal: temporal and temporal_visibility only; owner, no CREATEDB, no CREATEROLE"
+          - "gotrue: gotrue_auth only; owner, no CREATEROLE"
+          - "litellm: litellm only; owner"
+          - "backup_reader: CONNECT on all six, member of pg_read_all_data, no write; mounted by the backup job only"
+          - "tenant_probe: CONNECT on the empty maintenance database only; exists for the cross-read proofs"
+        postgres_connection_limits:
+          - "max_connections: 100"
+          - "temporal: 50"
+          - "invoice_working: 10"
+          - "invoice_episodic: 10"
+          - "litellm: 10"
+          - "gotrue: 5"
+          - "backup_reader: 2"
+          - "tenant_probe: 1"
+        backup_scope:
+          - "Longhorn snapshot of the one Postgres PVC: all six databases at one instant, inside the cluster"
+          - "nightly pg_dump, offsite under devops Q13: all six databases, including temporal, temporal_visibility, gotrue_auth and litellm"
+          - "roles and grants: not in pg_dump; the idempotent postgres-init Job recreates them from the Secrets before a restore"
+          - "buckets inbox, parsed, audit: mirrored, as devops Q13 states"
+        postgres_sizing:
+          - "requests: cpu 250m, memory 512Mi (ASSUMED, not measured)"
+          - "limits: cpu 1, memory 2Gi (ASSUMED, not measured)"
+          - "PVC: 10Gi as the component ships, alert at 70% (ASSUMED until Q1 gives retention)"
+      rationale: >-
+        Real invoices enter here, so retention_working, retention_episodic and retention_artifacts are
+        deliberately unset: the brief gives none, and no default stands in for a number the CFO and compliance
+        owe (Q1). No real invoice enters until G-DS-1 closes. A note for whoever answers: the post-completion
+        window for working state cannot be `until-approved`, because idempotency keys must outlive the approval
+        or a re-delivered invoice creates a second payable, which G-Q-5 forbids. `apps/minio/dev` is superseded
+        by `apps/minio/single-server`, the operated Tenant, whose catalog PSA level is restricted as
+        pack:regulated-corp#SEC-1 requires; buckets `inbox`, `parsed`, `audit` under this use case's own MinIO
+        user and policy, object keys carrying the idempotency key. The short-term/long-term split named at Crawl
+        happens here as two databases on one Postgres component (`multi-database init` pattern): `working` and
+        `episodic`, each with its own credentials, retention job and dump. This is a database split and not a
+        server split, and the reason is not simplicity alone. The taxonomy's reason for separating them is that
+        short-term state is a TTL key-value problem, but this working state is transactional: cursors, approval
+        status and idempotency keys are never in a cache past Crawl, so `session-memory` cannot hold it. The only
+        other `working-memory` candidate is MariaDB at lab maturity, and a second Postgres StatefulSet gives both
+        the same durability class at twice the footprint for about 14 invoices a working day. The cost is one
+        failure domain (R3) and no shared transaction across the two (R4). Isolation: the brief's `logical` sets
+        the floor at schema-per-tenant; each of the two databases holds an `invoice_intake` schema owned by a role
+        of its own, and the use case is treated as the tenant until Q9 says otherwise. Backup is `snapshot+dump`, with
+        the restore rehearsed (G-DS-4); the catalog has no `backup` component today and the block-storage class
+        is Longhorn, so the devops record resolves both (Q6). Both PVCs land on the block-storage class in the
+        EU cluster, none on `local-path`; business Q6 names the cluster and G-DS-6 verifies it. Bank account
+        numbers are not extracted into Postgres, because the extracted fields are supplier, amount, date and PO
+        number (Q3), but they remain in the stored PDFs and in any audit copy of a prompt (R7). Odoo remains the
+        system of record.
+
+
+        Decision on architecture Q7: one Postgres server at Walk and Run, and it is the only one in the use case.
+        The reasons, in order. First, recovery: the engine, the working store and the episodic store describe the
+        same invoices, and architecture R11 shows the harm when they come back from different moments. A volume
+        snapshot, and at Run point-in-time recovery, covers a whole server, so one server gives one recovery point;
+        two servers would give two by construction. Second, footprint: devops says three 8 GB nodes hold this build
+        only tightly, and the load is about 14 invoices a working day. Third, a second server would sit in the same
+        `baseline` namespace with the same class of data, so it adds little boundary beyond what separate roles and a
+        revoked CONNECT give. The cost is a wider failure domain and a shared connection pool (R12, R13). One limit on
+        the first reason, correcting what architecture Q7 expects: nightly `pg_dump` runs database by database, so
+        offsite dumps are close together but not one point. Only the snapshot and PITR align; an offsite restore relies
+        on G-ARCH-9's reconciliation (R14).
+
+
+        Tenants of the server. Temporal is not the only one: `apps/auth/gotrue-auth` declares Postgres as a dependency
+        with its own `gotrue_auth` database, and the `apps/ai-models/litellm` Deployment requires
+        `litellm-postgres-secret`, which nothing in the overlay supplies yet. ASSUMED: the gateway keeps a database,
+        because the security record's key revocation and the business record's spend per key need one, and this record
+        gives it one here instead of adding a server (R15). Engine history stays the engine's state, not a new memory
+        kind, and is never the audit evidence: architecture keeps references in workflow payloads, and evidence lives in
+        invoice_episodic and the audit bucket.
+
+
+        Roles, in settings.postgres_roles. CONNECT is revoked from PUBLIC on all six databases, since Postgres grants it
+        by default and a role boundary means nothing otherwise. The admin login reaches everything and is mounted only by
+        the StatefulSet and a `postgres-init` Job (`multi-database init` pattern, idempotent, re-run before a restore),
+        which meets the security record's rule that the engine never holds it. Apart from the admin and backup_reader, no
+        role reaches another tenant's database. Workloads that need working and episodic state hold both credentials
+        through WORKING_DATABASE_URL and EPISODIC_DATABASE_URL; which workload gets which stays G-ARCH-7's matrix.
+
+
+        For the assembly, so the overlay builds. Exactly one rendered `postgres` StatefulSet and Service, one SealedSecret
+        `postgres-secret` in uc-invoice-intake-baseline, one alias in uc-invoice-intake, and no admin `postgres-secret`
+        left in uc-invoice-intake. Recommended route, which changes no other record's `choice`: the bundle renders the
+        server in the sibling namespace and the relocated layer deletes its own copy; the Walk sizing moves with it, and
+        this record keeps naming the component as its stores. Patches the wiring needs: the temporal-server env reads a new
+        `temporal-postgres-secret`, sets DBNAME and VISIBILITY_DBNAME, skips database creation and caps its pools under
+        the role's limit (ASSUMED env names, to check against the image devops pins); `init-gotrue-db` loses its `CREATE
+        ROLE postgres WITH LOGIN SUPERUSER`, which a non-superuser cannot run, since the bootstrap superuser is named
+        `postgres` and already exists (ASSUMED that gotrue's migrations need nothing more, proven when it starts); new
+        Secrets `litellm-postgres-secret`, `backup-postgres-secret`, and working and episodic credentials in
+        uc-invoice-intake. `gotrue-secret.env.example` says role `app` and database `gotrue`; the role and database above
+        replace that. On Q5, the security record places Postgres in the sibling namespace, with acceptance waiting on
+        security Q14. If security Q14 or architecture Q3 removes the engine, its role and two databases go and the rest
+        stands.
+      alternatives:
+        - option: A second, renamed Postgres for the engine (a namePrefix such as `temporal-`, with POSTGRES_SEEDS and its Secret patched)
+          rejected_because: >-
+            It would build, and it isolates load and failure. But it gives the engine and the working store separate
+            recovery points, which is the harm in architecture R11, adds a PVC and a backup job to nodes devops calls
+            tight, and adds little boundary beyond a role of its own. Reconsider if the first week's measurements show
+            the engine starving the stores (R13).
+        - option: apps/ai-models/litellm/postgres, the catalog's prefixed second server for the gateway
+          rejected_because: Maturity lab, and a further PVC and backup job for key and spend tables at this volume. A database and a role on the one server serve it.
+        - option: The admin login for the engine, as the bundle wires it
+          rejected_because: The security record forbids it, and it would let an engine compromise read the audit trail and the approvals.
+        - option: apps/minio/dev at Walk
+          rejected_because: The catalog marks it crawl only; a bare privileged Pod cannot carry real invoices or meet pack:regulated-corp#SEC-1.
+        - option: A second Postgres StatefulSet for working state
+          rejected_because: >-
+            Same durability class and same backup ladder as episodic, twice the footprint, at about 14 invoices
+            a working day. Reconsider if Q9 brings tenants or the load grows.
+        - option: apps/databases/redis for working state
+          rejected_because: >-
+            A lost cursor re-reads the mailbox and a lost idempotency key can create a second payable. Working
+            state needs transactions, so this is what the separation rule must not be satisfied with.
+        - option: apps/databases/mariadb
+          rejected_because: Maturity lab against mvp, and no pack denies Postgres. It meets pack:regulated-corp#SEC-1 no better (catalog PSA baseline).
+        - option: apps/databases/mongodb for episodic
+          rejected_because: Denied by pack:regulated-corp#DATA-1.
+        - option: "`user` scope for pending approvals"
+          rejected_because: >-
+            Exceptions belong to a queue the AP clerk and a backup reviewer (business Q10) share, not to one
+            person's memory. The approver is a recorded field on the row, not its scope.
+        - option: A synchronised copy of Odoo purchase orders for faster matching
+          rejected_because: Odoo is the system of record; about 300 invoices a month does not justify a sync problem. Matching looks up the API.
+        - option: apps/databases/lancedb or apps/databases/milvus to match against past invoices
+          rejected_because: >-
+            The plan's match is exact on supplier, amount and PO number, and duplicates are found by key. Nothing
+            needs similarity unless the AI-engineering record or business Q8 says otherwise.
+      risks:
+        - id: R3
+          text: >-
+            Working and episodic state share one server (catalog `ha: single`), so one Postgres failure stops the
+            queue and the audit trail together, with no HA at this stage.
+          mitigation: Accepted at Walk, where a person approves every write and a wait costs turnaround only; G-DS-4 proves recovery. Named again at Run.
+          severity: medium
+        - id: R4
+          text: >-
+            Two databases cannot share a transaction, so an approval could be recorded in working state and be
+            missing from the episodic trail, or the reverse.
+          mitigation: >-
+            The architecture record writes the episodic approval record before the Odoo write and makes the
+            summary from working to episodic idempotent by invoice key; G-Q-5 checks that no write lacks an
+            approval record.
+          severity: medium
+        - id: R5
+          text: >-
+            The Postgres component is PSA baseline in the catalog and its manifest sets no securityContext, while
+            pack:regulated-corp#SEC-1 requires `restricted` on the namespace from Walk. As shipped it would be
+            rejected. No relational candidate in the catalog is proven under restricted.
+          mitigation: Q5 goes to the security and devops experts before the Walk overlay is built; it is not settled by lowering the namespace.
+          severity: high
+        - id: R6
+          text: >-
+            The MinIO Tenant is one server (no redundancy) with 4 x 1 GiB of volumes as shipped, and PDF size is
+            unknown. At an illustrative 1 MB per PDF, 300 a month is about 3.6 GB a year before parsed output and
+            audit copies, so a retention in years outgrows it.
+          mitigation: The overlay patches the size once Q1 and Q10 give retention and PDF size; alert on PVC usage in the devops golden signals.
+          severity: medium
+        - id: R7
+          text: >-
+            Source PDFs, and any prompt or response captured for audit, contain bank account numbers, and the
+            catalog declares no encryption at rest for these stores.
+          mitigation: >-
+            Bank numbers are not extracted into Postgres (Q3). The security record decides volume or object
+            encryption and bucket access; the audit bucket is readable only by the audit role.
+          severity: high
+        - id: R8
+          text: The Tenant ships `quay.io/minio/minio:latest`, a mutable tag, and is AGPL-3.0.
+          mitigation: >-
+            The overlay pins the image by digest, checked by the image-policy gate; the licence goes to the
+            compliance expert's inventory as a flag. Traffic uses the S3 API, an open standard the brief asks
+            for, so the store stays replaceable.
+          severity: medium
+        - id: R12
+          text: >-
+            One server now carries the queue, the audit trail, the engine, sign-in and the gateway, with catalog `ha:
+            single`, so a Postgres outage stops all of them at once, and the clerk cannot sign in to see why.
+          mitigation: >-
+            Accepted at Walk, where every write waits for a person and nothing posts without the store (the UX record
+            fails closed). The outage alert goes to tenant IT, and G-DS-4 proves recovery. Reassessed at Run under R10.
+          severity: medium
+        - id: R13
+          text: >-
+            The engine holds connection pools for its internal services and stores, and is likely the busiest tenant, so it
+            can exhaust max_connections or the memory limit and starve approvals. The limits and sizing here are ASSUMED,
+            not measured.
+          mitigation: >-
+            A CONNECTION LIMIT per role, set out in settings, means the engine fails alone first, and its pools are capped
+            below that limit. Devops measures connections and memory in the first Walk week and resizes; if the engine still
+            starves the stores, that is the condition to reopen a second server.
+          severity: medium
+        - id: R14
+          text: >-
+            Nightly dumps of six databases are sequential, so an offsite restore can put the engine, working and episodic
+            state at slightly different moments, and a cluster loss also costs up to a day (compliance R15).
+          mitigation: >-
+            Dumps run in the night window when no clerk approves; a restore inside the cluster prefers the snapshot, which
+            is one instant; G-ARCH-9 reconciles after any restore, and Odoo's lookup stops a second payable.
+          severity: medium
+        - id: R15
+          text: >-
+            Three parts of this decision rest on assumptions nobody has tested: that the gateway needs a database, that
+            gotrue's migrations run with no superuser, and that the pinned engine image accepts the database settings and a
+            role without CREATEDB. The `backup_reader` credential also reads everything, so it is as sensitive as the data.
+          mitigation: >-
+            The first Walk deployment proves all three by starting. If the gateway needs no database, the database, role and
+            Secret are removed; a failed start for the others is a patch, not a change of topology. backup_reader is mounted
+            only by the backup job, is read-only, and rotates with the other credentials under the security record.
+          severity: medium
+      gate_to_next:
+        - id: G-DS-4
+          text: >-
+            Restore rehearsed once from the last backup into a scratch namespace: all six Postgres databases from
+            the dump and the `audit` bucket from the mirror, with row and object counts compared to the source.
+            Operator: tenant IT (ASSUMED, business Q2), who records the date and counts; `restore_tested` stays
+            false until then.
+          owner: data-store
+          check: { type: manual, ref: restore rehearsal record }
+        - id: G-DS-5
+          text: >-
+            The verify Job reads across scopes and fails on any result: a second seeded tenant's role gets nothing
+            from this use case's schemas and buckets, and the working role cannot read the episodic database or
+            the reverse.
+          owner: data-store
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-DS-6
+          text: >-
+            Residency verified per store: every PVC of Postgres and MinIO, and every dump and mirror target, is
+            listed with its node and region, and all are in the EU. Operator: tenant IT (ASSUMED, business Q2).
+          owner: data-store
+          check: { type: manual, ref: residency inventory }
+        - id: G-DS-7
+          text: >-
+            The legal retention per kind, and the regime it comes from, is written into this record by the
+            compliance owner before Run (Q2), and each Walk retention from Q1 is enforced by a job proven to
+            delete an expired seeded row and object.
+          owner: data-store
+          check: { type: manual, ref: .builder/decisions/data-store.yaml }
+        - id: G-DS-12
+          text: >-
+            The verify Job reads the server's privilege catalog and fails on any other result: PUBLIC has CONNECT on none of
+            the six databases; temporal, gotrue and litellm cannot connect to invoice_working or invoice_episodic; neither
+            invoice role can connect to the other's database or to the engine's, identity provider's or gateway's; and only
+            postgres is a superuser.
+          owner: data-store
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-DS-13
+          text: >-
+            The rendered Walk manifests hold exactly one `postgres` StatefulSet and one non-alias `postgres` Service, and
+            `postgres-secret` is referenced only by that StatefulSet and the postgres-init Job. Read by the delivery team
+            (ASSUMED, business Q2), because no script covers it.
+          owner: data-store
+          check: { type: manual, ref: rendered Walk manifests }
+      constrained_by:
+        - pack:regulated-corp#DATA-1
+        - pack:regulated-corp#RES-1
+        - pack:regulated-corp#SEC-1
+    run:
+      choice:
+        - apps/databases/postgres
+      settings:
+        memory_kinds: [working, episodic, artifacts]
+        memory_scopes:
+          - "working: project"
+          - "episodic: project"
+          - "artifacts: project"
+        scope_isolation: schema-per-tenant
+        semantic_memory_strategy: api-lookup
+        session_store: none
+        working_store: apps/databases/postgres
+        episodic_store: apps/databases/postgres
+        semantic_store: none
+        backup: velero+pitr
+        restore_tested: false
+        data_residency: eu
+        systems_of_record:
+          - Odoo purchase orders and payables (REST API)
+        postgres_topology: one-server
+        postgres_instance: StatefulSet and Service `postgres`, one PVC, one `postgres-secret`, in uc-invoice-intake-baseline; one ExternalName alias `postgres` in uc-invoice-intake
+        postgres_databases: [invoice_working, invoice_episodic, temporal, temporal_visibility, gotrue_auth, litellm]
+        postgres_roles:
+          - "postgres (bootstrap superuser): every database; mounted by the StatefulSet and the postgres-init Job only, never by a workload"
+          - "invoice_working: invoice_working only"
+          - "invoice_episodic: invoice_episodic only"
+          - "temporal: temporal and temporal_visibility only; owner, no CREATEDB, no CREATEROLE"
+          - "gotrue: gotrue_auth only; owner, no CREATEROLE"
+          - "litellm: litellm only; owner"
+          - "backup_reader: CONNECT on all six, member of pg_read_all_data, no write; mounted by the backup job only"
+          - "tenant_probe: CONNECT on the empty maintenance database only; exists for the cross-read proofs"
+        postgres_connection_limits:
+          - "as Walk, resized from the Walk measurements (ASSUMED until measured)"
+        backup_scope:
+          - "velero and PITR target: the whole Postgres server, so all six databases recover to one point in time (Q7)"
+          - "roles and grants: inside a physical backup; the postgres-init Job restates them after a logical restore"
+          - "artifact store: follows Q4"
+        postgres_sizing:
+          - "as Walk, resized from the Walk measurements (ASSUMED until measured)"
+      rationale: >-
+        Retention stays unset per kind: financial documents under a regulated flag take a legal number, and the
+        brief names neither the number nor the regime (Q2). The target shape once answered is the shortest
+        operational copy that serves the KPI plus one audit copy with the legal retention, in a bucket with object
+        locking. artifact_store is deliberately unset and absent from `choice`, not `none`: the use case needs an
+        artifact store at Run and the catalog has no candidate fit for it. `apps/minio/single-server` is marked
+        crawl and walk, so it is not stretched here; its note points to the same Tenant with more servers or an
+        S3 service within residency, and neither is a catalog component today (Q4). Run stays blocked on that.
+        Postgres is the catalog's fit for Run, still with the two databases and schemas of Walk, but it is `ha:
+        single`, and the note's operator for HA and PITR is not in the catalog, so it is not chosen. backup
+        `velero+pitr` is what this stage demands and nothing in the catalog implements it yet (Q7). The plan's
+        G-OPS-4 restore drill cannot pass until Q4 and Q7 close. Residency extends to the offsite backup target,
+        which must be in the EU. Odoo remains the system of record. Architecture Q7 is decided as at Walk: one server,
+        the same six databases and roles, with the credentials from External Secrets. Its first reason is at its
+        strongest here, since PITR recovers the whole server to one point, which answers architecture R11 once Q7 in this
+        record gives it an implementation. Until then, R10 covers sign-in, the engine and the gateway as well as the queue
+        and the audit trail.
+      alternatives:
+        - option: apps/minio/single-server at Run
+          rejected_because: The catalog does not mark it fit for Run and it has no redundancy; a component unfit for the stage is an open question, never a stretch.
+        - option: A Postgres operator (CNPG, named in the catalog note)
+          rejected_because: >-
+            Not a catalog component, and only catalog components are chosen here. It is the requested outcome of
+            Q7 if the factory adds it.
+        - option: A managed S3 or database service outside the EU
+          rejected_because: Violates the brief's residency and pack:regulated-corp#RES-1.
+        - option: apps/databases/mongodb for episodic
+          rejected_because: Denied by pack:regulated-corp#DATA-1, and the catalog does not mark it fit for Run.
+        - option: apps/databases/milvus
+          rejected_because: The semantic strategy is api-lookup; no vector store is added to be safe.
+      risks:
+        - id: R9
+          text: Run has no artifact store resolved, while source PDFs and audit evidence are the longest-lived data in the use case.
+          mitigation: Q4 blocks Run. The S3 API at Walk keeps either answer from changing application code; the data moves by a rehearsed mirror.
+          severity: high
+        - id: R10
+          text: >-
+            Postgres stays a single StatefulSet at production, so point-in-time recovery has no implementation and
+            an outage stops the queue and the audit trail together.
+          mitigation: Q7 asks for the operator or an explicit, CFO-accepted recovery objective without it; G-OPS-3 keeps pending invoices waiting for the AP clerk during an outage.
+          severity: high
+        - id: R11
+          text: >-
+            Object-locked audit copies cannot be deleted before they expire, so a retention set too long, or an
+            erasure request, collides with the lock; years of storage are also unpriced in the business record.
+          mitigation: The compliance record reconciles the lock period with the data-protection obligations in Q2; the devops record prices the storage for the CFO's budget decision (business Q5).
+          severity: medium
+      gate_to_next:
+        - id: G-DS-8
+          text: >-
+            Restore rehearsed from the last offsite backup into a scratch namespace, with Postgres recovered to a
+            chosen point in time and row and object counts compared to the source. Operator: tenant IT (ASSUMED,
+            business Q2). `restore_tested` stays false until then; plan gate G-OPS-4 automates the same proof.
+          owner: data-store
+          check: { type: manual, ref: restore rehearsal record }
+        - id: G-DS-9
+          text: The verify Job reads across scopes in production and fails on any result, as in G-DS-5.
+          owner: data-store
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-DS-10
+          text: >-
+            A delete attempted on a locked object in the audit bucket is refused, and each retention job is proven
+            to delete only what is past its legal number.
+          owner: data-store
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-DS-11
+          text: >-
+            Residency verified per store and per backup target, offsite included, with the list signed by the
+            compliance owner (unnamed, business Q1).
+          owner: data-store
+          check: { type: manual, ref: residency inventory }
+        - id: G-DS-14
+          text: >-
+            In production, the verify Job repeats the G-DS-12 privilege check and fails on any other result, after a restore
+            as well as before it, so a restore cannot quietly bring back wider grants.
+          owner: data-store
+          check: { type: verify-job, ref: invoice-intake-verify }
+      constrained_by:
+        - pack:regulated-corp#DATA-1
+        - pack:regulated-corp#RES-1
+  open_questions:
+    - id: Q1
+      question: >-
+        What is the Walk retention for each kind, once real invoices enter: working state after the invoice completes
+        (idempotency keys must cover the period in which a supplier can re-send), episodic history, input PDFs and
+        evidence? The CFO decides with the compliance owner (unnamed, business Q1). G-DS-1 cannot close without it.
+        retention_working, retention_episodic and retention_artifacts stay unset at Walk until then. The same answer sets
+        how long the engine keeps closed workflow histories and the gateway keeps its request logs, which sit on the same
+        server and in the same dumps.
+      blocks_stage: walk
+    - id: Q2
+      question: >-
+        Which legal regime applies, and what retention follows from it at Run for each kind, including the audit
+        copy and its object-lock period? The brief says regulated and names no regime. Legal or the compliance owner
+        decides. retention_working, retention_episodic and retention_artifacts stay unset at Run until then.
+      blocks_stage: run
+    - id: Q3
+      question: >-
+        Must bank account numbers be retained at all outside the source PDF, and may the PDF's operational copy be
+        deleted before the audit copy expires? This record does not extract them, because the brief's fields are
+        supplier, amount, date and PO number. The business record's ASSUMED "bank details differ" exception would
+        require extracting them; if finance ops confirms it, does the comparison run against Odoo with the number
+        stored masked or hashed? Finance ops decides with the compliance owner.
+      blocks_stage: walk
+    - id: Q4
+      question: >-
+        Which artifact store serves Run? The catalog marks apps/minio/single-server for crawl and walk only and has no
+        candidate for Run. Options: a catalog entry for a multi-server Tenant of the same operator, proven restricted
+        and with object locking, or an S3 service inside the EU within the brief's USD budget. The architecture and
+        devops experts recommend and the platform owner decides; artifact_store stays unset at Run until then.
+      blocks_stage: run
+    - id: Q5
+      question: >-
+        How does apps/databases/postgres run under the `restricted` level from Walk, given that the catalog lists it
+        as baseline and its manifest sets no securityContext? Either the overlay patches it to a non-root, restricted
+        securityContext and the verify Job proves it starts, or it moves to a namespace of its own through a
+        psa_exceptions entry that the organisation's security owner accepts. The security expert decides with devops.
+        This record does not lower the level.
+      blocks_stage: walk
+      caused_by_rule: pack:regulated-corp#SEC-1
+    - id: Q6
+      question: >-
+        What implements `snapshot+dump` at Walk, and where do the dumps go? The catalog has no `backup` component, and
+        the mirror target the ladder expects, a MinIO bucket on a different node, does not exist with a one-server
+        Tenant. A dump on the same server as its source is not a backup. The devops expert decides, with tenant IT
+        (ASSUMED, business Q2), inside the EU.
+      blocks_stage: walk
+    - id: Q7
+      question: >-
+        What implements `velero+pitr` at Run? The catalog has neither a `backup` component nor the Postgres operator
+        its note refers to, so offsite backup and point-in-time recovery have no component. Either the factory adds
+        them, or the CFO accepts a stated recovery objective with less. Devops recommends; the offsite target must be
+        in the EU.
+      blocks_stage: run
+    - id: Q8
+      question: >-
+        Where does the disposable Crawl cluster run? pack:regulated-corp#RES-1 has no stage carve-out, and the brief says
+        the data must stay in the EU. Crawl data is synthetic, but a laptop or VPS outside the EU would still leave the
+        recorded `eu` untrue. The delivery team answers; the compliance owner rules if it is outside the EU. Business Q6
+        asks the same for Walk and Run.
+      blocks_stage: crawl
+      caused_by_rule: pack:regulated-corp#RES-1
+    - id: Q9
+      question: >-
+        Who is a tenant here? The brief asks for `logical` isolation and names one organisation, so this record treats
+        the use case as the tenant, isolated from other use cases on the cluster. If finance ops handles invoices for
+        several legal entities that must not see each other, each needs its own schemas, buckets and credentials, and
+        `project` scope is too coarse. Finance ops answers.
+      blocks_stage: walk
+    - id: Q10
+      question: >-
+        How large are the PDFs on average and at most, and how large is the mailbox's backlog if any will be imported?
+        The brief gives counts only, and the Tenant ships 4 x 1 GiB of volumes. Finance ops answers from a sample.
+      blocks_stage: walk
+  references:
+    - k8s/overlays/usecases/invoice-intake/.builder/brief.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml
+    - wiki/catalog.json
+    - k8s/components/apps/databases/postgres/statefulset.yaml
+    - k8s/components/apps/minio/single-server/tenant.yaml
+    - k8s/components/bundles/temporal-stack/kustomization.yaml
+    - k8s/components/apps/workflows/temporal/server-deployment.yaml
+    - k8s/components/apps/auth/gotrue-auth/gotrue/deployment.yaml
+    - k8s/components/apps/ai-models/litellm/deployment.yaml
+    - scripts/ephemeral/create-usecase.sh
+    - context-packs/examples/regulated-corp/constraints.yaml
+    - plugins/forjate/skills/data-store/references/memory-taxonomy.md
+    - plugins/forjate/skills/data-store/references/components-per-stage.md
+    - plugins/forjate/skills/data-store/references/retention-and-backup.md

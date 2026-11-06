@@ -3,10 +3,11 @@ title: bundles-temporal-stack
 kind: component
 sources:
 - k8s/components/bundles/temporal-stack
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-05'
 category: bundles
 consumed_by:
 - overlays/agentic-orchestration
+- overlays/usecases-invoice-intake-stages-walk
 source_last_commit: '2026-04-27'
 summary: "temporal-stack \u2014 Temporal + PostgreSQL in a single reference"
 summary_source: derived
@@ -57,6 +58,7 @@ summary_source: derived
 ### Consumed by
 
 - [overlays/agentic-orchestration](../overlays/agentic-orchestration.md) — resource, via namespaces/agentic
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via namespaces/uc-invoice-intake-baseline
 
 <!-- END DECLARED -->
 

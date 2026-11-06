@@ -3,10 +3,10 @@ title: usecases-invoice-intake-stages-run
 kind: overlay
 sources:
 - k8s/overlays/usecases/invoice-intake/stages/run
-compiled_at: '2026-10-31'
+compiled_at: '2026-11-05'
 category: usecases
 parent: overlays/usecases-invoice-intake
-source_last_commit: '2026-10-31'
+source_last_commit: '2026-11-05'
 summary: 'run stage of invoice-intake: extends ../walk and adds what the records require
   for run, nothing the plan put out of scope'
 summary_source: derived
@@ -30,34 +30,46 @@ summary_source: derived
 
 - `./relocated`
 - `../../../../../components/apps/security/external-secrets`
+- `../../../../../components/apps/security/openbao`
 - `./namespaces/uc-invoice-intake`
 - `./namespaces/uc-invoice-intake-baseline`
-- `./namespaces/otel-collector`
 - `argocd/application.yaml`
 
 ### Kubernetes kinds
 
-`Application`, `ExternalSecret`, `Namespace`, `Service`
+`Application`, `ExternalSecret`, `Service`
 
 ### Depends on
 
 - [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via relocated
 - [components/security-external-secrets](../components/security-external-secrets.md)
+- [components/security-openbao](../components/security-openbao.md)
 - [components/ai-models-vllm](../components/ai-models-vllm.md) — resource, via namespaces/uc-invoice-intake-baseline
-- [components/monitoring-otel-collector](../components/monitoring-otel-collector.md) — resource, via namespaces/otel-collector
 
 ### Patches
 
 - `patches/namespace-psa-patch.yaml → Namespace/uc-invoice-intake`
-- `inline → SealedSecret/postgres-secret (ns: uc-invoice-intake)`
-- `inline → SealedSecret/minio-storage-configuration (ns: uc-invoice-intake)`
-- `inline → SealedSecret/approval-secret (ns: uc-invoice-intake)`
-- `inline → SealedSecret/imap-mailbox-secret (ns: uc-invoice-intake)`
-- `inline → SealedSecret/odoo-rest-api-secret (ns: uc-invoice-intake)`
+- `inline → SealedSecret/working-postgres-secret (ns: uc-invoice-intake)`
+- `inline → SealedSecret/episodic-postgres-secret (ns: uc-invoice-intake)`
+- `inline → SealedSecret/postgres-init-secret (ns: uc-invoice-intake-baseline)`
+- `inline → SealedSecret/temporal-postgres-secret (ns: uc-invoice-intake-baseline)`
+- `inline → SealedSecret/litellm-postgres-secret (ns: uc-invoice-intake-baseline)`
+- `inline → SealedSecret/backup-postgres-secret (ns: uc-invoice-intake-baseline)`
+- `inline → SealedSecret/bank-hash-salt (ns: uc-invoice-intake)`
+- `inline → SealedSecret/double-admin-token (ns: uc-invoice-intake)`
+- `inline → SealedSecret/mailbox-list-token (ns: uc-invoice-intake)`
+- `inline → SealedSecret/mailbox-fetch-token (ns: uc-invoice-intake)`
+- `inline → SealedSecret/odoo-lookup-po-token (ns: uc-invoice-intake)`
+- `inline → SealedSecret/odoo-find-payable-token (ns: uc-invoice-intake)`
+- `inline → SealedSecret/odoo-bank-ref-token (ns: uc-invoice-intake)`
+- `inline → SealedSecret/shared-imap-mailbox-secret (ns: uc-invoice-intake)`
+- `inline → SealedSecret/shared-imap-mailbox-attachments-secret (ns: uc-invoice-intake)`
+- `inline → SealedSecret/odoo-purchase-orders-secret (ns: uc-invoice-intake)`
+- `inline → SealedSecret/odoo-payables-secret (ns: uc-invoice-intake)`
 - `inline → SealedSecret/postgres-secret (ns: uc-invoice-intake-baseline)`
 - `inline → SealedSecret/litellm-secret (ns: uc-invoice-intake-baseline)`
 - `inline → SealedSecret/gotrue-secret (ns: uc-invoice-intake-baseline)`
-- `inline → SealedSecret/formbricks-secret (ns: uc-invoice-intake-baseline)`
+- `patches/security-psa-patch.yaml → Namespace/security`
 
 <!-- END DECLARED -->
 

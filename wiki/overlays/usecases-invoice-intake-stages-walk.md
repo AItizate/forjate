@@ -3,12 +3,12 @@ title: usecases-invoice-intake-stages-walk
 kind: overlay
 sources:
 - k8s/overlays/usecases/invoice-intake/stages/walk
-compiled_at: '2026-10-31'
+compiled_at: '2026-11-05'
 category: usecases
 parent: overlays/usecases-invoice-intake
 consumed_by:
 - overlays/usecases-invoice-intake-stages-run
-source_last_commit: '2026-10-31'
+source_last_commit: '2026-11-05'
 summary: 'walk stage of invoice-intake: recomposes the Crawl root (base, Crawl components,
   the namespace child) and adds what the records require for walk, nothing the plan
   put out of scope'
@@ -36,20 +36,24 @@ summary_source: derived
 - `../../../../../components/apps/continuous-delivery/argocd`
 - `../../../../../components/apps/sealed-secrets`
 - `../../../../../components/apps/storage/longhorn`
-- `../../../../../components/apps/networking/metallb`
 - `../../../../../components/apps/monitoring/prometheus`
 - `../../../../../components/apps/monitoring/grafana`
 - `../../../../../components/apps/monitoring/reloader`
 - `./namespaces/uc-invoice-intake`
 - `./namespaces/uc-invoice-intake-baseline`
 - `./namespaces/monitoring`
+- `./namespaces/otel-collector`
 - `argocd/application.yaml`
 - `argocd/secrets/sealed-argocd-ssh-keys.yaml`
 - `argocd/secrets/sealed-argocd-repo-creds.yaml`
 
 ### Kubernetes kinds
 
-`Application`, `Ingress`, `Namespace`, `NetworkPolicy`, `SealedSecret`, `Service`
+`Application`, `Ingress`, `Job`, `Namespace`, `NetworkPolicy`, `SealedSecret`, `Service`
+
+### Container images
+
+- `postgres:16`
 
 ### Depends on
 
@@ -58,31 +62,41 @@ summary_source: derived
 - [components/continuous-delivery-argocd](../components/continuous-delivery-argocd.md)
 - [components/sealed-secrets](../components/sealed-secrets.md)
 - [components/storage-longhorn](../components/storage-longhorn.md)
-- [components/networking-metallb](../components/networking-metallb.md)
 - [components/monitoring-prometheus](../components/monitoring-prometheus.md)
 - [components/monitoring-grafana](../components/monitoring-grafana.md)
 - [components/monitoring-reloader](../components/monitoring-reloader.md)
 - [components/minio-single-server](../components/minio-single-server.md) — resource, via namespaces/uc-invoice-intake
 - [components/ai-models-litellm](../components/ai-models-litellm.md) — resource, via namespaces/uc-invoice-intake-baseline
+- [components/bundles-temporal-stack](../components/bundles-temporal-stack.md) — resource, via namespaces/uc-invoice-intake-baseline
 - [components/auth-gotrue-auth](../components/auth-gotrue-auth.md) — resource, via namespaces/uc-invoice-intake-baseline
-- [components/surveys-formbricks](../components/surveys-formbricks.md) — resource, via namespaces/uc-invoice-intake-baseline
+- [components/monitoring-otel-collector](../components/monitoring-otel-collector.md) — resource, via namespaces/otel-collector
 
 ### Patches
 
 - `patches/namespace-psa-patch.yaml → Namespace/uc-invoice-intake`
-- `patches/inv-seed-env-patch.yaml → Job/inv-seed (ns: uc-invoice-intake)`
-- `patches/intake-job-env-patch.yaml → Job/intake-job (ns: uc-invoice-intake)`
-- `patches/inv-validate-env-patch.yaml → Job/inv-validate (ns: uc-invoice-intake)`
-- `patches/erp-stub-env-patch.yaml → Deployment/erp-stub (ns: uc-invoice-intake)`
+- `patches/worker-env-patch.yaml → Job/worker (ns: uc-invoice-intake)`
+- `patches/job-postgres-credentials-patch.yaml → Job/invoice-intake-seed (ns: uc-invoice-intake)`
+- `patches/job-postgres-credentials-patch.yaml → Job/worker (ns: uc-invoice-intake)`
+- `patches/job-postgres-credentials-patch.yaml → Job/invoice-intake-verify (ns: uc-invoice-intake)`
+- `patches/job-postgres-credentials-patch.yaml → Job/invoice-intake-eval (ns: uc-invoice-intake)`
+- `patches/stub-postgres-credentials-patch.yaml → Deployment/odoo-stub (ns: uc-invoice-intake)`
+- `patches/stub-postgres-credentials-patch.yaml → Deployment/shared-imap-mailbox-stub (ns: uc-invoice-intake)`
+- `inline → Job/invoice-intake-seed (ns: uc-invoice-intake)`
+- `inline → Job/invoice-intake-verify (ns: uc-invoice-intake)`
 - `inline → Secret/postgres-secret (ns: uc-invoice-intake)`
 - `inline → Secret/minio-secret (ns: uc-invoice-intake)`
-- `inline → Secret/approval-secret (ns: uc-invoice-intake)`
+- `inline → Secret/bank-hash-salt (ns: uc-invoice-intake)`
+- `inline → Secret/double-admin-token (ns: uc-invoice-intake)`
+- `inline → Secret/mailbox-list-token (ns: uc-invoice-intake)`
+- `inline → Secret/mailbox-fetch-token (ns: uc-invoice-intake)`
+- `inline → Secret/odoo-lookup-po-token (ns: uc-invoice-intake)`
+- `inline → Secret/odoo-find-payable-token (ns: uc-invoice-intake)`
+- `inline → Secret/odoo-bank-ref-token (ns: uc-invoice-intake)`
 - `inline → Secret/gotrue-secret (ns: uc-invoice-intake-baseline)`
 - `inline → Secret/minio-storage-configuration (ns: uc-invoice-intake)`
-- `inline → Ingress/formbricks-ingress (ns: uc-invoice-intake-baseline)`
+- `inline → Ingress/temporal-ui-ingress (ns: uc-invoice-intake-baseline)`
 - `patches/argocd-psa-patch.yaml → Namespace/argocd`
 - `patches/longhorn-system-psa-patch.yaml → Namespace/longhorn-system`
-- `patches/metallb-system-psa-patch.yaml → Namespace/metallb-system`
 - `argocd/repo-server-ssh-patch.yaml → Deployment/argocd-repo-server (ns: argocd)`
 - `argocd/cmd-params-cm-patch.yaml → ConfigMap/argocd-cmd-params-cm (ns: argocd)`
 

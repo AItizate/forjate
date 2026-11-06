@@ -168,6 +168,8 @@ if segs and (d / "timing.json").exists():
     t["resumed"] = True; t["segments"] = len(parts)
     (d / "timing.json").write_text(json.dumps(t, indent=2))
 PY
+  # Cost per agent and a copy of the transcripts, before Claude Code cleans them up.
+  python3 "${SCRIPT_DIR}/agent-costs.py" "$dir" || echo "    agent-costs failed (the run itself is kept)"
 }
 
 count="$(python3 -c "import json;print(len(json.load(open('$evals_file'))['evals']))")"

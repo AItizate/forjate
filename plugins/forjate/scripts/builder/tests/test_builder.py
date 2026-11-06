@@ -2,6 +2,7 @@
 
 import copy
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -384,6 +385,7 @@ def test_secret_scan_is_clean_on_the_repo_overlays():
 # --- phase 5 (#23): capabilities from the catalog, snapshots, grader, skill-lint -------
 
 import json
+import os
 import re
 
 import validate as validate_mod  # noqa: E402
@@ -896,3 +898,25 @@ def test_scaffold_check_flags_secret_keys_the_app_never_reads(tmp_path: Path):
     sc.write_text(yaml.safe_dump(d, sort_keys=False))
     r = run(str(check), str(uc))
     assert "the verify Job runs MODEL_MODE=live" in r.stdout
+
+
+def test_agent_costs_split_the_run_cost_by_agent(tmp_path: Path):
+    """agent-costs.py reads the transcripts, counts a streamed message once, and splits result.json's cost."""
+    home, sid = tmp_path / "home", "s1"
+    proj = home / ".claude" / "projects" / "p"
+    sub = proj / sid / "subagents"
+    sub.mkdir(parents=True)
+    def msg(mid, out):
+        return json.dumps({"message": {"id": mid, "usage": {"input_tokens": 0, "output_tokens": out}}})
+    (proj / f"{sid}.jsonl").write_text("\n".join([msg("m1", 100), msg("m1", 100)]) + "\n")
+    (sub / "agent-a.jsonl").write_text(msg("m2", 300) + "\n")
+    (sub / "agent-a.meta.json").write_text(json.dumps({"agentType": "forjate:business"}))
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "result.json").write_text(json.dumps({"session_id": sid, "total_cost_usd": 8.0}))
+    script = REPO / "plugins" / "forjate" / "evals" / "agent-costs.py"
+    r = subprocess.run([sys.executable, str(script), str(run_dir)], capture_output=True, text=True, env={**os.environ, "HOME": str(home)})
+    assert r.returncode == 0, r.stdout + r.stderr
+    c = json.loads((run_dir / "agent-costs.json").read_text())
+    assert c["agents"]["forjate:business"]["cost_usd"] == 6.0 and c["agents"]["main"]["cost_usd"] == 2.0
+    assert (run_dir / "transcripts" / sid / "subagents" / "agent-a.jsonl").exists()

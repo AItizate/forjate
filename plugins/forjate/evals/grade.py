@@ -336,6 +336,14 @@ def main(argv: list[str]) -> int:
                   "|---|---|---|---|---|---|---|---|---|---|"]
         for name, cfg, _pr, _s, _c, _t, _m, q in rows:
             lines.append(f"| {name} | {cfg} | {q.get('records', 0)} | {q.get('open_questions', 0)} | {q.get('oq_with_rule', 0)} | {q.get('pack_refs', 0)} | {q.get('alternatives', 0)} | {q.get('risks', 0)} | {q.get('gates', 0)} | {q.get('gates_automated', 0)} |")
+    costs = [(rd.parent.name, rd.name, json.loads((rd / "agent-costs.json").read_text()))
+             for rd in sorted(it.glob("*/*_skill")) if (rd / "agent-costs.json").exists()]
+    if any(len(c["agents"]) > 1 for _n, _c, c in costs):
+        lines += ["", "## Cost per agent (agent-costs.py: the run's cost split by price-weighted tokens)", "",
+                  "| eval | config | agent | calls | share | cost USD |", "|---|---|---|---|---|---|"]
+        for name, cfg, c in costs:
+            for agent, a in c["agents"].items():
+                lines.append(f"| {name} | {cfg} | {agent} | {a['calls']} | {a['share']:.1%} | {a['cost_usd']} |")
     (it / "benchmark.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
     return 0

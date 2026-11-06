@@ -4,7 +4,7 @@
     {
       "name": "regulated-invoice-intake",
       "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the quality expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area quality, metadata.author forjate:quality, one entry per stage the plan has in scope), then consolidate every record's gate_to_next and the plan's exit criteria into k8s/overlays/usecases/invoice-intake/.builder/gates.yaml following plugins/forjate/scripts/builder/schemas/gates.schema.json (one transition per stage boundary in scope, a check on every gate, approver per transition, pack overrides), and validate the use case with plugins/forjate/scripts/builder/validate.py.",
-      "expected_output": "Verify Job inv-validate with the pipeline's assertions plus KPI line, idempotency and the exception path; rules judge with an injection suite and regression on every prompt change; metric source named; gates.yaml with every record's gates verbatim under crawl->walk and walk->run, a check on each, approver per transition, SECBASE cited.",
+      "expected_output": "Verify Job invoice-intake-verify with the pipeline's assertions plus KPI line, idempotency and the exception path; rules judge with an injection suite and regression on every prompt change; metric source named; gates.yaml with every record's gates verbatim under crawl->walk and walk->run, a check on each, approver per transition, SECBASE cited.",
       "assertions": [
         {
           "type": "file_exists",
@@ -36,7 +36,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
-          "expr": "setting('verify_job','crawl') == 'inv-validate'",
+          "expr": "setting('verify_job','crawl') == 'invoice-intake-verify'",
           "text": "verify Job named from the plan"
         },
         {

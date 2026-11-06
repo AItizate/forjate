@@ -114,7 +114,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
-          "expr": "set(g['id'] for g in d['spec']['transitions']['walk->run']['gates']) >= {'G-Q-2','G-SEC-1','G-BIZ-2','G-DS-2','G-ARCH-2','G-AI-2','G-PIPE-2'}",
+          "expr": "set(g['id'] for g in d['spec']['transitions']['walk->run']['gates']) >= {'G-Q-4','G-SEC-5','G-BIZ-2','G-DS-4','G-ARCH-3','G-AI-6','G-PIPE-3'}",
           "text": "walk->run carries every record's Walk gate and the plan's exit criteria"
         },
         {
@@ -138,7 +138,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
-          "expr": "any(g['id'] == 'G-DS-2' and g['check']['type'] == 'manual' and (has('operator|devops|data-store|platform', g['text']) or g.get('owner') in ('data-store', 'devops')) for g in d['spec']['transitions']['walk->run']['gates'])",
+          "expr": "any(g['id'] == 'G-DS-4' and g['check']['type'] == 'manual' and (has('operator|devops|data-store|platform', g['text']) or g.get('owner') in ('data-store', 'devops')) for g in d['spec']['transitions']['walk->run']['gates'])",
           "text": "restore rehearsal stays manual with the operator named"
         },
         {
@@ -549,8 +549,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
-          "expr": "any(g['id'] == 'G-Q-2' for g in d['spec']['transitions']['walk->run']['gates'])",
-          "text": "the plan's metric gate G-Q-2 still consolidated"
+          "expr": "any(g['id'] == 'G-Q-4' for g in d['spec']['transitions']['walk->run']['gates'])",
+          "text": "the plan's Walk metric gate G-Q-4 still consolidated"
         },
         {
           "type": "yaml_expr",

@@ -1,5 +1,0 @@
-.venv*
-tests/
-.github/
-__pycache__/
-*.pyc

@@ -216,6 +216,13 @@ class Assembly:
             self.notes.append(f"OPEN: {c} is moved out of {self.ns} but part of it is remote or Helm-rendered; move those objects by hand")
         return list(dict.fromkeys(objs))
 
+    @staticmethod
+    def unique_aliases(aliases: list[dict]) -> list[dict]:
+        """One alias per Service name: two moved components can expose the same Service (a bundle that
+        composes the database the records also chose), and kustomize refuses a duplicate id."""
+        seen: set[str] = set()
+        return [a for a in aliases if not (a["metadata"]["name"] in seen or seen.add(a["metadata"]["name"]))]
+
     def services_of(self, c: str) -> list[str]:
         return [n for k, n in self.objects_of(c) if k == "Service"]
 
@@ -722,6 +729,7 @@ class Assembly:
         aliases = [{"apiVersion": "v1", "kind": "Service", "metadata": {"name": svc, "namespace": ns, "labels": {"forjate.io/psa-exception": n}},
                     "spec": {"type": "ExternalName", "externalName": f"{svc}.{n}.svc.cluster.local"}}
                    for n, comps in arriving.items() for c in comps for svc in self.services_of(c)]
+        aliases = self.unique_aliases(aliases)
         if aliases:
             self.write(sdir / "namespaces" / ns / "aliases.yaml", f"# {stage}: ExternalName aliases in {ns} for the Services the PSA exceptions moved out (security: psa_exceptions).\n" + "---\n".join(dump(a) for a in aliases))
             sub_resources.append("aliases.yaml")
@@ -953,6 +961,7 @@ class Assembly:
         aliases = [{"apiVersion": "v1", "kind": "Service", "metadata": {"name": svc, "labels": {"forjate.io/psa-exception": n}},
                     "spec": {"type": "ExternalName", "externalName": f"{svc}.{n}.svc.cluster.local"}}
                    for c, n in place.items() if c in everything for svc in self.services_of(c)]
+        aliases = self.unique_aliases(aliases)
         if aliases:
             self.write(nsdir / "aliases.yaml", f"# ExternalName aliases in {ns} for the Services the PSA exceptions run elsewhere (security: psa_exceptions).\n" + "---\n".join(dump(a) for a in aliases))
             resources.append("aliases.yaml")

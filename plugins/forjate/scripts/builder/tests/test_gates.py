@@ -714,8 +714,14 @@ def test_toolchain_warns_instead_of_refusing_when_asked(tmp_path: Path):
 
 def test_toolchain_refuses_a_missing_yq(tmp_path: Path):
     repo = fake_repo_with_pin(tmp_path, "4.44.3")
-    (tmp_path / "empty").mkdir()
-    r = toolchain_check(repo, tmp_path / "empty")
+    # A PATH of its own: the system one may carry a yq (the GitHub runners ship 4.5x)
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    for tool in ("bash", "sed", "head", "tr", "dirname"):
+        (bare / tool).symlink_to(shutil.which(tool))
+    e = {**os.environ, "PATH": str(bare)}
+    e.pop("FORJATE_TOOLCHAIN", None)
+    r = subprocess.run([str(bare / "bash"), "-c", f'source "{repo}/scripts/toolchain/toolchain.sh" && toolchain_check yq'], capture_output=True, text=True, env=e)
     assert r.returncode == 1 and "yq is not installed" in r.stderr
 
 

@@ -54,7 +54,7 @@ What you add when "real" means SLAs, audits, or multi-tenancy:
 
 | Change | Why | Tracked in |
 |--------|-----|------------|
-| **Velero with offsite backup destination** | Cluster-level DR. Restore a namespace in minutes, not days | [#6](https://github.com/AItizate/forjate/issues/6) |
+| **Velero with offsite backup destination** | **The gate between MVP and Production.** Cluster-level DR; restore a namespace in minutes, not days. Rehearse the restore runbook before you call it Production | [`apps/backup/velero`](../k8s/components/apps/backup/velero/README.md) ([#6](https://github.com/AItizate/forjate/issues/6)) |
 | **Pod Security Admission tightened to `restricted`** | Block all the foot-guns. The reference deployments in this PR are already compatible | [#5](https://github.com/AItizate/forjate/issues/5) |
 | **Postgres via operator (CloudNativePG / Zalando / PGO)** | HA postgres with failover and PITR, not single-statefulset | _(future issue)_ |
 | **Image scanning + Cosign signing in CI** | You stop deploying images you can't trace to source | _(future issue)_ |

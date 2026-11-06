@@ -2,7 +2,7 @@
 
 # Catalog snapshot for forjate:kustomize
 
-compiled_at: 2026-10-29
+compiled_at: 2026-10-30
 
 **This is a snapshot, not a rule.** It shows what `wiki/catalog.json` resolved for each capability on the date above. Ask by capability and property, read the catalog at run time, and expect these tables to change as the catalog grows: a capability with one option today may have two tomorrow, and a component listed here may be denied by a context pack. Name a component in a record only after resolving it; name it in prose only when it is the single option for the capability.
 
@@ -18,6 +18,7 @@ This skill consumes the whole catalog. Components whose `stages` is empty are in
 | `apps/ai-models/vllm` | inference | walk, run | lab | single | required | baseline | internal, pii, financial, health | Apache-2.0 | The production-shaped local inference server; concurrency and pinned model versions. Model licence separate. |
 | `apps/analytics/metabase` | bi | walk, run | lab | single | none | baseline | internal, pii, financial | AGPL-3.0 | Reads the system of record; whoever sees a dashboard sees the rows behind it. |
 | `apps/auth/gotrue-auth` | identity-provider | walk, run | mvp | single | none | baseline | internal, pii | MIT | Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature. |
+| `apps/backup/velero` | backup | walk, run | lab | single | none | unknown | internal, pii, financial, health, secret | Apache-2.0 | Cluster-level backup of namespaces and PVC data (CSI snapshots or node agent) with schedule, retention and restore. Default target is the in-cluster MinIO, which is not DR on its own; point it off-cluster (values-s3-backend.yaml) at Run. Reads `velero-credentials`. Complements pg_dump CronJobs, does not replace them. Restore runbook in the component README. |
 | `apps/brokers/mosquitto` | mqtt-broker | crawl, walk, run | lab | single | none | baseline | internal, pii | EPL-2.0 | MQTT for devices and sensors; not a substitute for a message broker between workloads. |
 | `apps/brokers/nats` | message-broker | crawl, walk, run | mvp | single | none | baseline | internal, pii, financial, health | Apache-2.0 | Lightweight (20 MB); JetStream gives persistence and replay. Default broker for event-driven use cases. Mounts `nats-secret`. |
 | `apps/brokers/rabbitmq` | message-broker | walk, run | lab | single | none | baseline | internal, pii, financial, health | MPL-2.0 | Classic work-queue semantics and AMQP; choose when AMQP clients already exist. |

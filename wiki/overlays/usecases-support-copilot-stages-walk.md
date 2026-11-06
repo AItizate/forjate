@@ -3,7 +3,7 @@ title: usecases-support-copilot-stages-walk
 kind: overlay
 sources:
 - k8s/overlays/usecases/support-copilot/stages/walk
-compiled_at: '2026-10-31'
+compiled_at: '2026-11-06'
 category: usecases
 parent: overlays/usecases-support-copilot
 source_last_commit: '2026-10-31'

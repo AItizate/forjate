@@ -2,7 +2,7 @@
 
 # Catalog snapshot for forjate:devops
 
-compiled_at: 2026-10-29
+compiled_at: 2026-10-30
 
 **This is a snapshot, not a rule.** It shows what `wiki/catalog.json` resolved for each capability on the date above. Ask by capability and property, read the catalog at run time, and expect these tables to change as the catalog grows: a capability with one option today may have two tomorrow, and a component listed here may be denied by a context pack. Name a component in a record only after resolving it; name it in prose only when it is the single option for the capability.
 
@@ -143,7 +143,11 @@ scheduled backups and rehearsed restores of volumes and databases.
 
 _asked by: devops_
 
-**No component today.** Say so in the record, keep the requirement explicit and raise the gap as an open question or a later-stage risk.
+Single option today: `apps/backup/velero`. Prose may name it.
+
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
+|---|---|---|---|---|---|---|---|---|
+| `apps/backup/velero` | walk, run | lab | single | none | unknown | internal, pii, financial, health, secret | Apache-2.0 | Cluster-level backup of namespaces and PVC data (CSI snapshots or node agent) with schedule, retention and restore. Default target is the in-cluster MinIO, which is not DR on its own; point it off-cluster (values-s3-backend.yaml) at Run. Reads `velero-credentials`. Complements pg_dump CronJobs, does not replace them. Restore runbook in the component README. |
 
 ## `cloud-resources`
 

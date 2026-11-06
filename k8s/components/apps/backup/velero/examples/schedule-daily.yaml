@@ -1,0 +1,16 @@
+# Daily full-cluster backup at 02:00, kept 30 days. Not in the component's resources.
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-full
+  namespace: velero
+spec:
+  schedule: "0 2 * * *"
+  template:
+    ttl: 720h
+    includedNamespaces: ["*"]
+    excludedNamespaces: [velero, kube-system]
+    includeClusterResources: true
+    snapshotVolumes: true
+    defaultVolumesToFsBackup: false
+    storageLocation: default

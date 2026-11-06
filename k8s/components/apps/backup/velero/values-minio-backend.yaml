@@ -1,0 +1,35 @@
+# Default backend: back up TO the in-cluster MinIO (apps/minio/single-server).
+# Credentials come from the Secret `velero-credentials` (key `cloud`, AWS
+# credentials-file format) that the overlay supplies; this file never holds them.
+# A backup that lives only in the cluster it protects is not DR: pair this with
+# values-s3-backend.yaml (or a MinIO bucket replicated off-cluster) before Run.
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.13.1
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+configuration:
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: velero
+      default: true
+      config:
+        region: minio
+        s3ForcePathStyle: "true"
+        s3Url: http://minio.minio-operator.svc.cluster.local
+  volumeSnapshotLocation:
+    - name: default
+      provider: aws
+      config:
+        region: minio
+  features: EnableCSI
+
+credentials:
+  useSecret: true
+  existingSecret: velero-credentials
+
+snapshotsEnabled: true
+deployNodeAgent: true

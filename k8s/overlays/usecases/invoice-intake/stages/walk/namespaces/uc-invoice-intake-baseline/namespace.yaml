@@ -10,7 +10,7 @@ metadata:
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
   annotations:
-    forjate.io/psa-exception-owner: platform team
-    forjate.io/psa-exception-reason: the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's
-      hostPath is replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the invoice
-      workloads stay restricted in uc-invoice-intake
+    forjate.io/psa-exception-owner: security owner (unnamed, Q1), accepted through G-SEC-17
+    forjate.io/psa-exception-reason: The catalog gives each of these psa_level baseline and no namespace of their own, so
+      they cannot run in uc-invoice-intake under pack:regulated-corp#SEC-1. They move out together with their Secrets and
+      keep their short names through aliases; cron-job, worker, posting-worker and review-api stay restricted.

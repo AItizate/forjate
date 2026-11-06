@@ -1,9 +1,18 @@
 # run: what the records add inside uc-invoice-intake (components fit for run, NetworkPolicies, the secrets mechanism, the surface).
+# Hand edit: no admin postgres-secret here (data-store); workloads hold the working and episodic credentials.
 namespace: uc-invoice-intake
 resources:
-- externalsecrets/postgres-secret.yaml
-- externalsecrets/minio-storage-configuration.yaml
-- externalsecrets/approval-secret.yaml
-- externalsecrets/imap-mailbox-secret.yaml
-- externalsecrets/odoo-rest-api-secret.yaml
+- externalsecrets/working-postgres-secret.yaml
+- externalsecrets/episodic-postgres-secret.yaml
+- externalsecrets/bank-hash-salt.yaml
+- externalsecrets/double-admin-token.yaml
+- externalsecrets/mailbox-list-token.yaml
+- externalsecrets/mailbox-fetch-token.yaml
+- externalsecrets/odoo-lookup-po-token.yaml
+- externalsecrets/odoo-find-payable-token.yaml
+- externalsecrets/odoo-bank-ref-token.yaml
+- externalsecrets/shared-imap-mailbox-secret.yaml
+- externalsecrets/shared-imap-mailbox-attachments-secret.yaml
+- externalsecrets/odoo-purchase-orders-secret.yaml
+- externalsecrets/odoo-payables-secret.yaml
 - aliases.yaml

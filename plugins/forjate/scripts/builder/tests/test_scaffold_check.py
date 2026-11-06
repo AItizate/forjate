@@ -90,12 +90,15 @@ def test_using_the_url_before_waiting_for_it_is_a_finding(tmp_path: Path):
     assert any("run_once uses agent_url" in f and "before it waits for agent-api" in f for f in found), found
 
 
-def test_invoice_batch_must_wait_for_the_erp_stub_and_so_must_the_verify_that_reruns_it(tmp_path: Path):
+def test_invoice_worker_must_wait_for_the_odoo_stub_and_so_must_the_verify_that_reruns_it(tmp_path: Path):
+    """The waits sit in one helper the Jobs share: route_checks builds one /readyz check per service, through
+    http_ready(url), and each main passes them to wait_ready. Dropping one service's check names it per Job."""
     uc = copy_usecase(tmp_path, "invoice-intake")
-    edit(uc / "app/src/invoice_intake/batch.py", '    wait_ready(cfg.erp_url, "ERP stub")', "    pass")
+    edit(uc / "app/src/invoice_intake/readiness.py", '        "Odoo double": http_ready(f"{settings.odoo_url}/readyz"),\n', "")
     found = readiness(findings(uc))
-    assert any("intake-job (run)" in f and "erp-stub" in f for f in found), found
-    assert any("inv-validate (verify)" in f and "erp-stub" in f for f in found), found
+    assert any("worker (run)" in f and "odoo-stub" in f for f in found), found
+    assert any("invoice-intake-verify (verify)" in f and "odoo-stub" in f for f in found), found
+    assert not any("shared-imap-mailbox-stub" in f for f in found), found
 
 
 def test_a_url_a_job_lists_but_never_uses_is_not_on_its_route(tmp_path: Path):
@@ -111,7 +114,7 @@ def test_a_url_a_job_lists_but_never_uses_is_not_on_its_route(tmp_path: Path):
 def test_components_the_app_only_calls_are_out_of_scope(tmp_path: Path):
     """Docling and Ollama are catalog components, not scaffold workloads: the check names no component."""
     uc = copy_usecase(tmp_path, "invoice-intake")
-    edit(uc / "app/src/invoice_intake/batch.py", "    docling_ready()\n", "")
+    edit(uc / "app/src/invoice_intake/readiness.py", '        checks["docling"] = lambda: docling_ready(settings.docling_url)\n', "        pass\n")
     assert readiness(findings(uc)) == []
 
 

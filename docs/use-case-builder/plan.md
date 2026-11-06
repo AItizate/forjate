@@ -396,7 +396,7 @@ Tests: L4 on every skill; MCP server contract tests; full L1–L3 re-run as regr
 | #27 | Every skill rewritten to ask by role, governance posture folded in (0 + 0c) — **done 2026-10-31**, see below | #23, #22 | Fable 5.1 writes, Opus evals |
 | #24 | Walk scaffold for invoice-intake | — | Opus |
 | #25 | Walk scaffold for support-copilot | — | Opus |
-| #28 | Coordinator cold start end to end (L3) | #27 | Opus |
+| #28 | Coordinator cold start end to end (L3) — **done 2026-11-06**, see below | #27 | Opus |
 | #6 | Velero in the catalog | — | Sonnet |
 | #34 | Skill and checker to curate a component's capabilities and properties | #23 | Fable 5.1 (skill), Sonnet (checker) |
 | #29 | Trigger evals and description optimisation (1) | #27 | Opus |
@@ -407,6 +407,29 @@ Tests: L4 on every skill; MCP server contract tests; full L1–L3 re-run as regr
 | #33 | Release v1.2.0, first remote consumer, `builder-p5` (5) | all | Sonnet |
 | #38 | Walk-on-k3d rehearsal harness (GitOps source, Sealed Secrets, controller key); blocks the deploy criterion of #24 and #25 | — | Opus |
 | #41 | Deterministic gates and graders: tests per gate check, one pinned toolchain, static checks on the scaffold, two health signals in the nightly — **done 2026-10-31**, see below | #39, #27 | Sonnet |
+| #44 | Scaffold as a walking skeleton; business implementation as a backlog for an agent team (Walk closes with a minimal implementation) | — | Opus |
+| #45 | Every agent's changes recorded: automatic commits by hook, `.builder/events.jsonl` | — | Opus |
+| #46 | Regenerate the support-copilot golden; the generator absorbs invoice-intake's shared Postgres | — | Opus |
+
+**#28 done (2026-11-06).** `plugins/forjate/evals/coordinator-e2e` runs the whole coordinator from a one-paragraph problem: the stage plan, every expert, quality's consolidation, both builders and the report. It never re-interviews, and it ends with `ephemeral.sh up` on k3d. It asserts that every record and `gates.yaml` validate, that the overlay and every stage build and pass kubeconform, that the governance settings are present, that the verify Job passes, and that the report cites every open question by area and id. `worktree-strip` removes the G1/G2 fixtures from each run's worktree, so the answer is not on disk. The suite runs with skill only: a cold start without the team is not a meaningful baseline.
+
+| Run (Opus) | Pass | Wall | Turns | Cost | `ephemeral.sh up` | Problem→Crawl |
+|---|---|---|---|---|---|---|
+| quote-drafting (new problem, Spanish brief, no packs) | 96 % | ~61 min | — | 33.82 USD | 119 s | ~63 min |
+| invoice-intake (G1 brief, regulated-corp) | 100 % | 2 h 0 min (two segments) | 26 | 120.79 USD | 177 s | ~2 h 3 min |
+
+The quote-drafting miss: one open question was left out of the report. It also drove the fixes before the run counted. Crawl's verify ran the live model because quality's skill said "never what it mocks"; the Crawl gate now runs the deterministic double, and `scaffold-check` flags a live verify. A Secret's keys came from a client library's names instead of the catalog's `wiring.secret.keys`, now checked. The report composed its Log instead of copying `log.md`. `timing.json` counted the last turn's API time, so `wall_seconds` was added. G1 was cut twice: once by the usage limit, once because `claude -p` kills background tasks 10 minutes after the last turn, which left the builders half done. The coordinator now waits for every builder in the foreground, `run.sh` exports `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`, and `run.sh --resume` continues a cut run in its own worktree and session, summing the segments.
+
+It is not in CI: Actions has no model credentials, one run costs tens of USD and over an hour, and grading needs k3d. The local command is in `plugins/forjate/evals/README.md`.
+
+**G1's golden was replaced** by that run: records with the governance posture, `app/` and the eval fixtures, after `validate.py` and `scaffold-check` came back clean. The Crawl root is the generator's, and the golden test still checks it byte for byte. Walk and Run are the kustomize agent's. With the new records, the generator alone renders a duplicate Postgres, because the temporal bundle recomposes `apps/databases/postgres`. The agent made it one shared server, with one role and database per engine, a Secret per role and an init Job. Its README lists every hand edit and what stayed open under "Hand edits over the generator". `HAND_FINISHED` in `test_builder.py` exempts those stages, and `validate-kustomize.yml` still builds them. The lesson, from the user: a deterministic assembler works only for components built to be composed. The rest is the agent's work, and its edits have to be recorded, not lost to `--force` (#45); the generator absorbs the common cases (#46). `assemble.py` gained one fix on the way: one alias per Service name. G2 was deferred to #46 to halve the spend.
+
+Suites with skill on Opus after the changes: kustomize 100 % (4 evals, 8.25 USD), app-scaffold 100 % (`invoice-intake-batch` and `support-copilot-api`, the two that exercise what changed, 16.12 USD), quality 100 % (5 evals, 12.43 USD). Every first-pass miss was the evals' own. Names and gate ids came from the old G1 records: `inv-validate`, `post_to_erp`, and Walk gates that are Crawl gates in the new plan. And the app-test command fell back to Homebrew's Python 3.14, which has no wheels for the pinned pydantic. Fixed and regraded on the same runs. Benchmarks are in `benchmarks/coordinator-e2e-2026-11-05.md`, `kustomize-2026-11-05.md`, `app-scaffold-2026-11-06.md` and `quality-2026-11-06.md`. Measured from each run's `result.json`, the work spent 229.47 USD: the four cold starts 192.67, the suites 36.80. `agent-costs.py` splits a run's cost by agent from the Claude Code transcripts and keeps a copy of them in the run. In G1, the app-scaffold builder was the most expensive agent (18.83 USD, 16 %); business and the stage planner cost under 2 USD each (`benchmarks/coordinator-e2e-2026-11-05.md`).
+
+Found on the way and moved out:
+- The scaffold writes a full Crawl app: 3,550 lines and 100 to 220 tests per run, at the turn cap. Yet it stops short of Walk's workloads. #44 reshapes it into a walking skeleton plus a backlog for an agent team, and #40 is blocked by it.
+- `image-policy-check` reads yq's `---` as an image, `secret-scan` flags prose and f-strings, and resolved questions stay open in the records. Commented on #41.
+- G1's Walk still has `minio-secret` unrendered, no route from the worker to the doubles or the model, and no model route for the eval. These are #46 and its README.
 
 **#21 done (2026-10-31).** The nightly had been running on its schedule and was red on both days. support-copilot: the replay Job waited for the agent API but not for the orders stub, which only listens once Postgres accepts connections and was restarted by its liveness probe meanwhile, so lookups failed into false escalations; the baseline sits exactly at the 60 % threshold, so it passed or failed by timing. Fixed in the replay and, in the generator, with a startup probe on every health-checked workload. invoice-intake: G-SEC-6 found no Ingress on the runner and one locally against the same commit; `auth-check` now reads one row per document instead of `select` plus an alternative, which evaluates differently across yq 4.x (the root cause under yq 4.44.3 was not reproduced separately). Two manual runs on the branch were green.
 

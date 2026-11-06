@@ -1,0 +1,114 @@
+# run phase (invoice-intake-eval): suspended, the runner un-suspends it in order (seed -> run -> verify).
+# Command and environment from .builder/scaffold.yaml; the image is built by ephemeral.sh from usecase.yaml spec.build.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: invoice-intake-eval
+  namespace: uc-invoice-intake
+  labels: &id001
+    app: invoice-intake-eval
+    forjate.io/usecase: invoice-intake
+    forjate.io/phase: run
+spec:
+  suspend: true
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: invoice-intake-eval
+        image: invoice-intake
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - -m
+        - invoice_intake.eval_run
+        env:
+        - name: STAGE
+          value: crawl
+        - name: WORKLOAD
+          value: invoice-intake-eval
+        - name: SCOPE
+          value: invoice-intake
+        - name: DATA_CLASS
+          value: financial
+        - name: WRITE_ACTIONS
+          value: none
+        - name: MODEL_MODE
+          value: live
+        - name: POSTGRES_HOST
+          value: postgres
+        - name: POSTGRES_PORT
+          value: '5432'
+        - name: MINIO_ENDPOINT
+          value: minio:9000
+        - name: DOCLING_URL
+          value: http://docling:5001
+        - name: OLLAMA_URL
+          value: http://ollama-service:11434
+        - name: OLLAMA_MODEL
+          value: ollama/qwen2.5:7b-instruct
+        - name: ODOO_URL
+          value: http://odoo-stub:8001
+        - name: MAILBOX_URL
+          value: http://shared-imap-mailbox-stub:8001
+        - name: MAX_STEPS
+          value: '10'
+        - name: STEP_TIMEOUT_S
+          value: '600'
+        - name: DELEGATION_DEPTH
+          value: '0'
+        - name: BUDGET_TOKENS
+          value: '8000'
+        - name: MAX_MODEL_CALLS
+          value: '2'
+        - name: READY_TIMEOUT_S
+          value: '300'
+        - name: EVAL_LIMIT_S
+          value: '10800'
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        - secretRef:
+            name: minio-secret
+        - secretRef:
+            name: bank-hash-salt
+        - secretRef:
+            name: double-admin-token
+        - secretRef:
+            name: mailbox-list-token
+        - secretRef:
+            name: mailbox-fetch-token
+        - secretRef:
+            name: odoo-lookup-po-token
+        - secretRef:
+            name: odoo-find-payable-token
+        - secretRef:
+            name: odoo-bank-ref-token
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: writable-0
+          mountPath: /tmp
+      volumes:
+      - name: writable-0
+        emptyDir: {}

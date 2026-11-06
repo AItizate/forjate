@@ -4,7 +4,7 @@
     {
       "name": "regulated-invoice-intake",
       "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ and plugins/forjate/evals/fixtures/records/invoice-intake/security.yaml into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the UX expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ux, metadata.author forjate:ux, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
-      "expected_output": "No surface at Crawl (cli/none), a custom review page served by review-api at Walk behind oauth2-proxy matching the architecture and security records, token checkpoints for mismatch approval naming post_to_erp, Formbricks only from Walk, an asynchronous latency budget (the clerk never waits on extraction), failure lines for parse failure and Odoo down, an escalation context the verify Job can assert, a walkthrough as a manual gate.",
+      "expected_output": "No surface at Crawl (cli/none), a custom review page served by review-api at Walk behind oauth2-proxy matching the architecture and security records, token checkpoints for mismatch approval naming post_invoice, Formbricks only from Walk, an asynchronous latency budget (the clerk never waits on extraction), failure lines for parse failure and Odoo down, an escalation context the verify Job can assert, a walkthrough as a manual gate.",
       "assertions": [
         {
           "type": "file_exists",
@@ -43,8 +43,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml",
-          "expr": "any('[token]' in x and has('post_to_erp|approv', x) for x in listed(setting('hitl_checkpoints','walk')))",
-          "text": "a token checkpoint issues the approval post_to_erp requires"
+          "expr": "any('[token]' in x and has('post_invoice|approv', x) for x in listed(setting('hitl_checkpoints','walk')))",
+          "text": "a token checkpoint issues the approval post_invoice requires"
         },
         {
           "type": "yaml_expr",

@@ -29,7 +29,7 @@ class Settings:
     data_class: str = env("DATA_CLASS", "internal")  # from the security record, for the log line
 ```
 
-Service names are the catalog's (`postgres`, `redis`, `minio`, `docling`, `ollama-service`, `litellm`); the assembly resolves them in the namespace, so the code uses the short name. Secrets arrive through `envFrom` by the component's mounted Secret name (`postgres-secret` → `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`); `config.py` composes the DSN. List every variable and secret in `scaffold.yaml` so the assembly knows what to inject.
+Service names are the catalog's (`postgres`, `redis`, `minio`, `docling`, `ollama-service`, `litellm`); the assembly resolves them in the namespace, so the code uses the short name. Secrets arrive through `envFrom` by the component's mounted Secret name (`postgres-secret` → `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`); `config.py` composes the DSN. The key names are the catalog's, never a client library's: read them from `wiki/catalog.json`, `components[].wiring.secret` (`name` and `keys`) for every component the workload mounts. The object store's Secret carries `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD`, and an app that reads `MINIO_ACCESS_KEY` because that is what an S3 SDK calls it gets empty credentials, fails its readiness and stalls the seed Job on the cluster while every unit test passes; `scaffold-check.py` flags a mounted Secret whose keys the app never reads. List every variable and secret in `scaffold.yaml` so the assembly knows what to inject.
 
 ## Health, shutdown, logging
 

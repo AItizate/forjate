@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-10-31",
+  "compiled_at": "2026-11-05",
   "stages": [
     "crawl",
     "walk",
@@ -3362,7 +3362,7 @@
       ],
       "remote_refs": [],
       "consumed_by": [
-        "overlays/usecases-invoice-intake-stages-run"
+        "overlays/usecases-invoice-intake-stages-walk"
       ],
       "parent": null,
       "stages": [
@@ -3782,8 +3782,7 @@
       ],
       "consumed_by": [
         "overlays/bare-metal-starter",
-        "overlays/home-edge-lab",
-        "overlays/usecases-invoice-intake-stages-walk"
+        "overlays/home-edge-lab"
       ],
       "parent": null,
       "stages": [
@@ -4855,6 +4854,7 @@
       "composes": [],
       "remote_refs": [],
       "consumed_by": [
+        "overlays/usecases-invoice-intake-stages-run",
         "overlays/usecases-openbao-secrets-openbao"
       ],
       "parent": null,
@@ -5160,9 +5160,7 @@
       ],
       "composes": [],
       "remote_refs": [],
-      "consumed_by": [
-        "overlays/usecases-invoice-intake-stages-walk"
-      ],
+      "consumed_by": [],
       "parent": null,
       "stages": [
         "walk",
@@ -5373,7 +5371,8 @@
       ],
       "remote_refs": [],
       "consumed_by": [
-        "overlays/agentic-orchestration"
+        "overlays/agentic-orchestration",
+        "overlays/usecases-invoice-intake-stages-walk"
       ],
       "parent": null,
       "stages": [

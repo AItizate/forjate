@@ -20,6 +20,17 @@ patches:
     name: pvc-ollama
     namespace: uc-invoice-intake
   patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
+# Hand edit (architecture Q7, data-store: one server): the temporal bundle renders the one postgres in uc-invoice-intake-baseline, so this copy is deleted, not moved.
+- target:
+    kind: Service
+    name: postgres
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\nkind: Service\nmetadata:\n  name: postgres\n"
+- target:
+    kind: StatefulSet
+    name: postgres
+    namespace: uc-invoice-intake
+  patch: "$patch: delete\nkind: StatefulSet\nmetadata:\n  name: postgres\n"
 - target:
     kind: Service
     name: docling
@@ -28,16 +39,6 @@ patches:
 - target:
     kind: Deployment
     name: docling
-    namespace: uc-invoice-intake
-  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
-- target:
-    kind: Service
-    name: postgres
-    namespace: uc-invoice-intake
-  patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
-- target:
-    kind: StatefulSet
-    name: postgres
     namespace: uc-invoice-intake
   patch: "- op: replace\n  path: /metadata/namespace\n  value: uc-invoice-intake-baseline\n"
 - target:

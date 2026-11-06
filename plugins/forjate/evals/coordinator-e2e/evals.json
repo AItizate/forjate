@@ -1,0 +1,466 @@
+{
+  "skill_name": "coordinator",
+  "evals": [
+    {
+      "name": "cold-start-quote-drafting",
+      "prompt": "Quiero automatizar esto en este repo usando el use-case builder de Forjate; llamá al caso quote-drafting. Somos un taller metalúrgico de 25 personas: los clientes piden presupuestos por un formulario web (pieza, material, cantidades, plazo y a veces un plano en PDF) y hoy el dueño los cotiza a mano con una planilla de precios de material y horas de máquina, y tarda dos o tres días en contestar. Quiero un agente que arme el borrador del presupuesto con la planilla y que un vendedor lo revise y lo apruebe antes de mandarlo. No me hagas preguntas, estas son las respuestas: todo en español; sin context packs; pide el dueño y aprueba el dueño, revisan los dos vendedores; unos 120 pedidos por mes; la planilla de precios es un CSV que actualiza el dueño cada mes y no hay ERP; la métrica es el tiempo de respuesta al cliente, hoy 48 horas, objetivo 4 horas, sin presupuestos por debajo del costo; ningún presupuesto sale sin aprobación de un vendedor; los datos son comerciales confidenciales (precios, márgenes, nombre y mail del cliente), pueden ir a un proveedor de modelos externo bajo un acuerdo que no entrene con ellos, sin requisito de residencia; no es un ambiente regulado; presupuesto 150 USD por mes; por ahora quiero llegar a Walk (crawl y walk); sin aislamiento entre tenants. Llevalo de punta a punta en esta sesión: brief, packs, plan de etapas (dalo por aprobado), todos los expertos que el plan corre, el pase de consistencia, la consolidación de gates, el scaffold de la app y el ensamblado, todo bajo k8s/overlays/usecases/<nombre>/, validado con plugins/forjate/scripts/builder/validate.py, y terminá con el reporte de revisión. No levantes un cluster: quien califica esta corrida levanta Crawl con ./scripts/ephemeral/ephemeral.sh.",
+      "expected_output": "A complete use case from a problem that is not on disk: brief (es, confidential, egress allowed, crawl+walk), plan, every expert record with the governance posture, gates.yaml, app/ and scaffold.yaml, usecase.yaml, root and Walk overlays that build, a report naming every open question; ephemeral.sh up passes the verify Job.",
+      "assertions": [
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/brief.yaml",
+          "query": ".spec.language",
+          "equals": "es",
+          "text": "language recorded as es"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/brief.yaml",
+          "query": ".spec.constraints.llm_egress_allowed",
+          "equals": "true",
+          "text": "egress to a model provider allowed, as answered"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/brief.yaml",
+          "query": ".spec.stages_requested | length",
+          "equals": "2",
+          "text": "crawl and walk requested"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('write_actions', 'walk') in ('none', 'approval-required')",
+          "text": "no quote leaves without a person: writes at Walk need approval (or the agent writes nothing)"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/brief.yaml",
+          "schema": "brief",
+          "text": "brief validates"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/stage-plan.yaml",
+          "schema": "stage-plan",
+          "text": "stage plan validates"
+        },
+        {
+          "type": "command",
+          "text": "every expert the plan runs wrote its record",
+          "cmd": ".venv/bin/python -c \"import yaml,pathlib,sys; u=pathlib.Path('k8s/overlays/usecases/quote-drafting/.builder'); p=yaml.safe_load((u/'stage-plan.yaml').read_text()); m=[e['role'] for e in p['spec']['experts'] if e.get('run') and not (u/'decisions'/(e['role']+'.yaml')).exists()]; print('missing:', m); sys.exit(1 if m else 0)\""
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/gates.yaml",
+          "schema": "gates",
+          "text": "gates.yaml consolidated and valid"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/quote-drafting",
+          "text": "validate.py passes: every record and gates.yaml validate, no cross-record error"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/stage-plan.yaml",
+          "expr": "st('crawl').get('autonomy') == 'assistive'",
+          "text": "the plan caps Crawl at assistive autonomy"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('execution_bounds', s) for s in stages if st(s).get('choice') is not None) and setting('intent_validation', 'crawl') in ('schema', 'policy-judge')",
+          "text": "ai-engineering writes the posture: execution bounds at every stage, intent validation on at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/decisions/security.yaml",
+          "expr": "all(setting('kill_switch', s) is not None for s in stages if st(s).get('choice') is not None)",
+          "text": "security states the kill switch at every stage it plans"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/decisions/architecture.yaml",
+          "expr": "setting('runtime', 'crawl') in ('python', 'typescript', 'go')",
+          "text": "architecture decides the workloads' runtime"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/decisions/quality.yaml",
+          "expr": "setting('audit_artifacts', 'crawl') in ('run-trace', 'per-action') and listed(setting('eval_dimensions', 'crawl'))",
+          "text": "quality states audit artifacts and evaluation dimensions at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/decisions/business.yaml",
+          "expr": "any(listed(v) for v in setting('raci'))",
+          "text": "business writes the RACI"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/scaffold.yaml",
+          "text": "scaffold ran (scaffold.yaml)"
+        },
+        {
+          "type": "scaffold_check",
+          "path": "k8s/overlays/usecases/quote-drafting",
+          "text": "scaffold-check is clean"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/quote-drafting/usecase.yaml",
+          "text": "assembly wrote the use-case contract"
+        },
+        {
+          "type": "components_in_catalog",
+          "path": "k8s/overlays/usecases/quote-drafting/usecase.yaml",
+          "text": "every component of the contract is in the catalog"
+        },
+        {
+          "type": "kubeconform",
+          "path": "k8s/overlays/usecases/quote-drafting",
+          "text": "the root overlay builds and passes kubeconform"
+        },
+        {
+          "type": "kubeconform",
+          "path": "k8s/overlays/usecases/quote-drafting/stages/walk",
+          "text": "stages/walk builds and passes kubeconform"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/log.md",
+          "pattern": "(?i)gates:",
+          "text": "log records the gates consolidation"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/quote-drafting/.builder/log.md",
+          "pattern": "(?i)assembly:",
+          "text": "log records the assembly"
+        },
+        {
+          "type": "report_covers_open_questions",
+          "path": "k8s/overlays/usecases/quote-drafting",
+          "text": "the review report names every open question of every record"
+        },
+        {
+          "type": "command",
+          "text": "ephemeral.sh up passes the verify Job (Crawl proof, G-Q-1); seconds in crawl-up-seconds.txt",
+          "cmd": "s=$(date +%s); ./scripts/ephemeral/ephemeral.sh up quote-drafting; rc=$?; echo $(( $(date +%s) - s )) > ../crawl-up-seconds.txt; ./scripts/ephemeral/ephemeral.sh down quote-drafting >/dev/null 2>&1 || true; exit $rc"
+        }
+      ]
+    },
+    {
+      "name": "cold-start-invoice-intake",
+      "prompt": "I want to automate this in this repo with the Forjate use-case builder; call the use case invoice-intake. Supplier invoices arrive as PDF attachments in a shared mailbox. Someone reads each one, types supplier, amount, date and PO number into the ERP, and flags mismatches against the purchase order. We want this automated with a human approving anything that does not match. Do not ask me questions, these are the answers: everything in English; context pack regulated-corp (context-packs/examples/regulated-corp); finance ops asks for it, the AP clerk approves exceptions, the CFO approves the stages; the systems are Odoo, over its REST API, the system of record for about 500 open purchase orders and the payables, and the shared IMAP mailbox, about 300 invoices a month; the data is financial, bank account numbers appear on invoices, it must stay in the EU and must not go to an external model provider; open standards are required; it is a regulated environment; budget 300 USD a month; the metric is invoices posted to the ERP without manual typing, today 0%, target 80% straight-through with 0 wrong amounts; I want to reach production (crawl, walk and run); the agent proposes and a person approves anything that does not match; it is a regulated decision and a high-impact action; logical isolation from other tenants. Take it end to end in this session: brief, packs, stage plan (treat it as approved), every expert the plan runs, the consistency pass, gates consolidation, the app scaffold and the assembly, everything under k8s/overlays/usecases/<name>/, validated with plugins/forjate/scripts/builder/validate.py, and end with the review report. Do not start a cluster: whoever grades this run brings Crawl up with ./scripts/ephemeral/ephemeral.sh.",
+      "expected_output": "G1 rebuilt from its brief prompt with no fixture on disk: every record carries the posture; the outputs replace the golden records when validate.py has no errors.",
+      "assertions": [
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml",
+          "query": ".spec.data.classification",
+          "equals": "financial",
+          "text": "classification financial"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml",
+          "query": ".spec.constraints.llm_egress_allowed",
+          "equals": "false",
+          "text": "no LLM egress recorded"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml",
+          "query": ".spec.stages_requested | length",
+          "equals": "3",
+          "text": "three stages requested"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/packs.yaml",
+          "pattern": "regulated-corp",
+          "text": "the regulated-corp pack is active"
+        },
+        {
+          "type": "choice_has_capability",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "capability": "inference",
+          "stage": "crawl",
+          "text": "no egress: the model is served in the cluster at Crawl"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml",
+          "schema": "brief",
+          "text": "brief validates"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "schema": "stage-plan",
+          "text": "stage plan validates"
+        },
+        {
+          "type": "command",
+          "text": "every expert the plan runs wrote its record",
+          "cmd": ".venv/bin/python -c \"import yaml,pathlib,sys; u=pathlib.Path('k8s/overlays/usecases/invoice-intake/.builder'); p=yaml.safe_load((u/'stage-plan.yaml').read_text()); m=[e['role'] for e in p['spec']['experts'] if e.get('run') and not (u/'decisions'/(e['role']+'.yaml')).exists()]; print('missing:', m); sys.exit(1 if m else 0)\""
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
+          "schema": "gates",
+          "text": "gates.yaml consolidated and valid"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes: every record and gates.yaml validate, no cross-record error"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml",
+          "expr": "st('crawl').get('autonomy') == 'assistive'",
+          "text": "the plan caps Crawl at assistive autonomy"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('execution_bounds', s) for s in stages if st(s).get('choice') is not None) and setting('intent_validation', 'crawl') in ('schema', 'policy-judge')",
+          "text": "ai-engineering writes the posture: execution bounds at every stage, intent validation on at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml",
+          "expr": "all(setting('kill_switch', s) is not None for s in stages if st(s).get('choice') is not None)",
+          "text": "security states the kill switch at every stage it plans"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "setting('runtime', 'crawl') in ('python', 'typescript', 'go')",
+          "text": "architecture decides the workloads' runtime"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "setting('audit_artifacts', 'crawl') in ('run-trace', 'per-action') and listed(setting('eval_dimensions', 'crawl'))",
+          "text": "quality states audit artifacts and evaluation dimensions at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml",
+          "expr": "any(listed(v) for v in setting('raci'))",
+          "text": "business writes the RACI"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "text": "scaffold ran (scaffold.yaml)"
+        },
+        {
+          "type": "scaffold_check",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "scaffold-check is clean"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/usecase.yaml",
+          "text": "assembly wrote the use-case contract"
+        },
+        {
+          "type": "components_in_catalog",
+          "path": "k8s/overlays/usecases/invoice-intake/usecase.yaml",
+          "text": "every component of the contract is in the catalog"
+        },
+        {
+          "type": "kubeconform",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "the root overlay builds and passes kubeconform"
+        },
+        {
+          "type": "kubeconform",
+          "path": "k8s/overlays/usecases/invoice-intake/stages/walk",
+          "text": "stages/walk builds and passes kubeconform"
+        },
+        {
+          "type": "kubeconform",
+          "path": "k8s/overlays/usecases/invoice-intake/stages/run",
+          "text": "stages/run builds and passes kubeconform"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/log.md",
+          "pattern": "(?i)gates:",
+          "text": "log records the gates consolidation"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/log.md",
+          "pattern": "(?i)assembly:",
+          "text": "log records the assembly"
+        },
+        {
+          "type": "report_covers_open_questions",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "the review report names every open question of every record"
+        },
+        {
+          "type": "command",
+          "text": "ephemeral.sh up passes the verify Job (Crawl proof, G-Q-1); seconds in crawl-up-seconds.txt",
+          "cmd": "s=$(date +%s); ./scripts/ephemeral/ephemeral.sh up invoice-intake; rc=$?; echo $(( $(date +%s) - s )) > ../crawl-up-seconds.txt; ./scripts/ephemeral/ephemeral.sh down invoice-intake >/dev/null 2>&1 || true; exit $rc"
+        }
+      ]
+    },
+    {
+      "name": "cold-start-support-copilot",
+      "prompt": "I want to automate this in this repo with the Forjate use-case builder; call the use case support-copilot. Customers write to a Telegram group with questions about their orders and subscriptions. Two agents answer by hand, looking things up in the admin panel. We want a bot that answers the common questions itself, keeps the conversation context, and hands anything involving refunds or cancellations to a human with the full context attached. Do not ask me questions, these are the answers: everything in English; no context packs; customer success asks for it and the head of CS approves; the two support agents receive the escalations; the systems are the Telegram Bot API and the orders API, the system of record for about 40k customers' orders and subscriptions; about 200 chat messages a day; the data is PII; model providers outside the cluster are allowed; not regulated; budget 150 USD a month; the metric is the share of conversations resolved without a human, today 0%, target 60% within 3 months with escalations carrying the full context; crawl and walk for now; the bot answers on its own and escalates (semi-autonomous); it is customer-facing; no tenant isolation. Take it end to end in this session: brief, packs, stage plan (treat it as approved), every expert the plan runs, the consistency pass, gates consolidation, the app scaffold and the assembly, everything under k8s/overlays/usecases/<name>/, validated with plugins/forjate/scripts/builder/validate.py, and end with the review report. Do not start a cluster: whoever grades this run brings Crawl up with ./scripts/ephemeral/ephemeral.sh.",
+      "expected_output": "G2 rebuilt from its brief prompt with no fixture on disk: every record carries the posture; the outputs replace the golden records when validate.py has no errors.",
+      "assertions": [
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/brief.yaml",
+          "query": ".spec.data.classification",
+          "equals": "pii",
+          "text": "classification pii"
+        },
+        {
+          "type": "yaml_path",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/brief.yaml",
+          "query": ".spec.stages_requested | length",
+          "equals": "2",
+          "text": "crawl and walk requested"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "setting('session_store', 'crawl') not in (None, 'none') and 'session' in listed(setting('memory_kinds', 'crawl'))",
+          "text": "conversation context is session memory with a store at Crawl (whichever component holds it)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ux.yaml",
+          "expr": "listed(setting('disclosure', 'walk')) or has('none', setting('disclosure', 'walk'))",
+          "text": "customer-facing: ux states the disclosure at Walk"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/brief.yaml",
+          "schema": "brief",
+          "text": "brief validates"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml",
+          "schema": "stage-plan",
+          "text": "stage plan validates"
+        },
+        {
+          "type": "command",
+          "text": "every expert the plan runs wrote its record",
+          "cmd": ".venv/bin/python -c \"import yaml,pathlib,sys; u=pathlib.Path('k8s/overlays/usecases/support-copilot/.builder'); p=yaml.safe_load((u/'stage-plan.yaml').read_text()); m=[e['role'] for e in p['spec']['experts'] if e.get('run') and not (u/'decisions'/(e['role']+'.yaml')).exists()]; print('missing:', m); sys.exit(1 if m else 0)\""
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/gates.yaml",
+          "schema": "gates",
+          "text": "gates.yaml consolidated and valid"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "validate.py passes: every record and gates.yaml validate, no cross-record error"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/stage-plan.yaml",
+          "expr": "st('crawl').get('autonomy') == 'assistive'",
+          "text": "the plan caps Crawl at assistive autonomy"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('execution_bounds', s) for s in stages if st(s).get('choice') is not None) and setting('intent_validation', 'crawl') in ('schema', 'policy-judge')",
+          "text": "ai-engineering writes the posture: execution bounds at every stage, intent validation on at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/security.yaml",
+          "expr": "all(setting('kill_switch', s) is not None for s in stages if st(s).get('choice') is not None)",
+          "text": "security states the kill switch at every stage it plans"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "setting('runtime', 'crawl') in ('python', 'typescript', 'go')",
+          "text": "architecture decides the workloads' runtime"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "setting('audit_artifacts', 'crawl') in ('run-trace', 'per-action') and listed(setting('eval_dimensions', 'crawl'))",
+          "text": "quality states audit artifacts and evaluation dimensions at Crawl"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/business.yaml",
+          "expr": "any(listed(v) for v in setting('raci'))",
+          "text": "business writes the RACI"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
+          "text": "scaffold ran (scaffold.yaml)"
+        },
+        {
+          "type": "scaffold_check",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "scaffold-check is clean"
+        },
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/support-copilot/usecase.yaml",
+          "text": "assembly wrote the use-case contract"
+        },
+        {
+          "type": "components_in_catalog",
+          "path": "k8s/overlays/usecases/support-copilot/usecase.yaml",
+          "text": "every component of the contract is in the catalog"
+        },
+        {
+          "type": "kubeconform",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "the root overlay builds and passes kubeconform"
+        },
+        {
+          "type": "kubeconform",
+          "path": "k8s/overlays/usecases/support-copilot/stages/walk",
+          "text": "stages/walk builds and passes kubeconform"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/log.md",
+          "pattern": "(?i)gates:",
+          "text": "log records the gates consolidation"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/log.md",
+          "pattern": "(?i)assembly:",
+          "text": "log records the assembly"
+        },
+        {
+          "type": "report_covers_open_questions",
+          "path": "k8s/overlays/usecases/support-copilot",
+          "text": "the review report names every open question of every record"
+        },
+        {
+          "type": "command",
+          "text": "ephemeral.sh up passes the verify Job (Crawl proof, G-Q-1); seconds in crawl-up-seconds.txt",
+          "cmd": "s=$(date +%s); ./scripts/ephemeral/ephemeral.sh up support-copilot; rc=$?; echo $(( $(date +%s) - s )) > ../crawl-up-seconds.txt; ./scripts/ephemeral/ephemeral.sh down support-copilot >/dev/null 2>&1 || true; exit $rc"
+        }
+      ]
+    }
+  ]
+}

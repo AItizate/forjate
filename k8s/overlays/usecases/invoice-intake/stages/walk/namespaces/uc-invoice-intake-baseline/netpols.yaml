@@ -1,5 +1,5 @@
 # NetworkPolicies for uc-invoice-intake-baseline at walk: the PSA exception namespace of invoice-intake (security: psa_exceptions), default-deny like uc-invoice-intake.
-# Components: apps/ai-models/ollama, apps/ai-models/litellm, apps/document-processing/docling, apps/databases/postgres, apps/auth/gotrue-auth, apps/surveys/formbricks. Egress to anything outside the cluster is not allowed here; add it by hand if one of them needs it.
+# Components: apps/ai-models/ollama, apps/ai-models/litellm, apps/databases/postgres, apps/document-processing/docling, bundles/temporal-stack, apps/auth/gotrue-auth. Egress to anything outside the cluster is not allowed here; add it by hand if one of them needs it.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -64,17 +64,37 @@ spec:
           kubernetes.io/metadata.name: uc-invoice-intake
     ports:
     - protocol: TCP
-      port: 3000
-    - protocol: TCP
-      port: 4000
-    - protocol: TCP
       port: 5001
     - protocol: TCP
       port: 5432
     - protocol: TCP
-      port: 9999
+      port: 7233
     - protocol: TCP
-      port: 11434
+      port: 9999
+---
+# Hand edit (security shared-model-endpoint, G-ARCH-7): from the use case's namespace only worker reaches the gateway, and nothing reaches the model server directly.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-worker-to-gateway
+  namespace: uc-invoice-intake-baseline
+spec:
+  podSelector:
+    matchLabels:
+      app: litellm
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake
+      podSelector:
+        matchLabels:
+          app: worker
+    ports:
+    - protocol: TCP
+      port: 4000
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

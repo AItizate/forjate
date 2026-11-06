@@ -16,13 +16,13 @@ spec:
   - apps/minio/dev
   jobs:
     seed:
-      name: inv-seed
+      name: invoice-intake-seed
       timeout: 600
     run:
-      name: intake-job
+      name: worker
       timeout: 900
     verify:
-      name: inv-validate
+      name: invoice-intake-verify
       timeout: 600
   outputs:
     endpoints:
@@ -42,8 +42,12 @@ spec:
       service: minio
       port: 9000
       protocol: s3
-    - name: erp-stub
-      service: erp-stub
+    - name: odoo-stub
+      service: odoo-stub
+      port: 8001
+      protocol: http
+    - name: shared-imap-mailbox-stub
+      service: shared-imap-mailbox-stub
       port: 8001
       protocol: http
     secrets:

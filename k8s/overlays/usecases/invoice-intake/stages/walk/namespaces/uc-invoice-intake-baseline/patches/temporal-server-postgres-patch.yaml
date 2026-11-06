@@ -1,0 +1,37 @@
+# The engine never holds the admin login (security, data-store): its own role and two databases, no database creation.
+# ASSUMED env names and pool sizing, per data-store R15, to check against the image devops pins: SKIP_DB_CREATE, DBNAME, VISIBILITY_DBNAME, SQL_*_CONNS.
+# Pools: four services x (8 + 3) = 44, under the temporal role's CONNECTION LIMIT of 50.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-server
+spec:
+  template:
+    spec:
+      containers:
+      - name: temporal-server
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: temporal-postgres-secret
+              key: POSTGRES_USER
+        - name: POSTGRES_PWD
+          valueFrom:
+            secretKeyRef:
+              name: temporal-postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: DBNAME
+          value: temporal
+        - name: VISIBILITY_DBNAME
+          value: temporal_visibility
+        - name: SKIP_DB_CREATE
+          value: "true"
+        - name: SQL_MAX_CONNS
+          value: "8"
+        - name: SQL_MAX_IDLE_CONNS
+          value: "8"
+        - name: SQL_VIS_MAX_CONNS
+          value: "3"
+        - name: SQL_VIS_MAX_IDLE_CONNS
+          value: "3"

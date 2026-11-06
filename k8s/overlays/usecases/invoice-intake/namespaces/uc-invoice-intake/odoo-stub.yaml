@@ -1,0 +1,106 @@
+# odoo-stub: a workload the architecture record names, served from the scaffold's image.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: odoo-stub
+  namespace: uc-invoice-intake
+  labels: &id001
+    app: odoo-stub
+    forjate.io/usecase: invoice-intake
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: odoo-stub
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: odoo-stub
+        image: invoice-intake
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - -m
+        - invoice_intake.odoo_stub
+        env:
+        - name: WORKLOAD
+          value: odoo-stub
+        - name: DATA_CLASS
+          value: financial
+        - name: POSTGRES_HOST
+          value: postgres
+        - name: POSTGRES_PORT
+          value: '5432'
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        - secretRef:
+            name: double-admin-token
+        - secretRef:
+            name: odoo-lookup-po-token
+        - secretRef:
+            name: odoo-find-payable-token
+        - secretRef:
+            name: odoo-bank-ref-token
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: writable-0
+          mountPath: /tmp
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 8001
+          periodSeconds: 5
+          failureThreshold: 36
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8001
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        ports:
+        - containerPort: 8001
+      volumes:
+      - name: writable-0
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: odoo-stub
+  namespace: uc-invoice-intake
+  labels:
+    app: odoo-stub
+    forjate.io/usecase: invoice-intake
+spec:
+  selector:
+    app: odoo-stub
+  ports:
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP

@@ -18,11 +18,17 @@
      the agent API, Deployments of scaffold.yaml) through its *_URL variables, and those services reach
      others through theirs. For every service on that route, a request to its /readyz must be reachable from
      the Job's `main` (a helper called with the service's URL setting counts) before the first use of the
-     URL in the same function. Which variables a Job uses is read from its code, not from its env list.
+     request to the URL in the same function (reading the setting, as a guard on its host, is not a request).
+     A setting is wherever the code binds the env var's name: an assignment or a keyword argument. Which
+     variables a Job uses is read from its code, not from its env list.
      Components the app only calls (Docling, Ollama) are not scaffold workloads and are out of scope.
   6. When the use case has an assembled overlay (kustomization.yaml at its root), every scaffold workload
      with a health_path has a Deployment there whose container carries a startupProbe: a process that
      listens only after its store answers is not killed while it waits.
+  7. A workload that mounts a catalog component's Secret reads that Secret's keys as the catalog's
+     `wiring.secret.keys` names them (MinIO's are MINIO_ROOT_USER/MINIO_ROOT_PASSWORD, not an S3 SDK's
+     names): a key the app never reads is a credential it never gets. The verify Job (phase verify) never
+     runs MODEL_MODE=live: the Crawl gate runs where no provider key exists.
 
 Exit 1 with one finding per line; 0 clean.
 """
@@ -39,7 +45,7 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from common import load_yaml, schema_errors  # noqa: E402
+from common import load_catalog, load_yaml, schema_errors  # noqa: E402
 
 TOOL_LINE = re.compile(r"^\s*(?P<name>[a-z][a-z0-9_]*)\s*:\s*(?P<desc>[^\[]*?)\s*(\[(?P<flags>[^\]]*)\])?\s*$")
 TEMPLATE = re.compile(r"^AItizate/gh-actions-templates/\.github/workflows/(?P<name>[a-z0-9-]+-template\.yml)@(?P<ref>.+)$")
@@ -245,6 +251,9 @@ class Pkg:
                                 keys.add(t.id)
                             elif isinstance(t, ast.Attribute):
                                 keys.add(t.attr)
+                elif isinstance(node, ast.keyword) and node.arg:   # Settings(odoo_url=_env("ODOO_URL"))
+                    if any(isinstance(c, ast.Constant) and c.value == env_name for c in ast.walk(node.value)):
+                        keys.add(node.arg)
         return keys
 
     def resolve(self, mod: str, name: str) -> list[tuple[str, str]]:
@@ -285,6 +294,7 @@ class Waits:
     def __init__(self, pkg: Pkg):
         self.pkg = pkg
         self.helpers: dict[tuple[str, str], list[int]] = {}   # fn -> indexes of the parameters it requests /readyz on
+        self.http_helpers: dict[tuple[str, str], list[int]] = {}   # fn -> indexes of the parameters it requests, any path
         self.direct: dict[tuple[str, str], set[str]] = {}
         for key, fn in pkg.funcs.items():
             params = [a.arg for a in fn.args.args + fn.args.kwonlyargs]
@@ -292,6 +302,11 @@ class Waits:
                 subject = mentions(ast.Module(body=[ast.Expr(a) for a in call.args], type_ignores=[]))
                 self.direct.setdefault(key, set()).update(subject - set(params))
                 self.helpers.setdefault(key, []).extend(i for i, p in enumerate(params) if p in subject)
+            # A helper that requests whatever URL it is given (http_ready(url)) waits on /readyz when its
+            # caller passes a /readyz URL: http_ready(f"{settings.odoo_url}/readyz").
+            for call in (c for c in ast.walk(fn) if isinstance(c, ast.Call) and call_name(c) in HTTP_CALLS):
+                subject = mentions(ast.Module(body=[ast.Expr(a) for a in call.args], type_ignores=[]))
+                self.http_helpers.setdefault(key, []).extend(i for i, p in enumerate(params) if p in subject)
         self.effect: dict[tuple[str, str], set[str]] = {k: set(v) for k, v in self.direct.items()}
         changed = True
         while changed:
@@ -303,12 +318,20 @@ class Waits:
                     got |= self.call_effect(key[0], call)
                 changed |= len(got) != before
 
+    def is_request(self, mod: str, call: ast.Call) -> bool:
+        """An HTTP call, or a call to a function that makes one on what it is given."""
+        return call_name(call) in HTTP_CALLS or any(self.http_helpers.get(t) for t in self.pkg.resolve(mod, call_name(call)))
+
     def call_effect(self, mod: str, call: ast.Call) -> set[str]:
         out: set[str] = set()
         for target in self.pkg.resolve(mod, call_name(call)):
             out |= self.effect.get(target, set())
             for i in self.helpers.get(target, []):
                 if i < len(call.args):
+                    out |= mentions(call.args[i])
+            for i in self.http_helpers.get(target, []):
+                if i < len(call.args) and any(isinstance(c, ast.Constant) and isinstance(c.value, str) and "/readyz" in c.value
+                                              for c in ast.walk(call.args[i])):
                     out |= mentions(call.args[i])
         return out
 
@@ -400,9 +423,12 @@ def check_readiness(scaffold: dict, app: Path, findings: list[str]) -> None:
                 if not points:
                     continue
                 wait_calls = {id(n) for c in ast.walk(fn) if isinstance(c, ast.Call) and c.lineno in points for n in ast.walk(c)}
-                for n in ast.walk(fn):
-                    if isinstance(n, ast.Attribute) and id(n) not in wait_calls and n.lineno < points[0] and any(n.attr in keys for _, keys in vias):
-                        findings.append(f"workload {w['name']} ({w.get('phase')}): {key[0]}.{key[1]} uses {n.attr} (line {n.lineno}) before it waits for {svc}'s /readyz (line {points[0]})")
+                # a request to the URL before the wait is the race; reading the setting (a guard on its host) is not
+                for c in sorted((c for c in ast.walk(fn) if isinstance(c, ast.Call) and id(c) not in wait_calls
+                                 and c.lineno < points[0] and waits.is_request(key[0], c)), key=lambda c: c.lineno):
+                    hit = next((a for _, keys in vias for a in sorted(keys & mentions(c))), None)
+                    if hit:
+                        findings.append(f"workload {w['name']} ({w.get('phase')}): {key[0]}.{key[1]} uses {hit} (line {c.lineno}) before it waits for {svc}'s /readyz (line {points[0]})")
                         break
 
 
@@ -459,6 +485,27 @@ def check_startup_probes(uc: Path, scaffold: dict, findings: list[str]) -> None:
                 findings.append(f"workload {w['name']} has health_path {w['health_path']} but its container has no startupProbe in the overlay: "
                                 f"a process that listens only after its store answers is killed while it waits")
 
+def check_secret_keys(scaffold: dict, app: Path, findings: list[str]) -> None:
+    catalog = load_catalog()
+    if not catalog:
+        return
+    keys_of = {}
+    for c in catalog.get("components", []):
+        sec = (c.get("wiring") or {}).get("secret") or {}
+        if sec.get("name") and sec.get("keys"):
+            keys_of.setdefault(sec["name"], (c["path"], sec["keys"]))
+    mounted = {s for w in (scaffold.get("spec") or {}).get("workloads", []) for s in (w.get("secrets") or [])}
+    source = "\n".join(f.read_text(errors="replace") for f in (app / "src").rglob("*.py")) if (app / "src").is_dir() else ""
+    for w in (scaffold.get("spec") or {}).get("workloads", []):
+        if w.get("phase") == "verify" and "MODEL_MODE=live" in (w.get("env") or []):
+            findings.append(f"workload {w.get('name')}: the verify Job runs MODEL_MODE=live; the Crawl gate runs the double (replay or rules)")
+    for name in sorted(mounted & keys_of.keys()):
+        component, keys = keys_of[name]
+        unread = [k for k in keys if k not in source]
+        if unread:
+            findings.append(f"secret {name} ({component}): the app never reads {', '.join(unread)}; "
+                            f"the catalog's keys are {', '.join(keys)}, read them by that name")
+
 
 def main(argv: list[str]) -> int:
     as_json = "--json" in argv
@@ -501,6 +548,8 @@ def main(argv: list[str]) -> int:
         check_startup_probes(uc, scaffold, findings)
     check_workflows(app, findings)
     check_dockerfile(app, findings)
+    if scaffold:
+        check_secret_keys(scaffold, app, findings)
     if as_json:
         print(json.dumps(findings, indent=2))
     else:

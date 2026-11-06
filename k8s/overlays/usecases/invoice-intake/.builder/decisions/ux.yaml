@@ -1,6 +1,11 @@
 apiVersion: forjate.io/v0
 kind: Decision
-metadata: { area: ux, usecase: invoice-intake, author: "forjate:ux", version: 1, language: en }
+metadata:
+  area: ux
+  usecase: invoice-intake
+  author: forjate:ux
+  version: 1
+  language: en
 spec:
   stages:
     crawl:
@@ -10,117 +15,521 @@ spec:
         surface_workload: none
         channel: none
         audiences:
-          - "finance ops lead: reads the verify Job log and the review_queue table through kubectl and psql"
-          - "AP clerk: not involved at Crawl; nothing is posted and nothing needs approval"
+          - "delivery team: runs the disposable cluster, reads the verify Job log (item ids, reasons, KPI line) and exports the seeded exceptions report from the review_queue and items tables with psql, inside the 4 h environment TTL"
+          - "finance ops: reads the verify Job log and the report, and judges whether a row is enough to decide on"
+          - "AP clerk: goes through the seeded exceptions report in a working session led by the delivery team, two to three hours a week; nothing is clicked and nothing is written"
+          - "CFO: reads the Crawl report with the number measured by G-Q-2 and signs G-BIZ-1"
         hitl_checkpoints:
-          - "none: the review queue is a table the verify Job asserts on; no human approves anything because the ERP is a stub and no posting is real"
+          - "supplier-amount-po-mismatch: rule (exact match on supplier and PO number, amount tolerance 0; plan assumption, business Q8) puts the seeded item on the AP clerk's exception list with reason=mismatch and the fields that differ [deterministic]"
+          - "po-missing-or-unreadable: rule (no PO number extracted, or lookup_po finds none) lists the item for the AP clerk with reason=po-missing [deterministic]"
+          - "partial-delivery: rule (supplier and PO match, invoiced amount below the PO amount) lists the item for the AP clerk with reason=partial-delivery [deterministic]"
+          - "duplicate-or-resent: rule (same attachment key, Message-ID + attachment sha256 or UIDVALIDITY + UID where a message has no Message-ID; or same supplier and invoice number) lists the item for the AP clerk with reason=duplicate, the earlier item linked and no posting recommendation [deterministic]"
+          - "bank-details-differ: rule (the salted hash of the bank account on the invoice differs from get_supplier_bank_ref) lists the item for the AP clerk with reason=bank-details-differ and the recommendation withheld, although amount and PO match; the clerk checks the source document and can escalate to finance ops [deterministic]"
+          - "not-an-invoice-or-illegible: rule (the document is not classified as an invoice, or cannot be read) lists the item for the AP clerk with reason=parse-failed and the failed step [deterministic]"
+          - "low-confidence: rule (schema still invalid after one repair, or an amount, date or PO number not found literally in the source text; the AI-engineering record has no numeric score) lists the item for the AP clerk with reason=low-confidence and the fields named [deterministic]"
+          - "budget-exhausted: rule (over 2 model calls, 10 steps, 8000 tokens per request or 600 s per step) ends the attempt and lists the item for the AP clerk with reason=timeout and the failed step [deterministic]"
+          - "file-out-of-bounds: rule (not a PDF, over 10 MB or over 20 pages) lists the item for the AP clerk with reason=parse-failed and the bound named, never truncated [deterministic]"
+          - "dead-letter-review: rule (corrupt PDF that no step can process) puts the key, the failed step and reason=parse-failed in review_queue with no invoice content in the reason, which the report shows to the AP clerk [deterministic]"
+        escalation_context: >-
+          One report row, in this order: item id, received-at, sender, PDF object key; PO fields and bank hash comparison
+          (same, different or unknown) as read from the Odoo double; tools consulted; the check that fired, the failed step
+          and the fields that disagree; extracted supplier, invoice number, amount, currency, date and PO number, each with its
+          literal-source result; reason; recommendation last. The bank account number itself is never a field: it stays on the PDF.
         feedback_capture: verify-job-log
-        latency_budget: "batch: 20 PDFs within the 10 minute run Job budget; nobody waits on screen"
+        feedback_prompt: >-
+          One question in the working session: could you decide this exception from this row alone? Finance ops reads the
+          answers once per seeded exception; corrections become golden-set labels; skippable.
+        latency_budget: >-
+          Batch shape and nobody waits. invoice-intake-verify runs 12 items on the replay double with no model call, in 2 to 12
+          minutes of parsing. invoice-intake-eval runs 50 items on the live CPU model within 3 h (2.5 h at the AI-engineering
+          record's ASSUMED 3 minutes per invoice), so the report can still be taken inside the 4 h TTL; G-AI-5 measures it. The
+          bound is 2 model calls and 600 s per step per invoice. A step past the bound records the item with reason=timeout and
+          the pass moves on; past the Job deadline the Job fails loudly and lists the items not processed.
         streaming: none
         failure_ux:
-          - "parse failure: a review_queue row with reason=parse-failed, visible in the verify log"
-          - "extraction timeout: the item is routed to review with reason=extraction-timeout and the batch continues"
-          - "batch failure: ephemeral.sh exits non-zero with the failing assertion named; no partial posting exists to clean up"
+          - "corrupt PDF: the report shows the key, failed step and reason=parse-failed; the item lands in review_queue"
+          - "schema or literal-source validation failed: the report shows reason=low-confidence and the fields named; the item lands in review_queue"
+          - "step, token or model-call budget exhausted: the report shows reason=timeout and the failed step; the item lands in review_queue and the pass moves on"
+          - "file over 10 MB, over 20 pages or not a PDF: the report shows reason=parse-failed with the bound named; the item lands in review_queue"
+          - "Odoo double unreachable: the log shows reason=lookup-failed, which the verify Job separates from an expected exception and fails on; the item stays in review_queue"
+          - "mailbox double unreachable: the verify Job fails and prints that intake read 0 items; nothing lands because nothing was read"
+          - "worker killed mid-pass: the rerun resumes by key and the counts match a clean pass (G-ARCH-1); the delivery team sees it in the log"
+          - "duplicate delivery: the report shows reason=duplicate with the earlier item linked; it lands in review_queue and no second result is counted"
+          - "write call on the Odoo double: the verify Job fails with the count (G-Q-3); nothing is kept"
+          - "log carrying a field value or a bank number: the log-content-scan gate G-SEC-4 fails; the run is not accepted as evidence"
+          - "seeded data past the 4 h TTL: the report is gone with the cluster; the delivery team reruns ephemeral.sh, since the seed is deterministic"
         auth_in_front: none
+        identity_provider: none
         ui_language: en
-        escalation_context: "review_queue row: invoice id, supplier, extracted fields, PO fields side by side, reason, PDF object reference"
         onboarding: none
+        eval_dimensions:
+          - "latency: p95 per item against 180 s on invoice-intake-eval, the 600 s step bound exercised by the G-AI-4 app test that routes the item with reason=timeout, and the eval run against 3 h with the unprocessed items listed at the limit"
+        review_mode: evidence-first
+        review_independence: n-a
+        disclosure: "none: no user surface exists, the data is synthetic, and everyone in the working session knows the fields came from a model"
+        autonomy: assistive
       rationale: >-
-        No packs constrain the surface, so the factory defaults apply. Crawl is a batch over seeded PDFs
-        against a stub ERP, so the right surface is no surface: the finance ops lead reads the verify
-        Job log and the review_queue table, which already carry everything a clerk would see at Walk.
-        A chat UI here would invent a user the stage does not have, and a review web app would be
-        built before anyone has seen what an exception looks like. What Crawl does decide is the shape
-        of the escalation context, because the review queue the clerk uses at Walk is this table plus a
-        page: every exception row carries the reason, the extracted values next to the PO values and a
-        reference to the PDF, and the verify Job asserts that for each of the five seeded exceptions.
+        Who is in front of it: the requester and the delivery team, with the AP clerk in working sessions. Where they are:
+        nowhere new; the architecture record's Crawl has no Ingress or web review surface and hands the clerk the seeded
+        exceptions as a report. Exception path: yes, so Crawl fixes the shape of the escalation context, because the Walk page
+        is that shape plus the clerk's call and a button. Goal naming a person using the result: no, so the surface is the log
+        and the report. There is no token at Crawl because write_actions is none and the ceiling is assistive: each result is a
+        recommendation a person acts on outside the system, so review_independence is n-a and only the evidence order is
+        proved. The rows live in the tables and the report, not the log, because G-SEC-4 forbids payloads and bank numbers in
+        logs even when synthetic: the log prints ids, reasons and the KPI line. The tables die at the 4 h TTL, which is why the
+        delivery team exports the report; the export is synthetic data and may outlive the cluster. Checkpoints map the six
+        business as_is_exceptions (five ASSUMED there) and each AI-engineering escalation trigger. Reasons use the data-pipeline
+        vocabulary, the one the verify Job asserts: mismatch, po-missing, partial-delivery, duplicate, bank-details-differ,
+        parse-failed, low-confidence, timeout and lookup-failed. Poison items sit in review_queue, with no table of their own,
+        where the clerk already looks. A non-invoice, a corrupt PDF and a file out of bounds share parse-failed, told apart by
+        the failed step. low-confidence is defined here by literal-source and schema validation, because the AI-engineering
+        record has no confidence score and a numeric threshold would be invented (Q8). Any budget breach reads timeout, with the
+        failed step saying which limit. auth_in_front is copied from the architecture and security records, which agree. The
+        regulated-corp pack resolves no entry for this role, so factory defaults apply and constrained_by is empty. No chat-ui or
+        feedback component is chosen: nobody converses, and the catalog marks the feedback capability fit from Walk.
       alternatives:
-        - { option: Open WebUI as a Crawl demo surface, rejected_because: "the use case has no conversation; a chat front-end on a batch would demo the model, not the intake, and the finance ops lead needs the exception list, not a prompt box" }
-        - { option: a review web app already at Crawl, rejected_because: "nothing is approved at Crawl; the page would be designed before the exception shapes are known, and the verify Job already proves the context a clerk needs" }
+        - option: A review page at Crawl.
+          rejected_because: >-
+            The plan puts a production-grade queue out of Crawl, the architecture record renders no Ingress, and a page designed
+            before anyone has read a seeded exception gets rebuilt. The Crawl output is the row shape the page will show.
+        - option: A notebook over the seeded results for finance ops.
+          rejected_because: Finance ops needs one verdict and a list of exceptions, not exploration; a notebook is one more endpoint for what one psql export gives.
+        - option: Print the full escalation context in the verify Job log.
+          rejected_because: >-
+            G-SEC-4 scans workload logs for invoice payloads and bank account numbers, and the pipeline's seed has a known bank
+            string for that scan. A rule that holds only on real data is untested when real data arrives.
+        - option: A separate dead_letter table for poison items.
+          rejected_because: >-
+            The data-pipeline record rejects it, and rightly for this surface: a second place to look is how poison items go
+            unread. The key, failed step and reason code live in review_queue.
       risks:
-        - { id: R1, text: "the verify log is the only surface, so a stakeholder who is not comfortable with kubectl sees nothing", mitigation: "the Job prints a one-screen summary (counts per reason, the KPI line, the three mismatches) that the coordinator pastes into the report", severity: low }
+        - id: R1
+          text: "Crawl fixes a context shape on synthetic exceptions that may not look like real ones, and five of the six as-is exception classes are ASSUMED by the business record."
+          mitigation: "The AP clerk works through the report (G-UX-2), says what is missing and which exceptions never happen, and finance ops supplies real invoice shapes (business friction data-readiness)."
+          severity: medium
       gate_to_next:
-        - { id: G-UX-2, text: "every seeded exception has a review_queue row with the fields a clerk needs to decide: reason, extracted values next to the PO values, PDF reference", owner: ux, check: { type: verify-job, ref: inv-validate } }
+        - id: G-UX-1
+          text: >-
+            For each of the 10 seeded exception items, the report carries every escalation_context field in the stated order with
+            the recommendation last and the expected reason, and the corrupt PDF appears in review_queue with reason=parse-failed; the
+            recommendation is withheld on the changed-bank item; the verify Job log carries ids, reasons and the KPI line and no field value.
+          owner: ux
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-UX-2
+          text: >-
+            The AP clerk confirms on the seeded exceptions that the row is enough to decide each one and lists what is missing;
+            finance ops signs the result into the Crawl report.
+          owner: ux
+          check: { type: manual, ref: Crawl report }
     walk:
-      choice: [apps/surveys/formbricks]
+      choice: []
       settings:
         surface: custom-web
         surface_workload: review-api
         channel: none
         audiences:
-          - "AP clerk: the review queue of exceptions, approve or reject with the PO side by side, one invoice per screen"
-          - "finance ops lead: weekly straight-through and exception report, the feedback summary"
-          - "CFO: the Walk report"
+          - "AP clerk and backup reviewer: the review queue page served by review-api, every invoice one at a time since every write is approved at this stage; the list shows sender, received-at and age, with no extracted field, reason or recommendation before the clerk's own call"
+          - "finance ops: items handed over on the same page, read-only, the audit log, and a weekly summary of flags, corrections, disagreements and queue age"
+          - "CFO: the Walk report with G-Q-4's number, the approval count and actual cost, and the audit log; no queue access"
+          - "tenant IT (ASSUMED, business Q2): golden-signal dashboards and alerts for backlog, extraction failures, queue age and posting errors; the kill switch; cursor replay; the engine UI only by port-forward under cluster RBAC, since its Ingress is deleted"
+          - "compliance owner (unnamed, business Q1): read-only approval and per-action records in the audit log and audit bucket, until the Run audit view exists"
         hitl_checkpoints:
-          - "mismatch-approval: the AP clerk approves or rejects any invoice whose amount, supplier or PO number differs from the purchase order, in the review queue; approval issues the token post_to_erp requires [token]"
-          - "bank-account-change: a checkpoint even when the amount matches; the clerk confirms the new account against the supplier record [token]"
-          - "parse-failed: the clerk types the four fields from the PDF or rejects the item; it never auto-posts [token]"
-        feedback_capture: formbricks
-        feedback_prompt: "one question after each approval (was the extraction right?) with an optional free-text field; a weekly summary to the finance ops lead; skippable"
-        latency_budget: "queue refresh within 10 minutes of mailbox arrival (the poll interval); the clerk never waits on a model call: extraction is asynchronous and an item appears in the queue when it is ready"
+          - "invoice-post-approval: the AP clerk approves, corrects and approves, or rejects each invoice in the review queue, after recording their own call; approval makes review-api issue the single-use, expiring token, signed with its private key and bound to the reviewer identity and the hash of the exact fields, which post_invoice requires [token]"
+          - "supplier-amount-po-mismatch: rule (exact match on supplier and PO number, amount tolerance 0; plan assumption, business Q8) marks the item reason=mismatch with the fields that differ; the clerk decides it at invoice-post-approval [deterministic]"
+          - "po-missing-or-unreadable: rule (no PO number extracted, or lookup_po finds none) marks the item reason=po-missing for the clerk to link a PO found in Odoo or reject [deterministic]"
+          - "partial-delivery: rule (supplier and PO match, invoiced amount below the PO amount) marks the item reason=partial-delivery with the PO amount beside the invoiced one [deterministic]"
+          - "duplicate-or-resent: rule (a resend the attachment key cannot stop, or find_payable or working memory has the same supplier and invoice number) marks the item reason=duplicate with the earlier item linked and no posting recommendation; a byte-identical re-delivery under the same Message-ID + attachment sha256 starts no workflow [deterministic]"
+          - "bank-details-differ: rule (the salted hash of the bank account on the invoice differs from get_supplier_bank_ref, or no known account exists) marks the item reason=bank-details-differ with the recommendation withheld, and holds approve until the clerk records the out-of-band check with the supplier (Q4) [deterministic]"
+          - "not-an-invoice-or-illegible: rule (the document is not classified as an invoice, or cannot be read) marks the item reason=parse-failed with the failed step, for the clerk to reject or type the fields [deterministic]"
+          - "low-confidence: rule (schema still invalid after one repair, or an amount, date or PO number not found literally in the source text; the AI-engineering record has no numeric score) marks the item reason=low-confidence with the fields named [deterministic]"
+          - "budget-exhausted: rule (over 2 model calls, 12 steps, 8000 tokens per request or 300 s per step) ends the attempt and marks the item reason=timeout with the failed step [deterministic]"
+          - "file-out-of-bounds: rule (not a PDF, over 10 MB or over 20 pages) marks the item reason=parse-failed with the bound named, never truncated [deterministic]"
+          - "dead-letter-review: rule (corrupt PDF that no step can process) puts the key, failed step and reason=parse-failed in review_queue; there is no evidence to call on, so no own-call is asked, and the clerk chases the supplier in their own tool and rejects the item, which leaves it decided for G-PIPE-4 [deterministic]"
+          - "finance-ops-escalation: rule (the clerk marks an item as one they cannot settle) hands it to finance ops, who settle it with the supplier in their own tools and return a note; the clerk still decides at invoice-post-approval [deterministic]"
+        escalation_context: >-
+          Review item, revealed in this order: first the source PDF, the PO fields as read from Odoo with their read time, the
+          bank comparison (same, different or unknown) and the tools consulted; then the clerk's own call (matches, does not
+          match, cannot tell), one click and no typing; then the extracted supplier, invoice number, amount, currency, date and PO
+          number beside the PO fields, each with its literal-source result; then the check that fired, the failed step, the fields
+          that disagree and the reason, with the earlier item linked when reason=duplicate; the recommendation last, then approve,
+          correct or reject. The bank account number appears only on the PDF.
+        feedback_capture: review-queue-flag
+        feedback_prompt: >-
+          One flag on the review item after the decision: was this extraction wrong? A reason from a short fixed list, no free
+          text because bank numbers and contacts would land in it, skippable. Finance ops reads the summary weekly; flagged items
+          are candidates for the golden set under ai-engineering Q3.
+        latency_budget: >-
+          Queue shape, and the clerk never waits on a model call: review-api calls no model, and an invoice appears as finished
+          within 30 minutes of reaching the mailbox (15-minute poll, up to 60 s of parsing and two 300 s model calls, which is 26
+          minutes, plus queueing; ASSUMED until G-AI-5 and business Q7). The queue refreshes every 60 s, an item opens within 2 s
+          at p95, and approval returns at once and shows posted within 60 s. Past 30 minutes the item shows awaiting extraction
+          with its age and the backlog alert fires; a breach of the bound (12 steps, 300 s per step) lands it in the queue with
+          reason=timeout; past 60 s the item shows posting delayed with the error, and retries with the same payable key.
         streaming: none
         failure_ux:
-          - "parse failure: the item lands in review with reason=parse-failed and the PDF inline; the clerk types the four fields or rejects it"
-          - "extraction slow or failed: the item shows 'awaiting extraction', then lands in review with its reason; the clerk can type the fields by hand"
-          - "Odoo posting failed: the item returns to the queue with the Odoo error text, the worker retries with the same idempotency key, the clerk sees a status and never a stack trace"
-          - "not signed in: redirect to the identity provider; no anonymous view of any invoice"
-          - "duplicate invoice: shown with the earlier item linked, one click to confirm the duplicate"
+          - "corrupt PDF: the clerk sees the key, failed step and reason=parse-failed in the review queue; it stays there until decided, and the queue-age alert fires"
+          - "schema or literal-source validation failed: the clerk sees reason=low-confidence, the PDF and the fields named; it lands in the review queue"
+          - "budget exhausted or model timeout: the clerk sees reason=timeout, the failed step and the PDF, with fields empty where none came back, to type; it lands in the review queue"
+          - "model, gateway or parser down: no item is lost; the clerk sees a banner with the count awaiting extraction and the oldest age, tenant IT receives the backlog alert, and workflows retry and wait"
+          - "file over 10 MB, over 20 pages or not a PDF: the clerk sees reason=parse-failed with the bound named; it lands in the review queue, never truncated"
+          - "Odoo read down: the clerk sees reason=lookup-failed with the error and a retry status, and approve is held; the item stays in the queue and is matched again when Odoo returns"
+          - "Odoo posting failed: the clerk sees the item back in the queue with the error text and a retry status; retried on the payable key (supplier VAT id + supplier invoice number) after the lookup, so no second payable"
+          - "Odoo already holds the bill when post retries: the item shows posted with the Odoo id, marked found by lookup; it lands completed, with no second payable"
+          - "Odoo cannot find a bill by the key (architecture R4, Q1): posting stays manual; the page marks the approved item for manual entry by the clerk, and the CFO is asked"
+          - "token expired or refused by the policy judge: the clerk sees the item back in the queue with the refusal reason and approves again against the current fields; nothing is written"
+          - "PO changed in Odoo before posting: the clerk sees the changed fields with approve held, and the item is matched again and stays in the queue (Q2)"
+          - "approval wait past the workflow timer: the item stays in the queue with its age and the alert goes to finance ops and tenant IT; it never auto-approves or auto-rejects (timer length waits on business Q7)"
+          - "workflow engine down: the clerk sees posting paused and cannot record an approval, and tenant IT receives the alert; items and approvals already recorded wait without loss (G-ARCH-4)"
+          - "review store (Postgres) down: the clerk sees an error page, tenant IT receives the alert; the queue and audit trail stop together and nothing posts, because no token can be issued (data-store R3)"
+          - "source PDF unavailable (object store down): the item shows PDF unavailable and approve is held, because evidence comes first; it stays in the queue"
+          - "approval record could not be written: the clerk sees that the approval was not recorded and approve is offered again; no Odoo write happens (data-store R4, G-Q-5)"
+          - "mailbox unreachable: the clerk sees a banner with intake stalled since a time, tenant IT receives the alert; mail stays in the mailbox because reads are read-only"
+          - "UIDVALIDITY change: the poller rescans and, because the attachment key is Message-ID + attachment sha256, starts 0 workflows; the page shows nothing and tenant IT reads it in the logs. A message with no Message-ID falls back to UIDVALIDITY + UID, so it can start again and lands in the queue with reason=duplicate"
+          - "message moved or deleted before a poll: nobody on the page can see it; finance ops sees the mailbox-to-workflow gap in the weekly summary and gets each difference explained, re-requesting the invoice if needed (R10)"
+          - "duplicate or re-delivered invoice: a byte-identical re-delivery under the same attachment key starts nothing; a resend in a new email shows the clerk the item with the earlier one linked and one click to reject, and creates no second payable"
+          - "supplier not found in Odoo: the clerk sees reason=mismatch with the supplier field named, sender and PDF; it lands in the queue, and nothing creates a supplier in Odoo"
+          - "instructions planted in a PDF: the model holds no tools, so at most a field is wrong and the literal-source and PO checks catch it (G-SEC-7, G-AI-2); the clerk sees reason=low-confidence or reason=mismatch, and it lands in the queue"
+          - "not signed in or outside the clerk group: redirect to the identity provider, or a refusal; no anonymous view and no item moves"
+          - "kill switch tripped: review-api reads the paused state and the page shows paused with who and when; approve is held, a post carrying an issued token is refused by the policy judge, worker stops at its next model call and invoices wait without becoming reason=timeout items (G-SEC-23)"
+          - "paused state unreadable (working store down): the judge fails closed and nothing posts; the page shows the error page of the review store line above, never an unpaused queue"
         auth_in_front: oauth2-proxy
-        identity_provider: gotrue
+        identity_provider: auth-gotrue-auth
         ui_language: en
-        escalation_context: "review_queue row: invoice id, supplier, extracted fields, PO fields side by side, reason, PDF rendered inline, the earlier item when duplicate"
-        onboarding: "a 30-minute walkthrough with the two AP clerks on the seeded exception set before real invoices arrive; the clerks' sign-off is a manual gate"
+        onboarding: >-
+          A 30-minute walkthrough of the review page on the seeded exception set with the real AP clerks and the backup reviewer
+          before the first real invoice; the Walk window then serves as the shadow period the business record names.
+        eval_dimensions:
+          - "latency: p95 per item from mailbox arrival to finished in the queue against 30 minutes, p95 item open against 2 s, approval to posted against 60 s; the limits exercised by an over-budget model fixture and an Odoo-down fixture that land the item in the queue with its reason"
+        review_mode: evidence-first
+        review_independence: independent
+        control_levels:
+          - "AP clerk: approve"
+          - "backup reviewer: approve"
+          - "finance ops: direct, audit"
+          - "CFO: audit"
+          - "tenant IT (ASSUMED, business Q2): operate"
+          - "compliance owner (unnamed, business Q1): audit"
+        disclosure:
+          - "review page header: fields and recommendations on this page come from a model running in the organisation's cluster; the reviewer decides"
+          - "approval record: the signed-in AP clerk is the named person accountable for the posted amount, with decision and timestamp; finance ops stays accountable for the process"
+          - "suppliers: no agent contact exists, since the clerk or finance ops writes to them in their own tools, so there is nothing to disclose outside"
+        autonomy: semi-autonomous
       rationale: >-
-        At Walk a human approves exceptions and nothing else, so the surface is the review queue the
-        architecture record already names as the review-api workload: a custom web page, one invoice
-        per screen, the extracted fields next to the PO fields, approve or reject. It sits behind
-        oauth2-proxy and GoTrue, the same auth_in_front the architecture and security records carry,
-        because the approval releases a payable and the audit trail needs a clerk, not a shared link.
-        Every checkpoint that issues the approval token post_to_erp requires is listed here so the
-        AI-engineering and security records can point at it. Feedback is captured with Formbricks (the
-        catalog's feedback component, fit from Walk) as one question after each approval, because the
-        extraction's blind spots show up in what the clerk corrects, not in the KPI. Latency is a queue
-        problem, not a spinner: extraction runs asynchronously behind the 10-minute mailbox poll and the
-        clerk sees finished items, so the 40 s CPU extraction the AI-engineering record warns about never
-        blocks a person. Failures are statuses on the item with a next action the clerk can take.
+        Who: the AP clerk, every invoice at this stage, plus finance ops on hand-overs. Where: they work in Odoo and the mailbox
+        today. Exception path: yes, with a token, so it gets a surface with the source of truth side by side and a per-person
+        audit, which neither the mailbox nor a CSV gives. Goal: the plan says the clerk relies on it, so the surface is theirs. A
+        custom page rather than Odoo, because the evidence order, the clerk's call and the token have to be enforced, and a draft
+        bill is itself an Odoo write before approval; Q3 keeps that choice with the requester. The architecture record serves it:
+        review-api serves the page, the own-call before reveal, the token issue and the Run audit view, and oauth2-proxy sits in
+        front, copied from the architecture and security records, which agree. How the clerk reaches the Ingress is architecture
+        Q2, and the login behind the identity provider is security Q7. One checkpoint issues the post_invoice token, so the tool
+        has one issuer; the security record settles the signing: asymmetric, with the private key in review-api alone and the
+        public key in posting-worker, so the process that spends tokens cannot mint them. request_approval needs a deterministic
+        result rather than a person, so it has no checkpoint here. Each as-is exception and each escalation guardrail is a
+        deterministic reason that routes and shapes what the clerk sees. The second AI-engineering escalation line, matched
+        invoices also waiting for the token, is the invoice-post-approval checkpoint itself. This record confirms what security
+        Q5 and Q6 asked of UX. The control levels match access_by_persona, and the backup reviewer is a named member of
+        invoice-intake-ap-clerk with a login of their own. The kill switch is the security record's: one action revokes the gateway
+        key and writes a paused state with who and when, the judge fails closed on it, and review-api reads it to hold approve and
+        show paused. Which table holds that state stays with security Q6 and data-store. For data-pipeline Q5, this record follows
+        the Message-ID + attachment sha256 key with UIDVALIDITY + UID as the fallback and a rescan on a UIDVALIDITY change, with no
+        halt: a rescan that starts nothing has nothing for a person to decide, so the page stays quiet. review_independence applies to
+        invoice-post-approval and is independent because the risk profile is regulated-decision and high-impact-action; the
+        deterministic lines have no approval to make independent. Independence here is one click, never retyped values, which would
+        bring back the manual typing the KPI measures. The list hides extracted values and the reason for the same purpose, since a
+        list sorted by verdict gives the verdict away. Routing criteria are the ones the other records state: exact match,
+        literal-source validation, budget and file bounds. They change only by pull request with the golden set (G-Q-6), by finance
+        ops, who hold no approve, so nobody both moves the rules and approves what they route. The evidence needs a path that the
+        other records do not give yet: review-api has no Odoo credential, and the stores keep no copy of purchase orders (Q2).
+        feedback is a flag on the item, and the feedback component is rejected below, so choice stays empty. This record also answers
+        the human-in-the-loop item of the DPIA scope in the compliance record. The regulated-corp pack resolves no entry for this
+        role; factory defaults apply.
       alternatives:
-        - { option: Open WebUI as the clerk's surface, rejected_because: "it is a chat front-end; the clerk needs a queue with the PO side by side and an approve button that issues a token, none of which a prompt box gives" }
-        - { option: approval by replying to an email, rejected_because: "no per-clerk identity, no audit of who approved what, and a forwarded email becomes an approval; the IdP in front of a page is what makes the token mean something" }
-        - { option: a Formbricks survey at Crawl, rejected_because: "the catalog marks the component fit from Walk and there is no clerk to ask at Crawl" }
+        - option: existing-tool, with a draft bill in Odoo validated by the clerk.
+          rejected_because: >-
+            Creating the draft is an Odoo write before approval, against the Walk scope and against the single write path of
+            posting-worker; Odoo cannot hold back the recommendation until the clerk's call or issue the token, so the review would
+            be a verdict-first confirmation. The clerk does live in Odoo, so this stays open with the requester (Q3).
+        - option: Approval by reply in the shared mailbox.
+          rejected_because: >-
+            Everyone with the mailbox sees every approval, a mail reply carries no token and no reliable per-person audit, and a
+            spoofed reply becomes a write path, from a channel already marked untrusted input.
+        - option: A CSV of exceptions in a shared folder.
+          rejected_because: It is a surface too, and it lacks the token, per-person audit, evidence order and any way to contain the fields once copied.
+        - option: The chat-ui component from the catalog as the review surface.
+          rejected_because: It is the fastest conversational demo and the wrong queue, with no side-by-side, token or per-item reason, and nobody here converses.
+        - option: The feedback component from the catalog on the review page.
+          rejected_because: >-
+            The surface is a queue, whose feedback is a flag on the item. The catalog also lists only internal and pii among its
+            data classes, with psa_restricted false while Walk enforces PSA restricted (G-SEC-5), and free text would invite bank numbers.
+        - option: verdict-only review, showing the recommendation first to save clerk time.
+          rejected_because: >-
+            Automation bias turns it into a confirmation step, and business R6 and G-AUT-1 depend on the approvals meaning
+            something. The cost of evidence-first is one click, and it is measured (G-UX-5).
+        - option: Showing a masked bank number on the page, such as the last four digits.
+          rejected_because: >-
+            The AI-engineering and data-store records keep only a salted hash and no number in Postgres. The comparison result plus
+            the PDF gives the clerk what they need, with no new stored field.
       risks:
-        - { id: R2, text: "clerks bypass the queue and type into Odoo directly when the queue feels slow, so the approval token path is skipped and the straight-through metric is wrong", mitigation: "the queue is the only path that issues the token; a posting that did not come through it is visible in the straight-through metric and the weekly report names it", severity: medium }
-        - { id: R3, text: "feedback fatigue: one question per approval is ignored after a week", mitigation: "the question is skippable, the response rate is a metric gate rather than a demand, and the weekly summary goes back to the clerks so they see it was read", severity: low }
+        - id: R2
+          text: "Rubber-stamping: 300 approvals a month, mostly matches, teach the clerk to click through, and G-AUT-1 would be signed on false evidence (business R6, ai-engineering R6)."
+          mitigation: "Evidence-first order enforced by review-api, the clerk's own call before the reveal, the disagreement rate and median review time reported (G-UX-5), plus the independent amount check the quality expert defines."
+          severity: high
+        - id: R3
+          text: "Bypass: a clerk keeps typing invoices into Odoo from the mailbox out of habit or under pressure; the system then meets the same invoice again, or the KPI loses invoices silently."
+          mitigation: "find_payable catches the bill and marks the item reason=duplicate; finance ops decides who keeps mailbox access (Q5); the walkthrough states the rule, and duplicates found that way are counted in the summary."
+          severity: high
+        - id: R4
+          text: "Bank detail fraud: a changed account on an otherwise matched invoice is the classic invoice attack. A soft flag would be clicked past, and a block nobody owns would stall the item."
+          mitigation: "bank-details-differ withholds the recommendation and holds approve until the out-of-band check is recorded; the seed includes the case. Who may record it, and whether Odoo holds known accounts at all, is Q4."
+          severity: high
+        - id: R5
+          text: "Shared mailbox visibility: anyone with the mailbox can read bank account numbers in the PDFs, outside every control on the review page, and the page itself shows them on the PDF to every signed-in reviewer."
+          mitigation: "No approval travels by mail, and no number is copied into a field. PDF access goes through oauth2-proxy with a per-person access trail; who can still read the mailbox is Q5, which security R11 also tracks."
+          severity: medium
+        - id: R6
+          text: "Key person: one clerk role with no backup (business Q10) means absence stops every posting, because nobody else holds approve."
+          mitigation: "Finance ops names a backup reviewer who attends the walkthrough and joins invoice-intake-ap-clerk with their own login before the first real invoice. Finance ops does not cover, which would break the separation in control_levels."
+          severity: medium
+        - id: R7
+          text: "Added work before benefit: reviewing every invoice with one extra click may lengthen a turnaround nobody has stated (business R5, Q7), and the clerk may lose patience with the surface."
+          mitigation: "Median review time and queue age appear in the weekly summary; the walkthrough and protected hours come first. If the call proves too costly, narrowing it is a recorded decision by finance ops, not a quiet removal."
+          severity: medium
+        - id: R8
+          text: "Feedback fatigue: a flag on all 300 invoices a month gets ignored, which makes a low flag rate look like quality."
+          mitigation: "One optional flag with no form; a field correction counts as a signal without a flag (ai-engineering correctness dimension), and the quality expert's human sample keeps the rate honest."
+          severity: low
+        - id: R9
+          text: "A screen built on a second copy: if the evidence reaches review-api through a snapshot, a stale PO could look current to the clerk."
+          mitigation: "The page shows the read time beside the PO fields, and the workflow re-reads the PO before post so a change holds approve (Q2)."
+          severity: medium
+        - id: R10
+          text: "An invoice moved or deleted by a person before a poll lands nowhere on any page (architecture R7, data-pipeline R4), the one failure here with no item for a person to see."
+          mitigation: "The mailbox-to-workflow gap reaches finance ops in the weekly summary; architecture Q4's read-only account removes one cause, and G-PIPE-4 holds the gap to 0 or explained."
+          severity: medium
       gate_to_next:
-        - { id: G-UX-3, text: "the two AP clerks complete the seeded exception set in the review queue without help in the walkthrough and sign the Walk report section on the queue, as recorded by the finance ops lead", owner: ux, check: { type: manual, ref: the Walk report } }
-        - { id: G-UX-4, text: "feedback captured on at least 80 % of approvals over 30 days", owner: ux, check: { type: metric, ref: feedback_response_rate } }
+        - id: G-UX-3
+          text: >-
+            review-api returns the extracted fields, reason and recommendation only after the item's own-call is recorded, in the
+            stated order, for each seeded exception class; no post_invoice token is issued without a recorded own-call and a
+            signed-in member of the approve group; approve stays held on the changed-bank item until the check is recorded; and each
+            seeded failure lands in review_queue with its reason.
+          owner: ux
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-UX-4
+          text: >-
+            Before the first real invoice, the real AP clerks and the backup reviewer complete the walkthrough on the seeded exception
+            set and sign off, and finance ops, the signer, records that in the Walk report.
+          owner: ux
+          check: { type: manual, ref: Walk report }
+        - id: G-UX-5
+          text: >-
+            Over the Walk window, every disagreement between the clerk's call and the recommendation is logged with its trace, and
+            reviewer_disagreement_rate and median_review_seconds are in the Walk report. A rate of exactly 0 over at least 300 invoices
+            is treated as a rubber-stamp signal and reviewed by finance ops before G-AUT-1 is asked for.
+          owner: ux
+          check: { type: metric, ref: reviewer_disagreement_rate and median_review_seconds }
+        - id: G-UX-6
+          text: >-
+            feedback_response_rate and feedback_negative_rate are read from the outcome table and reported weekly; at least 20% of items
+            with a corrected field also carry a flag reason (ASSUMED threshold, reviewed with finance ops after the first month).
+          owner: ux
+          check: { type: metric, ref: feedback_response_rate and feedback_negative_rate }
     run:
-      choice: [apps/surveys/formbricks]
+      choice: []
       settings:
         surface: custom-web
         surface_workload: review-api
         channel: none
         audiences:
-          - "AP clerks of every legal entity: the same queue filtered by entity"
-          - "finance ops lead: per-entity report"
+          - "AP clerk and backup reviewer: the same review queue, every invoice until G-AUT-1 is signed; after that exceptions only, with a read-only list of what posted without approval"
+          - "finance ops: handed-over items, the audit log and the weekly summary, plus pending, approved, rejected and auto-posted counts"
+          - "CFO: the Run report with the sustained number, the invoices that had an approval shown separately, clerk minutes and cost, and the audit log"
+          - "tenant IT (ASSUMED, business Q2): dashboards, alerts, the kill switch and its state, the engine UI only by port-forward under cluster RBAC, and pause, cancel and override with reviewer, decision and timestamp captured"
+          - "compliance owner (unnamed, business Q1): a read-only audit view over review-api, per invoice: evidence shown, own-call, disagreement, approver, timestamp, token and Odoo id"
         hitl_checkpoints:
-          - "mismatch-approval, bank-account-change and parse-failed: unchanged, per entity [token]"
-        feedback_capture: formbricks
-        latency_budget: "unchanged; the GPU node, if the envelope allows it, shortens the queue refresh but the clerk still never waits"
+          - "invoice-post-approval: the AP clerk approves, corrects and approves, or rejects each invoice in the review queue, after recording their own call; approval makes review-api issue the single-use, expiring token, signed with its private key and bound to the reviewer identity and the hash of the exact fields, which post_invoice requires. Only if the CFO signs G-AUT-1, an exact match with an unchanged bank reference and no duplicate skips it, per G-AI-13 [token]"
+          - "supplier-amount-po-mismatch: rule (exact match on supplier and PO number, amount tolerance 0, or the value business Q8 sets) marks the item reason=mismatch; the clerk decides it at invoice-post-approval, before and after G-AUT-1 [deterministic]"
+          - "po-missing-or-unreadable: rule marks the item reason=po-missing for the clerk to link a PO found in Odoo or reject [deterministic]"
+          - "partial-delivery: rule marks the item reason=partial-delivery with the PO amount beside the invoiced one [deterministic]"
+          - "duplicate-or-resent: rule (a resend the attachment key cannot stop, or find_payable or working memory has the same supplier and invoice number) marks the item reason=duplicate with the earlier item linked and no posting recommendation; a byte-identical re-delivery under the same Message-ID + attachment sha256 starts no workflow [deterministic]"
+          - "bank-details-differ: rule marks the item reason=bank-details-differ with the recommendation withheld, holds approve until the clerk records the out-of-band check, and never counts it as an exact match for G-AUT-1 [deterministic]"
+          - "not-an-invoice-or-illegible: rule marks the item reason=parse-failed with the failed step, for the clerk to reject or type the fields [deterministic]"
+          - "low-confidence: rule (schema still invalid after one repair, or a value not found literally in the source text; no numeric score exists) marks the item reason=low-confidence; never an exact match for G-AUT-1 [deterministic]"
+          - "budget-exhausted: rule (over 2 model calls, 12 steps, 8000 tokens per request or 300 s per step) ends the attempt and marks the item reason=timeout with the failed step [deterministic]"
+          - "file-out-of-bounds: rule (not a PDF, over 10 MB or over 20 pages) marks the item reason=parse-failed with the bound named, never truncated [deterministic]"
+          - "dead-letter-review: rule (corrupt PDF that no step can process) puts the key, failed step and reason=parse-failed in review_queue with a queue-age alert; no own-call is asked, and the clerk chases the supplier in their own tool and rejects the item [deterministic]"
+          - "finance-ops-escalation: rule (the clerk marks an item as one they cannot settle) hands it to finance ops, who settle it in their own tools and return a note; the clerk still decides at invoice-post-approval [deterministic]"
+        escalation_context: >-
+          Same review item and order as Walk, plus the audit fields stored per action: reviewer identity, own-call, decision,
+          corrected fields, policy-judge verdict, Odoo id and timestamps, retained as the data-store and compliance records decide,
+          and with no bank number.
+        feedback_capture: review-queue-flag
+        feedback_prompt: >-
+          The same single optional flag after the decision: was this extraction wrong? Finance ops reads the summary weekly, and
+          tenant IT reads the trend for regressions after an Odoo upgrade or a new supplier layout (G-AI-12).
+        latency_budget: >-
+          Same queue shape and numbers as Walk, because the bounds are the same (12 steps, 300 s per step): finished in the queue
+          within 30 minutes of arrival (15-minute poll, up to 60 s of parsing and two 300 s model calls, plus queueing), refresh
+          every 60 s, item open within 2 s at p95, posted within 60 s of approval. With the kill switch tripped, the page shows paused
+          within 60 s and no further write happens. At each limit the item stays visible in the queue with its reason or age.
         streaming: none
         failure_ux:
-          - "unchanged; an entity whose Odoo instance is down sees its items parked with the reason while the other entities continue"
+          - "corrupt PDF: the clerk sees the key, failed step and reason=parse-failed in the review queue; it stays there until decided, with a queue-age alert"
+          - "schema or literal-source validation failed: the clerk sees reason=low-confidence, the PDF and the fields named; it lands in the review queue"
+          - "budget exhausted or model timeout: the clerk sees reason=timeout, the failed step and the PDF; it lands in the review queue"
+          - "model, gateway or parser down: no item is lost; the clerk sees a banner with the count awaiting extraction and the oldest age, tenant IT receives the backlog alert, and workflows retry and wait"
+          - "file over 10 MB, over 20 pages or not a PDF: the clerk sees reason=parse-failed with the bound named; it lands in the review queue"
+          - "Odoo read down: the clerk sees reason=lookup-failed with the error and a retry status, and approve is held; the item stays in the queue"
+          - "Odoo posting failed: the clerk sees the item back in the queue with the error text and a retry status; retried on the payable key (supplier VAT id + supplier invoice number) after the lookup"
+          - "Odoo already holds the bill when post retries: the item shows posted with the Odoo id, marked found by lookup; it lands completed"
+          - "token expired or refused by the policy judge: the clerk sees the item back in the queue with the refusal reason and approves again; nothing is written"
+          - "PO changed in Odoo before posting: the clerk sees the changed fields with approve held, and the item is matched again and stays in the queue (Q2)"
+          - "approval wait past the workflow timer: the item stays in the queue with its age and the alert goes to finance ops and tenant IT; it never auto-approves or auto-rejects"
+          - "workflow engine down: the clerk sees posting paused and cannot record an approval, and tenant IT receives the alert; recorded approvals wait without loss"
+          - "review store (Postgres) down: the clerk sees an error page, tenant IT receives the alert; the queue and audit trail stop together and nothing posts by approval (data-store R10)"
+          - "source PDF unavailable (object store down): the item shows PDF unavailable and approve is held; it stays in the queue"
+          - "approval record could not be written: the clerk sees that the approval was not recorded and approve is offered again; no Odoo write happens"
+          - "mailbox unreachable: the clerk sees intake stalled since a time, tenant IT receives the alert; mail stays in the mailbox"
+          - "UIDVALIDITY change: the poller rescans and, because the attachment key is Message-ID + attachment sha256, starts 0 workflows; the page shows nothing and tenant IT reads it in the logs. A message with no Message-ID falls back to UIDVALIDITY + UID, so it can start again and lands in the queue with reason=duplicate"
+          - "message moved or deleted before a poll: finance ops sees the mailbox-to-workflow gap in the weekly summary and gets each difference explained (G-PIPE-6)"
+          - "duplicate or re-delivered invoice: a byte-identical re-delivery under the same attachment key starts nothing; a resend in a new email shows the clerk the item with the earlier one linked and one click to reject, with no second payable"
+          - "supplier not found in Odoo: the clerk sees reason=mismatch with the supplier field named; it lands in the queue"
+          - "instructions planted in a PDF: at most a field is wrong and the literal-source and PO checks catch it; the clerk sees reason=low-confidence or reason=mismatch and it lands in the queue, never on the auto-posted path"
+          - "not signed in or outside the right group: redirect to the identity provider, or a refusal; no anonymous view and no item moves"
+          - "kill switch tripped: review-api reads the paused state and the page shows paused with who and when; approve is held, the policy judge refuses any post including an unattended one under G-AUT-1, posting-worker stays running, worker stops at its next model call, cron-job keeps landing mail, and invoices wait without becoming reason=timeout items (G-OPS-3, G-SEC-32)"
+          - "paused state unreadable (working store down): the judge fails closed and nothing posts; the page shows the error page of the review store line above, never an unpaused queue"
+          - "restore from backup: the page shows restored at a time; in-flight items return visibly to the clerk, a lost approval comes back for approval, and post's lookup stops a second payable (G-ARCH-9, G-OPS-4)"
         auth_in_front: oauth2-proxy
-        identity_provider: gotrue
+        identity_provider: auth-gotrue-auth
         ui_language: en
-        escalation_context: "unchanged, plus the legal entity"
+        onboarding: >-
+          A walkthrough for each new reviewer or audience; if G-AUT-1 is signed, a retraining session for exception-only review,
+          including the return path to per-invoice approval (business R16, G-AI-13).
+        eval_dimensions:
+          - "latency: p95 per item against 30 minutes, p95 item open against 2 s and approval to posted against 60 s on production invoices over the rolling window; the kill-switch paused state exercised within 60 s in the drill"
+        review_mode: evidence-first
+        review_independence: independent
+        control_levels:
+          - "AP clerk: approve"
+          - "backup reviewer: approve"
+          - "finance ops: direct, audit"
+          - "CFO: audit"
+          - "tenant IT (ASSUMED, business Q2): operate"
+          - "compliance owner (unnamed, business Q1): audit"
+        disclosure:
+          - "review page header: fields and recommendations on this page come from a model running in the organisation's cluster; the reviewer decides"
+          - "approval record: the signed-in AP clerk is the named person accountable for the posted amount, with decision and timestamp; finance ops stays accountable for the process"
+          - "auto-posted list, only if G-AUT-1 is signed: each entry says it was posted with no per-invoice approval under G-AUT-1, and names the accountable human Q7 settles"
+          - "suppliers: no agent contact exists, so there is nothing to disclose outside"
+        autonomy: semi-autonomous
       rationale: >-
-        The surface does not change shape at Run; it is filtered by legal entity and the clerk's GoTrue
-        groups decide which entities a clerk sees, which the security record enforces in the review API
-        and not only in the page. Feedback stays one question per approval.
+        Run keeps the Walk shape: same page, same checkpoints and the same single token, served by review-api with two replicas per the
+        architecture record, and oauth2-proxy copied from the architecture and security records. It adds what the second audience needs,
+        a read-only audit view for the compliance owner. The ceiling stays semi-autonomous and this record does not assume G-AUT-1 is
+        signed: each line holds with per-invoice approval, and what changes if it is signed is stated next to it. G-AUT-1 covers one
+        action, and G-AI-13 limits it to an exact match with an unchanged bank reference and no duplicate, so any item carrying a reason
+        still reaches a person. An unattended posting never crosses the ingress, so the page reports the paused state and does not itself
+        stand between that path and Odoo; the policy judge does (architecture R9). Exception-only review removes daily contact with
+        matched invoices, so vigilance on the remainder is a risk and the disagreement metric stays on. The latency numbers follow the
+        bounds in the AI-engineering record, which are the same as Walk, and Run has no approved model until ai-engineering Q1 is answered,
+        so they are re-measured on the Run pair. This record adds no cost line of its own. The regulated-corp pack resolves no entry for
+        this role; factory defaults apply.
+      alternatives:
+        - option: Move review into Odoo at Run, now that the clerk knows the flow.
+          rejected_because: The token and the evidence order still need review-api, so it would add an integration and lose the audit shape the compliance owner reads. It stays possible only if Q3 changes the Walk decision.
+        - option: A separate audit tool for the compliance owner.
+          rejected_because: A second place to read approvals is a second auth surface and a second copy of financial data. A read-only view on the same workload is enough until the compliance record asks otherwise.
+      risks:
+        - id: R11
+          text: "After G-AUT-1, the clerk sees only exceptions and vigilance falls; a wrong amount on an auto-posted invoice has no reader (business R16, ai-engineering R16)."
+          mitigation: "The quality expert's independent amount check keeps running on auto-posted invoices, the auto-posted list stays visible, and one configuration change returns to per-invoice approval (G-AI-13)."
+          severity: high
+        - id: R12
+          text: "A return path nobody remembers: going from exception-only back to per-invoice approval sends a volume the clerk is no longer staffed for."
+          mitigation: "G-AI-13 rehearses the return once and the kill-switch drill shows the queue state; finance ops includes the return path in the G-AUT-1 retraining session."
+          severity: low
+        - id: R13
+          text: "A paused banner that lies: the page reads the state the judge reads, but a post already past the judge still completes (architecture R9), so paused can show beside one last posted item."
+          mitigation: "G-UX-7 asserts the banner during the drill; the item shows posted with its timestamp, so the audit view tells that post from any after the trip."
+          severity: low
+      gate_to_next:
+        - id: G-UX-7
+          text: >-
+            In the kill-switch drill the page shows paused within 60 s with who and when, approve is held, and pending items stay in the
+            queue with their evidence intact.
+          owner: ux
+          check: { type: verify-job, ref: invoice-intake-killswitch-drill }
+        - id: G-UX-8
+          text: >-
+            reviewer_disagreement_rate, median_review_seconds and the flag rates are reported on each rolling 30-day window, with every
+            disagreement logged with its trace, separated into before and after G-AUT-1 if it is signed.
+          owner: ux
+          check: { type: metric, ref: reviewer_disagreement_rate and median_review_seconds }
+        - id: G-UX-9
+          text: >-
+            If G-AUT-1 is signed, the AP clerks and backup reviewer complete the exception-only walkthrough before it takes effect, and
+            finance ops, the signer, records it in the Run report.
+          owner: ux
+          check: { type: manual, ref: Run report }
   open_questions:
-    - { id: Q1, question: "Should approvals happen inside Odoo's own UI (a draft payable the clerk validates there) instead of the separate review queue? It saves the clerks a second tool but moves the approval token outside the use case's control and loses the PO side-by-side view. Finance ops decides before the Walk walkthrough.", blocks_stage: walk }
+    - id: Q2
+      question: >-
+        The architecture and data-store experts decide. Architecture now serves the page, own-call, token issue and audit view from
+        review-api, which answers the surface half of this question. The evidence half stays open: ux.yaml escalation_context requires PO
+        fields and the source PDF on the review item, while architecture.yaml says review-api holds no Odoo credential (G-ARCH-8) and
+        data-store.yaml says the stores never copy purchase orders. This record proposes that `worker` writes a per-invoice evidence
+        snapshot of the compared PO fields with their read time, that the workflow re-reads the PO before post, and that review-api gets
+        its own read credential on the PDF object. If this is refused, the clerk has no side-by-side and evidence-first cannot hold, so the
+        user decides.
+      blocks_stage: walk
+    - id: Q3
+      question: >-
+        Finance ops decides with the AP clerk: do the clerks accept a review page beside Odoo, or is working inside Odoo a requirement? This
+        record chooses the page, because Odoo cannot hold back the recommendation or issue the token, and a draft is a write before
+        approval. A requirement for Odoo would mean a design that reads the decision back, with verdict-only review recorded as a finding.
+      blocks_stage: walk
+    - id: Q4
+      question: >-
+        Finance ops decides with the compliance owner (this meets data-store Q3): is the changed-bank exception confirmed, given that
+        business marks it ASSUMED? The AI-engineering record compares salted hashes through get_supplier_bank_ref, so does Odoo hold known
+        accounts per supplier at all, and what happens on the first invoice from a supplier with none? May the clerk alone record the
+        out-of-band check, or must finance ops, given that a changed account is the classic fraud route?
+      blocks_stage: walk
+    - id: Q5
+      question: >-
+        Finance ops and the security owner decide (with security R11 and architecture Q4): once Walk starts, who keeps access to the shared
+        mailbox, and may anyone still type an invoice straight into Odoo? Open access keeps bank numbers visible outside the surface, can
+        hide messages from the poller, and invites the double entry in R3. Finance ops also states the turnaround (business Q7), which sets
+        the 30-minute budget, the 15-minute poll and the approval-wait timer that this record leaves open.
+      blocks_stage: walk
+    - id: Q7
+      question: >-
+        The CFO decides when G-AUT-1 is asked for, with the DPO for compliance's natural-person question: who is the named human accountable for
+        an invoice posted with no per-invoice approval? This record would name finance ops, as owner of the outcome, but does not assign it. The
+        answer goes on the auto-posted list and depends on business Q11.
+      blocks_stage: run
+    - id: Q8
+      question: >-
+        Data-pipeline expert, a real difference left after adopting its reasons: data-pipeline.yaml seeds a degraded scan for reason=low-confidence
+        and names no criterion, ai-engineering.yaml has no confidence score, and ux.yaml defines low-confidence as schema invalid after one repair
+        or a value not found literally in the source. Is that the criterion the verify Job asserts? Also, data-pipeline R8 says the UX rule checks
+        supplier, amount and date in Odoo, while ux.yaml and the find_payable tool look up supplier and invoice number only, so a re-rendered
+        duplicate with a misread invoice number is left to the clerk. Does either record change?
+      blocks_stage: crawl
   references:
-    - .builder/decisions/architecture.yaml
-    - .builder/decisions/ai-engineering.yaml
-    - .builder/decisions/security.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/brief.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml
+    - plugins/forjate/skills/ux/references/surfaces-per-stage.md
+    - plugins/forjate/skills/ux/references/human-in-the-loop.md
+    - plugins/forjate/skills/ux/references/feedback-latency-failure.md
     - wiki/catalog.json

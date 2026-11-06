@@ -1,6 +1,8 @@
 """Tests for the use-case builder tooling. Run: poetry run pytest plugins/forjate/scripts/builder/tests"""
 
 import copy
+import json
+import os
 import shutil
 import subprocess
 import sys
@@ -383,6 +385,7 @@ def test_secret_scan_is_clean_on_the_repo_overlays():
 # --- phase 5 (#23): capabilities from the catalog, snapshots, grader, skill-lint -------
 
 import json
+import os
 import re
 
 import validate as validate_mod  # noqa: E402
@@ -608,9 +611,17 @@ def test_catalog_carries_psa_level_and_namespace_for_every_component():
             assert c["psa_level"] == "restricted", c["path"]
 
 
+# Stages the kustomize agent finished past what the generator writes: invoice-intake's Walk and Run share one
+# Postgres across Temporal, LiteLLM, GoTrue and the app (one credential per role, an init Job), which the
+# generator cannot compose yet. They are checked by validate-kustomize.yml (they build), not byte for byte, and
+# the README's "Hand edits over the generator" lists each edit, the debt the generator has to absorb.
+HAND_FINISHED = {"invoice-intake": ("stages/walk/", "stages/run/", "README.md")}
+
+
 def test_assembly_reproduces_the_golden_overlays(tmp_path: Path):
     """The golden overlays are generated: regenerating them from their records and today's catalog must give
-    the committed files, so a catalog change (a component's namespace, its PSA level) cannot drift unseen."""
+    the committed files, so a catalog change (a component's namespace, its PSA level) cannot drift unseen.
+    A stage listed in HAND_FINISHED is the agent's, and only the rest of the overlay is compared."""
     k8s = tmp_path / "k8s"
     (k8s / "overlays" / "usecases").mkdir(parents=True)
     for d in ("components", "base"):
@@ -622,9 +633,10 @@ def test_assembly_reproduces_the_golden_overlays(tmp_path: Path):
         assert r.returncode == 0, r.stdout + r.stderr
         def files(root: Path) -> set[str]:
             # the working tree minus the inputs (.builder/, app/) and the gitignored .env copies of the examples
-            return {p.relative_to(root).as_posix() for p in root.rglob("*")
+            return {rel for p in root.rglob("*")
                     if p.is_file() and not set(p.relative_to(root).parts[:1]) & {".builder", "app"} and p.suffix != ".env"
-                    and "__pycache__" not in p.parts}
+                    and "__pycache__" not in p.parts
+                    and not (rel := p.relative_to(root).as_posix()).startswith(HAND_FINISHED.get(name, ()))}
         generated, committed = files(dst), files(src)
         assert committed - generated == set(), f"{name}: committed files the assembly no longer writes"
         assert generated - committed == set(), f"{name}: files the assembly writes that are not committed"
@@ -844,3 +856,67 @@ def test_quality_verify_without_a_reason_split_is_a_warning(usecase: Path):
     _write_decision(usecase, "quality", {"crawl": {"choice": [], "settings": {"verify_assertions": ["expected escalations (4 address changes) exactly; unexpected escalations with reason lookup-failed or timeout = 0", "KPI printed"]}, "rationale": "x"}})
     _, warnings = validate_usecase(usecase)
     assert not any("without a reason split" in w for w in warnings)
+
+
+def test_grader_report_covers_open_questions(tmp_path: Path):
+    sys.path.insert(0, str(BUILDER.parent.parent / "evals"))
+    import grade  # noqa: E402
+    repo = tmp_path / "repo"
+    dec = repo / "uc" / ".builder" / "decisions"
+    dec.mkdir(parents=True)
+    dec.joinpath("security.yaml").write_text(yaml.safe_dump({"spec": {"open_questions": [
+        {"id": "Q1", "question": "Which mailbox credentials rotate?"}, {"id": "Q2", "question": "Who owns the key?"}]}}))
+    dec.joinpath("data-pipeline.yaml").write_text(yaml.safe_dump({"spec": {"open_questions": [
+        {"id": "Q1", "question": "Batch or event?"}, {"id": "Q2", "question": "Seed from production?"}, {"id": "Q3", "question": "CSV encoding?"}]}}))
+    a = {"type": "report_covers_open_questions", "path": "uc"}
+    ok, ev = grade.check(a, repo)
+    assert not ok and "no report" in ev
+    report = "## Open questions\n- Credentials and ownership (security Q1, Q2)\n- Q3 is about encoding\n"
+    (tmp_path / "result.json").write_text(json.dumps({"result": report}))
+    ok, ev = grade.check(a, repo)
+    assert not ok and "data-pipeline/Q1" in ev and "security" not in ev.split("missing:")[1]
+    report += "- Ingestion (data pipeline Q1 a Q3)\n"
+    (tmp_path / "result.json").write_text(json.dumps({"result": report}))
+    ok, ev = grade.check(a, repo)
+    assert ok, ev
+
+
+def test_scaffold_check_flags_secret_keys_the_app_never_reads(tmp_path: Path):
+    uc = tmp_path / "invoice-intake"
+    shutil.copytree(USECASES / "invoice-intake" / ".builder", uc / ".builder")
+    shutil.copytree(USECASES / "invoice-intake" / "app", uc / "app", ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"))
+    check = BUILDER / "scaffold-check.py"
+    assert run(str(check), str(uc)).returncode == 0
+    cfg = uc / "app" / "src" / "invoice_intake" / "config.py"
+    cfg.write_text(cfg.read_text().replace("MINIO_ROOT_USER", "MINIO_ACCESS_KEY").replace("MINIO_ROOT_PASSWORD", "MINIO_SECRET_KEY"))
+    r = run(str(check), str(uc))
+    assert r.returncode == 1 and "secret minio-secret (apps/minio/dev): the app never reads MINIO_ROOT_USER" in r.stdout
+    sc = uc / ".builder" / "scaffold.yaml"
+    d = yaml.safe_load(sc.read_text())
+    verify = next(w for w in d["spec"]["workloads"] if w.get("phase") == "verify")
+    verify["env"] = [e for e in verify.get("env", []) if not e.startswith("MODEL_MODE=")] + ["MODEL_MODE=live"]
+    sc.write_text(yaml.safe_dump(d, sort_keys=False))
+    r = run(str(check), str(uc))
+    assert "the verify Job runs MODEL_MODE=live" in r.stdout
+
+
+def test_agent_costs_split_the_run_cost_by_agent(tmp_path: Path):
+    """agent-costs.py reads the transcripts, counts a streamed message once, and splits result.json's cost."""
+    home, sid = tmp_path / "home", "s1"
+    proj = home / ".claude" / "projects" / "p"
+    sub = proj / sid / "subagents"
+    sub.mkdir(parents=True)
+    def msg(mid, out):
+        return json.dumps({"message": {"id": mid, "usage": {"input_tokens": 0, "output_tokens": out}}})
+    (proj / f"{sid}.jsonl").write_text("\n".join([msg("m1", 100), msg("m1", 100)]) + "\n")
+    (sub / "agent-a.jsonl").write_text(msg("m2", 300) + "\n")
+    (sub / "agent-a.meta.json").write_text(json.dumps({"agentType": "forjate:business"}))
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "result.json").write_text(json.dumps({"session_id": sid, "total_cost_usd": 8.0}))
+    script = REPO / "plugins" / "forjate" / "evals" / "agent-costs.py"
+    r = subprocess.run([sys.executable, str(script), str(run_dir)], capture_output=True, text=True, env={**os.environ, "HOME": str(home)})
+    assert r.returncode == 0, r.stdout + r.stderr
+    c = json.loads((run_dir / "agent-costs.json").read_text())
+    assert c["agents"]["forjate:business"]["cost_usd"] == 6.0 and c["agents"]["main"]["cost_usd"] == 2.0
+    assert (run_dir / "transcripts" / sid / "subagents" / "agent-a.jsonl").exists()

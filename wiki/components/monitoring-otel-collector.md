@@ -3,10 +3,10 @@ title: monitoring-otel-collector
 kind: component
 sources:
 - k8s/components/apps/monitoring/otel-collector
-compiled_at: '2026-10-29'
+compiled_at: '2026-11-05'
 category: monitoring
 consumed_by:
-- overlays/usecases-invoice-intake-stages-run
+- overlays/usecases-invoice-intake-stages-walk
 source_last_commit: '2026-04-27'
 summary: composes `agent`, `cluster`
 summary_source: derived
@@ -30,7 +30,7 @@ summary_source: derived
 
 ### Consumed by
 
-- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md) — resource, via namespaces/otel-collector
+- [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md) — resource, via namespaces/otel-collector
 
 <!-- END DECLARED -->
 

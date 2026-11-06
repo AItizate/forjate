@@ -9,10 +9,12 @@ resources:
 - ../../../../../components/apps/databases/postgres
 - ../../../../../components/apps/minio/dev
 - minio-service.yaml
-- inv-seed.yaml
-- intake-job.yaml
-- inv-validate.yaml
-- erp-stub.yaml
+- invoice-intake-seed.yaml
+- worker.yaml
+- invoice-intake-verify.yaml
+- invoice-intake-eval.yaml
+- odoo-stub.yaml
+- shared-imap-mailbox-stub.yaml
 secretGenerator:
 - name: postgres-secret
   envs:
@@ -24,9 +26,39 @@ secretGenerator:
   - secrets/minio-secret.env
   options:
     disableNameSuffixHash: true
-- name: approval-secret
+- name: bank-hash-salt
   envs:
-  - secrets/approval-secret.env
+  - secrets/bank-hash-salt.env
+  options:
+    disableNameSuffixHash: true
+- name: double-admin-token
+  envs:
+  - secrets/double-admin-token.env
+  options:
+    disableNameSuffixHash: true
+- name: mailbox-list-token
+  envs:
+  - secrets/mailbox-list-token.env
+  options:
+    disableNameSuffixHash: true
+- name: mailbox-fetch-token
+  envs:
+  - secrets/mailbox-fetch-token.env
+  options:
+    disableNameSuffixHash: true
+- name: odoo-lookup-po-token
+  envs:
+  - secrets/odoo-lookup-po-token.env
+  options:
+    disableNameSuffixHash: true
+- name: odoo-find-payable-token
+  envs:
+  - secrets/odoo-find-payable-token.env
+  options:
+    disableNameSuffixHash: true
+- name: odoo-bank-ref-token
+  envs:
+  - secrets/odoo-bank-ref-token.env
   options:
     disableNameSuffixHash: true
 patches:

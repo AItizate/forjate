@@ -223,6 +223,33 @@ def check(a: dict, repo: Path) -> tuple[bool, str]:
     if t == "scaffold_check":
         rc, out = sh([PY, str(BUILDER / "scaffold-check.py"), a["path"]], repo)
         return rc == 0, out[-400:]
+    if t == "report_covers_open_questions":
+        # The review report is the run's final message (result.json beside the worktree). Every open
+        # question of every record must be cited by area and id on one line (`security Q2`, `compliance
+        # Q1 a Q4`, `ux Q1/Q3`): grouping by theme is fine, a question the approver cannot find is not.
+        res = repo.parent / "result.json"
+        report = (json.loads(res.read_text()).get("result") or "") if res.exists() else ""
+        if not report:
+            return False, "no report in result.json"
+        cited: set[tuple[str, int]] = set()
+        areas = [f.stem for f in (path / ".builder" / "decisions").glob("*.yaml")]
+        for line in report.lower().splitlines():
+            named = [a for a in areas if a in line or a.replace("-", " ") in line]
+            if not named:
+                continue
+            nums: set[int] = set()
+            for m in re.finditer(r"q(\d+)(?:\s*(?:-|–|—|a|to|al|hasta)\s*q?(\d+))?", line):
+                lo, hi = int(m.group(1)), int(m.group(2) or m.group(1))
+                nums.update(range(lo, hi + 1) if 0 <= hi - lo <= 20 else (lo,))
+            cited.update((a, n) for a in named for n in nums)
+        missing, total = [], 0
+        for f in sorted((path / ".builder" / "decisions").glob("*.yaml")):
+            for q in ((_load_yaml(f) or {}).get("spec") or {}).get("open_questions") or []:
+                total += 1
+                n = int(str(q.get("id", "Q0"))[1:] or 0)
+                if (f.stem, n) not in cited:
+                    missing.append(f"{f.stem}/{q.get('id')}")
+        return not missing, f"{total - len(missing)}/{total} open questions cited by area and id" + (f"; missing: {missing}" if missing else "")
     if t == "git_unchanged":
         rc, out = sh(["git", "diff", "--quiet", "HEAD", "--", a["path"]], repo)
         return rc == 0, "unchanged" if rc == 0 else "modified"
@@ -295,7 +322,7 @@ def main(argv: list[str]) -> int:
         models = ",".join(m.replace("claude-", "") for m in timing.get("models", []))
         if timing.get("is_error"):
             models = f"ERROR: {timing.get('error') or 'is_error'}"
-        rows.append((g["eval_name"], run_dir.name, g["pass_rate"], timing.get("total_duration_seconds"), timing.get("total_cost_usd"), timing.get("num_turns"), models, g.get("quality") or {}))
+        rows.append((g["eval_name"], run_dir.name, g["pass_rate"], timing.get("wall_seconds") or timing.get("total_duration_seconds"), timing.get("total_cost_usd"), timing.get("num_turns"), models, g.get("quality") or {}))
     lines = [f"# Benchmark — {it.parent.name} / {it.name}", "", "| eval | config | pass rate | seconds | cost USD | turns | models |", "|---|---|---|---|---|---|---|"]
     for name, cfg, pr, secs, cost, turns, models, _q in rows:
         lines.append(f"| {name} | {cfg} | {pr:.0%} | {secs if secs is None else round(secs)} | {cost if cost is None else round(cost, 3)} | {turns} | {models} |")
@@ -309,6 +336,14 @@ def main(argv: list[str]) -> int:
                   "|---|---|---|---|---|---|---|---|---|---|"]
         for name, cfg, _pr, _s, _c, _t, _m, q in rows:
             lines.append(f"| {name} | {cfg} | {q.get('records', 0)} | {q.get('open_questions', 0)} | {q.get('oq_with_rule', 0)} | {q.get('pack_refs', 0)} | {q.get('alternatives', 0)} | {q.get('risks', 0)} | {q.get('gates', 0)} | {q.get('gates_automated', 0)} |")
+    costs = [(rd.parent.name, rd.name, json.loads((rd / "agent-costs.json").read_text()))
+             for rd in sorted(it.glob("*/*_skill")) if (rd / "agent-costs.json").exists()]
+    if any(len(c["agents"]) > 1 for _n, _c, c in costs):
+        lines += ["", "## Cost per agent (agent-costs.py: the run's cost split by price-weighted tokens)", "",
+                  "| eval | config | agent | calls | share | cost USD |", "|---|---|---|---|---|---|"]
+        for name, cfg, c in costs:
+            for agent, a in c["agents"].items():
+                lines.append(f"| {name} | {cfg} | {agent} | {a['calls']} | {a['share']:.1%} | {a['cost_usd']} |")
     (it / "benchmark.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
     return 0

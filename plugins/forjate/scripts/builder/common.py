@@ -33,6 +33,7 @@ ROLES = (
 )
 ENFORCE_RANK = {"may": 0, "should": 1, "must": 2}
 PSA_RANK = {"privileged": 0, "baseline": 1, "restricted": 2}
+AUTONOMY_RANK = {"assistive": 0, "semi-autonomous": 1, "autonomous": 2}
 
 
 class BuilderError(Exception):
@@ -97,6 +98,39 @@ def load_catalog() -> dict | None:
         if root and (root / "wiki" / "catalog.json").is_file():
             return json.loads((root / "wiki" / "catalog.json").read_text())
     return None
+
+
+def stage_components(decisions: dict[str, dict], stage: str) -> list[str]:
+    """Every component some record chooses at exactly this stage, in record order, without duplicates.
+
+    A stage overlay is built from this set alone. A Crawl choice absent from every Walk record is
+    superseded (another component covers its capability at Walk) or dropped; it is never carried
+    forward. The assembly and the validator read the same set, so what the validator checks is what
+    the overlay runs."""
+    out: list[str] = []
+    for d in decisions.values():
+        for c in ((d.get("spec") or {}).get("stages") or {}).get(stage, {}) and (d["spec"]["stages"][stage].get("choice") or []):
+            if c not in out:
+                out.append(c)
+    return out
+
+
+def superseded_components(decisions: dict[str, dict], stage: str, catalog: dict | None) -> list[tuple[str, str, list[str]]]:
+    """(component, previous stage, replacements) for every component chosen at the previous in-scope
+    stage and absent at this one; replacements are the components of this stage that share a
+    capability with it per the catalog (empty when nothing covers it any more)."""
+    stages_with_records = [s for s in STAGES if any(s in ((d.get("spec") or {}).get("stages") or {}) for d in decisions.values())]
+    if stage not in stages_with_records or stages_with_records.index(stage) == 0:
+        return []
+    prev = stages_with_records[stages_with_records.index(stage) - 1]
+    caps = {c["path"]: set(c.get("capabilities") or []) for c in (catalog or {}).get("components") or []}
+    now = stage_components(decisions, stage)
+    out = []
+    for c in stage_components(decisions, prev):
+        if c in now:
+            continue
+        out.append((c, prev, [n for n in now if caps.get(c) and caps.get(c) & caps.get(n, set())]))
+    return out
 
 
 def component_exists(component: str) -> bool:

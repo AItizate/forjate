@@ -9,10 +9,12 @@ resources:
 - ../../../../../components/apps/databases/postgres
 - ../../../../../components/apps/minio/dev
 - minio-service.yaml
-- inv-seed.yaml
-- intake-job.yaml
-- inv-validate.yaml
-- erp-stub.yaml
+- invoice-intake-seed.yaml
+- worker.yaml
+- invoice-intake-verify.yaml
+- invoice-intake-eval.yaml
+- odoo-stub.yaml
+- shared-imap-mailbox-stub.yaml
 secretGenerator:
 - name: postgres-secret
   envs:
@@ -24,9 +26,39 @@ secretGenerator:
   - secrets/minio-secret.env
   options:
     disableNameSuffixHash: true
-- name: approval-secret
+- name: bank-hash-salt
   envs:
-  - secrets/approval-secret.env
+  - secrets/bank-hash-salt.env
+  options:
+    disableNameSuffixHash: true
+- name: double-admin-token
+  envs:
+  - secrets/double-admin-token.env
+  options:
+    disableNameSuffixHash: true
+- name: mailbox-list-token
+  envs:
+  - secrets/mailbox-list-token.env
+  options:
+    disableNameSuffixHash: true
+- name: mailbox-fetch-token
+  envs:
+  - secrets/mailbox-fetch-token.env
+  options:
+    disableNameSuffixHash: true
+- name: odoo-lookup-po-token
+  envs:
+  - secrets/odoo-lookup-po-token.env
+  options:
+    disableNameSuffixHash: true
+- name: odoo-find-payable-token
+  envs:
+  - secrets/odoo-find-payable-token.env
+  options:
+    disableNameSuffixHash: true
+- name: odoo-bank-ref-token
+  envs:
+  - secrets/odoo-bank-ref-token.env
   options:
     disableNameSuffixHash: true
 patches:
@@ -37,8 +69,8 @@ patches:
 - target:
     kind: StatefulSet
     name: ollama
-  patch: "# assumes containers[0] is ollama (upstream statefulset.yaml); drops the GPU limit a laptop cannot satisfy\n- op:\
-    \ remove\n  path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu\n"
+  patch: "# assumes containers[0] is ollama (upstream manifest); drops the GPU limit a laptop cannot satisfy (catalog gpu_required:\
+    \ optional)\n- op: remove\n  path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu\n"
 - path: patches/docling-resources-patch.yaml
   target:
     kind: Deployment
@@ -47,6 +79,10 @@ patches:
   target:
     kind: StatefulSet
     name: postgres
+- path: patches/minio-resources-patch.yaml
+  target:
+    kind: Pod
+    name: minio
 - path: patches/minio-env-patch.yaml
   target:
     kind: Pod
@@ -54,8 +90,8 @@ patches:
 - target:
     kind: Pod
     name: minio
-  patch: "# assumes volumes[0] is localvolume (upstream pod.yaml); the hostPath is root-owned on k3d and the image runs as\
-    \ 1001\n- op: replace\n  path: /spec/volumes/0\n  value: {name: localvolume, emptyDir: {}}\n"
+  patch: "# assumes volumes[0] is localvolume (upstream manifest); the hostPath is root-owned on k3d, an emptyDir is the laptop's\
+    \ disk at Crawl\n- op: replace\n  path: /spec/volumes/0\n  value: {name: localvolume, emptyDir: {}}\n"
 images:
 - name: invoice-intake
   newTag: dev

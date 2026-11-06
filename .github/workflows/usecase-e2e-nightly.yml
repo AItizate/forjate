@@ -45,20 +45,31 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Sample disk use
+        run: |
+          # Peak disk use is part of what the nightly costs (#21); the report step reads this log.
+          nohup bash -c 'while :; do df -k --output=used / | tail -1 >> "$RUNNER_TEMP/disk-used.log"; sleep 15; done' >/dev/null 2>&1 &
+
       - name: Install tools
         run: |
           set -euo pipefail
           curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
           curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
           sudo mv kustomize /usr/local/bin/
-          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          source .github/toolchain.env
+          sudo curl -sSL -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
           sudo chmod +x /usr/local/bin/yq
           curl -sSLO https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
           tar xzf kubeconform-linux-amd64.tar.gz && sudo mv kubeconform /usr/local/bin/
           pipx install poetry && poetry install --no-root
 
-      - name: Crawl on k3d (ephemeral.sh up blocks on the verify Job)
-        run: ./scripts/ephemeral/ephemeral.sh up "${{ matrix.usecase }}"
+      - name: Crawl on k3d (ephemeral.sh up blocks on the verify Job, twice on the same seed)
+        # --stability asserts the two health signals (#41): no container restarted after either verify,
+        # and the verify's KPI/EVAL lines are equal on the second up. The HEALTH lines go to the summary.
+        run: |
+          set -euo pipefail
+          ./scripts/ephemeral/ephemeral.sh up "${{ matrix.usecase }}" --stability | tee up.log
+          { echo "### ${{ matrix.usecase }}: health"; echo '```'; grep '^HEALTH ' up.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Gates crawl->walk
         run: |
@@ -70,3 +81,14 @@ jobs:
       - name: Tear down
         if: always()
         run: ./scripts/ephemeral/ephemeral.sh down "${{ matrix.usecase }}" || true
+
+      - name: Report disk use
+        if: always()
+        run: |
+          log="$RUNNER_TEMP/disk-used.log"
+          first="$(head -1 "$log")"; peak="$(sort -n "$log" | tail -1)"
+          {
+            echo "### ${{ matrix.usecase }}: disk"
+            echo "Root volume used: $((first / 1024)) MiB at start, $((peak / 1024)) MiB at peak (+$(((peak - first) / 1024)) MiB); free now $(df -h --output=avail / | tail -1 | tr -d ' ')."
+            echo '```'; docker system df; echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"

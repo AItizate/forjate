@@ -1,20 +1,36 @@
-# walk: uc-invoice-intake-baseline, where the PSA exceptions of invoice-intake run at baseline (exception owned by platform team: the catalog proves none of them under restricted (psa_level baseline; the MinIO dev Pod's hostPath is replaced by an emptyDir in this overlay) and none needs host access, so baseline admits them while the invoice workloads stay restricted in uc-invoice-intake).
+# walk: uc-invoice-intake-baseline, where the PSA exceptions of invoice-intake run at baseline (exception owned by security owner (unnamed, Q1), accepted through G-SEC-17: The catalog gives each of these psa_level baseline and no namespace of their own, so they cannot run in uc-invoice-intake under pack:regulated-corp#SEC-1. They move out together with their Secrets and keep their short names through aliases; cron-job, worker, posting-worker and review-api stay restricted.).
+# Hand edit (architecture Q7, data-store: one server): the temporal bundle renders the one postgres; this child adds the postgres-init Job, the tenants' credentials and their wiring.
 namespace: uc-invoice-intake-baseline
 resources:
 - namespace.yaml
 - ../../../../../../../components/apps/ai-models/litellm
+- ../../../../../../../components/bundles/temporal-stack
 - ../../../../../../../components/apps/auth/gotrue-auth
-- ../../../../../../../components/apps/surveys/formbricks
+- postgres-init-job.yaml
 - secrets/sealed-postgres-secret.yaml
-- secrets/sealed-minio-secret.yaml
+- secrets/sealed-postgres-init-secret.yaml
+- secrets/sealed-temporal-postgres-secret.yaml
+- secrets/sealed-litellm-postgres-secret.yaml
+- secrets/sealed-backup-postgres-secret.yaml
 - secrets/sealed-litellm-secret.yaml
 - secrets/sealed-gotrue-secret.yaml
-- secrets/sealed-formbricks-secret.yaml
 - netpols.yaml
 configMapGenerator:
-- name: formbricks-config
-  literals:
-  - WEBAPP_URL=http://formbricks:3000
-  - NEXTAUTH_URL=http://formbricks:3000
+- name: postgres-init-sql
+  files:
+  - configs/postgres-init.sql
   options:
     disableNameSuffixHash: true
+patches:
+- path: patches/postgres-sizing-patch.yaml
+  target:
+    kind: StatefulSet
+    name: postgres
+- path: patches/temporal-server-postgres-patch.yaml
+  target:
+    kind: Deployment
+    name: temporal-server
+- path: patches/gotrue-init-db-patch.yaml
+  target:
+    kind: Deployment
+    name: gotrue-auth

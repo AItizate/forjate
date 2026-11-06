@@ -3,9 +3,10 @@ title: security-openbao
 kind: component
 sources:
 - k8s/components/apps/security/openbao
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-05'
 category: security
 consumed_by:
+- overlays/usecases-invoice-intake-stages-run
 - overlays/usecases-openbao-secrets-openbao
 source_last_commit: '2026-10-28'
 summary: 'secret store (MPL-2.0, Vault API): raft, audit to stdout, kubernetes/approle/userpass
@@ -94,6 +95,7 @@ summary_source: authored
 
 ### Consumed by
 
+- [overlays/usecases-invoice-intake-stages-run](../overlays/usecases-invoice-intake-stages-run.md)
 - [overlays/usecases-openbao-secrets-openbao](../overlays/usecases-openbao-secrets-openbao.md)
 
 <!-- END DECLARED -->

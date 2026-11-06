@@ -30,8 +30,16 @@ Checks, per use case:
      stage, and sit below the stage's `psa_level` (warning otherwise). A shared component
      whose namespace runs below the stage's level, or, at `restricted`, a use-case-scoped
      component the catalog does not prove under `restricted`, with no exception is a
-     warning: what runs at a stage is every record's choices up to it, because stage
-     overlays add and never remove.
+     warning: what runs at a stage is what the records choose at that stage, the set the
+     assembly builds the stage overlay from.
+ 10. autonomy: the plan's Crawl ceiling is `assistive`, no stage's ceiling exceeds the
+     brief's `autonomy`, and no record's `settings.autonomy` exceeds the plan's ceiling for
+     its stage (errors).
+ 11. supersede: a component chosen at one stage and absent at the next is covered by a
+     same-capability component or named in a rationale at that stage (warning otherwise);
+     the stage overlay drops it either way.
+ 12. verify by reason: a quality record whose verify_assertions exercise the escalation or
+     exception path separates expected handoffs from failures such as lookup-failed (warning).
 
 Exit 1 on any error. Warnings never fail the run.
 """
@@ -42,8 +50,8 @@ import re
 import sys
 from pathlib import Path
 
-from common import (BuilderError, PSA_RANK, REPO, STAGES, component_exists, die, load_catalog, load_yaml, report,
-                    schema_errors)
+from common import (AUTONOMY_RANK, BuilderError, PSA_RANK, REPO, STAGES, component_exists, die, load_catalog,
+                    load_yaml, report, schema_errors, stage_components, superseded_components)
 from packs import active_packs, load_pack, RULE_REF_RE
 
 RULE_REF = re.compile(r"^pack:(?P<pack>[a-z0-9-]+)#(?P<id>[A-Z][A-Z0-9]*-[0-9]+)$")
@@ -83,7 +91,11 @@ SECRETS_CAPABILITY = "secrets-mechanism"
 # security/devops share the hardening keys, data-store/devops the backup ladder,
 # architecture/security the auth surface, and three experts the egress and residency facts.
 SHARED_SETTINGS = ("psa_level", "secrets_mechanism", "data_residency", "data_egress",
-                   "network_policy", "backup", "auth_in_front")
+                   "network_policy", "backup", "auth_in_front",
+                   # governance posture (contracts.md "Governance settings"): one owner, copied by the
+                   # experts a pack rule applies to, so a pack can require one value from all of them
+                   "autonomy", "write_actions", "intent_validation", "kill_switch", "model_pinning",
+                   "fallback_policy", "audit_artifacts", "open_standards", "scope_isolation")
 TRANSITION_OUT_OF = {"crawl": "crawl->walk", "walk": "walk->run"}
 # A CDC connector (the catalog's `cdc` capability) is named debezium-<source>-<broker>; its suffix
 # implies a message-broker choice.
@@ -350,7 +362,8 @@ def psa_exception_findings(uc_name: str, decisions: dict[str, dict], where: str)
     `psa_level` in wiki/catalog.json, derived from k8s/** by wiki-compile.py); nothing here
     names a component. A shared component (one with a `namespace`) runs there; the rest run
     in the use case's namespace unless an exception moves them. `unknown` counts as below
-    any enforced level, `n/a` (no pods) never needs an exception."""
+    any enforced level, `n/a` (no pods) never needs an exception. What a stage runs is the
+    stage's own set (`stage_components`), the one the assembly builds its overlay from."""
     errors: list[str] = []
     warnings: list[str] = []
     sec = decisions.get("security")
@@ -363,14 +376,9 @@ def psa_exception_findings(uc_name: str, decisions: dict[str, dict], where: str)
     def rank(level) -> int:
         return PSA_RANK.get(str(level), -1)
 
-    runs: dict[str, list[str]] = {}
-    seen: list[str] = []
-    for s in STAGES:
-        for d in decisions.values():
-            for c in (d["spec"]["stages"].get(s) or {}).get("choice") or []:
-                if c not in seen:
-                    seen.append(c)
-        runs[s] = list(seen)
+    # What a stage runs is what its records choose at that stage: the same set the assembly builds
+    # the stage overlay from. A Crawl component no Walk record repeats is not in Walk's overlay.
+    runs: dict[str, list[str]] = {s: stage_components(decisions, s) for s in STAGES}
     for stage, sd in sec["spec"]["stages"].items():
         level = str((sd.get("settings") or {}).get("psa_level") or "")
         covered: set[str] = set()
@@ -386,7 +394,7 @@ def psa_exception_findings(uc_name: str, decisions: dict[str, dict], where: str)
                     errors.append(f"{at}: component not in catalog: {c}")
                     continue
                 if c not in runs.get(stage, []):
-                    warnings.append(f"{at}: {c} is not chosen by any record at {stage} or before")
+                    warnings.append(f"{at}: {c} is not chosen by any record at {stage}")
                 home = (facts.get(c) or {}).get("namespace")
                 if home and home != e["namespace"]:
                     warnings.append(f"{at}: the catalog runs {c} in {home}, not {e['namespace']}")
@@ -410,6 +418,75 @@ def psa_exception_findings(uc_name: str, decisions: dict[str, dict], where: str)
             warnings.append(f"{where}: {stage}: below psa_level {level} in the catalog (psa_level) and would run in {uc_ns}: "
                             f"{', '.join(unproven)}; move them to a namespace of their own with a psa_exceptions entry, or choose candidates that meet it")
     return errors, warnings
+
+
+def autonomy_findings(brief: dict | None, plan: dict | None, decisions: dict[str, dict], where: str) -> list[str]:
+    """Check 10: autonomy never rises by default. Crawl is assistive; no stage's ceiling exceeds the
+    brief's autonomy; no record's settings.autonomy exceeds the plan's ceiling for that stage.
+    Every finding is an error: a wrong ceiling is a wrong contract, not a style issue."""
+    errors: list[str] = []
+    ceiling: dict[str, str] = {}
+    requested = ((brief or {}).get("spec") or {}).get("autonomy")
+    for stage, sd in (((plan or {}).get("spec") or {}).get("stages") or {}).items():
+        aut = sd.get("autonomy")
+        if not aut or not sd.get("in_scope", True):
+            continue
+        ceiling[stage] = aut
+        if stage == "crawl" and aut != "assistive":
+            errors.append(f"{where}/stage-plan.yaml: crawl autonomy '{aut}': Crawl is assistive, a PoC proves the reasoning, not the right to act")
+        if requested and AUTONOMY_RANK.get(aut, 9) > AUTONOMY_RANK.get(requested, 9):
+            errors.append(f"{where}/stage-plan.yaml: {stage} autonomy '{aut}' exceeds the brief's '{requested}'")
+    for area, d in decisions.items():
+        for stage, sd in d["spec"]["stages"].items():
+            aut = (sd.get("settings") or {}).get("autonomy")
+            if aut and stage in ceiling and AUTONOMY_RANK.get(str(aut), 9) > AUTONOMY_RANK[ceiling[stage]]:
+                errors.append(f"{where}/decisions/{area}.yaml: {stage}: settings.autonomy '{aut}' exceeds the plan's ceiling '{ceiling[stage]}'")
+    return errors
+
+
+def supersede_findings(decisions: dict[str, dict], where: str) -> list[str]:
+    """Check 11: a component chosen at one stage and absent at the next is superseded by one that
+    covers the same capability, or dropped on purpose. With neither a same-capability replacement
+    nor a mention in some record's rationale at that stage, it is a warning: the stage overlay will
+    not run it and nobody said so."""
+    warnings: list[str] = []
+    catalog = load_catalog()
+    for stage in STAGES:
+        for comp, prev, replacements in superseded_components(decisions, stage, catalog):
+            if replacements:
+                continue
+            short = comp.rsplit("/", 1)[-1]
+            mentioned = any(re.search(r"(?<![a-z0-9])" + re.escape(short) + r"(?![a-z0-9])",
+                                      str((d["spec"]["stages"].get(stage) or {}).get("rationale", "")).lower())
+                            for d in decisions.values())
+            if not mentioned:
+                warnings.append(f"{where}: {stage}: {comp} was chosen at {prev} and is gone at {stage} with no component covering its "
+                                f"capability and no rationale saying so; the {stage} overlay drops it")
+    return warnings
+
+
+ESCALATION_RE = re.compile(r"escalat|exception|hand.?(ed|s)? ?(over|off)|dead.?letter|review queue", re.I)
+REASON_RE = re.compile(r"expected|unexpected|by reason|reason|lookup.?failed|timeout|parse.?failed|unreachable", re.I)
+
+
+def verify_findings(decisions: dict[str, dict], where: str) -> list[str]:
+    """Check 12: a verify that counts escalations counts them by reason. A quality record whose
+    `verify_assertions` exercise the escalation or exception path without separating the expected
+    handoffs (the seed's refunds and mismatches) from failures (`lookup-failed`, `timeout`) hides an
+    unreachable dependency behind a rate; the #21 nightly passed and failed by timing on exactly that.
+    A warning, never an error: the record's words are the expert's."""
+    warnings: list[str] = []
+    q = decisions.get("quality")
+    if not q:
+        return warnings
+    for stage, sd in q["spec"]["stages"].items():
+        lines = (sd.get("settings") or {}).get("verify_assertions") or []
+        lines = lines if isinstance(lines, list) else [lines]
+        texts = [str(x) for x in lines]
+        if any(ESCALATION_RE.search(t) for t in texts) and not any(REASON_RE.search(t) for t in texts):
+            warnings.append(f"{where}: {stage}: verify_assertions count escalations or exceptions without a reason split "
+                            "(expected handoffs apart from lookup-failed, timeout, parse-failed); an unreachable dependency would read as a rate")
+    return warnings
 
 
 def gates_consolidation(decisions: dict[str, dict], gates: dict, skipped: set[str]) -> list[str]:
@@ -514,6 +591,9 @@ def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
     p_errs, p_warns = psa_exception_findings(uc_name, decisions, str(b / "decisions" / "security.yaml"))
     errors += p_errs
     warnings += p_warns
+    errors += autonomy_findings(brief, plan, decisions, str(b))
+    warnings += supersede_findings(decisions, str(b / "decisions"))
+    warnings += verify_findings(decisions, str(b / "decisions" / "quality.yaml"))
 
     for role, run in planned_experts.items():
         if run and role not in found_areas:

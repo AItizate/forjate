@@ -136,7 +136,7 @@ Two shapes coexist and both need `?ref=<tag>`:
 
 A branch ref (`?ref=develop`, `?ref=main`, `?ref=feat/...`) is drift: two builds of the same commit can differ. Observed: five factory versions and three branches in one tenant tree. From Walk every ref is a tag; `remote_refs: mixed` in the devops record is the honest state until a `ci` check (`ref-pinning-check`) finds no branch.
 
-Each resource entry is one SSH clone per ArgoCD refresh: prefer `bundles/temporal-stack` over `apps/workflows/temporal` + `apps/databases/postgres` when they land in one namespace (`# single bundle = 1 SSH clone`, as the tenant comments it).
+Each resource entry is one SSH clone per ArgoCD refresh: prefer a `bundles/*` component that ships an engine with its store over the engine and the store as two `apps/*` refs when they land in one namespace (`# single bundle = 1 SSH clone`, as the tenant comments it).
 
 ## Replacing a placeholder Secret with a SealedSecret
 

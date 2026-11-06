@@ -3,7 +3,7 @@ title: usecases-invoice-intake
 kind: overlay
 sources:
 - k8s/overlays/usecases/invoice-intake
-compiled_at: '2026-10-30'
+compiled_at: '2026-11-06'
 category: usecases
 source_last_commit: '2026-10-30'
 summary: 'Crawl root of invoice-intake, assembled from .builder/ by forjate:kustomize.

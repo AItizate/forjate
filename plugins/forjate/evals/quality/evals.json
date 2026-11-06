@@ -4,7 +4,7 @@
     {
       "name": "regulated-invoice-intake",
       "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and every file under plugins/forjate/evals/fixtures/decisions/invoice-intake/ into decisions/ (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the quality expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area quality, metadata.author forjate:quality, one entry per stage the plan has in scope), then consolidate every record's gate_to_next and the plan's exit criteria into k8s/overlays/usecases/invoice-intake/.builder/gates.yaml following plugins/forjate/scripts/builder/schemas/gates.schema.json (one transition per stage boundary in scope, a check on every gate, approver per transition, pack overrides), and validate the use case with plugins/forjate/scripts/builder/validate.py.",
-      "expected_output": "Verify Job inv-validate with the pipeline's assertions plus KPI line, idempotency and the exception path; rules judge with an injection suite and regression on every prompt change; metric source named; gates.yaml with every record's gates verbatim under crawl->walk and walk->run, a check on each, approver per transition, SECBASE cited.",
+      "expected_output": "Verify Job invoice-intake-verify with the pipeline's assertions plus KPI line, idempotency and the exception path; rules judge with an injection suite and regression on every prompt change; metric source named; gates.yaml with every record's gates verbatim under crawl->walk and walk->run, a check on each, approver per transition, SECBASE cited.",
       "assertions": [
         {
           "type": "file_exists",
@@ -36,7 +36,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
-          "expr": "setting('verify_job','crawl') == 'inv-validate'",
+          "expr": "setting('verify_job','crawl') == 'invoice-intake-verify'",
           "text": "verify Job named from the plan"
         },
         {
@@ -114,7 +114,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
-          "expr": "set(g['id'] for g in d['spec']['transitions']['walk->run']['gates']) >= {'G-Q-2','G-SEC-1','G-BIZ-2','G-DS-2','G-ARCH-2','G-AI-2','G-PIPE-2'}",
+          "expr": "set(g['id'] for g in d['spec']['transitions']['walk->run']['gates']) >= {'G-Q-4','G-SEC-5','G-BIZ-2','G-DS-4','G-ARCH-3','G-AI-6','G-PIPE-3'}",
           "text": "walk->run carries every record's Walk gate and the plan's exit criteria"
         },
         {
@@ -138,7 +138,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
-          "expr": "any(g['id'] == 'G-DS-2' and g['check']['type'] == 'manual' and has('operator|devops|data-store|platform', g['text']) for g in d['spec']['transitions']['walk->run']['gates'])",
+          "expr": "any(g['id'] == 'G-DS-4' and g['check']['type'] == 'manual' and (has('operator|devops|data-store|platform', g['text']) or g.get('owner') in ('data-store', 'devops')) for g in d['spec']['transitions']['walk->run']['gates'])",
           "text": "restore rehearsal stays manual with the operator named"
         },
         {
@@ -152,6 +152,30 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
           "expr": "len(listed(setting('manual_gates_justified','crawl'))) + len(listed(setting('manual_gates_justified','walk'))) >= 1",
           "text": "manual gates justified"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "setting('audit_artifacts', 'walk') == 'per-action' and any(has('audit|per-action|trace', g.get('text')) and (g.get('check') or {}).get('type') == 'ci' for g in gates())",
+          "text": "per-action audit artifacts from Walk, as a ci gate"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "len(listed(setting('eval_dimensions', 'walk'))) >= 7 and all(any(has(d, x) for x in listed(setting('eval_dimensions', 'walk'))) for d in ('correct', 'ground', 'safety', 'policy', 'latency', 'cost', 'robust'))",
+          "text": "the seven evaluation dimensions at Walk, each with a measurement"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "setting('autonomy', 'crawl') == 'assistive' and setting('write_actions', 'walk') == 'approval-required'",
+          "text": "autonomy and write policy copied, so the suites test the posture"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml",
+          "expr": "any(has('bound|max_steps|loop|out-of-policy|token', x) for x in listed(setting('test_pyramid', 'walk')) + listed(setting('verify_assertions', 'walk')) + listed(setting('eval_threshold', 'walk')))",
+          "text": "the bounds or the write policy are tested, not trusted"
         }
       ]
     },
@@ -258,6 +282,18 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/gates.yaml",
           "expr": "d['spec']['transitions']['crawl->walk'].get('approver')",
           "text": "approver named"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "len(listed(setting('eval_dimensions', 'walk'))) >= 5",
+          "text": "evaluation dimensions consolidated at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/quality.yaml",
+          "expr": "any(has('expected|unexpected|lookup|reason|timeout', x) for x in listed(setting('verify_assertions','crawl')))",
+          "text": "the escalation verify counts by reason: expected handoffs apart from failures such as lookup-failed"
         }
       ]
     },
@@ -319,7 +355,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
-          "expr": "any(has('twice|second run|re-run|rerun|idempot', x) for x in listed(setting('verify_assertions','crawl')))",
+          "expr": "any(has('twice|second|re-?run|idempot|changes nothing', x) for x in listed(setting('verify_assertions','crawl')))",
           "text": "verify checks a second run"
         },
         {
@@ -331,7 +367,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
-          "expr": "any(has('no model|deterministic|without', x) for x in listed(setting('test_pyramid','crawl')))",
+          "expr": "any(has('no model|deterministic|without|no database|pure', x) for x in listed(setting('test_pyramid','crawl')))",
           "text": "unit layer explicitly model-free"
         },
         {
@@ -363,6 +399,12 @@
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/gates.yaml",
           "expr": "all(g.get('check') for t in d['spec']['transitions'].values() for g in t['gates'])",
           "text": "every gate has a check"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/quality.yaml",
+          "expr": "0 < len(listed(setting('eval_dimensions', 'crawl'))) <= 5 and not any(has('ground|safety', x) for x in listed(setting('eval_dimensions', 'crawl')))",
+          "text": "without a model, only the deterministic dimensions apply"
         }
       ]
     },
@@ -507,8 +549,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/gates.yaml",
-          "expr": "any(g['id'] == 'G-Q-2' for g in d['spec']['transitions']['walk->run']['gates'])",
-          "text": "the plan's metric gate G-Q-2 still consolidated"
+          "expr": "any(g['id'] == 'G-Q-4' for g in d['spec']['transitions']['walk->run']['gates'])",
+          "text": "the plan's Walk metric gate G-Q-4 still consolidated"
         },
         {
           "type": "yaml_expr",

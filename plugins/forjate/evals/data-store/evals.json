@@ -35,16 +35,18 @@
           "text": "RES-1 cited"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_has_capability",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
-          "expr": "has('minio', setting('artifact_store', 'crawl'))",
-          "text": "artifacts in MinIO"
+          "capability": "artifact-store",
+          "text": "an artifact store for the PDFs at Crawl",
+          "stage": "crawl"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_has_capability",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
-          "expr": "has('postgres', setting('working_store', 'crawl'))",
-          "text": "working memory in Postgres"
+          "capability": "working-memory",
+          "text": "a working-memory store at Crawl",
+          "stage": "crawl"
         },
         {
           "type": "yaml_expr",
@@ -53,9 +55,9 @@
           "text": "no MongoDB (denied by DATA-1)"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_lacks_capability",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
-          "expr": "all(setting('semantic_store', s) in (None, 'none') for s in stages) and not any('lancedb' in c or 'milvus' in c for c in choices())",
+          "capability": "semantic-memory",
           "text": "no vector store: PO matching is a lookup"
         },
         {
@@ -81,6 +83,24 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
           "expr": "'artifacts' in listed(setting('memory_kinds', 'crawl')) and 'working' in listed(setting('memory_kinds', 'crawl'))",
           "text": "memory kinds found: artifacts and working"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "all(any(has('project|org', m) for m in listed(setting('memory_scopes', s))) for s in stages)",
+          "text": "every stage scopes its memory (the extraction log is project-scoped)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "setting('scope_isolation', 'walk') in ('schema-per-tenant', 'database-per-tenant', 'cluster-per-tenant')",
+          "text": "isolation logical in the brief: at least a schema per tenant from Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
+          "expr": "setting('artifact_store', 'crawl') != setting('artifact_store', 'walk') or any(has('supersed|replac|retire|dev', st('walk').get('rationale')) for _ in [0])",
+          "text": "the Crawl artifact store is superseded at Walk, or the record says why not"
         }
       ]
     },
@@ -118,16 +138,18 @@
           "text": "session memory identified"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_has_capability",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
-          "expr": "has('redis', setting('session_store', 'walk'))",
-          "text": "session store is Redis at Walk"
+          "capability": "session-memory",
+          "text": "a session-memory store at Walk",
+          "stage": "walk"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_has_capability",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
-          "expr": "has('postgres|mongodb|mariadb', setting('episodic_store', 'walk'))",
-          "text": "episodic store is a database, not a cache or a bucket"
+          "capability": "episodic-memory",
+          "text": "an episodic-memory store at Walk",
+          "stage": "walk"
         },
         {
           "type": "yaml_expr",
@@ -158,6 +180,18 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
           "expr": "len(alts()) >= 1 and all(a.get('rejected_because') for a in alts())",
           "text": "alternatives rejected with reasons"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "any(has('user', m) for m in listed(setting('memory_scopes', 'walk')))",
+          "text": "a customer's history is user-scoped"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
+          "expr": "setting('scope_isolation', 'walk') is not None",
+          "text": "scope isolation stated at Walk"
         }
       ]
     },
@@ -230,10 +264,11 @@
           "text": "no session or semantic memory for a migration"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_has_capability",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/data-store.yaml",
-          "expr": "has('postgres|redis', setting('working_store', 'crawl'))",
-          "text": "migration progress has a working store"
+          "capability": "working-memory",
+          "text": "migration progress has a working-memory store",
+          "stage": "crawl"
         }
       ]
     },
@@ -261,25 +296,25 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
-          "expr": "all(not has('minio', setting('session_store', s)) for s in stages)",
-          "text": "session memory not in MinIO"
+          "expr": "all('artifact-store' not in capabilities_of(txt(setting('session_store', s))) for s in stages)",
+          "text": "session memory is not in the artifact store"
         },
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
-          "expr": "all(not has('minio', setting('episodic_store', s)) for s in stages)",
-          "text": "episodic memory not in MinIO"
+          "expr": "all('artifact-store' not in capabilities_of(txt(setting('episodic_store', s))) for s in stages)",
+          "text": "episodic memory is not in the artifact store"
         },
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
           "expr": "any(has('minio|bucket|object', a.get('option')) and a.get('rejected_because') for a in alts())",
-          "text": "MinIO for chat history rejected with a reason"
+          "text": "the object store for chat history is rejected with a reason"
         },
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/data-store.yaml",
-          "expr": "has('redis|postgres', setting('session_store', 'crawl'))",
+          "expr": "any(c in capabilities_of(txt(setting('session_store', 'crawl'))) for c in ('session-memory', 'working-memory'))",
           "text": "session memory in a key-value or relational store"
         }
       ]
@@ -312,10 +347,11 @@
           "text": "respects DATA-1: no Postgres"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_has_capability",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml",
-          "expr": "any('mariadb' in c for c in choices())",
-          "text": "MariaDB chosen as the relational alternative"
+          "capability": "working-memory",
+          "text": "a relational working-memory store chosen despite the denial",
+          "stage": "crawl"
         },
         {
           "type": "grep",

@@ -3,7 +3,7 @@ title: usecases-support-copilot
 kind: overlay
 sources:
 - k8s/overlays/usecases/support-copilot
-compiled_at: '2026-10-30'
+compiled_at: '2026-11-06'
 category: usecases
 source_last_commit: '2026-10-30'
 summary: 'Crawl root of support-copilot, assembled from .builder/ by forjate:kustomize.

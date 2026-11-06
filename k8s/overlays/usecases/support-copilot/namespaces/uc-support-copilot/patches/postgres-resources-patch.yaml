@@ -1,4 +1,4 @@
-# Laptop sizing for apps/databases/postgres (catalog defaults are sized for tenants).
+# Laptop sizing for apps/databases/postgres (catalog defaults are sized for tenants; strategic merge on the container name).
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

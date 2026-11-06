@@ -1,5 +1,18 @@
-# NetworkPolicies for uc-invoice-intake at walk, generated from decisions/security.yaml (network_policy: default-deny,
-# egress_allowlist: 2 external host(s)) and the in-cluster allows derived from the scaffold's workloads and the components.
+# NetworkPolicies for uc-invoice-intake at walk: default-deny (security network_policy) and the per-workload egress matrix (security egress_matrix: required, G-ARCH-7, SECBASE item 2).
+# Hand-written over the generator, whose blanket policies gave every pod Odoo, IMAP and the gateway. Run inherits this file.
+#
+# workload                  temporal  postgres  minio  docling  gateway  doubles  external
+# cron-job                  yes       yes       yes    -        -        -        IMAP
+# worker                    yes       yes       yes    yes      yes      -        Odoo
+# posting-worker            yes       yes       -      -        -        -        Odoo
+# review-api                yes       yes       yes    -        -        -        -
+# seed-job                  -         yes       yes    -        -        yes      -
+# verify-job                yes       yes       yes    yes      -        yes      -
+# invoice-intake-eval       -         yes       yes    yes      -        yes      -
+# odoo-stub, mailbox stub   -         yes       -      -        -        -        -
+#
+# From the records: the external column, gateway on worker only, no model route on posting-worker, postgres on posting-worker.
+# ASSUMED from the scaffold's routes and the architecture rationale, for the security owner to read under its Q13: the rest.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -34,62 +47,222 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-inv-seed-egress
+  name: egress-cron-job
   namespace: uc-invoice-intake
+  annotations:
+    forjate.io/egress-host: imap.corp.example.com:993
+    forjate.io/note: 'NetworkPolicy has no FQDN selector: replace the cidr with the resolved address range of this host, or use the CNI''s FQDN policy (CiliumNetworkPolicy toFQDNs)'
 spec:
   podSelector:
     matchLabels:
-      app: inv-seed
+      app: cron-job
   policyTypes:
   - Egress
   egress:
   - to:
-    - podSelector:
-        matchLabels:
-          app: ollama
-      namespaceSelector:
+    - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: temporal-server
     ports:
     - protocol: TCP
-      port: 11434
+      port: 7233
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
   - to:
     - podSelector:
         matchLabels:
-          app: litellm
-      namespaceSelector:
+          app: minio
+    ports:
+    - protocol: TCP
+      port: 9000
+  - to:
+    - ipBlock:
+        cidr: 203.0.113.0/32
+    ports:
+    - protocol: TCP
+      port: 993
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-worker
+  namespace: uc-invoice-intake
+  annotations:
+    forjate.io/egress-host: odoo.corp.example.com:443
+    forjate.io/note: 'NetworkPolicy has no FQDN selector: replace the cidr with the resolved address range of this host, or use the CNI''s FQDN policy (CiliumNetworkPolicy toFQDNs)'
+spec:
+  podSelector:
+    matchLabels:
+      app: worker
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: temporal-server
+    ports:
+    - protocol: TCP
+      port: 7233
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: docling
+    ports:
+    - protocol: TCP
+      port: 5001
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: litellm
     ports:
     - protocol: TCP
       port: 4000
   - to:
     - podSelector:
         matchLabels:
-          app: gotrue
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+          app: minio
     ports:
     - protocol: TCP
-      port: 9999
+      port: 9000
   - to:
-    - podSelector:
-        matchLabels:
-          app: docling
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+    - ipBlock:
+        cidr: 203.0.113.0/32
     ports:
     - protocol: TCP
-      port: 5001
+      port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-posting-worker
+  namespace: uc-invoice-intake
+  annotations:
+    forjate.io/egress-host: odoo.corp.example.com:443
+    forjate.io/note: 'NetworkPolicy has no FQDN selector: replace the cidr with the resolved address range of this host, or use the CNI''s FQDN policy (CiliumNetworkPolicy toFQDNs)'
+spec:
+  podSelector:
+    matchLabels:
+      app: posting-worker
+  policyTypes:
+  - Egress
+  egress:
   - to:
-    - podSelector:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: temporal-server
+    ports:
+    - protocol: TCP
+      port: 7233
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
         matchLabels:
           app: postgres
-      namespaceSelector:
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - ipBlock:
+        cidr: 203.0.113.0/32
+    ports:
+    - protocol: TCP
+      port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-review-api
+  namespace: uc-invoice-intake
+spec:
+  podSelector:
+    matchLabels:
+      app: review-api
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: temporal-server
+    ports:
+    - protocol: TCP
+      port: 7233
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - podSelector:
+        matchLabels:
+          app: minio
+    ports:
+    - protocol: TCP
+      port: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-seed-job
+  namespace: uc-invoice-intake
+spec:
+  podSelector:
+    matchLabels:
+      app: seed-job
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: postgres
     ports:
     - protocol: TCP
       port: 5432
@@ -102,18 +275,12 @@ spec:
       port: 9000
   - to:
     - podSelector:
-        matchLabels:
-          app: formbricks
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 3000
-  - to:
-    - podSelector:
-        matchLabels:
-          app: erp-stub
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - odoo-stub
+          - shared-imap-mailbox-stub
     ports:
     - protocol: TCP
       port: 8001
@@ -121,65 +288,45 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-intake-job-egress
+  name: egress-verify-job
   namespace: uc-invoice-intake
 spec:
   podSelector:
     matchLabels:
-      app: intake-job
+      app: verify-job
   policyTypes:
   - Egress
   egress:
   - to:
-    - podSelector:
-        matchLabels:
-          app: ollama
-      namespaceSelector:
+    - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: temporal-server
     ports:
     - protocol: TCP
-      port: 11434
+      port: 7233
   - to:
-    - podSelector:
-        matchLabels:
-          app: litellm
-      namespaceSelector:
+    - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 4000
-  - to:
-    - podSelector:
-        matchLabels:
-          app: gotrue
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 9999
-  - to:
-    - podSelector:
-        matchLabels:
-          app: docling
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 5001
-  - to:
-    - podSelector:
+      podSelector:
         matchLabels:
           app: postgres
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 5432
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: docling
+    ports:
+    - protocol: TCP
+      port: 5001
   - to:
     - podSelector:
         matchLabels:
@@ -189,18 +336,12 @@ spec:
       port: 9000
   - to:
     - podSelector:
-        matchLabels:
-          app: formbricks
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 3000
-  - to:
-    - podSelector:
-        matchLabels:
-          app: erp-stub
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - odoo-stub
+          - shared-imap-mailbox-stub
     ports:
     - protocol: TCP
       port: 8001
@@ -208,65 +349,35 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-inv-validate-egress
+  name: egress-invoice-intake-eval
   namespace: uc-invoice-intake
 spec:
   podSelector:
     matchLabels:
-      app: inv-validate
+      app: invoice-intake-eval
   policyTypes:
   - Egress
   egress:
   - to:
-    - podSelector:
-        matchLabels:
-          app: ollama
-      namespaceSelector:
+    - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 11434
-  - to:
-    - podSelector:
-        matchLabels:
-          app: litellm
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 4000
-  - to:
-    - podSelector:
-        matchLabels:
-          app: gotrue
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 9999
-  - to:
-    - podSelector:
-        matchLabels:
-          app: docling
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 5001
-  - to:
-    - podSelector:
+      podSelector:
         matchLabels:
           app: postgres
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 5432
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: docling
+    ports:
+    - protocol: TCP
+      port: 5001
   - to:
     - podSelector:
         matchLabels:
@@ -276,18 +387,12 @@ spec:
       port: 9000
   - to:
     - podSelector:
-        matchLabels:
-          app: formbricks
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 3000
-  - to:
-    - podSelector:
-        matchLabels:
-          app: erp-stub
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - odoo-stub
+          - shared-imap-mailbox-stub
     ports:
     - protocol: TCP
       port: 8001
@@ -295,82 +400,48 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-erp-stub-egress
+  name: egress-odoo-stub
   namespace: uc-invoice-intake
 spec:
   podSelector:
     matchLabels:
-      app: erp-stub
+      app: odoo-stub
   policyTypes:
   - Egress
   egress:
   - to:
-    - podSelector:
-        matchLabels:
-          app: ollama
-      namespaceSelector:
+    - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 11434
-  - to:
-    - podSelector:
-        matchLabels:
-          app: litellm
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 4000
-  - to:
-    - podSelector:
-        matchLabels:
-          app: gotrue
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 9999
-  - to:
-    - podSelector:
-        matchLabels:
-          app: docling
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
-    ports:
-    - protocol: TCP
-      port: 5001
-  - to:
-    - podSelector:
+      podSelector:
         matchLabels:
           app: postgres
-      namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: uc-invoice-intake-baseline
     ports:
     - protocol: TCP
       port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-shared-imap-mailbox-stub
+  namespace: uc-invoice-intake
+spec:
+  podSelector:
+    matchLabels:
+      app: shared-imap-mailbox-stub
+  policyTypes:
+  - Egress
+  egress:
   - to:
-    - podSelector:
-        matchLabels:
-          app: minio
-    ports:
-    - protocol: TCP
-      port: 9000
-  - to:
-    - podSelector:
-        matchLabels:
-          app: formbricks
-      namespaceSelector:
+    - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: uc-invoice-intake-baseline
+      podSelector:
+        matchLabels:
+          app: postgres
     ports:
     - protocol: TCP
-      port: 3000
+      port: 5432
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -393,17 +464,28 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ingress-to-erp-stub
+  name: allow-ingress-to-doubles
   namespace: uc-invoice-intake
 spec:
   podSelector:
-    matchLabels:
-      app: erp-stub
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - odoo-stub
+      - shared-imap-mailbox-stub
   policyTypes:
   - Ingress
   ingress:
   - from:
-    - podSelector: {}
+    - podSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - seed-job
+          - verify-job
+          - invoice-intake-eval
     ports:
     - protocol: TCP
       port: 8001
@@ -424,45 +506,3 @@ spec:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: traefik
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-egress-imap-corp-example-com
-  namespace: uc-invoice-intake
-  annotations:
-    forjate.io/egress-host: imap.corp.example.com:993
-    forjate.io/note: 'NetworkPolicy has no FQDN selector: replace the cidr with the resolved address range of this host, or
-      use the CNI''s FQDN policy (CiliumNetworkPolicy toFQDNs)'
-spec:
-  podSelector: {}
-  policyTypes:
-  - Egress
-  egress:
-  - to:
-    - ipBlock:
-        cidr: 203.0.113.0/32
-    ports:
-    - protocol: TCP
-      port: 993
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-egress-odoo-corp-example-com
-  namespace: uc-invoice-intake
-  annotations:
-    forjate.io/egress-host: odoo.corp.example.com:443
-    forjate.io/note: 'NetworkPolicy has no FQDN selector: replace the cidr with the resolved address range of this host, or
-      use the CNI''s FQDN policy (CiliumNetworkPolicy toFQDNs)'
-spec:
-  podSelector: {}
-  policyTypes:
-  - Egress
-  egress:
-  - to:
-    - ipBlock:
-        cidr: 203.0.113.0/32
-    ports:
-    - protocol: TCP
-      port: 443

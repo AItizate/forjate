@@ -13,17 +13,6 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: docling
-  namespace: uc-invoice-intake
-  labels:
-    forjate.io/psa-exception: uc-invoice-intake-baseline
-spec:
-  type: ExternalName
-  externalName: docling.uc-invoice-intake-baseline.svc.cluster.local
----
-apiVersion: v1
-kind: Service
-metadata:
   name: postgres
   namespace: uc-invoice-intake
   labels:
@@ -35,13 +24,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: minio
+  name: docling
   namespace: uc-invoice-intake
   labels:
     forjate.io/psa-exception: uc-invoice-intake-baseline
 spec:
   type: ExternalName
-  externalName: minio.uc-invoice-intake-baseline.svc.cluster.local
+  externalName: docling.uc-invoice-intake-baseline.svc.cluster.local
 ---
 apiVersion: v1
 kind: Service
@@ -53,6 +42,28 @@ metadata:
 spec:
   type: ExternalName
   externalName: litellm.uc-invoice-intake-baseline.svc.cluster.local
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-server
+  namespace: uc-invoice-intake
+  labels:
+    forjate.io/psa-exception: uc-invoice-intake-baseline
+spec:
+  type: ExternalName
+  externalName: temporal-server.uc-invoice-intake-baseline.svc.cluster.local
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-ui-svc
+  namespace: uc-invoice-intake
+  labels:
+    forjate.io/psa-exception: uc-invoice-intake-baseline
+spec:
+  type: ExternalName
+  externalName: temporal-ui-svc.uc-invoice-intake-baseline.svc.cluster.local
 ---
 apiVersion: v1
 kind: Service
@@ -75,14 +86,3 @@ metadata:
 spec:
   type: ExternalName
   externalName: gotrue-authz.uc-invoice-intake-baseline.svc.cluster.local
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: formbricks
-  namespace: uc-invoice-intake
-  labels:
-    forjate.io/psa-exception: uc-invoice-intake-baseline
-spec:
-  type: ExternalName
-  externalName: formbricks.uc-invoice-intake-baseline.svc.cluster.local

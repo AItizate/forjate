@@ -1,12 +1,12 @@
 # Ingestion patterns
 
-| Pattern | Shape | Stage fitness | Catalog | Fails when |
+| Pattern | Shape | Stage fitness | Capability (resolve from the catalog) | Fails when |
 |---------|-------|---------------|---------|------------|
 | `batch` | a Job reads everything pending, processes, writes; a schedule or an operator starts it | Crawl for everything; Walk and Run for migrations, reconciliations, nightly extracts | none beyond the stores | two runs overlap (lock in working memory), or a run must react within minutes |
 | `poll` | a loop or CronJob asks the source for new items since a cursor | Walk for mailboxes, folders, chat channels that support it (Telegram), APIs without push | none | the cursor is lost (idempotency key makes it harmless), poll interval exceeds the SLA |
-| `webhook` | the source pushes to an endpoint | Walk+ with an `external` API surface, tunnel and signature check; never Crawl | `apps/cloudflare-tunnel`; the endpoint is a workload | the endpoint is down (the source retries or does not: say which), replay attacks, no backpressure |
-| `stream` | producer and consumer decoupled by a broker; consumer is idempotent by message key | Walk+ when workloads must be decoupled or fan out | `apps/brokers/nats` (default, JetStream), `apps/brokers/rabbitmq` (AMQP, work queues) | duplicate delivery without a key, consumer lag with no metric, broker as the only copy |
-| `cdc` | a connector reads the source database's change log and publishes to the broker | Walk+ on a database the organisation operates | `apps/cdc/debezium-<source>-<broker>` plus the broker | source lacks logical decoding / replica set, schema changes, snapshot of a large table at start |
+| `webhook` | the source pushes to an endpoint | Walk+ with an `external` API surface, tunnel and signature check; never Crawl | `public-ingress`; the endpoint is a workload | the endpoint is down (the source retries or does not: say which), replay attacks, no backpressure |
+| `stream` | producer and consumer decoupled by a broker; consumer is idempotent by message key | Walk+ when workloads must be decoupled or fan out | `message-broker` (the streaming candidate by default, the AMQP one for work queues and AMQP clients) | duplicate delivery without a key, consumer lag with no metric, broker as the only copy |
+| `cdc` | a connector reads the source database's change log and publishes to the broker | Walk+ on a database the organisation operates | `cdc` (a connector named `<source>-<broker>`) plus the broker | source lacks logical decoding / replica set, schema changes, snapshot of a large table at start |
 
 ## Choosing per stage
 

@@ -7,6 +7,7 @@ spec:
       in_scope: true
       goal: Prove the migration Job moves and verifies a seeded dataset on an ephemeral cluster.
       forjate_tier: lab
+      autonomy: assistive
       exit_criteria:
         - { id: G-Q-1, text: verify Job exits 0 on the seeded dataset, owner: quality, check: { type: verify-job, ref: dbmig-validate } }
       estimated_cost_usd_month: 0
@@ -14,6 +15,7 @@ spec:
       in_scope: true
       goal: Run the migration against a staging copy with real volume under GitOps.
       forjate_tier: mvp
+      autonomy: assistive
       exit_criteria:
         - { id: G-Q-2, text: full-volume run completes under 30 minutes, owner: quality, check: { type: metric, ref: job_duration_seconds } }
     run:

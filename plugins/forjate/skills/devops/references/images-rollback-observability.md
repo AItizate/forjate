@@ -4,7 +4,7 @@
 
 | Stage | `image_registry` | `image_tag_policy` | `image_writeback` | `image_signing` |
 |-------|------------------|--------------------|-------------------|-----------------|
-| Crawl | the local k3d registry (`apps/docker-registry`) or GHCR with a `dev` tag | `any` | `none` (the runner applies the working tree) | `none` |
+| Crawl | the local k3d registry (the `image-registry` component) or GHCR with a `dev` tag | `any` | `none` (the runner applies the working tree) | `none` |
 | Walk | GHCR or the org registry, pull secret on the ServiceAccount | `sha` (full commit SHA, never `latest`) | `repository_dispatch+yq` | `none` |
 | Run | same | `semver+sha` for releases | same | `cosign` in CI (`docs/lab-to-production.md`; not in the catalog, name the CI step) |
 
@@ -37,7 +37,7 @@ Before the first real secret is sealed at Walk: the sealed-secrets controller ke
 | `snapshot+dump` (Walk) | Longhorn recurring snapshots on the PVCs plus a nightly CronJob: `pg_dump` to a MinIO bucket on another node, Redis RDB, `mc mirror` for buckets | restore into a scratch namespace, row counts compared (`restore-rehearsal`, `manual`, operator named); `restore_rehearsed: false` until done |
 | `velero+pitr` (Run) | Velero to an offsite target within residency, Postgres operator with WAL archiving for point-in-time recovery, MinIO Tenant versioning | the same rehearsal, from the offsite target |
 
-Velero is not a catalog component (issue #6 in `docs/lab-to-production.md`). The record keeps the target the data-store set, names the gap and raises the open question (offsite target within residency, who operates it); it never lists `apps/backup/velero` in `choice`.
+The `backup` capability has no component yet (issue #6 in `docs/lab-to-production.md`). The record keeps the target the data-store set, names the gap and raises the open question (offsite target within residency, who operates it); it never lists `apps/backup/velero` in `choice`.
 
 ## Rollback runbook
 
@@ -55,8 +55,8 @@ Velero is not a catalog component (issue #6 in `docs/lab-to-production.md`). The
 | Stage | `observability` | `choice` | `alerting` |
 |-------|-----------------|----------|------------|
 | Crawl | `none` | nothing; the runner prints Job logs | `none` |
-| Walk | `prometheus+grafana` | `apps/monitoring/prometheus`, `apps/monitoring/grafana` | `alertmanager` with the three alerts that page |
-| Run | `prometheus+grafana+otel` | plus `apps/monitoring/otel-collector` for traces of model and tool calls | plus SLO burn-rate alerts |
+| Walk | `metrics+dashboards` | the `metrics` and `dashboards` components | `alertmanager` with the three alerts that page |
+| Run | `metrics+dashboards+telemetry` | plus the `telemetry` component for traces of model and tool calls (from Walk when the quality record asks for per-action audit artifacts) | plus SLO burn-rate alerts |
 
 `golden_signals` per workload: latency p95, error rate, saturation (queue depth, memory), traffic; plus the quality record's signals (KPI, escalation rate, tool failure rate, tokens and cost per item, eval pass rate). The three alerts that page at Walk: the canary verify Job failing, error rate above the SLA, cost per item above the AI-engineering budget. Everything else is a dashboard. A `metric` gate in the quality record needs a stack here; a pack that denies the stack is an open question about where the metric lives, raised in both records.
 

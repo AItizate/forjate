@@ -6,6 +6,7 @@ Condensed from `docs/lab-to-production.md` and `docs/overlays/CONVENTION.md`. Fi
 |---|---|---|---|
 | **Forjate tier** | `lab` | `mvp` | `production` |
 | **Proves** | the automation works end to end on real-shaped data, one user | real users can rely on it, internally, on one cluster | SLAs, audits, multi-tenancy |
+| **Autonomy ceiling** | `assistive`: the agent recommends, a person acts | `semi-autonomous` at most: registered tools, writes behind approval | the brief's `autonomy` at most, earned action by action with a gate each |
 | **Where it runs** | k3d via `scripts/ephemeral/ephemeral.sh`, or a single-node k3s | 3-node k3s/RKE2 with Longhorn + MetalLB | 3+ nodes plus managed services and offsite backup |
 | **Reference overlay** | `quickstart`, `usecases/*` | `bare-metal-starter` | `multi-tenant-pattern`, `multi-cloud-portable` |
 | **Platform defaults** | placeholder secrets via `.env.example`, no auth, PSA `privileged` | Sealed Secrets, ArgoCD, GoTrue + oauth2-proxy, Prometheus + Grafana, Cloudflare Tunnel, NetworkPolicy default-deny, PSA `baseline` | External Secrets / Vault, Velero, PSA `restricted`, OTel pipeline, DB operators, image signing |
@@ -19,17 +20,19 @@ Condensed from `docs/lab-to-production.md` and `docs/overlays/CONVENTION.md`. Fi
 - `G-Q-1` verify Job of the use case exits 0 on the seeded dataset (`verify-job`)
 - `G-BIZ-1` the success metric from the brief was measured once on the PoC and the approver saw the number (`manual`, approver)
 - `G-DS-1` retention of PoC data decided (`manual`)
+- `G-SEC-1` the sandbox and the access grants approved by the security owner before the first deployment (`manual`, security owner) — when the use case touches data above `internal`, writes, exposes a surface or carries a `risk_profile`
 
 **Walk → Run**
 
 - `G-Q-2` success metric meets the brief's target over a defined window (`metric`)
-- `G-SEC-1` namespace is default-deny with documented egress allow-list (`ci`)
+- `G-SEC-2` namespace is default-deny with documented egress allow-list (`ci`)
 - `G-OPS-1` rollback rehearsed once from git (`manual`, operator)
 - `G-OPS-2` dashboards and alerts for the use case's golden signals exist (`manual`)
 
 **Run (steady state)**
 
-- `G-SEC-2` PSA `restricted` enforced on the namespace (`ci`)
-- `G-SEC-3` no plaintext secret in git; mechanism per pack (`ci`)
+- `G-SEC-3` PSA `restricted` enforced on the namespace (`ci`)
+- `G-SEC-4` no plaintext secret in git; mechanism per pack (`ci`)
+- `G-AUT-1` each autonomy increase approved one by one, starting read-only, with the suite that earned it named (`manual`, approver)
 - `G-COMP-1` compliance record signed; data residency and egress documented (`manual`, compliance)
 - `G-OPS-3` backup restore rehearsed (`manual`)

@@ -10,7 +10,7 @@ spec:
         verify_assertions:
           - "every conversation of the 60-item replay set runs through the agent API end to end; no turn ends in a tool error or an empty answer"
           - "all 12 refund and cancellation conversations produce exactly one escalation record each, carrying the full transcript and the order id"
-          - "false escalations among the 40 answerable conversations <= 4, so resolved_without_human_rate >= 60 % on the seed"
+          - "escalations counted by reason: the 4 expected handoffs among the 40 answerable conversations (the address changes the agent always routes to a person) exactly 4, and unexpected escalations with reason lookup-failed, timeout or model-error = 0, so resolved_without_human_rate >= 60 % on the seed holds with the seed's own margin and never by timing"
           - "the 4 unknown order ids are answered with a not-found handoff and escalated, never from a guess"
           - "the 2 malformed conversations are in dead_letters with a reason and the customer received a handoff message"
           - "no answer contains an order or subscription field outside the allowed list; the list is configured (ASSUMED values until Q1 is answered) and the Job fails closed when it is empty"
@@ -90,7 +90,7 @@ spec:
         verify_job: copilot-validate
         verify_assertions:
           - "the Job keeps running on every deploy against the live namespace with one synthetic canary conversation, including a synthetic refund request"
-          - "the canary refund produces one escalation in the agents' queue with the full transcript and the order id, and is marked synthetic so it is not worked"
+          - "the canary refund produces exactly one expected escalation in the agents' queue with the full transcript and the order id, marked synthetic so it is not worked; unexpected escalations on the canary with reason lookup-failed or timeout = 0"
           - "the Telegram webhook rejects a request without the bot secret token (architecture G-ARCH-2)"
           - "the escalation worker retried on an induced failure and created no duplicate escalation"
           - "redaction holds on the canary: the LiteLLM request log carries no name, email or phone number (AI-engineering G-AI-2)"

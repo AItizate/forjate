@@ -23,7 +23,7 @@ dependencies are reported with install hints on first run.
 
 | Command | What it does |
 |---------|--------------|
-| `up <use-case>` | Ensure the cluster, apply the overlay, stamp the TTL, then run seed → run → verify. Blocks until verify exits 0. Idempotent. |
+| `up <use-case> [--stability]` | Ensure the cluster, apply the overlay, stamp the TTL, then run seed → run → verify. Blocks until verify exits 0. Idempotent. Prints the health signals (below); `--stability` brings it up a second time on the same seed and asserts them. |
 | `seed <use-case>` | Re-run only the seed Job against a live environment. |
 | `validate <use-case>` | Re-run only the verify Job. |
 | `down <use-case>` | Delete the namespace (shared) or the whole cluster (dedicated). |
@@ -39,6 +39,26 @@ dependencies are reported with install hints on first run.
 
 Environment overrides: `K3D_IMAGE` (default `rancher/k3s:v1.31.3-k3s1`),
 `UC_SHARED_CLUSTER` (default `forjate-uc-shared`).
+
+## Health signals
+
+A verify Job that exits 0 proves the use case worked once. After it, `up` prints two
+signals as `HEALTH key=value` lines, which the L3 nightly asserts (`up --stability`):
+
+| Line | Expected | Meaning |
+|------|----------|---------|
+| `HEALTH pod_restarts_after_verify=N` | `0` | Container restarts in the use case namespace once the verify has passed. A non-zero count is a probe that kills a slow starter or a crash the verify did not touch; `restarted_pod=` lines name the pods. |
+| `HEALTH kpi_second_up=equal` | `equal` | The KPI/EVAL lines of the verify log on a second `up` of the same seed. `differs` prints both values; `unmeasured` means the verify prints no KPI line. |
+
+`--stability` fails on a restart after either verify and on a KPI that moved. A threshold
+that sits on the seed's baseline passes or fails by luck: set it off the baseline (plan §3).
+
+## Toolchain
+
+`yq` is read the same way everywhere only if it is the same version. The one CI pins
+lives in `.github/toolchain.env`; the runner refuses another. `scripts/toolchain/install.sh`
+installs it under `.tools/bin` (git-ignored, found first on `PATH`), and
+`FORJATE_TOOLCHAIN=warn` runs on a different one anyway.
 
 ## The contract
 

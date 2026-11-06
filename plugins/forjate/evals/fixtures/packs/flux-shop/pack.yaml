@@ -21,7 +21,7 @@ spec:
       path: constraints.yaml#/rules/OPS-2
       enforce: must
       applies_to: [devops]
-      summary: Secrets come from the corporate Vault from the pilot onwards.
+      summary: Secrets come from the corporate store (OpenBao, in-cluster) from the pilot onwards.
     - id: OPS-3
       kind: constraint
       path: constraints.yaml#/rules/OPS-3

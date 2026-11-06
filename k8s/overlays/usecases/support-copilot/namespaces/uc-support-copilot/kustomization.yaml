@@ -25,8 +25,8 @@ patches:
 - target:
     kind: StatefulSet
     name: ollama
-  patch: "# assumes containers[0] is ollama (upstream statefulset.yaml); drops the GPU limit a laptop cannot satisfy\n- op:\
-    \ remove\n  path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu\n"
+  patch: "# assumes containers[0] is ollama (upstream manifest); drops the GPU limit a laptop cannot satisfy (catalog gpu_required:\
+    \ optional)\n- op: remove\n  path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu\n"
 - path: patches/postgres-resources-patch.yaml
   target:
     kind: StatefulSet

@@ -29,16 +29,18 @@
           "text": "data_egress none at every stage (financial data, no egress)"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_has_capability",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
-          "expr": "any('ollama/' in txt(m) for m in listed(setting('model', 'crawl')))",
-          "text": "local Ollama model at Crawl"
+          "capability": "inference",
+          "text": "an in-cluster inference component at Crawl (zero egress)",
+          "stage": "crawl"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_has_capability",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
-          "expr": "any('litellm' in c for c in choices('walk') + choices('run'))",
-          "text": "LiteLLM gateway from Walk"
+          "capability": "llm-gateway",
+          "text": "the LLM gateway from Walk",
+          "stage": "walk"
         },
         {
           "type": "yaml_expr",
@@ -87,6 +89,48 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
           "expr": "len(listed(setting('guardrails', 'walk'))) >= 3",
           "text": "at least three guardrails at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('autonomy', 'crawl') == 'assistive' and setting('autonomy', 'walk') in ('assistive', 'semi-autonomous')",
+          "text": "autonomy copied from the plan's ceiling: assistive at Crawl, at most semi-autonomous at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('write_actions', 'walk') == 'approval-required' and setting('write_actions', 'crawl') in ('none', 'approval-required')",
+          "text": "writes need approval at Walk (posting to the ERP)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(any(has(r'max_steps\\s*=\\s*\\d+', b) for b in listed(setting('execution_bounds', s))) and any(has(r'timeout', b) for b in listed(setting('execution_bounds', s))) for s in stages)",
+          "text": "execution bounds with a step limit and a timeout at every stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('intent_validation', 'walk') == 'policy-judge' and setting('intent_validation', 'run') == 'policy-judge'",
+          "text": "intent validation is a policy judge once a tool writes"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('model_pinning', s) == 'pinned' for s in stages) and all(setting('fallback_policy', s) in ('none', 'same-tier') for s in stages)",
+          "text": "model pinned at every stage; fallback never to a lower tier"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('kill_switch', 'walk') in ('gateway-key-revocation', 'ingress-permission')",
+          "text": "a kill switch named from Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(has('semantic', k) for k in settings('crawl')) and setting('semantic_memory_strategy', 'crawl') in ('api-lookup', 'none', ['api-lookup'])",
+          "text": "PO matching is an API lookup, not retrieval"
         }
       ]
     },
@@ -164,6 +208,30 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
           "expr": "len(alts()) >= 1",
           "text": "alternatives recorded"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('write_actions', 'walk') == 'approval-required'",
+          "text": "refunds and cancellations are writes behind approval at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('autonomy', 'walk') in ('assistive', 'semi-autonomous')",
+          "text": "autonomy at Walk does not exceed the plan's ceiling"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('semantic_memory_strategy', 'walk') in ('api-lookup', ['api-lookup']) or 'api-lookup' in listed(setting('semantic_memory_strategy', 'walk'))",
+          "text": "the orders API is an api-lookup, not a corpus"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(has('groundedness|policy', x) for s in stages for x in listed(setting('eval_dimensions', s)))",
+          "text": "contributes groundedness or policy-adherence as an eval dimension"
         }
       ]
     },
@@ -200,9 +268,9 @@
           "text": "existing contract untouched"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_lacks_capability",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/ai-engineering.yaml",
-          "expr": "not any('ai-models' in c for c in choices())",
+          "capability": "inference",
           "text": "no inference component for a deterministic migration"
         },
         {
@@ -271,10 +339,11 @@
           "text": "rejection reason names the egress constraint or the data class"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_has_capability",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
-          "expr": "any('ollama/' in txt(m) for m in listed(setting('model', 'crawl')))",
-          "text": "local model kept at Crawl"
+          "capability": "inference",
+          "text": "in-cluster inference kept at Crawl",
+          "stage": "crawl"
         },
         {
           "type": "yaml_expr",
@@ -306,10 +375,10 @@
           "text": "validate.py passes on the use case"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_lacks_capability",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
-          "expr": "not any('ollama' in c or 'vllm' in c for c in choices())",
-          "text": "respects AI-2: no local inference component"
+          "capability": "inference",
+          "text": "respects AI-2: no in-cluster inference component"
         },
         {
           "type": "grep",
@@ -340,6 +409,89 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
           "expr": "any(has('block|cannot|unsatisf|conflict', st(s).get('rationale')) for s in stages)",
           "text": "rationale states what is blocked"
+        }
+      ]
+    },
+    {
+      "name": "pack-enterprise-posture",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml and plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, and plugins/forjate/evals/fixtures/decisions/invoice-intake/business.yaml to decisions/business.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/enterprise-in-a-box (name enterprise-in-a-box) and set spec.context_packs to [enterprise-in-a-box] in the brief. Then, as the ai-engineering expert of the Forjate use-case builder, write the decision record k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml following plugins/forjate/scripts/builder/schemas/decision.schema.json (metadata.area ai-engineering, metadata.author forjate:ai-engineering, one entry per stage the plan has in scope) and validate the use case with plugins/forjate/scripts/builder/validate.py.",
+      "expected_output": "A record that satisfies every enterprise rule and cites the ones that shaped it: assistive Crawl, writes behind approval until Run, numeric execution bounds, a policy judge before writes, pinned model with same-tier fallback, scoped memory, per-action audit from Walk, and the knowledge compiler named as a gap, not a capability.",
+      "assertions": [
+        {
+          "type": "file_exists",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "text": "ai-engineering.yaml written"
+        },
+        {
+          "type": "schema_valid",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "schema": "decision",
+          "text": "record validates against the decision schema"
+        },
+        {
+          "type": "usecase_valid",
+          "path": "k8s/overlays/usecases/invoice-intake",
+          "text": "validate.py passes on the use case (every enterprise must-rule satisfied)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "pattern": "pack:enterprise-in-a-box#EXE-1",
+          "text": "EXE-1 (execution bounds) cited"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "pattern": "pack:enterprise-in-a-box#AUT-",
+          "text": "an autonomy rule cited"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(any(has(r'max_steps\\s*=\\s*\\d+', b) for b in listed(setting('execution_bounds', s))) and any(has(r'delegation_depth\\s*=\\s*\\d+', b) for b in listed(setting('execution_bounds', s))) for s in stages)",
+          "text": "bounds are numbers: a step limit and a delegation depth at every stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('intent_validation', 'walk') == 'policy-judge'",
+          "text": "a policy judge stands before the write at Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('write_actions', s) in ('none', 'approval-required') for s in ('crawl', 'walk'))",
+          "text": "no autonomous write before Run"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(setting('model_pinning', s) == 'pinned' for s in stages) and all(setting('fallback_policy', s) in ('none', 'same-tier') for s in stages)",
+          "text": "pinned model, same-tier fallback"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "all(listed(setting('memory_scopes', s)) for s in stages)",
+          "text": "memory scopes stated at every stage (MEM-1)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('audit_artifacts', 'walk') == 'per-action'",
+          "text": "per-action audit artifacts from Walk (AUD-1)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "any(has('compil|knowledge', q.get('question')) for q in oq()) or any(has('compil', g.get('text')) for g in gates()) or not any('compiled-knowledge' in listed(setting('semantic_memory_strategy', s)) for s in stages)",
+          "text": "compiled knowledge is a gate or a question when claimed, never a capability"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml",
+          "expr": "setting('kill_switch', 'walk') in ('gateway-key-revocation', 'ingress-permission')",
+          "text": "the kill switch is named from Walk (EXE-3)"
         }
       ]
     }

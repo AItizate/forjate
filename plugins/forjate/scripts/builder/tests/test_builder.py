@@ -1,6 +1,8 @@
 """Tests for the use-case builder tooling. Run: poetry run pytest plugins/forjate/scripts/builder/tests"""
 
 import copy
+import json
+import os
 import shutil
 import subprocess
 import sys
@@ -383,6 +385,7 @@ def test_secret_scan_is_clean_on_the_repo_overlays():
 # --- phase 5 (#23): capabilities from the catalog, snapshots, grader, skill-lint -------
 
 import json
+import os
 import re
 
 import validate as validate_mod  # noqa: E402
@@ -492,13 +495,23 @@ def test_skill_lint_runs_and_allows_single_option_components(tmp_path: Path):
     r = run(str(BUILDER / "skill-lint.py"), "--quiet")
     assert r.returncode == 0, r.stdout + r.stderr  # warn mode never fails
     assert "| ux |" in r.stdout
-    strict = run(str(BUILDER / "skill-lint.py"), "--strict", "--skills", "data-store")
-    assert strict.returncode == 1 and "apps/databases/postgres" in strict.stdout
     # docling is the only document-parsing option: naming it is allowed.
     lint = __import__("importlib").util.spec_from_file_location("skill_lint", BUILDER / "skill-lint.py")
     mod = __import__("importlib").util.module_from_spec(lint); lint.loader.exec_module(mod)
-    single = mod.single_option_components(json.loads(CATALOG.read_text()))
+    catalog = json.loads(CATALOG.read_text())
+    single = mod.single_option_components(catalog)
     assert "apps/document-processing/docling" in single and "apps/databases/postgres" not in single
+    # a skill that ladders a multi-option component by path is flagged; a marked line and a single option are not
+    skill = tmp_path / "demo"
+    (skill / "references").mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# demo\n| Walk | `apps/databases/postgres` |\n")
+    (skill / "references" / "notes.md").write_text("Example: `apps/databases/postgres` as an illustration <!-- skill-lint: allow -->\nParser: `apps/document-processing/docling`\n")
+    pattern = mod.path_pattern([c["path"] for c in catalog["components"]])
+    hits, skipped = mod.lint_skill(skill, pattern, single)
+    assert [h[2] for h in hits] == ["apps/databases/postgres"] and skipped == 2
+    # the rewritten skills are clean in strict mode
+    strict = run(str(BUILDER / "skill-lint.py"), "--strict", "--skills", "ai-engineering", "architecture", "data-store", "data-pipeline", "business")
+    assert strict.returncode == 0, strict.stdout
 
 
 # ------------------------------------------------------------ PSA exceptions (#22)
@@ -598,9 +611,17 @@ def test_catalog_carries_psa_level_and_namespace_for_every_component():
             assert c["psa_level"] == "restricted", c["path"]
 
 
+# Stages the kustomize agent finished past what the generator writes: invoice-intake's Walk and Run share one
+# Postgres across Temporal, LiteLLM, GoTrue and the app (one credential per role, an init Job), which the
+# generator cannot compose yet. They are checked by validate-kustomize.yml (they build), not byte for byte, and
+# the README's "Hand edits over the generator" lists each edit, the debt the generator has to absorb.
+HAND_FINISHED = {"invoice-intake": ("stages/walk/", "stages/run/", "README.md")}
+
+
 def test_assembly_reproduces_the_golden_overlays(tmp_path: Path):
     """The golden overlays are generated: regenerating them from their records and today's catalog must give
-    the committed files, so a catalog change (a component's namespace, its PSA level) cannot drift unseen."""
+    the committed files, so a catalog change (a component's namespace, its PSA level) cannot drift unseen.
+    A stage listed in HAND_FINISHED is the agent's, and only the rest of the overlay is compared."""
     k8s = tmp_path / "k8s"
     (k8s / "overlays" / "usecases").mkdir(parents=True)
     for d in ("components", "base"):
@@ -612,9 +633,10 @@ def test_assembly_reproduces_the_golden_overlays(tmp_path: Path):
         assert r.returncode == 0, r.stdout + r.stderr
         def files(root: Path) -> set[str]:
             # the working tree minus the inputs (.builder/, app/) and the gitignored .env copies of the examples
-            return {p.relative_to(root).as_posix() for p in root.rglob("*")
+            return {rel for p in root.rglob("*")
                     if p.is_file() and not set(p.relative_to(root).parts[:1]) & {".builder", "app"} and p.suffix != ".env"
-                    and "__pycache__" not in p.parts}
+                    and "__pycache__" not in p.parts
+                    and not (rel := p.relative_to(root).as_posix()).startswith(HAND_FINISHED.get(name, ()))}
         generated, committed = files(dst), files(src)
         assert committed - generated == set(), f"{name}: committed files the assembly no longer writes"
         assert generated - committed == set(), f"{name}: files the assembly writes that are not committed"
@@ -642,3 +664,259 @@ def test_tenant_target_gives_psa_exceptions_their_own_namespace_child(tmp_path: 
     assert not any("apps/databases/postgres" in x for x in child["resources"]) and "aliases.yaml" in child["resources"]
     ns = yaml.safe_load((tenant / "k8s" / "namespaces" / "uc-invoice-intake" / "namespace.yaml").read_text())
     assert ns["metadata"]["labels"]["pod-security.kubernetes.io/enforce"] == "restricted"
+
+
+# --- phase 5 (#27): governance settings vocabulary, autonomy ceiling, per-stage component sets ---------
+
+SKILLS_DIR = BUILDER.parent.parent / "skills"
+ENTERPRISE = PACKS / "enterprise-in-a-box"
+RECORDLESS = {"coordinator", "stage-planner", "kustomize", "context-pack", "app-scaffold"}
+
+
+def _governance_vocabulary() -> dict[str, dict]:
+    text = CONTRACTS.read_text()
+    section = text.split("### Governance settings", 1)[1].split("## What `validate.py` checks", 1)[0]
+    rows = {}
+    for m in re.finditer(r"^\| `([a-z_]+)` \| (.*?) \| (.*?) \| (.*?) \| .*? \| .*? \|$", section, re.MULTILINE):
+        key, values, owner, copied = m.groups()
+        rows[key] = {"values": values, "owner": owner.split(" ")[0], "copied_by": [c.strip().split(" ")[0] for c in copied.split(",") if c.strip() and c.strip() != "—"]}
+    assert len(rows) >= 20, rows.keys()
+    return rows
+
+
+def _posture_section(skill: str) -> str | None:
+    text = (SKILLS_DIR / skill / "SKILL.md").read_text()
+    if "## Governance posture" not in text:
+        return None
+    return text.split("## Governance posture", 1)[1].split("\n## ", 1)[0]
+
+
+def test_governance_vocabulary_matches_the_skills_that_document_it():
+    vocab = _governance_vocabulary()
+    for skill in sorted(d.name for d in SKILLS_DIR.iterdir() if (d / "SKILL.md").is_file()):
+        section = _posture_section(skill)
+        if section is None:
+            continue
+        documented = set(re.findall(r"`([a-z_]+)`", section))
+        owned = {k for k, v in vocab.items() if v["owner"] == skill}
+        copied = {k for k, v in vocab.items() if skill in v["copied_by"]}
+        assert owned <= documented, f"{skill}: owns {owned - documented} per contracts.md but its Governance posture does not document them"
+        assert copied <= documented, f"{skill}: copies {copied - documented} per contracts.md but its Governance posture does not document them"
+        # a key the skill writes is in the vocabulary (settings the validator does not know are not posture)
+        rows = set(re.findall(r"^\| `([a-z_]+)` \|", section, re.MULTILINE))
+        assert rows <= set(vocab) | {"open_standards_exceptions", "auth_in_front"}, f"{skill}: posture table names keys outside contracts.md: {rows - set(vocab)}"
+
+
+def test_enterprise_pack_targets_are_vocabulary_and_applies_to_owners_or_copiers():
+    vocab = _governance_vocabulary()
+    pack, constraints, errors = load_pack(ENTERPRISE)
+    rules = constraints["rules"]
+    assert errors == []
+    for entry in pack["spec"]["sources"]:
+        if entry["kind"] != "constraint":
+            continue
+        rule = rules[entry["id"]]
+        target = rule["target"]
+        assert target in vocab or target == "auth_in_front", f"{entry['id']}: target {target} is not a governance setting"
+        if target not in vocab:
+            continue
+        writers = {vocab[target]["owner"], *vocab[target]["copied_by"]}
+        for role in entry["applies_to"]:
+            if role in RECORDLESS:
+                continue
+            assert role in writers, f"{entry['id']}: applies to {role}, which neither owns nor copies {target} per contracts.md"
+    exe2 = rules["EXE-2"]
+    assert exe2["type"] == "deny_setting_value" and exe2["value"] == ["disabled"]
+
+
+def _write_plan_autonomy(uc: Path, per_stage: dict[str, str], brief_autonomy: str | None = None) -> None:
+    p = uc / ".builder" / "stage-plan.yaml"
+    plan = yaml.safe_load(p.read_text())
+    for stage, aut in per_stage.items():
+        plan["spec"]["stages"][stage]["autonomy"] = aut
+    p.write_text(yaml.safe_dump(plan, sort_keys=False))
+    if brief_autonomy:
+        b = uc / ".builder" / "brief.yaml"
+        brief = yaml.safe_load(b.read_text())
+        brief["spec"]["autonomy"] = brief_autonomy
+        b.write_text(yaml.safe_dump(brief, sort_keys=False))
+
+
+def test_crawl_autonomy_above_assistive_is_an_error(usecase: Path):
+    _write_plan_autonomy(usecase, {"crawl": "semi-autonomous"})
+    errors, _ = validate_usecase(usecase)
+    assert any("crawl autonomy 'semi-autonomous'" in e for e in errors)
+
+
+def test_stage_autonomy_above_the_brief_is_an_error(usecase: Path):
+    _write_plan_autonomy(usecase, {"crawl": "assistive", "walk": "autonomous"}, brief_autonomy="semi-autonomous")
+    errors, _ = validate_usecase(usecase)
+    assert any("walk autonomy 'autonomous' exceeds the brief's 'semi-autonomous'" in e for e in errors)
+
+
+def test_record_autonomy_above_the_plan_ceiling_is_an_error(usecase: Path):
+    _write_plan_autonomy(usecase, {"crawl": "assistive", "walk": "semi-autonomous"})
+    _write_decision(usecase, "ai-engineering", {"walk": {"choice": [], "settings": {"autonomy": "autonomous"}, "rationale": "x"}})
+    errors, _ = validate_usecase(usecase)
+    assert any("settings.autonomy 'autonomous' exceeds the plan's ceiling 'semi-autonomous'" in e for e in errors)
+    _write_decision(usecase, "ai-engineering", {"walk": {"choice": [], "settings": {"autonomy": "assistive"}, "rationale": "x"}})
+    errors, _ = validate_usecase(usecase)
+    assert not any("settings.autonomy" in e for e in errors)
+
+
+def test_governance_settings_are_shared_across_records(usecase: Path):
+    _write_decision(usecase, "ai-engineering", {"walk": {"choice": [], "settings": {"write_actions": "approval-required"}, "rationale": "x"}})
+    _write_decision(usecase, "security", {"walk": {"choice": [], "settings": {"write_actions": "autonomous"}, "rationale": "y"}})
+    errors, _ = validate_usecase(usecase)
+    assert any("cross-record conflict (walk, setting write_actions)" in e for e in errors)
+
+
+def test_dropped_component_without_replacement_is_a_warning_and_a_same_capability_replacement_is_silent(usecase: Path):
+    # Crawl runs a dev object store; Walk's records do not repeat it.
+    _write_decision(usecase, "architecture", {"crawl": {"choice": ["apps/minio/dev"], "rationale": "x"},
+                                              "walk": {"choice": [], "rationale": "y"}})
+    _, warnings = validate_usecase(usecase)
+    assert any("apps/minio/dev was chosen at crawl and is gone at walk" in w for w in warnings)
+    # The Walk record names it: dropped on purpose.
+    _write_decision(usecase, "architecture", {"crawl": {"choice": ["apps/minio/dev"], "rationale": "x"},
+                                              "walk": {"choice": [], "rationale": "the dev object store is retired; artifacts move to the system of record"}})
+    _, warnings = validate_usecase(usecase)
+    assert not any("is gone at walk" in w for w in warnings)
+    # Another component with the same capability supersedes it: silent.
+    _write_decision(usecase, "architecture", {"crawl": {"choice": ["apps/minio/dev"], "rationale": "x"},
+                                              "walk": {"choice": ["apps/minio/single-server"], "rationale": "y"}})
+    _, warnings = validate_usecase(usecase)
+    assert not any("is gone at walk" in w for w in warnings)
+
+
+def test_psa_check_reads_the_stage_set_the_assembly_builds(tmp_path: Path):
+    """A Crawl component that no Walk record chooses is not in Walk's overlay, so an exception listing it at Walk is stale."""
+    uc = _golden(tmp_path, "invoice-intake")
+    f = uc / ".builder" / "decisions" / "security.yaml"
+    d = yaml.safe_load(f.read_text())
+    entry = next(e for e in d["spec"]["stages"]["walk"]["psa_exceptions"] if e["namespace"] == "uc-invoice-intake-baseline")
+    entry["components"].append("apps/minio/dev")
+    f.write_text(yaml.safe_dump(d, sort_keys=False))
+    _, warnings = validate_usecase(uc)
+    assert any("apps/minio/dev is not chosen by any record at walk" in w for w in warnings)
+    from common import stage_components  # noqa: E402
+    decisions = {p.stem: yaml.safe_load(p.read_text()) for p in (uc / ".builder" / "decisions").glob("*.yaml")}
+    assert "apps/minio/dev" in stage_components(decisions, "crawl") and "apps/minio/dev" not in stage_components(decisions, "walk")
+
+
+def test_walk_overlay_deletes_what_crawl_ran_and_walk_does_not():
+    relocated = yaml.safe_load((USECASES / "invoice-intake" / "stages" / "walk" / "relocated" / "kustomization.yaml").read_text())
+    deletes = [p for p in relocated["patches"] if "$patch: delete" in p["patch"]]
+    assert any(p["target"] == {"kind": "Pod", "name": "minio", "namespace": "uc-invoice-intake"} for p in deletes)
+    walk = [p for p in (USECASES / "invoice-intake" / "stages" / "walk").rglob("*minio-secret*") if p.suffix != ".env"]
+    assert walk == [], "the dev object store's Secret left Walk with it"
+
+
+def test_assembly_names_no_component_and_wires_from_the_catalog():
+    src = (BUILDER.parent.parent / "skills" / "kustomize" / "scripts" / "assemble.py").read_text()
+    assert "COMPONENTS" not in src.replace("CONTRACT_COMPONENT", "")
+    assert not re.search(r"apps/(databases|brokers|ai-models|minio|document-processing|surveys|auth)/", src)
+    catalog = json.loads(CATALOG.read_text())
+    by_path = {c["path"]: c for c in catalog["components"]}
+    # derived from the manifests: the Service, its port, the pod label, the Secret the pods reference and its keys
+    w = by_path["apps/databases/postgres"]["wiring"]
+    assert (w["service"], w["port"], w["label"]) == ("postgres", 5432, "postgres")
+    assert w["secret"]["name"] == "postgres-secret" and set(w["secret"]["keys"]) == {"POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD"}
+    assert w["protocol"] == "postgresql"  # curated: the manifests do not say
+    assert w["workload"] == {"kind": "StatefulSet", "name": "postgres", "container": "postgres"}
+    # a bare Pod with no Service: the overlay adds one, mounts the curated Secret, swaps the hostPath
+    w = by_path["apps/minio/dev"]["wiring"]
+    assert w["workload"]["kind"] == "Pod" and w["hostpath_volumes"] and not w["secret_mounted"] and w["service"] == "minio"
+    # a GPU limit on an optional-GPU component is what a laptop overlay drops; a required one stays
+    assert by_path["apps/ai-models/ollama"]["wiring"]["gpu_limit"] and by_path["apps/ai-models/ollama"]["gpu_required"] == "optional"
+    assert by_path["apps/ai-models/vllm"]["wiring"]["gpu_limit"] and by_path["apps/ai-models/vllm"]["gpu_required"] == "required"
+    # shared infrastructure's own placeholder Secret is not the overlay's to supply
+    assert by_path["apps/monitoring/otel-collector"]["wiring"]["secret"] is None
+    assert by_path["apps/cloudflare-tunnel"]["wiring"]["secret"]["keys"] == ["TUNNEL_TOKEN"]
+
+
+def test_wiring_override_contradicting_the_tree_is_a_compile_error():
+    wc = _wiki_compile()
+    tree = {"services": [{"name": "postgres", "ports": [{"name": None, "port": 5432}], "selector": {"app": "postgres"}}],
+            "workloads": [{"kind": "StatefulSet", "name": "postgres", "container": "postgres", "ports": [5432], "gpu": False, "hostpath": False, "hostpath_volumes": [], "has_resources": True}],
+            "secret_refs": ["postgres-secret"], "configmap_refs": [], "shipped_secrets": {}, "shipped_configmaps": [], "ingresses": [],
+            "example_keys": {"postgres-secret": ["POSTGRES_PASSWORD"]}, "example_literals": {}, "ref_keys": {}}
+    extra = {"namespace": None}
+    errors = wc.merge_wiring("apps/x", extra, tree, {"wiring": {"service": "other"}})
+    assert any("wiring.service 'other'" in e for e in errors)
+    extra = {"namespace": None}
+    assert wc.merge_wiring("apps/x", extra, tree, {"wiring": {"protocol": "postgresql"}}) == []
+    assert extra["wiring"]["secret"] == {"name": "postgres-secret", "keys": ["POSTGRES_PASSWORD"]} and extra["wiring"]["secret_mounted"]
+
+
+def test_quality_verify_without_a_reason_split_is_a_warning(usecase: Path):
+    _write_decision(usecase, "quality", {"crawl": {"choice": [], "settings": {"verify_assertions": ["4 conversations escalated to an agent", "KPI printed"]}, "rationale": "x"}})
+    _, warnings = validate_usecase(usecase)
+    assert any("without a reason split" in w for w in warnings)
+    _write_decision(usecase, "quality", {"crawl": {"choice": [], "settings": {"verify_assertions": ["expected escalations (4 address changes) exactly; unexpected escalations with reason lookup-failed or timeout = 0", "KPI printed"]}, "rationale": "x"}})
+    _, warnings = validate_usecase(usecase)
+    assert not any("without a reason split" in w for w in warnings)
+
+
+def test_grader_report_covers_open_questions(tmp_path: Path):
+    sys.path.insert(0, str(BUILDER.parent.parent / "evals"))
+    import grade  # noqa: E402
+    repo = tmp_path / "repo"
+    dec = repo / "uc" / ".builder" / "decisions"
+    dec.mkdir(parents=True)
+    dec.joinpath("security.yaml").write_text(yaml.safe_dump({"spec": {"open_questions": [
+        {"id": "Q1", "question": "Which mailbox credentials rotate?"}, {"id": "Q2", "question": "Who owns the key?"}]}}))
+    dec.joinpath("data-pipeline.yaml").write_text(yaml.safe_dump({"spec": {"open_questions": [
+        {"id": "Q1", "question": "Batch or event?"}, {"id": "Q2", "question": "Seed from production?"}, {"id": "Q3", "question": "CSV encoding?"}]}}))
+    a = {"type": "report_covers_open_questions", "path": "uc"}
+    ok, ev = grade.check(a, repo)
+    assert not ok and "no report" in ev
+    report = "## Open questions\n- Credentials and ownership (security Q1, Q2)\n- Q3 is about encoding\n"
+    (tmp_path / "result.json").write_text(json.dumps({"result": report}))
+    ok, ev = grade.check(a, repo)
+    assert not ok and "data-pipeline/Q1" in ev and "security" not in ev.split("missing:")[1]
+    report += "- Ingestion (data pipeline Q1 a Q3)\n"
+    (tmp_path / "result.json").write_text(json.dumps({"result": report}))
+    ok, ev = grade.check(a, repo)
+    assert ok, ev
+
+
+def test_scaffold_check_flags_secret_keys_the_app_never_reads(tmp_path: Path):
+    uc = tmp_path / "invoice-intake"
+    shutil.copytree(USECASES / "invoice-intake" / ".builder", uc / ".builder")
+    shutil.copytree(USECASES / "invoice-intake" / "app", uc / "app", ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"))
+    check = BUILDER / "scaffold-check.py"
+    assert run(str(check), str(uc)).returncode == 0
+    cfg = uc / "app" / "src" / "invoice_intake" / "config.py"
+    cfg.write_text(cfg.read_text().replace("MINIO_ROOT_USER", "MINIO_ACCESS_KEY").replace("MINIO_ROOT_PASSWORD", "MINIO_SECRET_KEY"))
+    r = run(str(check), str(uc))
+    assert r.returncode == 1 and "secret minio-secret (apps/minio/dev): the app never reads MINIO_ROOT_USER" in r.stdout
+    sc = uc / ".builder" / "scaffold.yaml"
+    d = yaml.safe_load(sc.read_text())
+    verify = next(w for w in d["spec"]["workloads"] if w.get("phase") == "verify")
+    verify["env"] = [e for e in verify.get("env", []) if not e.startswith("MODEL_MODE=")] + ["MODEL_MODE=live"]
+    sc.write_text(yaml.safe_dump(d, sort_keys=False))
+    r = run(str(check), str(uc))
+    assert "the verify Job runs MODEL_MODE=live" in r.stdout
+
+
+def test_agent_costs_split_the_run_cost_by_agent(tmp_path: Path):
+    """agent-costs.py reads the transcripts, counts a streamed message once, and splits result.json's cost."""
+    home, sid = tmp_path / "home", "s1"
+    proj = home / ".claude" / "projects" / "p"
+    sub = proj / sid / "subagents"
+    sub.mkdir(parents=True)
+    def msg(mid, out):
+        return json.dumps({"message": {"id": mid, "usage": {"input_tokens": 0, "output_tokens": out}}})
+    (proj / f"{sid}.jsonl").write_text("\n".join([msg("m1", 100), msg("m1", 100)]) + "\n")
+    (sub / "agent-a.jsonl").write_text(msg("m2", 300) + "\n")
+    (sub / "agent-a.meta.json").write_text(json.dumps({"agentType": "forjate:business"}))
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "result.json").write_text(json.dumps({"session_id": sid, "total_cost_usd": 8.0}))
+    script = REPO / "plugins" / "forjate" / "evals" / "agent-costs.py"
+    r = subprocess.run([sys.executable, str(script), str(run_dir)], capture_output=True, text=True, env={**os.environ, "HOME": str(home)})
+    assert r.returncode == 0, r.stdout + r.stderr
+    c = json.loads((run_dir / "agent-costs.json").read_text())
+    assert c["agents"]["forjate:business"]["cost_usd"] == 6.0 and c["agents"]["main"]["cost_usd"] == 2.0
+    assert (run_dir / "transcripts" / sid / "subagents" / "agent-a.jsonl").exists()

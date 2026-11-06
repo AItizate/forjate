@@ -31,7 +31,6 @@ on:
 env:
   KUSTOMIZE_VERSION: 5.8.3
   K3D_VERSION: 5.9.0
-  YQ_VERSION: 4.44.3
 
 jobs:
   plan:
@@ -82,6 +81,7 @@ jobs:
           # for the latest one and fails when the runner is rate-limited.
           curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz kustomize
           sudo mv kustomize /usr/local/bin/
+          source .github/toolchain.env   # YQ_VERSION, the one place CI and local runs pin yq
           sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
           pipx install check-jsonschema
@@ -184,6 +184,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          source .github/toolchain.env   # YQ_VERSION, the one place CI and local runs pin yq
           sudo curl -sSL -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
           sudo chmod +x /usr/local/bin/yq
           {
@@ -217,6 +218,7 @@ jobs:
           curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG="v${K3D_VERSION}" bash
           curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz kustomize
           sudo mv kustomize /usr/local/bin/
+          source .github/toolchain.env   # YQ_VERSION, the one place CI and local runs pin yq
           sudo curl -sSL -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
           sudo chmod +x /usr/local/bin/yq
           k3d version && yq --version

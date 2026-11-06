@@ -23,10 +23,11 @@
           "text": "validate.py passes on the use case"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_lacks_capability",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
-          "expr": "not any('temporal' in c for c in choices('crawl'))",
-          "text": "no Temporal at Crawl"
+          "capability": "durable-workflows",
+          "text": "no workflow engine at Crawl",
+          "stage": "crawl"
         },
         {
           "type": "yaml_expr",
@@ -55,7 +56,7 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
-          "expr": "setting('durable_execution', 'run') == 'temporal' or any('temporal' in c for c in choices('run'))",
+          "expr": "setting('durable_execution', 'run') not in (None, 'none', 'job') or 'durable-workflows' in choice_capabilities('run')",
           "text": "durable execution by Run (posting must not run twice)"
         },
         {
@@ -75,6 +76,30 @@
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
           "expr": "any(has('idempot|twice|double', st(s).get('rationale')) for s in stages) or any(has('idempot|twice|double', r.get('text')) for r in risks())",
           "text": "names the write that must not run twice"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "all(setting('open_standards', s) == 'all-layers' for s in stages)",
+          "text": "open standards at every layer (the brief requires them)"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "all(listed(setting('execution_bounds', s)) for s in stages)",
+          "text": "execution bounds carried into the orchestration at every stage"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "setting('auth_in_front', 'walk') not in (None, 'none')",
+          "text": "one choke point in front of the review surface from Walk"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
+          "expr": "all(setting('runtime', s) in ('python', 'typescript', 'go') for s in stages) and any(has('runtime|stack|default|language', st(s).get('rationale')) for s in stages)",
+          "text": "the workloads' runtime decided and argued (default declared as such when nothing constrains it)"
         }
       ]
     },
@@ -114,14 +139,15 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
-          "expr": "any('temporal' in c for c in choices('walk')) or setting('durable_execution', 'walk') == 'temporal' or has('outbox|idempot', st('walk').get('rationale'))",
-          "text": "escalations are durable at Walk: Temporal, or a named fallback (outbox, idempotency key)"
+          "expr": "'durable-workflows' in choice_capabilities('walk') or setting('durable_execution', 'walk') not in (None, 'none', 'job') or has('outbox|idempot', st('walk').get('rationale'))",
+          "text": "escalations are durable at Walk: an engine, or a named fallback (outbox, idempotency key)"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_lacks_capability",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
-          "expr": "not any('temporal' in c for c in choices('crawl'))",
-          "text": "no Temporal at Crawl"
+          "capability": "durable-workflows",
+          "text": "no workflow engine at Crawl",
+          "stage": "crawl"
         },
         {
           "type": "yaml_expr",
@@ -146,6 +172,12 @@
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
           "expr": "any(has('refund|idempot|twice|double', r.get('text')) for r in risks()) or any(has('refund|idempot', st(s).get('rationale')) for s in stages)",
           "text": "refund double-execution named as the durability reason"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
+          "expr": "all(setting('runtime', s) in ('python', 'typescript', 'go') for s in stages)",
+          "text": "the workloads' runtime decided"
         }
       ]
     },
@@ -196,8 +228,8 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/architecture.yaml",
-          "expr": "not any('debezium' in c or 'temporal' in c for c in choices())",
-          "text": "no CDC connector and no Temporal"
+          "expr": "not ({'cdc', 'durable-workflows'} & set(choice_capabilities()))",
+          "text": "no CDC connector and no workflow engine"
         },
         {
           "type": "yaml_expr",
@@ -237,13 +269,13 @@
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
-          "expr": "not any('temporal' in c or 'brokers/' in c for c in choices('crawl'))",
-          "text": "single container accepted at Crawl (no Temporal, no broker)"
+          "expr": "not ({'durable-workflows', 'message-broker'} & set(choice_capabilities('crawl')))",
+          "text": "single container accepted at Crawl (no engine, no broker)"
         },
         {
           "type": "yaml_expr",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
-          "expr": "setting('durable_execution', 'run') == 'temporal' or setting('broker', 'run') not in ('none', None)",
+          "expr": "setting('durable_execution', 'run') not in (None, 'none', 'job') or setting('broker', 'run') not in ('none', None)",
           "text": "Run is durable or decoupled, not a cron loop"
         },
         {
@@ -282,10 +314,10 @@
           "text": "validate.py passes on the use case"
         },
         {
-          "type": "yaml_expr",
+          "type": "choice_lacks_capability",
           "path": "k8s/overlays/usecases/support-copilot/.builder/decisions/architecture.yaml",
-          "expr": "not any('temporal' in c for c in choices())",
-          "text": "respects the pack: no Temporal component"
+          "capability": "durable-workflows",
+          "text": "respects the pack: no workflow-engine component"
         },
         {
           "type": "grep",

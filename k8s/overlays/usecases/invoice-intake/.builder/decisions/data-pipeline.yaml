@@ -1,49 +1,449 @@
 apiVersion: forjate.io/v0
 kind: Decision
-metadata: { area: data-pipeline, usecase: invoice-intake, author: "forjate:data-pipeline", version: 1 }
+metadata:
+  area: data-pipeline
+  usecase: invoice-intake
+  author: forjate:data-pipeline
+  version: 1
+  language: en
 spec:
   stages:
     crawl:
-      choice: [apps/document-processing/docling]
+      choice:
+        - apps/document-processing/docling
       settings:
         ingestion_pattern: batch
-        sources: ["invoice PDFs: batch from the seed bucket", "purchase orders: stub API"]
-        steps: [list-inbox, parse-pdf, extract-fields (model), lookup-po, compare, route]
-        document_parser: docling
+        sources:
+          - "shared-imap-mailbox: batch"
+          - "odoo-purchase-orders: batch"
+        steps:
+          - fetch
+          - land
+          - parse
+          - mask
+          - extract (model)
+          - validate
+          - match
+          - route
+        document_parser: apps/document-processing/docling
         broker: none
-        idempotency_key: sha256 of the PDF plus supplier and invoice number
-        replay: rerun the Job; items already in the episodic table are skipped by key
-        dead_letter: unparseable PDFs land in the review queue with reason=parse-failed; the AP clerk reviews
+        cdc_connector: none
+        idempotency_key: >-
+          Per attachment: Message-ID + attachment sha256, set at fetch, before any row exists; mailbox
+          UIDVALIDITY + UID if a message has no Message-ID. Second check once extracted: supplier VAT id +
+          supplier invoice number, which catches an invoice re-sent in a new email.
+        replay: >-
+          Re-run the run Job (`ephemeral.sh up invoice-intake` re-runs seed, run and verify); it re-reads the
+          mailbox double from the start and skips every key already in working memory.
+        dead_letter: >-
+          review_queue, with no table of its own, per the UX record's dead-letter-review rule: reason=parse-failed,
+          timeout or lookup-failed, the key and the failed step, and no invoice content in the reason (G-SEC-4). Reviewed by the AP clerk, the
+          business record's exception owner, who escalates to finance ops.
         schedule: once
+        throughput_target: >-
+          invoice-intake-verify: 12 items with no model call (MODEL_MODE=replay), 2 to 12 minutes of parsing at ASSUMED
+          10 to 60 s per invoice. invoice-intake-eval: 50 items on the live CPU model, 2.5 h at the AI-engineering
+          record's ASSUMED 3 minutes per invoice, against the UX record's ASSUMED 3 h run limit and the 4 h TTL.
         seed_strategy: synthetic
-        seed_size: 20 PDFs, 3 mismatches, 1 duplicate, 1 unparseable
-        verify_assertions: ["20 items processed, 15 matched, 3 mismatched in review, 1 duplicate skipped, 1 parse failure in review", "0 wrong amounts on matched items", "a second run changes no counts", "no posting recorded by the stub for mismatches"]
-        landing_zones: ["artifacts: PDFs and parsed JSON", "working: mailbox cursor and queue status", "episodic: extraction and decision per invoice"]
-      rationale: One batch over a synthetic seed that represents the exceptions; the verify Job is the gate.
+        seed_size: >-
+          12 PDF attachments in 11 messages for the verify Job: 2 clean (1 digital, 1 scanned, in the same message)
+          and 10 exceptions, namely 1 each of amount mismatch, supplier mismatch, PO number mismatch, missing PO
+          number, partial delivery, byte-identical re-send of a clean invoice, changed bank details, corrupt PDF,
+          not an invoice and a degraded scan whose amount is unreadable, for low confidence. The same generator extends this to the golden set
+          of 50 that invoice-intake-eval runs: 38 more clean, so 40 clean (28 digital, 12 scanned; ASSUMED 30% scanned)
+          and the same 10 exceptions. Odoo double: 500 open purchase orders (the brief's figure), with suppliers'
+          known bank accounts as salted hashes.
+        verify_assertions:
+          - "counts: all 12 seeded attachments hold a key and a terminal state"
+          - "idempotency: the run Job's second pass, from the start of the mailbox double, adds 0 rows, changes 0 states and opens 0 review_queue items"
+          - "seed idempotency: a second run of the seed Job delivers 0 new messages and leaves the purchase orders unchanged"
+          - "correctness: extracted supplier, amount, date and PO number equal the seed manifest on the items that reach the extract step; under MODEL_MODE=replay this proves the flow, and accuracy and wrong_amount_count for G-Q-2 come from invoice-intake-eval"
+          - "match: both clean items carry a recommendation against the right purchase order and no review_queue row"
+          - "mismatch: the amount, supplier and PO number items are in review_queue with reason=mismatch"
+          - "routing: the missing PO, partial delivery and bank details items carry reason=po-missing, partial-delivery and bank-details-differ"
+          - "duplicate: the re-send carries reason=duplicate, links the earlier item and counts no second result"
+          - "dead letter: the corrupt PDF and the non-invoice carry reason=parse-failed, told apart by the failed step; rate 2 of 10 exception items; no timeout or lookup-failed row"
+          - "low confidence: the degraded scan carries reason=low-confidence under the UX record's rule (schema still invalid after one repair, or an amount, date or PO number not found literally in the source text), with the amount named, and never a wrong amount"
+          - "parser: a parsed output sits in the parsed bucket for each parseable input"
+          - "stub: the Odoo double received reads and 0 write calls (G-Q-3)"
+        landing_zones:
+          - "artifacts: seeded PDFs in the inbox bucket under object keys carrying the idempotency key; parsed output in the parsed bucket"
+          - "working: mailbox cursor; items by idempotency key with state and match status; review_queue"
+          - "episodic: what happened per invoice (extraction, match result), written by the run Job; the seed writes nothing here"
+        eval_dimensions:
+          - "robustness: duplicates = 0 after a second run of the seed; dead-letter rate < 25% on the exception items"
+      rationale: >-
+        Crawl is a finite batch because the verify Job needs a finite input: the seed Job writes, the run Job (the
+        architecture record's one-pass worker) processes, invoice-intake-verify asserts (G-Q-1, G-Q-3). The live
+        pattern, IMAP poll, arrives at Walk. G-Q-1 asks for PDFs flowing from the mailbox double, so the seed
+        delivers messages to the double the architecture record generates and fetch and land run for real. The
+        double must expose Message-ID, UID and UIDVALIDITY. Attachments pass through the catalog's single
+        document-parsing option before any model sees them. Only extract calls a model, and AI-engineering owns
+        it; every other step is code, including mask and the validator it requires. The steps here are coarser than
+        the AI-engineering record's count: this record holds no bound of its own, and that record's max_steps=10 and
+        step_timeout_s=600 count finer steps of the same flow (repair, lookup_po, find_payable, bank reference).
+        Purchase orders are read from the Odoo double per item and never copied. Broker none matches the architecture
+        record. CDC is none: the trigger is a mail arriving. Verify runs on the quality record's replay double
+        (verify_model_mode: replay at Crawl, live at Walk and Run). This answers quality Q11: this record's earlier
+        sizing against CPU model time was provisional, and the pipeline needs no model in the gate, because replay,
+        idempotency, routing and dead letters are proved by pipeline code and the real parser. The time figures now
+        apply to invoice-intake-eval. Verify keeps 12 items because they cover every exception in the business record and
+        every expected reason in the UX record once, and 2 clean items are enough to prove the clean path. The rate on that mix is a routing fact, so
+        G-Q-2 reads the live_* lines of invoice-intake-eval on the 50-item golden extension, where 40 of 50 clean caps the
+        rate at exactly 80%, because a correctly escalated invoice counts against it (business record). That keeps the
+        brief's target reachable and the ceiling stated. Low confidence takes the UX record's criterion (UX Q8), since no record
+        has a numeric score: schema still invalid after one repair, or an amount, date or PO number not found literally in the
+        source text. The seeded scan has its amount printed unreadably, so the value is absent from the parsed text under both
+        the replay labels and the live model; the reason is exact, and the item can never count as clean, so the ceiling stays
+        0.80. UX's budget-exhausted and file-out-of-bounds classes have no seed item: reason=timeout is an unexpected reason in
+        verify and G-AI-4 tests the bound, and file bounds share parse-failed and belong in app tests, because another item would
+        change the 12 and the threshold. The generator is deterministic and each message has a fixed
+        Message-ID, so a second seed run skips what is delivered instead of minting new mail that would flood the
+        duplicate path. The manifest of known values travels with the Job's own image rather than in a store the run Job
+        could read. The run Job makes two passes and records counts per pass because the runner runs each Job once; the
+        second, from the start, proves both replay and cursor loss. Poison items do not get a table of their own: the UX
+        record's dead-letter-review rule puts the key, the failed step and reason=parse-failed in review_queue, where the
+        clerk already looks. The 25% threshold passes on the 2 expected parse-failed items of 10 and
+        fails on a third; under replay the non-invoice's classification comes from the labels and the corrupt PDF's failure
+        from the real parser. Bank numbers in the seed are synthetic, in IBAN and non-IBAN formats (the AI-engineering
+        masking risk), from a fixed fictional pattern that gives the G-SEC-4 log scan a known string. Packs: the resolver
+        gives this role only pack:regulated-corp#DATA-1, which denies a component this pipeline never asks for, so it
+        shaped nothing and constrained_by is empty here.
+      alternatives:
+        - option: Poll or stream at Crawl, the live shape from day one
+          rejected_because: A live pattern gives the verify Job no finite input to assert against, and no real mailbox exists at Crawl.
+        - option: anonymised-copy of real invoices as the seed
+          rejected_because: >-
+            The plan excludes real invoices and real bank account numbers from Crawl, and the data is financial.
+            Finance ops supplies the shape of real invoices, and no invoice enters the cluster.
+        - option: Run the 50-item golden set inside the verify Job
+          rejected_because: >-
+            Under replay its rate would satisfy G-Q-2 by construction, and on the live model it would make the gate need
+            model weights and about 2.5 h. invoice-intake-eval keeps the full set; the verify Job keeps every path once.
+        - option: A happy-path seed
+          rejected_because: The verify Job must exercise each exception in the business record; G-Q-3 asserts that every seeded mismatch reaches the AP clerk.
+        - option: A separate dead_letter table
+          rejected_because: A second place to look is how poison items go unread; the UX record rejects it too, and keeps the key, failed step and reason code in review_queue.
+      risks:
+        - id: R1
+          text: "Seed shape: the 30% scanned share and the English-only layouts are assumptions (plan OPEN item), so the measured rate may not transfer to real mail."
+          mitigation: Finance ops supplies the real shape (Q2); the generator's mix is parameters, and the first real week at Walk compares real invoices against the seed.
+          severity: medium
+        - id: R2
+          text: >-
+            Eval run time and memory: at the AI-engineering record's ASSUMED 3 minutes per invoice, 50 items take 2.5 h, close
+            to the UX record's ASSUMED 3 h limit and the 4 h TTL, and neither figure is measured. Parsing is ASSUMED at 10 to 60 s
+            per invoice (2 pages, 5 s/page digital, 30 s/page with OCR). The parser's manifest allows up to 4 Gi beside the 8 Gi
+            the AI-engineering record gives the model, on a host the plan prices at USD 5.
+          mitigation: >-
+            G-AI-5 measures it on the first eval run. If it does not fit, the eval limit or the TTL moves; the verify gate is
+            unaffected because it runs on the double, and no exception class leaves the seed. For UX Q9, this record no longer
+            sizes verify at 120 s per item: under replay only parsing takes time, so 20 minutes holds at Crawl against 12 minutes
+            at the slowest ASSUMED parse. The live figures apply to the eval run, and from Walk, where verify is live, G-AI-5's
+            measurement sets the deadline.
+          severity: medium
+        - id: R3
+          text: "A stub is not a mailbox: a double over HTTP does not prove Message-ID handling, MIME oddities or UID behaviour on the real server."
+          mitigation: The architecture record's G-ARCH-2 checks the double's contract; the first real week at Walk runs the real client read-only with no write path open.
+          severity: medium
       gate_to_next:
-        - { id: G-PIPE-1, text: verify Job passes the four assertions on the synthetic seed, owner: data-pipeline, check: { type: verify-job, ref: inv-validate } }
+        - id: G-PIPE-1
+          text: >-
+            The verify Job exits 0 with all 12 seeded attachments in their expected terminal state and every exception
+            in the business record and every expected reason in the UX record represented by at least one item.
+          owner: data-pipeline
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-PIPE-2
+          text: >-
+            Duplicates = 0 after a second pass of the run Job and a second run of the seed, and the dead-letter rate on
+            the exception items is below 25%.
+          owner: data-pipeline
+          check: { type: metric, ref: "pipeline duplicates and dead-letter rate from the verify Job output" }
     walk:
-      choice: [apps/document-processing/docling]
+      choice:
+        - apps/document-processing/docling
       settings:
         ingestion_pattern: poll
-        sources: ["IMAP mailbox: poll every 10 minutes", "purchase orders: Odoo REST pull"]
-        document_parser: docling
+        sources:
+          - "shared-imap-mailbox: poll"
+          - "odoo-purchase-orders: poll"
+        steps:
+          - fetch
+          - land
+          - parse
+          - mask
+          - extract (model)
+          - validate
+          - match
+          - route
+          - await-approval
+          - post
+        document_parser: apps/document-processing/docling
         broker: none
-        idempotency_key: IMAP UID plus attachment hash
-        dead_letter: parse failures and unknown suppliers to the review queue, weekly report to finance ops
-        schedule: "*/10 * * * *"
-        throughput_target: 10 invoices per hour
-        seed_strategy: anonymised-copy
-        verify_assertions: ["canary invoice processed within 15 minutes", "duplicate canary skipped", "mismatch canary lands in review"]
-      rationale: Polling fits the volume; webhooks would need a mail provider that offers them.
+        cdc_connector: none
+        idempotency_key: >-
+          Per attachment: Message-ID + attachment sha256, set at fetch and used as the workflow id; mailbox
+          UIDVALIDITY + UID if a message has no Message-ID. For the payable: supplier VAT id + supplier invoice
+          number as confirmed by the clerk, looked up in Odoo before post.
+        replay: >-
+          The operator resets the mailbox cursor to an older UID, never reaching mail older than the go-live date, and
+          the next poll re-reads; a key already seen starts no workflow and post looks up the bill in Odoo first.
+        dead_letter: >-
+          review_queue with reason=parse-failed, timeout or lookup-failed, the key and the failed step, and no invoice
+          content in the reason. A table, since this use case has no broker to hold a DLQ stream. Reviewed by the AP
+          clerk with a backup reviewer (business Q10); finance ops is the escalation.
+        schedule: "*/15 * * * *"
+        throughput_target: >-
+          About 2 items/hour (300 a month, 14 per working day, 8 hours). The parser at ASSUMED 10 to 60 s per invoice has
+          capacity for 60 to 360 items/hour on one replica, so the model and not the parser sets the limit.
+        seed_strategy: synthetic
+        seed_size: >-
+          The Crawl verify seed plus 1 invoice whose payable was entered directly in the Odoo double, so 13 attachments, 11
+          of them exceptions, for the verify Job. Real invoices arrive only through the poll and never become seed.
+          The AI-engineering record's 200-invoice golden set takes its synthetic part from this generator.
+        verify_assertions:
+          - "all Crawl assertions, except that the Odoo double now receives approved writes"
+          - "write path: every write call on the Odoo double has an approval record tied to the idempotency key (G-Q-5)"
+          - "re-delivery: a re-sent invoice already approved and posted creates no second payable (G-Q-5, G-ARCH-3)"
+          - "direct entry: the invoice already in the Odoo double is marked reason=duplicate"
+          - "cursor loss: a cursor reset reprocesses nothing and starts 0 workflows"
+          - "UIDVALIDITY: a changed UIDVALIDITY on the double triggers the rescan and starts 0 workflows"
+          - "go-live date: messages older than it are never fetched"
+        landing_zones:
+          - "artifacts: real PDFs in the inbox bucket and parsed output in the parsed bucket, keys carrying the idempotency key, both holding bank account numbers and under the G-DS-1 retention"
+          - "working: mailbox cursor and go-live date; items by idempotency key, which must outlive approval; review_queue; approval state"
+          - "episodic: per-action audit records tied to the idempotency key"
+        eval_dimensions:
+          - "robustness: duplicates = 0 after a second run of the seed; dead-letter rate < 25% on the exception items; the rate on real traffic reported in the Walk report"
+      constrained_by:
+        - pack:regulated-corp#SEC-1
+      rationale: >-
+        The brief's trigger is a mailbox, so the pattern is poll. The architecture record gives the shape: `cron-job`
+        every 15 minutes (ASSUMED until business Q7) runs fetch and land, reading with BODY.PEEK so nothing in the
+        mailbox changes, and starts a workflow whose id is the key, so a re-delivery cannot start a second. `worker`
+        runs parse to route, await-approval is a workflow signal, and `posting-worker` runs post. The AI-engineering
+        record owns the bound: max_steps=12 and step_timeout_s=300 at Walk and Run, counting the same flow in finer steps
+        plus request_approval and post_invoice. The quality record runs verify on the live model from this stage, so the
+        correctness assertion becomes real here. Workflow payloads carry references only (G-ARCH-6), so the parsed text and
+        fields stay in the stores named below. The cursor is a convenience: lost, it re-reads, and the key makes that
+        harmless. A key built on Message-ID also survives a UIDVALIDITY change, so a rescan is safe, as the architecture
+        and UX records now also state. Odoo purchase orders are read per item at match,
+        which is what poll means for that source here. Broker none matches the architecture record, whose reasons hold for
+        this pipeline: the engine's task queues decouple the workloads, nothing fans out, and the volume is about 2
+        items/hour. CDC is none: the trigger is a mail and not a row, and it is not this team's database. A go-live date
+        bounds the poll, because the mailbox's history was already typed into Odoo by hand and must not be re-posted (Q3).
+        The parser: the catalog gives apps/document-processing/docling psa_level baseline and psa_restricted false, its
+        manifest sets no securityContext, and restricted is enforced on uc-invoice-intake from Walk (G-SEC-5,
+        pack:regulated-corp#SEC-1). The security record moves it to uc-invoice-intake-baseline under psa_exceptions, with
+        default-deny and traffic only from uc-invoice-intake, and this record follows: `worker` calls it across namespaces,
+        so invoice PDFs with bank account numbers cross that boundary. The security owner's acceptance is still open (G-SEC-17,
+        security Q14, Q1 here). This record keeps the parser because the plan assumes scans, which need OCR. Dead letters stay
+        in review_queue. A kill-switch stop is not a dead letter (the Run rationale states the contract, which applies from
+        Walk under G-SEC-23). Pack rule DATA-1 denies a component this pipeline never asks for.
+      alternatives:
+        - option: "stream through apps/brokers/nats between the poller and the worker"
+          rejected_because: >-
+            The engine's task queues already decouple them, a second stateful component would hold the same work, and the
+            architecture record has broker none. No need of this pipeline differs from that.
+        - option: "webhook or IMAP IDLE"
+          rejected_because: >-
+            A mailbox has no webhook, and a public endpoint would be a second door. IDLE only shortens a wait that is
+            negligible beside a person's approval and adds a long-held connection to supervise.
+        - option: "cdc on the Odoo database for purchase-order changes (apps/cdc/debezium-postgres-nats)"
+          rejected_because: >-
+            The trigger is a mail, not a row change. The brief reaches Odoo over REST and states no access to its database,
+            and the connector would need logical decoding on that instance plus a broker, for a copy of data the business
+            record says must not be kept. It would be right only if the organisation operated that database and a
+            downstream had to react to a purchase order changing, which nothing here does.
+        - option: Text-layer extraction in the worker, no parser
+          rejected_because: >-
+            It would avoid the PSA exception, but no tables and no OCR means scans are excluded, and the plan assumes a mix.
+            It remains the fallback in Q1 if the security owner refuses the exception.
+      risks:
+        - id: R4
+          text: "Shared mailbox handling: a person moving or deleting a message before a poll means it is never fetched, with no error."
+          mitigation: "The architecture record's R7 relies on this record's reconciliation metric, which counts mailbox messages against started workflows; G-PIPE-4 makes that gap a number."
+          severity: high
+        - id: R5
+          text: "Parser under PSA: the only parser runs outside the use case's namespace at baseline with no restricted proof, and it sees invoice text. The exception is not yet accepted."
+          mitigation: "The security record's namespace is default-deny with traffic only from uc-invoice-intake. Q1 holds the owner's acceptance; a refusal removes the parser from the Walk overlay and leaves text layer only, with scans excluded and the 80% revisited."
+          severity: high
+        - id: R6
+          text: >-
+            Parser supply: the component's image is tagged latest, so a parser change can move extraction results with no
+            change here, against G-Q-6; and the catalog does not say whether it fetches models at start, which default-deny
+            on its namespace would break.
+          mitigation: "The kustomize skill pins the image by digest from Walk; a Crawl run under deny-all egress shows whether it starts offline."
+          severity: medium
+        - id: R7
+          text: "Throughput: the parser figures are assumptions, a month-end batch can arrive at once (ASSUMED) and OCR on long scans is slowest. The parser is a single replica, so a restart stalls parsing."
+          mitigation: "Workflows retry and wait, so a stall is delay and not loss; the intake backlog signal in G-OPS-2 shows it. Worker count and maximum pages are patched from the Crawl measurement."
+          severity: low
+        - id: R8
+          text: "Re-rendered duplicates: a supplier re-sending a regenerated PDF has a new Message-ID and a new hash, so only the second check catches it: supplier + invoice number, in working memory and through find_payable, as the UX rule and the AI-engineering tool state. A misread invoice number misses both."
+          mitigation: "This corrects the record to the narrower check (UX Q8); no record needs a wider one at Walk, where the clerk confirms the invoice number and sees every invoice. The Walk report counts duplicates the clerk caught that the check missed, which is evidence G-AUT-1 needs, since no person stands there afterwards."
+          severity: medium
       gate_to_next:
-        - { id: G-PIPE-2, text: "30 days with every mailbox item accounted for (processed, reviewed or dead-lettered)", owner: data-pipeline, check: { type: metric, ref: items_unaccounted } }
+        - id: G-PIPE-3
+          text: >-
+            The verify Job proves intake replay safety: a cursor reset and a changed UIDVALIDITY each start 0 workflows, and
+            mail older than the go-live date is not fetched. The crash at the write is G-ARCH-3.
+          owner: data-pipeline
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-PIPE-4
+          text: >-
+            Over the G-Q-4 window, duplicates posted to Odoo = 0, the gap between mailbox messages with a PDF and started
+            workflows is 0 or each difference is explained, and no parse-failed or timeout item is left undecided by the
+            AP clerk at the close of the window.
+          owner: data-pipeline
+          check: { type: metric, ref: "duplicates posted, mailbox-to-workflow gap, undecided dead-letter items" }
     run:
-      choice: [apps/document-processing/docling]
+      choice:
+        - apps/document-processing/docling
       settings:
         ingestion_pattern: poll
-        document_parser: docling
+        sources:
+          - "shared-imap-mailbox: poll"
+          - "odoo-purchase-orders: poll"
+        steps:
+          - fetch
+          - land
+          - parse
+          - mask
+          - extract (model)
+          - validate
+          - match
+          - route
+          - await-approval
+          - post
+        document_parser: apps/document-processing/docling
         broker: none
-        idempotency_key: IMAP UID plus attachment hash
-      rationale: Unchanged; CDC on the decisions table is the audit stream the security expert asked for and rides on NATS if introduced.
-  references: [docs/apps/docling.md]
+        cdc_connector: none
+        idempotency_key: >-
+          Per attachment: Message-ID + attachment sha256, set at fetch and used as the workflow id; mailbox
+          UIDVALIDITY + UID if a message has no Message-ID. For the payable: supplier VAT id + supplier invoice
+          number as confirmed by the clerk, looked up in Odoo before post.
+        replay: >-
+          The operator follows the replay runbook: reset the cursor to an older UID, never reaching mail older than the
+          go-live date, and let the next poll re-read; a key already seen starts no workflow and post looks up the bill first.
+        dead_letter: >-
+          review_queue with reason=parse-failed, timeout or lookup-failed, the key and the failed step, no invoice content
+          in the reason, and an alert on queue age (G-OPS-2). Reviewed by the AP clerk with a named backup; finance ops is
+          the escalation.
+        schedule: "*/15 * * * *"
+        throughput_target: About 2 items/hour on average at 300 invoices a month; the month-end peak measured at Walk sets the worker's bounded concurrency.
+        seed_strategy: synthetic
+        seed_size: The Walk verify seed, 13 attachments of which 11 are exceptions, in the ephemeral environment; no production item ever becomes seed.
+        verify_assertions:
+          - "all Walk assertions, in the ephemeral environment"
+          - "kill switch drill (invoice-intake-killswitch-drill, G-OPS-3, in production): with the gateway key revoked and the paused state set and posting-worker left running, `cron-job` keeps landing mail, `worker` stops at its next model call, the policy judge refuses post_invoice for a tagged canary aimed at the Odoo double, 0 Odoo writes happen, pending invoices wait without failing or entering the dead-letter path, and after restoring the canary posts once"
+          - "restore drill (invoice-intake-restore-drill, G-OPS-4): after a restore, replay finds bills posted since the backup and creates no second payable"
+        landing_zones:
+          - "artifacts: inbox and parsed buckets, under the retention G-DS-1 decides and the backup G-OPS-4 restores"
+          - "working: mailbox cursor and go-live date; items by idempotency key; review_queue; approval state, restored with the items so the cursor never runs ahead of them"
+          - "episodic: per-action audit records tied to the idempotency key"
+        eval_dimensions:
+          - "robustness: duplicates = 0 after a second run of the seed; dead-letter rate < 25% on the exception items; the rate on production traffic reported per rolling 30 days"
+      constrained_by:
+        - pack:regulated-corp#SEC-1
+      rationale: >-
+        Run keeps Walk's pattern and adds the operational edges: a queue-age alert on dead letters, a rehearsed replay
+        runbook and the mailbox gap as a standing number. No step changes. If the CFO signs G-AUT-1, a fully matched
+        invoice skips await-approval and nothing else, which changes a route and not the pipeline. The volume does not
+        change, so broker none still matches the architecture record, and CDC stays none for ingestion. The one open
+        pressure on both is the audit trail (Q4). The restore drill also proves replay: a restored cursor can be older
+        than Odoo, and post's lookup stops a second payable, while the architecture record's G-ARCH-9 reconciles the stores.
+        Q1 applies here too (G-SEC-9). Kill switch: the switch revokes the gateway key and writes the paused state the policy
+        judge reads before each post_invoice; stopping posting-worker is only an operator's recovery step (architecture R9,
+        G-OPS-3). This answers devops Q3 from the pipeline's side, as a contract and not a proof, because no activity code
+        exists and the judge's contract is still security Q6. A refused post must be a wait: the activity returns a typed
+        refusal, not a retryable error, and the workflow goes back to waiting for the resume signal, consuming no retry. The
+        posting task queue carries no schedule-to-start timeout, as the architecture record also requires. A model call refused
+        under the revoked key must wait the same way and must not spend the AI-engineering budget of 2 model calls or become
+        reason=timeout, or paused invoices would reach the clerk as exceptions instead of waiting. Nothing enters the
+        dead-letter path, the key and item state do not change, and on resume the post runs under the same key with its lookup
+        first, so it creates one payable. Intake keeps landing mail while paused, which only grows the backlog that G-OPS-2
+        shows. G-OPS-3 fails if any of this does not hold; AI-engineering and security must confirm it in their retry policy
+        and in Q6.
+      alternatives:
+        - option: "Introduce apps/brokers/nats at Run for backpressure"
+          rejected_because: The engine queues the work and bounded concurrency is the backpressure, as the architecture record says; the volume is the same as Walk.
+        - option: "cdc on the decision and approval tables as the audit trail (apps/cdc/debezium-postgres-nats with apps/brokers/nats)"
+          rejected_because: >-
+            Not rejected on principle and not decided here. Unlike Odoo these tables are the organisation's own, so it needs
+            only logical decoding on the use case's Postgres, a replication slot and a publication, plus a connector and a broker
+            that are all additions at Run. The pipeline itself has no consumer for those events, so it stays none unless the
+            owners require it (Q4), and the architecture record then changes its broker first.
+      risks:
+        - id: R9
+          text: "Restore versus replay: after a restore the cursor is older than Odoo, so replay meets bills posted after the backup was taken."
+          mitigation: "post's lookup by supplier VAT id + invoice number finds them; G-OPS-4's drill includes one such bill, and G-ARCH-9 reconciles."
+          severity: medium
+        - id: R10
+          text: "Silent drift: Odoo upgrades or new supplier layouts raise the parse-failed or exception rate gradually after handover."
+          mitigation: "The rate is reported per rolling 30 days; tenant IT holds the data-readiness friction in the business record."
+          severity: medium
+        - id: R11
+          text: "Paused state read as failure: if a refused post or a refused model call is retried to exhaustion, spends the call budget or times out, pending invoices fail or reach the clerk as exceptions during a drill or a real stop."
+          mitigation: "The contract in the rationale, confirmed in security Q6 and asserted by G-SEC-23 at Walk and G-OPS-3 at Run."
+          severity: high
+      gate_to_next:
+        - id: G-PIPE-5
+          text: >-
+            Replay is rehearsed once in production by the operator with the runbook: a cursor reset to an older UID yields 0
+            duplicates in Odoo and 0 new review_queue items.
+          owner: data-pipeline
+          check: { type: manual, ref: replay rehearsal record }
+        - id: G-PIPE-6
+          text: >-
+            In each rolling 30 days, duplicates posted to Odoo = 0, the mailbox-to-workflow gap is 0 or each difference is
+            explained, and no dead-letter item is older than the age the business sets from its Q7.
+          owner: data-pipeline
+          check: { type: metric, ref: "duplicates posted, mailbox-to-workflow gap, dead-letter queue age" }
+  open_questions:
+    - id: Q1
+      question: >-
+        Security owner (security Q14, G-SEC-17): the security record moves apps/document-processing/docling, the only
+        document-parsing component and listed by the catalog as psa_level baseline with psa_restricted false, to
+        uc-invoice-intake-baseline under psa_exceptions, and this record follows. Is that exception accepted, given that
+        invoice PDFs with bank account numbers cross into that namespace? On a refusal the parser leaves the Walk overlay until
+        it is patched to restricted and proved, or the worker falls back to text-layer extraction, which excludes scans and
+        may put the 80% target out of reach.
+      blocks_stage: walk
+      caused_by_rule: pack:regulated-corp#SEC-1
+    - id: Q2
+      question: >-
+        Finance ops: what share of PDFs is scanned, and in which languages (plan OPEN item)? The seed assumes 30% scanned and
+        English and is regenerated on the answer, which also moves the parser's OCR load.
+    - id: Q3
+      question: >-
+        Finance ops, before Walk: does go-live start from new mail only? This record's default is yes, because the mailbox's
+        history was typed into Odoo by hand. Invoices that arrived but were not yet typed at go-live would otherwise be missed,
+        so someone must either finish those by hand or set an earlier date.
+      blocks_stage: walk
+    - id: Q4
+      question: >-
+        Security owner with the compliance owner (security Q15, a disagreement between records): the security record says
+        audit_trail cdc at Run, while this record says cdc_connector none and the architecture record says broker none, and
+        apps/cdc/debezium-postgres-nats needs apps/brokers/nats. Either they require CDC on the decision and approval tables, and
+        architecture then names the broker and this record the connector, or they accept the per-action artifacts in an
+        immutable store, as architecture recommends and as this pipeline's key supports. This record does not add either in advance.
+      blocks_stage: run
+  references:
+    - k8s/overlays/usecases/invoice-intake/.builder/brief.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml
+    - k8s/components/apps/document-processing/docling/deployment.yaml
+    - wiki/catalog.json
+    - plugins/forjate/skills/data-pipeline/references/ingestion-patterns.md
+    - plugins/forjate/skills/data-pipeline/references/seed-and-verify.md
+    - plugins/forjate/skills/data-pipeline/references/documents-and-cdc.md
+    - docs/ephemeral-use-cases.md
+    - context-packs/examples/regulated-corp/constraints.yaml

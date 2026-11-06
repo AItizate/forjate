@@ -47,6 +47,7 @@ except ImportError:  # running outside the factory checkout
     def schema_errors(*_a, **_k) -> list[str]:  # type: ignore[no-redef]
         return []
 
+TOOLCHAIN = REPO / "scripts" / "toolchain" / "toolchain.sh"
 TRANSITIONS = {"crawl->walk": ("crawl", "walk"), "walk->run": ("walk", "run")}
 KPI_LINE = re.compile(r"^\s*(KPI|EVAL)\s+([A-Za-z0-9_]+)=([^\s]+)")
 
@@ -178,6 +179,23 @@ class Runner:
         return rows, (1 if failed else 0)
 
 
+def toolchain_preflight() -> str | None:
+    """The yq in use is the one CI pins (.github/toolchain.env). Puts the pinned copy from
+    scripts/toolchain/install.sh first on PATH, then compares; returns the refusal, None when it matches
+    (a version mismatch under FORJATE_TOOLCHAIN=warn prints a warning and goes on)."""
+    if not TOOLCHAIN.is_file():  # a factory checkout older than the pin
+        return None
+    pinned_bin = REPO / ".tools" / "bin"
+    if pinned_bin.is_dir():
+        os.environ["PATH"] = f"{pinned_bin}{os.pathsep}{os.environ.get('PATH', '')}"
+    p = subprocess.run(["bash", "-c", f'source "{TOOLCHAIN}" && toolchain_check yq'], capture_output=True, text=True)
+    if p.stderr.strip():
+        print(p.stderr.strip(), file=sys.stderr)
+    if p.returncode != 0:
+        return p.stderr.strip() or "toolchain check failed"
+    return None
+
+
 def norm_transition(v: str) -> str:
     key = v.replace("->", "-").replace(">", "-").replace("_", "-").replace(" ", "")
     for t in TRANSITIONS:
@@ -226,6 +244,8 @@ def main(argv: list[str]) -> int:
                 c = g.get("check") or {"type": "manual"}
                 print(f"  {g['id']:<10} {c.get('type', 'manual'):<10} {c.get('ref', ''):<28} {g.get('owner', ''):<14} {g.get('text', '')[:80]}")
         return 0
+    if a.only in (None, "ci", "verify-job") and toolchain_preflight() is not None:
+        return 2
     r = Runner(a.usecase, uc_dir, a.transition, a.only)
     rows, rc = r.run()
     approver = doc["spec"]["transitions"][a.transition].get("approver", "")

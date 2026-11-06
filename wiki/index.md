@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-10-30'
+compiled_at: '2026-11-06'
 ---
 
 # Forjate wiki — index
@@ -68,7 +68,7 @@ The foundation every tenant inherits.
 
 ### bundles
 
-- [bundles-temporal-stack](components/bundles-temporal-stack.md) — temporal-stack — Temporal + PostgreSQL in a single reference · used by 1
+- [bundles-temporal-stack](components/bundles-temporal-stack.md) — temporal-stack — Temporal + PostgreSQL in a single reference · used by 2
 
 ### cdc
 
@@ -134,7 +134,7 @@ The foundation every tenant inherits.
 
 ### networking
 
-- [networking-metallb](components/networking-metallb.md) — vendors `native?ref=v0.15.2` · used by 3
+- [networking-metallb](components/networking-metallb.md) — vendors `native?ref=v0.15.2` · used by 2
 
 ### productivity
 
@@ -165,7 +165,7 @@ The foundation every tenant inherits.
 ### security
 
 - [security-external-secrets](components/security-external-secrets.md) — External Secrets Operator (ESO) — syncs secrets from external stores · used by 2
-- [security-openbao](components/security-openbao.md) — secret store (MPL-2.0, Vault API): raft, audit to stdout, kubernetes/approle/userpass auth and an SSH CA after bootstrap.sh · used by 1
+- [security-openbao](components/security-openbao.md) — secret store (MPL-2.0, Vault API): raft, audit to stdout, kubernetes/approle/userpass auth and an SSH CA after bootstrap.sh · used by 2
   - [security-openbao-eso-store](components/security-openbao-eso-store.md) — OpenBao as an External Secrets store — applied on top of security/openbao via components: · used by 1 as component
   - [security-openbao-follow-namespace](components/security-openbao-follow-namespace.md) — transformer, not a component: makes security-openbao follow an overlay's namespace: (CRB subject, eso-store server) · used by 1 as transformer
   - [security-openbao-raft-snapshot](components/security-openbao-raft-snapshot.md) — OpenBao raft snapshots — applied on top of security/openbao via components: · used by 1 as component
@@ -188,7 +188,7 @@ The foundation every tenant inherits.
 
 ### surveys
 
-- [surveys-formbricks](components/surveys-formbricks.md) — deploys `ghcr.io/formbricks/formbricks:latest` · used by 1
+- [surveys-formbricks](components/surveys-formbricks.md) — deploys `ghcr.io/formbricks/formbricks:latest` · unused in this repo
 
 ### workflows
 

@@ -4,10 +4,10 @@ rules:
     value: [apps/continuous-delivery/argocd]
     reason: Flux is the org standard; two GitOps engines are not supported.
   OPS-2:
-    type: secrets_mechanism
-    value: vault
+    type: require_components
+    value: [apps/security/openbao]
     stages: [walk, run]
-    reason: The corporate Vault is the only secret store.
+    reason: The corporate secrets store runs in-cluster as OpenBao; pilots pull from it instead of holding secrets in git.
   OPS-3:
     type: max_cost_usd_month
     value: 100

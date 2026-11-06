@@ -35,7 +35,7 @@ spec:
         memory_needs: [session, episodic]
         eval_strategy: 150 anonymised conversations, rules plus weekly human sample, 60 % resolved without a human, 100 % refunds escalated
         estimated_cost_per_1k_requests_usd: 4
-      rationale: The brief allows egress; names, emails and phone numbers are redacted before the call and the provider sees the order id, not the customer record.
+      rationale: The brief allows egress; names, emails and phone numbers are redacted before the call and the provider sees the order id, not the customer record. Ollama leaves the build at Walk because the gateway routes every call to the external model and a local fallback is not worth a GPU node at this volume, so the Walk overlay drops the Crawl inference server.
       gate_to_next:
         - { id: G-AI-2, text: redaction verified on the canary set and the provider DPA signed before real traffic, owner: ai-engineering, check: { type: ci, ref: redaction-check } }
   open_questions:

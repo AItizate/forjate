@@ -63,7 +63,7 @@ Observed: one ArgoCD Application on a feature branch with `automated: { prune: f
 
 **Why a list and not a risk.** The kustomize assembly labels each namespace and moves the components, and `validate.py` checks the list against the catalog; neither reads prose. Keep the `risks` entry for severity and mitigation and link it with `risk: R<n>`.
 
-**Where the facts come from.** Two catalog facts per component, derived from `k8s/**` by `wiki-compile.py`: `psa_level`, the strictest Pod Security Standard its pods meet (`privileged` when they need host access, `restricted` when every container meets the profile, `baseline` otherwise, `unknown` for remote or Helm manifests the compiler cannot read), and `namespace`, set for shared infrastructure that runs in a namespace of its own. Read them for every component any record runs at the stage, not only yours: stage overlays add and never remove, so a Crawl choice still runs at Walk.
+**Where the facts come from.** Two catalog facts per component, derived from `k8s/**` by `wiki-compile.py`: `psa_level`, the strictest Pod Security Standard its pods meet (`privileged` when they need host access, `restricted` when every container meets the profile, `baseline` otherwise, `unknown` for remote or Helm manifests the compiler cannot read), and `namespace`, set for shared infrastructure that runs in a namespace of its own. Read them for every component any record chooses **at that stage**, not only yours: a stage overlay is built from the stage's own set (`validate.py` and the assembly share it), so a Crawl choice no Walk record repeats is gone at Walk and needs no exception there, and one that stays needs its entry at every stage it runs.
 
 ```bash
 python3 -c "import json;[print(c['path'],c['psa_level'],c['namespace']) for c in json.load(open('wiki/catalog.json'))['components']]"
@@ -90,6 +90,10 @@ psa_exceptions:
 `level` is the namespace's enforce level and must be below the stage's `psa_level`; when the components' `psa_level` is `unknown`, say so in `reason` and record the level you expect the owner to set. An `n/a` component (no pods) never needs an entry.
 
 **Shared clusters.** On a cluster shared with other tenants the exception is the platform owner's to accept: raise an open question naming the namespaces and their levels, and leave the record's level where it is. When the only way to keep a component in `uc-<name>` would be to lower `uc-<name>`, that is the alternative you reject, with the pack rule or the ladder as the reason.
+
+## The kill switch
+
+Two places stop an agent, and the record names which one is live per stage. The gateway key: every model call carries the use case's own key at the LLM gateway, so revoking it ends every reasoning step (`kill_switch: gateway-key-revocation`, the Walk default; a direct provider credential anywhere in the use case defeats it and is a risk). The ingress permission: every call into the agent and every tool call out of it passes the ingress enriched with identity, so removing the use case's permission there stops calls in and out (`ingress-permission`, the Run default, rehearsed as a `manual` gate with the operator named: revoke, watch the queue stop, restore, note the time it took). "Scale the Deployment to zero" is an operator's recovery, not a kill switch: it does not stop an in-flight tool call or a second replica.
 
 ## Tenancy from Run
 

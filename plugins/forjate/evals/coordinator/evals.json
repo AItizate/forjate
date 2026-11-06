@@ -77,13 +77,25 @@
           "type": "file_absent",
           "path": "k8s/overlays/usecases/invoice-intake/.builder/decisions/architecture.yaml",
           "text": "no expert record fabricated (the coordinator was told to stop at the plan)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml",
+          "pattern": "autonomy:\\s*(assistive|semi-autonomous)",
+          "text": "autonomy recorded from the intake (a person approves: not autonomous)"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/brief.yaml",
+          "pattern": "risk_profile:",
+          "text": "risk profile recorded (financial, regulated decision)"
         }
       ]
     },
     {
       "name": "resume-does-not-reinterview",
-      "prompt": "Copy the directory plugins/forjate/scripts/builder/tests/fixtures/db-migration-a-to-b/.builder into k8s/overlays/usecases/db-migration-a-to-b/.builder (it has a brief, packs, a stage plan and one decision record). Then resume the Forjate use-case builder for the use case db-migration-a-to-b: continue from where it is, do not ask questions, do not rewrite artifacts that already validate, and end with the review report.",
-      "expected_output": "brief, stage-plan and decisions/data-store.yaml untouched; log.md appended; report lists the experts without a record under 'Not yet available'; no new decision records fabricated.",
+      "prompt": "Copy the directory plugins/forjate/scripts/builder/tests/fixtures/db-migration-a-to-b/.builder into k8s/overlays/usecases/db-migration-a-to-b/.builder (it has a brief, packs, a stage plan and one decision record). Then resume the Forjate use-case builder for the use case db-migration-a-to-b: continue from where it is, do not ask questions, do not rewrite artifacts that already validate, run only the first expert wave (business) and stop before delegating to any other expert, then end with the review report.",
+      "expected_output": "brief, stage-plan and decisions/data-store.yaml untouched; the business record written by the business expert and nothing else; log.md appended; the report lists the experts still without a record.",
       "assertions": [
         {
           "type": "usecase_valid",
@@ -117,14 +129,20 @@
           "text": "log.md exists after resume"
         },
         {
-          "type": "file_absent",
+          "type": "yaml_expr",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/business.yaml",
-          "text": "no business record fabricated"
+          "expr": "d['metadata']['author'] == 'forjate:business' and 'crawl' in stages and setting('kpi_metric', 'crawl') is not None",
+          "text": "the business record was written by the business expert, as wave 1"
         },
         {
           "type": "file_absent",
           "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/security.yaml",
-          "text": "no security record fabricated"
+          "text": "no wave-2 record written: the run stopped after wave 1 as told"
+        },
+        {
+          "type": "file_absent",
+          "path": "k8s/overlays/usecases/db-migration-a-to-b/.builder/decisions/architecture.yaml",
+          "text": "no architecture record: the run stopped after wave 1 as told"
         }
       ]
     },
@@ -162,6 +180,12 @@
           "path": "k8s/overlays/usecases",
           "pattern": "kind:\\s*Decision",
           "text": "no expert decision fabricated"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases",
+          "pattern": "autonomy:\\s*assistive",
+          "text": "autonomy assumed assistive when nobody can answer"
         }
       ]
     },

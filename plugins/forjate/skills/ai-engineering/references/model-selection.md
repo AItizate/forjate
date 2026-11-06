@@ -1,14 +1,14 @@
 # Model selection
 
-Decide egress first, then size, then where it runs. The gateway is LiteLLM from Walk regardless.
+Decide egress first, then size, then where it runs. Inference and the gateway are catalog capabilities you resolve, not names you remember: `references/catalog-snapshot.md` shows what they resolved to on the day it was compiled.
 
 ## Egress
 
 | Brief | `data_egress` | Inference |
 |-------|---------------|-----------|
-| `llm_egress_allowed: false`, or data class `pii` / `financial` / `health` with no pack relaxing it | `none` | local only: Ollama (Crawl), vLLM or Ollama on GPU (Walk+) |
-| data class `pii` with `llm_egress_allowed: true` | `anonymized` if a redaction step is cheap and reliable for this data; otherwise `any` with the vendor's data-processing terms cited in `references` | API through LiteLLM, local fallback named |
-| `internal` / `none` data, egress allowed | `any` | API through LiteLLM; local for cost at volume |
+| `llm_egress_allowed: false`, or data class `pii` / `financial` / `health` with no pack relaxing it | `none` | an `inference` component at every stage; nothing leaves |
+| data class `pii` with `llm_egress_allowed: true` | `anonymized` if a redaction step is cheap and reliable for this data; otherwise `any` with the vendor's data-processing terms cited in `references` | an external model through the `llm-gateway`, a local fallback named |
+| `internal` / `none` data, egress allowed | `any` | an external model through the gateway; local for cost at volume |
 
 `anonymized` is a promise with a tool behind it: the redaction step is deterministic, tested in the golden set, and runs before the gateway call. If you cannot name it, the value is `none` or `any`.
 
@@ -24,13 +24,17 @@ Decide egress first, then size, then where it runs. The gateway is LiteLLM from 
 
 Start one class smaller than instinct says and let the eval promote it. The record lists the larger model in `alternatives` with "not until the golden set shows the gap".
 
-## Where it runs, per stage
+## Where it runs: resolving `inference` and `llm-gateway` per stage
+
+Read the candidates for each capability from `wiki/catalog.json` and apply, in this order: `stages` (a component not fit for the stage is a later stage or an open question, never a stretch), pack rules, `data_classes` against the brief, `gpu_required` against the environment the devops record or the stage ladder gives you (no GPU at Crawl; a GPU node is a Walk cost question), `ha` against the stage's exit criteria, `maturity`, licence. Record every rejected candidate in `alternatives` with the criterion that excluded it.
 
 | Stage | Zero egress | Egress allowed |
 |-------|-------------|----------------|
-| Crawl | `apps/ai-models/ollama` on CPU, called directly or through LiteLLM; seconds of latency are fine | LiteLLM to an API model; Ollama as the offline fallback for the verify Job |
-| Walk | Ollama on a GPU node for latency, or `apps/ai-models/vllm` when concurrency matters; LiteLLM in front | LiteLLM with budget alerts and per-key spend; local fallback for outages |
-| Run | `apps/ai-models/vllm` with pinned model version; LiteLLM with cost tracking per use case | same, plus provider terms in the compliance record |
+| Crawl | the `inference` component fit for `crawl` with `gpu_required` `none` or `optional`, on CPU; called directly or through the gateway; seconds of latency are fine | the gateway to an API model; the Crawl inference component as the offline fallback for the verify Job |
+| Walk | the Crawl component on a GPU node for latency, or the `inference` component built for concurrency when the volume needs it (`gpu_required: required` is a budget line, not a surprise); the gateway in front | the gateway with budget alerts and per-key spend; a local fallback for outages |
+| Run | the `inference` component fit for `run` with a pinned model version; the gateway with cost tracking per use case | same, plus provider terms in the compliance record |
+
+The gateway (`llm-gateway`) is in `choice` from Walk whatever the egress: it is where routing by policy, budgets, telemetry and the kill switch (revoking the use case's key) live. An agent that calls a provider or an inference server directly past Crawl has none of that, and the record says so as a risk.
 
 ## Cost per 1k requests
 
@@ -44,6 +48,10 @@ Start one class smaller than instinct says and let the eval promote it. The reco
 
 Derive requests per month from the brief's volume (300 invoices → ~300 to 900 requests with retries and multi-page; 200 chat messages/day → ~6k/month plus tool calls). Put the monthly figure in `estimated_cost_usd_month` so the business envelope absorbs it.
 
+## Pinning and fallback
+
+`model_pinning: pinned` at every stage: the model id carries the version or tag the gateway routes (`ollama/qwen2.5:7b-instruct`, not `ollama/qwen2.5:latest`), and a provider's upgrade or deprecation is a configuration change that runs the golden set and passes a gate before it reaches Walk. `fallback_policy` names where a call goes when the primary is down: `none` at Crawl (the verify Job fails loud), `same-tier` from Walk (another approved model of the same tier, local or external, inside the same egress rule). `lower-tier` and `any` are never the default: a cheaper or unknown model is not approved for the data the primary was.
+
 ## Writing `settings.model`
 
-Provider-prefixed, routable by LiteLLM, matchable by pack globs: `ollama/qwen2.5:7b-instruct`, `ollama/gemma3:12b`, `claude-sonnet-4-5`, `gpt-4o-mini`. A list is allowed when two models serve different steps; name the step per model in `rationale`.
+Provider-prefixed, routable by the gateway, matchable by pack globs: `ollama/qwen2.5:7b-instruct`, `ollama/gemma3:12b`, `claude-sonnet-4-5`, `gpt-4o-mini`. A list is allowed when two models serve different steps; name the step per model in `rationale`. `settings.inference` is the catalog name of the component that serves it (the last path segment) or `api`; the validator maps it to the `inference` capability and flags two servers in one stage.

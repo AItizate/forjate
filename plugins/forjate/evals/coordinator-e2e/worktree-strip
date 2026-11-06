@@ -1,0 +1,20 @@
+# Repo-relative paths run.sh removes from every worktree of this suite: the golden use cases'
+# fixtures and wiki pages, so a cold start on G1 or G2 cannot copy its answer.
+plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml
+plugins/forjate/evals/fixtures/briefs/support-copilot.yaml
+plugins/forjate/evals/fixtures/plans/invoice-intake.yaml
+plugins/forjate/evals/fixtures/plans/support-copilot.yaml
+plugins/forjate/evals/fixtures/decisions/invoice-intake
+plugins/forjate/evals/fixtures/decisions/support-copilot
+plugins/forjate/evals/fixtures/records/invoice-intake
+plugins/forjate/evals/fixtures/records/support-copilot
+plugins/forjate/evals/fixtures/gates/invoice-intake.yaml
+plugins/forjate/evals/fixtures/gates/support-copilot.yaml
+plugins/forjate/evals/fixtures/scaffold/invoice-intake.yaml
+plugins/forjate/evals/fixtures/scaffold/support-copilot.yaml
+wiki/overlays/usecases-invoice-intake.md
+wiki/overlays/usecases-invoice-intake-stages-walk.md
+wiki/overlays/usecases-invoice-intake-stages-run.md
+wiki/overlays/usecases-support-copilot.md
+wiki/overlays/usecases-support-copilot-stages-walk.md
+wiki/overlays/usecases-support-copilot-stages-run.md

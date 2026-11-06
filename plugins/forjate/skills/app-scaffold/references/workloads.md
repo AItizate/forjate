@@ -29,11 +29,12 @@ class Settings:
     data_class: str = env("DATA_CLASS", "internal")  # from the security record, for the log line
 ```
 
-Service names are the catalog's (`postgres`, `redis`, `minio`, `docling`, `ollama-service`, `litellm`); the assembly resolves them in the namespace, so the code uses the short name. Secrets arrive through `envFrom` by the component's mounted Secret name (`postgres-secret` → `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`); `config.py` composes the DSN. List every variable and secret in `scaffold.yaml` so the assembly knows what to inject.
+Service names are the catalog's (`postgres`, `redis`, `minio`, `docling`, `ollama-service`, `litellm`); the assembly resolves them in the namespace, so the code uses the short name. Secrets arrive through `envFrom` by the component's mounted Secret name (`postgres-secret` → `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`); `config.py` composes the DSN. The key names are the catalog's, never a client library's: read them from `wiki/catalog.json`, `components[].wiring.secret` (`name` and `keys`) for every component the workload mounts. The object store's Secret carries `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD`, and an app that reads `MINIO_ACCESS_KEY` because that is what an S3 SDK calls it gets empty credentials, fails its readiness and stalls the seed Job on the cluster while every unit test passes; `scaffold-check.py` flags a mounted Secret whose keys the app never reads. List every variable and secret in `scaffold.yaml` so the assembly knows what to inject.
 
 ## Health, shutdown, logging
 
-- `/healthz` returns 200 when the process is up and `/readyz` when its stores answer; the assembly wires both as probes.
+- `/healthz` returns 200 when the process is up; `/readyz` returns 200 only when every store **and every service the workload calls on its route** answers (the orders stub for an agent that looks orders up, the ERP stub for a poster). The assembly wires `/healthz` as liveness and `/readyz` as readiness and startup probe, so a process that listens only after its database accepts connections is not killed while it waits.
+- A replay, seed or verify Job waits on the `/readyz` of every service on its route before its first request (bounded, say 3 minutes, then exit non-zero naming the service): a lookup against a stub still starting turns into a false escalation and a verify that passes or fails by timing.
 - SIGTERM stops accepting work and finishes the item in flight; a batch checkpoints by the idempotency key so a restart resumes.
 - One JSON log line per event to stdout: `{"ts", "event", "data_class", ...}`; tool and model calls use the line in `tools-and-model.md`. Never the payload.
 

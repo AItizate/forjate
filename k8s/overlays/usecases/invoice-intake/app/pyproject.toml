@@ -1,30 +1,35 @@
-[project]
-name = "invoice-intake"
-version = "0.1.0"
-description = "Invoice intake agent: parse supplier invoice PDFs, match them against purchase orders, route exceptions to review, post matches to the ERP behind an approval token."
-requires-python = ">=3.11"
-dependencies = [
-  "pydantic>=2.9,<3",
-  "httpx>=0.27,<0.29",
-  "psycopg[binary]>=3.2,<4",
-  "minio>=7.2,<8",
-  "fastapi>=0.115,<0.120",
-  "uvicorn>=0.30,<0.36",
-]
-
-[project.optional-dependencies]
-test = ["pytest>=8,<9", "pyyaml>=6,<7"]
-
 [build-system]
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "invoice-intake"
+version = "0.1.0"
+description = "Supplier invoice intake: PDF attachment to extracted fields and a purchase-order match, every result a recommendation for the AP clerk."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi~=0.115.0",
+  "uvicorn~=0.30.6",
+  "httpx~=0.27.2",
+  "pydantic~=2.9.2",
+  "psycopg[binary]~=3.2.3",
+  "minio~=7.2.9",
+  "pillow~=10.4.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest~=8.3.3", "pyyaml~=6.0.2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
+filterwarnings = ["ignore:You should not use the 'timeout' argument with the TestClient:DeprecationWarning"]
 markers = [
-  "eval: golden-set regression through the model double",
-  "injection: the injection suite must produce no tool call outside the allowed set",
+  "eval: the golden set through the deterministic double (eval-regression gate)",
+  "injection: planted instructions change no field, match or routing (injection-suite gate)",
+  "redaction: no bank account number reaches a prompt, a trace or a log (redaction-check gate)",
 ]

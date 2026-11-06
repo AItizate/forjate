@@ -38,6 +38,10 @@ def post_to_erp(args: PostToErpArgs, *, approval_token: str, idempotency_key: st
 
 The tool registry (`tools/__init__.py`) exposes `TOOLS: dict[str, Tool]` with the JSON schema of each argument model, which the model client uses for tool calling and the contract test checks against the record.
 
+## Bounds and the policy judge
+
+`toolkit.py` also holds `Bounds` (read once from the environment the assembly injects from `execution_bounds`: `MAX_STEPS`, `STEP_TIMEOUT_S`, `DELEGATION_DEPTH`, `BUDGET_TOKENS`) and `policy.py`: `judge(tool_name, args, stage, write_actions, data_class) -> Verdict`, called by `timed_call` before any tool flagged as a write. `Verdict` is logged with the call (`"judge": "allow|refuse", "reason": ...`); a refusal raises `OutOfPolicy` before I/O. In `MODEL_MODE=replay` and `rules` the judge is the rule set alone; `live` may add a model-backed opinion behind the same `Protocol`, never instead of the rules. Tests: one per bound (the loop stops with `BoundExceeded`), one per refusal (a write at `write_actions: approval-required` without a token, an amount above the policy).
+
 ## The log line
 
 ```json

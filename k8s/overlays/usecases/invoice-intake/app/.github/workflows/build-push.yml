@@ -1,7 +1,6 @@
+# Enters at Walk (devops record); Crawl builds through ephemeral.sh spec.build. The template builds, scans with Trivy and pushes.
+# Repository variables to set: IAC_REPOSITORY (<org>/<iac-repo>) and TENANT. The registry owner is the repository's; devops Q9 may replace ghcr.io.
 name: Build, scan, push and write back
-# The shared template builds, scans with Trivy and pushes; this repo never writes its own build job
-# (plugins/forjate/skills/devops/references/ci-templates.md). The write-back is a repository_dispatch
-# into the IaC repo's sync-app-image.yml, which edits the images: block with yq.
 on:
   push:
     branches: [main]
@@ -11,7 +10,7 @@ jobs:
     with:
       branch: ${{ github.ref_name }}
       registry_url: ghcr.io
-      repository_name: aitizate/invoice-intake
+      repository_name: ${{ github.repository_owner }}/invoice-intake
       image_tag: ${{ github.sha }}
       docker_file: ./Dockerfile
     secrets:
@@ -25,9 +24,9 @@ jobs:
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.IAC_FACTORY_TOKEN }}
-          repository: AItizate/forjate
+          repository: ${{ vars.IAC_REPOSITORY }}
           event-type: app-image-updated
-          client-payload: '{"app_name": "invoice-intake", "new_tag": "${{ github.sha }}", "tenant": "usecases/invoice-intake/stages/walk", "namespace": "uc-invoice-intake"}'
+          client-payload: '{"app_name": "invoice-intake", "new_tag": "${{ github.sha }}", "tenant": "${{ vars.TENANT }}", "namespace": "uc-invoice-intake"}'
   notify-on-failure:
     needs: [build-scan-push, write-back]
     if: always() && contains(needs.*.result, 'failure')

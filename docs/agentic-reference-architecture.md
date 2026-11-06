@@ -46,7 +46,7 @@ A snapshot, not a rule. The use-case builder picks components by role from `wiki
 | Planning and orchestration | `durable-workflows`, `orchestration`, `messaging` | Temporal (as `bundles/temporal-stack`), NATS |
 | Knowledge and memory | `session-memory`, `long-term-memory`, `semantic-memory`, `vector`, `artifacts`, `document-parsing` | Redis, Postgres, LanceDB or Milvus, MinIO, Docling; a knowledge compiler implementing the LLM Wiki pattern is not in the catalog yet |
 | Tools and actions | `cdc`, `audit-trail`, `low-code-automation` | Debezium connectors, n8n or Node-RED for glue; tools are the use case's own code behind MCP |
-| Operations and governance | `gitops`, `secrets`, `metrics`, `dashboards`, `telemetry`, `traces` | ArgoCD, Sealed Secrets then External Secrets or Vault, Prometheus, Grafana, OpenTelemetry collector |
+| Operations and governance | `gitops`, `secrets-mechanism`, `secrets-store`, `metrics`, `dashboards`, `telemetry` | ArgoCD, Sealed Secrets then External Secrets pulling from OpenBao, Prometheus, Grafana, OpenTelemetry collector |
 
 Gaps this view exposes, tracked as catalog backlog: a knowledge compiler component, a structured per-tool-call audit ledger over OpenTelemetry, an evaluation harness component. Until they exist, the builder's records name them as gates and open questions, never as capabilities.
 

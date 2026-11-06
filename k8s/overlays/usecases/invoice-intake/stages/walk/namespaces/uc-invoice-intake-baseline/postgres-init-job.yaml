@@ -1,0 +1,83 @@
+# postgres-init (data-store: multi-database init pattern): the only workload besides the StatefulSet that mounts the admin postgres-secret.
+# An ArgoCD Sync hook, not a suspended Job: it is no phase of the ephemeral contract, and re-runs on each sync because it is idempotent. Run it by hand before a restore.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-init
+  namespace: uc-invoice-intake-baseline
+  labels:
+    app: postgres-init
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: postgres-init
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: postgres-init
+        image: postgres:16
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready; do echo "waiting for postgres"; sleep 3; done
+          exec psql -f /init/postgres-init.sql \
+            -v invoice_working_pw="$INVOICE_WORKING_PASSWORD" \
+            -v invoice_episodic_pw="$INVOICE_EPISODIC_PASSWORD" \
+            -v temporal_pw="$TEMPORAL_PASSWORD" \
+            -v gotrue_pw="$GOTRUE_PASSWORD" \
+            -v litellm_pw="$LITELLM_PASSWORD" \
+            -v backup_reader_pw="$BACKUP_READER_PASSWORD" \
+            -v tenant_probe_pw="$TENANT_PROBE_PASSWORD"
+        env:
+        - name: PGHOST
+          value: postgres
+        - name: PGDATABASE
+          value: postgres
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        envFrom:
+        - secretRef:
+            name: postgres-init-secret
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: sql
+          mountPath: /init
+          readOnly: true
+      volumes:
+      - name: sql
+        configMap:
+          name: postgres-init-sql

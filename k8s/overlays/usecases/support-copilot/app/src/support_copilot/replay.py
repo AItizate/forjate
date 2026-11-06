@@ -9,18 +9,24 @@ from .config import settings
 from .logging import log
 
 
-def wait_agent(cfg, timeout_s: float = 180.0) -> None:
+def wait_ready(url: str, what: str, timeout_s: float = 180.0) -> None:
     import time
     deadline = time.monotonic() + timeout_s
     while True:
         try:
-            if httpx.get(f"{cfg.agent_url}/readyz", timeout=5).status_code == 200:
+            if httpx.get(f"{url}/readyz", timeout=5).status_code == 200:
                 return
         except httpx.HTTPError:
             pass
         if time.monotonic() > deadline:
-            raise RuntimeError("agent API did not become ready")
+            raise RuntimeError(f"{what} did not become ready")
         time.sleep(2)
+
+
+def wait_agent(cfg, timeout_s: float = 180.0) -> None:
+    """The agent API and the orders API it calls: a lookup that hits a stub still starting is a false escalation."""
+    wait_ready(cfg.agent_url, "agent API", timeout_s)
+    wait_ready(cfg.orders_url, "orders API", timeout_s)
 
 
 def run_once() -> dict:

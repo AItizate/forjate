@@ -1,50 +1,525 @@
 apiVersion: forjate.io/v0
 kind: Decision
-metadata: { area: architecture, usecase: invoice-intake, author: "forjate:architecture", version: 1 }
+metadata:
+  area: architecture
+  usecase: invoice-intake
+  author: forjate:architecture
+  version: 1
+  language: en
 spec:
   stages:
     crawl:
       choice: []
       settings:
         topology: batch
-        workloads: [intake-job, seed-job, verify-job, erp-stub]
-        integrations: ["IMAP mailbox: seed-replay", "Odoo REST API: stub"]
-        integration_patterns: [batch]
+        trigger: file-arrival
+        runtime: python
+        workloads:
+          - seed-job
+          - worker
+          - verify-job
+        integrations:
+          - "shared-imap-mailbox: stub"
+          - "shared-imap-mailbox: poll"
+          - "shared-imap-mailbox-attachments: file-drop"
+          - "odoo: stub"
+          - "odoo-purchase-orders: rest-pull"
+        integration_patterns:
+          - poll
+          - file-drop
+          - rest-pull
         durable_execution: job
         broker: none
         api_surface: none
         auth_in_front: none
-        trigger: file-arrival
-      rationale: A batch Job over seeded PDFs in MinIO, matched against seeded POs served by a stub of the Odoo API; nothing is exposed and nothing real is touched.
-      gate_to_next:
-        - { id: G-ARCH-1, text: the intake Job processes the seeded set end to end and the stub records every would-be posting, owner: architecture, check: { type: verify-job, ref: inv-validate } }
-    walk:
-      choice: [apps/auth/gotrue-auth]
-      settings:
-        topology: batch
-        workloads: [intake-worker, review-api, verify-job]
-        integrations: ["IMAP mailbox: poll", "Odoo REST API: rest-push"]
-        integration_patterns: [poll, rest-push]
-        durable_execution: job
-        broker: none
-        api_surface: internal
-        auth_in_front: oauth2-proxy
-        trigger: schedule
-      rationale: A scheduled worker polls the mailbox every 10 minutes, the review API serves the AP clerk's queue behind oauth2-proxy and GoTrue, approved items are posted to Odoo with an idempotency key.
+        execution_bounds:
+          - max_steps=10
+          - step_timeout_s=600
+          - delegation_depth=0
+          - budget_tokens=8000
+        open_standards: all-layers
+        open_standards_exceptions: []
+      rationale: >-
+        The four questions. Who starts it: a document arriving, here a seeded PDF in the mailbox double.
+        How long: several steps per invoice, minutes on the CPU-only model the AI-engineering record chose.
+        Can a step be lost or run twice: yes at this stage, because nothing is written to Odoo (the
+        assistive ceiling) and all data is synthetic and dies with the cluster. Does anyone outside the
+        cluster call it: no. That is `batch`: a seed Job, one worker Job doing one pass, a verify Job.
+        One container here reads the mailbox, calls the model and matches the purchase order; those become
+        separate workloads at Walk. Crawl does not have a workflow engine, a broker, an Ingress, auth, a
+        posting path or a web review surface (the UX record's surface is a CLI). Each arrives at Walk with
+        the real invoice that justifies it. The idempotent worker is enough because a killed pass loses
+        nothing: state sits in the data-store record's working store under the data-pipeline record's key
+        (Message-ID + attachment sha256, or UIDVALIDITY + UID when a message has no Message-ID), and a rerun resumes. This stops being acceptable with the
+        first real invoice or the first Odoo write, whichever comes first; both are Walk. Integrations:
+        the mailbox is `poll` for the cursor plus `file-drop` for the attachments; Odoo is `rest-pull` for
+        purchase orders with no `rest-push` at this stage. `stub` marks the doubles the plan requires, so
+        the scaffold generates them; it is not an integration pattern and stays out of
+        `integration_patterns`. Runtime `python` is the factory default, not a finding: the brief has no
+        `constraints.stack` and no pack rule names a language (Q6). Bounds are copied from the
+        AI-engineering record; the Job's `activeDeadlineSeconds` and `backoffLimit` enforce them here, with
+        the deadline sized from the pipeline's seed. Delegation depth 0: one pass, no agent hands work to
+        another. Open standards: the brief requires them and nothing here is proprietary. The regulated-corp
+        pack resolves only DATA-1 for this role; no MongoDB is on the table, so it shapes nothing here.
       alternatives:
-        - { option: Temporal workflow per invoice, rejected_because: "300 invoices a month with a 24 h exception SLA do not need durable execution; a Job with a Postgres status table retries safely" }
+        - option: A workflow engine from Crawl, so the shape does not change at Walk.
+          rejected_because: >-
+            Nothing can double-post at Crawl and the ephemeral cluster lives four hours. It would add
+            two pods the verify Job must wait for, plus a store, on a stage budgeted at USD 5.
+        - option: A long-running Deployment polling the double, as the shape closest to Walk.
+          rejected_because: >-
+            A one-pass Job has a clear exit code for `ephemeral.sh`, and its deadline is the bound. A loop
+            has neither, and the plan asks for a result on a seeded set, not for continuous intake.
+        - option: Skip the mailbox double and have the seed Job write PDFs straight into the landing bucket.
+          rejected_because: >-
+            Gate G-Q-1 asks for seeded PDFs flowing from the mailbox double, and the cursor and the
+            deduplication key would go unexercised until Walk.
+      risks:
+        - id: R1
+          text: >-
+            The worker and the doubles share a Protocol, not a wire: a stub over HTTP proves nothing about
+            real IMAP (UIDVALIDITY, MIME oddities, attachment encoding) or the real Odoo API, whose surface
+            varies by version. A Crawl pass at 100% can still fail on the first real message.
+          mitigation: >-
+            Q1 and Q4 answered before Walk, and G-ARCH-2 checks the doubles' contract against the real
+            systems; the real IMAP client meets a real mailbox in the first week of Walk with no write path open.
+          severity: medium
+        - id: R2
+          text: >-
+            One container and one pass break when the seeded set takes longer than the Job's deadline: at
+            the 600 s step limit, each stuck invoice can consume ten minutes of it.
+          mitigation: >-
+            The pass records a timeout as an exception for the clerk and moves on; the assembly sizes
+            `activeDeadlineSeconds` to seed size times the time per item that G-AI measures.
+          severity: low
       gate_to_next:
-        - { id: G-ARCH-2, text: "posting to Odoo is idempotent on invoice number plus supplier, proven by a double submission in the canary", owner: architecture, check: { type: verify-job, ref: inv-validate } }
-    run:
-      choice: [apps/auth/gotrue-auth]
+        - id: G-ARCH-1
+          text: >-
+            Killing the worker Job mid-pass and rerunning it, then rerunning it once more, leaves the same
+            counts as a clean pass: no invoice processed twice, none lost.
+          owner: architecture
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-ARCH-2
+          text: >-
+            Tenant IT confirms that the doubles' routes, fields and errors match the real Odoo version's API
+            and the real mailbox's access method (Q1, Q4).
+          owner: architecture
+          check: { type: manual, ref: integration contract review }
+    walk:
+      choice:
+        - bundles/temporal-stack
+        - apps/auth/gotrue-auth
+      constrained_by:
+        - pack:regulated-corp#SEC-1
+        - pack:regulated-corp#RES-1
       settings:
-        topology: batch
-        workloads: [intake-worker, review-api, verify-job]
-        integration_patterns: [poll, rest-push]
-        durable_execution: job
+        topology: event-driven
+        trigger: file-arrival
+        runtime: python
+        workloads:
+          - cron-job
+          - worker
+          - posting-worker
+          - review-api
+          - seed-job
+          - verify-job
+        integrations:
+          - "shared-imap-mailbox: poll"
+          - "shared-imap-mailbox-attachments: file-drop"
+          - "odoo-purchase-orders: rest-pull"
+          - "odoo-payables: rest-push"
+        integration_patterns:
+          - poll
+          - file-drop
+          - rest-pull
+          - rest-push
+        durable_execution: temporal
         broker: none
-        api_surface: internal
+        api_surface: external
         auth_in_front: oauth2-proxy
-        trigger: schedule
-      rationale: Same shape, multi-entity by configuration, posting behind the approval step; durable execution revisited only if volume grows past 5k a month.
-  references: [docs/service-integration.md]
+        execution_bounds:
+          - max_steps=12
+          - step_timeout_s=300
+          - delegation_depth=0
+          - budget_tokens=8000
+        open_standards: all-layers
+        open_standards_exceptions: []
+      rationale: >-
+        The four questions, changed by real invoices. Who starts it: an invoice arriving, seen by polling.
+        How long: minutes of work plus a wait of hours or days for the AP clerk. Can a step be lost or run
+        twice: no; every write is a payable in the system of record, and a lost approval or a second posting
+        costs money and trust. Who calls it: the AP clerk's review surface, from outside the cluster. That
+        is `event-driven` with durable execution. The step that must not run twice is the Odoo posting.
+
+        Durability. Temporal, taken as the catalog's bundle, because a person is waiting inside a multi-step
+        flow: the approval is a signal on a workflow that outlives any pod. Retry policies and activity
+        timeouts make `execution_bounds` real; the wait for the clerk is a workflow timer, not a step, and
+        its length waits on business Q7. Temporal does not make the write exactly-once: a crash after Odoo
+        accepts and before the activity completes retries it. So `post_invoice` writes the episodic approval
+        record first (data-store R4), then looks up supplier + invoice number in Odoo, the key the
+        AI-engineering and data-pipeline records state, and creates only on a miss. G-ARCH-3 kills it at
+        exactly that point. Workflow payloads persist in the engine's database, so inputs and results carry
+        references (object keys, record ids), never field values or bank account numbers; retention under
+        G-DS-1 then has one place to look.
+
+        Workloads, one job each. `cron-job` polls IMAP read-only every 15 minutes (the data-pipeline record's
+        ASSUMED interval, until business Q7), lands the attachment in the artifact store, and starts a
+        workflow whose id is the attachment key, so a replayed cursor cannot start a second one. It alone
+        holds the mailbox credential. `worker` runs the workflow and the parse, extract, validate, match and
+        route steps; it reaches the gateway and a read-only Odoo credential. `posting-worker`, on its own
+        task queue, alone holds the create-only Odoo credential and has no route to the model: instructions
+        planted in a PDF reach a process that cannot write, and only an approval token signed by `review-api`
+        reaches the process that can. It also needs `find_payable`'s read-only credential and a route to the
+        working store, for the lookup above and for the kill switch's paused state (Q8).
+        `review-api` answers UX Q2: the workload named by `surface_workload`, serving the page, the own-call
+        before reveal, the token issue and the Run audit view, signalling the workflow, calling no model. The
+        Odoo and mailbox stubs stay in the image for the ephemeral verify run and are not deployed against
+        real systems. `odoo-purchase-orders` is a per-invoice lookup, so `rest-pull` with no copy of purchase
+        orders; the data-pipeline record's `poll` in its `sources` describes the same reads.
+
+        No broker, which answers data-pipeline Q1 and deviates from the topology ladder on purpose: the
+        engine's task queues already decouple `cron-job`, `worker` and `posting-worker`, nothing fans out, and
+        one more stateful component holds the same work a second time at about 14 invoices a working day. It
+        grows into the `message-broker` capability when a second independent consumer of intake events
+        appears; the dead-letter table stays as the data-pipeline record has it.
+
+        Surface. `external`, one Ingress for the review surface, behind oauth2-proxy with
+        `apps/auth/gotrue-auth`: one choke point for people. The value matches the UX record. Temporal's UI
+        Ingress is deleted in the overlay rather than protected: it is not needed for the clerk's work, and
+        `auth-check` only looks at the use case's namespace, so a route in the engine's namespace would go
+        unwatched; the operator reaches the UI by port-forward under cluster RBAC. `public-ingress` stays out of
+        the choice: its only candidate transits Cloudflare, a hop carrying invoices and bank account numbers
+        against the EU rule, and a clerk on the organisation's network needs no tunnel (Q2).
+
+        Isolation and PSA. `logical`: one organisation, so one use-case namespace and no tenant id on requests;
+        the data-store record sets `scope_isolation`. G-SEC-5 enforces `restricted` there (SEC-1), and the
+        catalog has `psa_restricted: false` for both the bundle and the identity provider, so both go in a
+        sibling namespace `uc-invoice-intake-baseline` through the security record's `psa_exceptions` (Q3).
+        That entry also moves the data-store record's Postgres there, and the bundle composes the same
+        component. The data-store record decides one server at Walk and Run, with six databases and a role per
+        database: the bundle renders the server, the relocated layer deletes its copy, and the engine holds only
+        its own role on `temporal` and `temporal_visibility`, never the admin login.
+
+        Open standards: `all-layers` with no exception, conditional on Q5. OIDC at the
+        ingress, OpenAPI on `review-api`, OpenAPI or MCP on tools, OpenTelemetry on all workloads, YAML under
+        GitOps. Temporal is MIT and deployed from the tenant's repository, and activities are plain functions
+        behind Protocols, so the engine remains replaceable. Bounds are copied from the AI-engineering record.
+        Runtime stays the python default (Q6). Cost is the devops record's: USD 170 by node shape, which does
+        not itemise the engine, so whether the bundle fits those nodes is proved on the first Walk build.
+      alternatives:
+        - option: Outbox in the working store with an idempotent worker and no workflow engine.
+          rejected_because: >-
+            Cheaper by one server, one UI and two databases, and it would work at 14 invoices a day. But the
+            timers, retries, approval wait and visible history would be hand-written around the one step
+            that must not run twice, on financial data. This is the fallback if Q3 is refused or business
+            Q5 forces cuts, with its limit stated: no replay of workflow state and no engine-enforced bounds.
+        - option: The factory's streaming broker between poller, worker and poster, as the event-driven ladder shows.
+          rejected_because: >-
+            There is no fan-out and no second consumer, and the engine's task queues already decouple the
+            workloads. It would be a second stateful component holding the same work, with two sources of truth for it.
+        - option: A single worker holding both the model route and the Odoo write credential.
+          rejected_because: >-
+            Attachments are untrusted input (G-SEC-7), and a process that reads them and can also write to the
+            system of record leaves only code between one injection and a payable, with no network or credential boundary.
+        - option: The public-ingress component for the review surface.
+          rejected_because: >-
+            Traffic would transit Cloudflare carrying invoice fields and bank account numbers, against
+            data residency (RES-1), for a clerk who may not need it. Q2 can reopen it, with compliance naming the hop.
+        - option: Temporal's UI behind oauth2-proxy, as the factory's durable ladder shows.
+          rejected_because: >-
+            Nobody in this use case's RACI needs it from a browser at Walk. A second human route is a second
+            thing to protect, in a namespace the auth gate does not read.
+        - option: Read Odoo's database or CDC on it instead of its API.
+          rejected_because: >-
+            The brief names a REST API, the trigger is not a row changing, and an ERP's tables are not ours to depend on.
+        - option: Low-code automation for the poll-extract-post flow.
+          rejected_because: >-
+            The catalog marks the candidates as lab and not fit for Run, and neither holds a durable
+            approval or a tool contract that survives the G-SEC-7 injection suite.
+      risks:
+        - id: R3
+          text: >-
+            `temporal-ui-ingress` ships in the component with no auth middleware and shows every workflow's
+            history. Left in place it is a second door that `auth-check` cannot see from the use case's namespace.
+          mitigation: The assembly deletes it from the overlay; G-ARCH-5 reads the rendered manifests for it.
+          severity: high
+        - id: R4
+          text: >-
+            Double payable if Odoo offers no way to find a bill by the idempotency key: the lookup before
+            create is what stops a retry after a crash, and if the field is not searchable on the real version,
+            one crash in the retry window creates a second payable. The target is 0 wrong amounts.
+          mitigation: >-
+            Q1 confirms the field before Walk; G-ARCH-3 proves the behaviour against the stub and then the
+            non-production instance. If Odoo cannot support it, posting stays manual and the question goes to the CFO.
+          severity: high
+        - id: R5
+          text: >-
+            Engine and identity provider sit below the use case's PSA level. The engine's Postgres holds
+            workflow histories, and a sibling `baseline` namespace is a weaker neighbour for them.
+          mitigation: >-
+            References-only payloads (G-ARCH-6), a NetworkPolicy allowing only the use case's workers to
+            the engine, and an explicit acceptance by the security owner (Q3).
+          severity: medium
+        - id: R6
+          text: >-
+            `apps/workflows/temporal` declares floating `latest` images, so a pod restart can change the engine
+            under running workflows, and `image-policy-check` reads only images labelled for the use case. The
+            catalog marks the bundle `ha: single`: engine down means intake and posting pause, without loss.
+            At about 14 invoices a day an outage of a few hours is absorbed; it stops being absorbed once
+            business Q7 sets a turnaround of under a working day.
+          mitigation: The devops record pins the engine images by digest in the overlay at Walk; G-ARCH-10 reads the pin because the check does not; G-OPS-2's intake backlog signal alerts on an engine outage.
+          severity: medium
+        - id: R7
+          text: >-
+            Polling breaks if the 15-minute interval exceeds what business Q7 sets, or if a clerk moving mail hides
+            a message from the cursor. A UIDVALIDITY reset triggers a rescan that starts 0 workflows, because the
+            attachment key is Message-ID + attachment sha256; only a message with no Message-ID falls back to
+            UIDVALIDITY + UID, changes key and relies on the supplier + invoice number check. An invoice never seen raises no error.
+          mitigation: The data-pipeline record's reconciliation gap metric counts mailbox messages against started workflows; the read-only account (Q4) removes one cause, and the second key check stands behind the first.
+          severity: medium
+        - id: R8
+          text: >-
+            At the AI-engineering record's ASSUMED 3 minutes per invoice, one `worker` slot does 20 invoices an hour,
+            160 in an 8-hour day, against about 14 a day on average; a step that hangs holds the slot up to the 300 s
+            bound. A month-end burst (ASSUMED, the brief gives only the monthly figure) above that spills into the
+            next day; exception queue age is what the clerk then feels.
+          mitigation: Bounded concurrency queues without loss; G-OPS-2 alerts on the backlog; the AI-engineering record's G-AI-5 measurement and GPU decision move the number.
+          severity: low
+      gate_to_next:
+        - id: G-ARCH-3
+          text: >-
+            Killing `posting-worker` after Odoo accepts a write and before the activity completes leaves exactly
+            one payable after retry, and the same invoice re-delivered by the mailbox or resent in a new email
+            creates no second payable.
+          owner: architecture
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-ARCH-4
+          text: >-
+            A workflow waiting for approval survives the restart of `worker`, `posting-worker`, `review-api` and the
+            engine, and completes on the clerk's approval with its approval record intact.
+          owner: architecture
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-ARCH-5
+          text: >-
+            One door: the rendered Walk manifests contain no `temporal-ui-ingress`, no NodePort, no LoadBalancer and
+            no tunnel route. Read by hand because `auth-check` covers only Ingresses in the use case's namespace and
+            no script covers the rest.
+          owner: architecture
+          check: { type: manual, ref: rendered Walk manifests }
+        - id: G-ARCH-6
+          text: A scan of the engine's workflow histories after the seeded run finds 0 seeded bank account numbers and 0 invoice amounts.
+          owner: architecture
+          check: { type: verify-job, ref: invoice-intake-verify }
+        - id: G-ARCH-7
+          text: >-
+            Every workload has its own NetworkPolicy: Odoo write egress on `posting-worker` only, Odoo read on `worker`
+            and `posting-worker`, IMAP on `cron-job` only, the gateway on `worker` only, the working store on
+            `posting-worker` for the paused state. The security record sets `egress_matrix: required`; its Q13 asks who
+            writes the policies.
+          owner: architecture
+          check: { type: ci, ref: netpol-matrix-check }
+        - id: G-ARCH-8
+          text: >-
+            A write sent to the Odoo stub with the credential `worker` holds is refused and counted, and `review-api`
+            and `cron-job` hold no Odoo credential.
+          owner: architecture
+          check: { type: verify-job, ref: invoice-intake-verify }
+    run:
+      choice:
+        - bundles/temporal-stack
+        - apps/auth/gotrue-auth
+      constrained_by:
+        - pack:regulated-corp#SEC-1
+        - pack:regulated-corp#RES-1
+      settings:
+        topology: event-driven
+        trigger: file-arrival
+        runtime: python
+        workloads:
+          - cron-job
+          - worker
+          - posting-worker
+          - review-api
+          - seed-job
+          - verify-job
+        integrations:
+          - "shared-imap-mailbox: poll"
+          - "shared-imap-mailbox-attachments: file-drop"
+          - "odoo-purchase-orders: rest-pull"
+          - "odoo-payables: rest-push"
+        integration_patterns:
+          - poll
+          - file-drop
+          - rest-pull
+          - rest-push
+        durable_execution: temporal
+        broker: none
+        api_surface: external
+        auth_in_front: oauth2-proxy
+        execution_bounds:
+          - max_steps=12
+          - step_timeout_s=300
+          - delegation_depth=0
+          - budget_tokens=8000
+        open_standards: all-layers
+        open_standards_exceptions: []
+      rationale: >-
+        The shape of Walk, hardened rather than grown; the volume stays about 300 invoices a month, and
+        nothing at that volume justifies more moving parts. Two `review-api` replicas so a clerk's approval
+        survives a node drain; `worker` and `posting-worker` stay at one replica each with bounded
+        concurrency, since the engine queues the rest and that is the backpressure. OpenTelemetry traces span
+        from poll to posting. Per-action evidence lives in the data-store record's episodic store, written before
+        each Odoo write, with the engine's history as a second witness that carries references only; the compliance
+        record accepts that row as the evidence for Walk, confirmed through G-COMP-14. The engine's store is in the backup and restore scope devops
+        and data-store own (G-OPS-4), because in-flight approvals live there.
+
+        G-AUT-1, if the CFO signs it, changes no topology: a matched invoice skips the approval signal behind a
+        flag under GitOps that defaults to off, one named action, and `posting-worker` and its lookup stay
+        as they are. This matters for the kill switch. `auth_in_front` stops people, but after G-AUT-1 an
+        unattended posting never crosses the ingress, so `posting-worker`'s path to Odoo is a second door by
+        design, and `post_invoice` calls no model, so a gateway key alone does not stop it. The security record
+        settles this: `kill_switch: gateway-key-revocation` is one action that revokes the key and writes a paused
+        state to the working store, which the policy judge reads before each `post_invoice` and fails closed on.
+        It rejected this record's earlier proposal of stopping `posting-worker` and its egress, because scaling
+        down does not stop an in-flight call and gives the review page no state to read; this record follows it.
+        The topology has to serve it: `posting-worker` reaches the working store, workflows wait in the engine,
+        and no schedule-to-start timeout may fail them meanwhile. The judge's contract is the security record's Q6.
+
+        Audit trail, security Q15: this record keeps `broker: none` and recommends the per-action artifacts in an
+        immutable store. If the security and compliance owners require CDC on the decision and approval tables,
+        the catalog's Postgres connector needs a broker, both lab-to-mvp additions at Run, and this record
+        changes to name them; it does not add them in advance.
+
+        What Run deliberately does not have: a broker, a replicated engine (the catalog's candidates are
+        `ha: single`) or autoscaling. External Secrets are the security record's (SEC-2). The plan's USD 500 and the
+        business record's USD 700 are not lowered by this record; devops prices the shape. Bounds are copied from
+        the AI-engineering record; delegation depth stays 0.
+      alternatives:
+        - option: Keep a single container with a cron at Run, since the volume would allow it.
+          rejected_because: >-
+            Volume is not what breaks it. A restart between the Odoo acceptance and the local commit double-posts,
+            an approval waiting days has no durable home, there is no backpressure when the model stalls, and no
+            per-invoice audit trail. Fine at Crawl, wrong under audit.
+        - option: Add the message-broker capability at Run for replay and audit.
+          rejected_because: >-
+            The engine's history and the approval records already answer the audit question per invoice, and
+            one more stateful component widens the restore drill for no consumer that needs it.
+        - option: Unattended posting through `review-api` so every write crosses the ingress and the kill switch sits in one place.
+          rejected_because: >-
+            It would put a background action behind an interactive route with a machine credential, a door with
+            less scrutiny than the one it replaces. Named as a second door and given its own switch and drill instead.
+      risks:
+        - id: R9
+          text: >-
+            An unattended posting after G-AUT-1 crosses neither `auth_in_front` nor the gateway, so the paused state
+            read inside `posting-worker` is its only stop: a software check in the process that holds the write
+            credential, with no network boundary behind it, and a post already past the judge still completes.
+          mitigation: >-
+            The judge fails closed if the state cannot be read, and G-OPS-3 drills a queued invoice waiting. Stopping
+            `posting-worker` stays available to the operator as recovery, not as the switch.
+          severity: medium
+        - id: R10
+          text: >-
+            The engine runs from the `auto-setup` image, which applies its own schema at boot, on a single replica
+            at the production tier. An engine upgrade under audit is the moment it breaks, with
+            in-flight workflows waiting on clerks for days.
+          mitigation: >-
+            Devops pins the version and rehearses an upgrade with workflows in flight before Run. If that fails, the
+            catalog needs a production packaging of the engine, and it becomes an open question rather than a stretch.
+          severity: medium
+        - id: R11
+          text: >-
+            One server gives one recovery point only through the volume snapshot and, at Run, point-in-time recovery.
+            The offsite `pg_dump` runs database by database (data-store R14), so an offsite restore can bring the
+            engine and the working store back from different moments, reopen an invoice already posted, or lose an
+            approval. The Odoo lookup stops the double payable; a lost approval sends the invoice back to the clerk.
+          mitigation: >-
+            A restore inside the cluster prefers the snapshot or PITR. G-ARCH-9's reconciliation runs after any restore,
+            and the drill uses the offsite dumps at least once, because a one-instant restore cannot exercise this skew.
+          severity: medium
+      gate_to_next:
+        - id: G-ARCH-9
+          text: >-
+            After the restore drill, every invoice reconciles across Odoo, the working store and the engine: none
+            posted twice, no approval lost, and in-flight workflows resume or return visibly to the AP clerk.
+          owner: architecture
+          check: { type: verify-job, ref: invoice-intake-restore-drill }
+        - id: G-ARCH-10
+          text: >-
+            Open standards hold in the rendered overlay and the app: engine and workload images are pinned, every
+            API and tool has an OpenAPI or MCP contract, traces export over OTLP, and no route uses a non-OIDC login.
+            The tenant rebuilds the stack from its own repository once to prove it.
+          owner: architecture
+          check: { type: manual, ref: open-standards review }
+  open_questions:
+    - id: Q1
+      question: >-
+        Tenant IT answers: which Odoo version and which API does the integration use (the brief says REST, and
+        the surface varies by version), is a non-production instance available at Walk, and can a bill be found by
+        supplier plus supplier invoice number? Without that lookup the posting step has no safe retry and stays manual.
+      blocks_stage: walk
+    - id: Q2
+      question: >-
+        Tenant IT with the security owner answers: how does the AP clerk reach the review surface? If the EU cluster
+        is reachable from the organisation's network or VPN, an Ingress is enough. If the only way is a route with
+        no open port, the catalog's single candidate transits Cloudflare with invoice fields and bank account
+        numbers, which the compliance owner must accept in writing as a named hop or refuse.
+      blocks_stage: walk
+      caused_by_rule: pack:regulated-corp#RES-1
+    - id: Q3
+      question: >-
+        The security owner answers: is a sibling `baseline` namespace acceptable for the workflow engine and the
+        identity provider? The catalog does not mark either as able to run at `restricted`, which the rule requires of
+        the use case's namespace at Walk and Run. If refused, this record falls back to an outbox in the working
+        store with an idempotent worker, losing replay of workflow state and engine-enforced bounds, or those components get hardened first.
+      blocks_stage: walk
+      caused_by_rule: pack:regulated-corp#SEC-1
+    - id: Q4
+      question: >-
+        Tenant IT answers: where is the shared mailbox hosted, is it in the EU, can it grant a read-only account,
+        and does it allow plain IMAP credentials or require an OAuth login? This decides the client, the secret and an
+        egress allow-list entry.
+      blocks_stage: walk
+    - id: Q5
+      question: >-
+        The security owner answers: which identity provider do AP clerks log in with? The catalog's identity provider
+        wires Google as its only upstream, and its source calls itself a parallel alternative to oauth2-proxy where
+        the catalog says to pair them. If the organisation has its own OIDC provider, oauth2-proxy can point at it
+        directly and `apps/auth/gotrue-auth` leaves the choice. If Google is not acceptable and no OIDC provider exists,
+        the catalog has no answer that keeps `open_standards: all-layers` and the EU rule, and the Walk surface cannot open.
+      blocks_stage: walk
+    - id: Q6
+      question: >-
+        Tenant IT answers once named (business Q2): does the team that will hold this at the Run handover operate
+        Python? It is the factory default, and it is cheap to change before the scaffold is written and costly after.
+    - id: Q8
+      question: >-
+        The security expert: its record gives `posting-worker` the create-only Odoo credential and `worker` the read-only
+        one. The retry after a crash needs `find_payable` in the same activity as the create, or a late first attempt can
+        slip past the lookup. Does `posting-worker` also hold `find_payable`'s read-only credential, per tool as
+        pack:regulated-corp#TOOLS asks? Without it R4's protection against a second payable is gone.
+      blocks_stage: walk
+  references:
+    - k8s/overlays/usecases/invoice-intake/.builder/brief.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/stage-plan.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/business.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/ai-engineering.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-pipeline.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/data-store.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/ux.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/compliance.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/security.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/devops.yaml
+    - k8s/overlays/usecases/invoice-intake/.builder/decisions/quality.yaml
+    - plugins/forjate/skills/architecture/references/topologies.md
+    - plugins/forjate/skills/architecture/references/integration-patterns.md
+    - plugins/forjate/skills/architecture/references/apification.md
+    - plugins/forjate/skills/app-scaffold/references/workloads.md
+    - wiki/catalog.json
+    - wiki/components/auth-gotrue-auth.md
+    - k8s/components/apps/workflows/temporal/ui-ingress.yaml
+    - scripts/gates/checks/auth-check.sh
+    - scripts/gates/checks/image-policy-check.sh
+    - scripts/gates/checks/netpol-matrix-check.sh
+    - docs/tenant-onboarding/configuring-oauth2-proxy.md
+    - context-packs/examples/regulated-corp/constraints.yaml

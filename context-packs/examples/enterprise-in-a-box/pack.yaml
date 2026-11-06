@@ -22,7 +22,7 @@ spec:
       path: constraints.yaml#/rules/AUT-2
       enforce: must
       applies_to: [ai-engineering, security, quality]
-      summary: Every write to a business system needs a registered tool and human approval until Run.
+      summary: Until Run, no write is autonomous; every write to a business system goes through a registered tool and a human approval.
     - id: EXE-1
       kind: constraint
       path: constraints.yaml#/rules/EXE-1

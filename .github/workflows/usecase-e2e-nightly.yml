@@ -56,14 +56,20 @@ jobs:
           curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
           curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
           sudo mv kustomize /usr/local/bin/
-          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          source .github/toolchain.env
+          sudo curl -sSL -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
           sudo chmod +x /usr/local/bin/yq
           curl -sSLO https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
           tar xzf kubeconform-linux-amd64.tar.gz && sudo mv kubeconform /usr/local/bin/
           pipx install poetry && poetry install --no-root
 
-      - name: Crawl on k3d (ephemeral.sh up blocks on the verify Job)
-        run: ./scripts/ephemeral/ephemeral.sh up "${{ matrix.usecase }}"
+      - name: Crawl on k3d (ephemeral.sh up blocks on the verify Job, twice on the same seed)
+        # --stability asserts the two health signals (#41): no container restarted after either verify,
+        # and the verify's KPI/EVAL lines are equal on the second up. The HEALTH lines go to the summary.
+        run: |
+          set -euo pipefail
+          ./scripts/ephemeral/ephemeral.sh up "${{ matrix.usecase }}" --stability | tee up.log
+          { echo "### ${{ matrix.usecase }}: health"; echo '```'; grep '^HEALTH ' up.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Gates crawl->walk
         run: |

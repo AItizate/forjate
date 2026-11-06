@@ -12,6 +12,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO="$(git -C "$PLUGIN_DIR" rev-parse --show-toplevel)"
 
+# One toolchain: the graders and the agents' own yq calls run the version CI pins (.github/toolchain.env).
+# A batch costs money; it does not start on a yq that reads the same expression differently.
+source "${REPO}/scripts/toolchain/toolchain.sh"
+toolchain_path
+toolchain_check yq || exit 2
+
 skill="${1:?usage: run.sh <skill> [--iteration N] [--eval name] [--only with|without]}"; shift
 iteration=""; only_eval=""; only_cfg=""; resume=0; max_turns="${FORJATE_EVAL_MAX_TURNS:-40}"; model="${FORJATE_EVAL_MODEL:-opus}"; timeout_s="${FORJATE_EVAL_TIMEOUT:-1800}"
 while [[ $# -gt 0 ]]; do

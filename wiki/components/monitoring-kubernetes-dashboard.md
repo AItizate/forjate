@@ -3,8 +3,9 @@ title: monitoring-kubernetes-dashboard
 kind: component
 sources:
 - k8s/components/apps/monitoring/kubernetes-dashboard
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: monitoring
+source_hash: eeaa86f7d09e8540
 source_last_commit: '2026-04-27'
 summary: declares `ClusterRoleBinding`, `Ingress`, `Secret`
 summary_source: derived

@@ -3,8 +3,9 @@ title: iac-crossplane
 kind: component
 sources:
 - k8s/components/apps/iac/crossplane
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: iac
+source_hash: 9f7efc9bd0b42780
 source_last_commit: '2026-05-24'
 summary: 'Crossplane: a Kubernetes-native control plane to declare cloud resources'
 summary_source: derived

@@ -3,7 +3,7 @@ title: databases-postgres
 kind: component
 sources:
 - k8s/components/apps/databases/postgres
-compiled_at: '2026-10-29'
+compiled_at: '2026-11-07'
 category: databases
 consumed_by:
 - components/ai-models-litellm-postgres
@@ -15,6 +15,7 @@ consumed_by:
 - overlays/usecases-db-migration-a-to-b
 - overlays/usecases-invoice-intake
 - overlays/usecases-support-copilot
+source_hash: b9136f3443eec824
 source_last_commit: '2026-04-27'
 summary: "PostgreSQL 16 \u2014 generic reusable database component"
 summary_source: derived

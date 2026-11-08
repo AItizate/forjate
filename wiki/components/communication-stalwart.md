@@ -3,8 +3,9 @@ title: communication-stalwart
 kind: component
 sources:
 - k8s/components/apps/communication/stalwart
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: communication
+source_hash: 77604aad9fe51098
 source_last_commit: '2026-04-27'
 summary: Stalwart Mail Server - SMTP/IMAP/JMAP mail & collaboration server
 summary_source: derived

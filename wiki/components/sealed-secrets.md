@@ -3,7 +3,7 @@ title: sealed-secrets
 kind: component
 sources:
 - k8s/components/apps/sealed-secrets
-compiled_at: '2026-10-09'
+compiled_at: '2026-11-07'
 category: standalone
 consumed_by:
 - overlays/agentic-simple-workflow
@@ -13,6 +13,7 @@ consumed_by:
 - overlays/multi-tenant-pattern-org
 - overlays/usecases-invoice-intake-stages-walk
 - overlays/usecases-support-copilot-stages-walk
+source_hash: 6d73bdd99ee659d1
 source_last_commit: '2026-04-27'
 summary: vendors `controller.yaml`
 summary_source: derived

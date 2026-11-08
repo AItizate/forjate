@@ -3,11 +3,12 @@ title: home-automation-esphome
 kind: component
 sources:
 - k8s/components/apps/home-automation/esphome
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: home-automation
 parent: components/home-automation
 consumed_by:
 - components/home-automation
+source_hash: 1621bd4b18c3418a
 source_last_commit: '2026-04-27'
 summary: deploys `esphome/esphome:latest`
 summary_source: derived

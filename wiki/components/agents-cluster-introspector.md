@@ -3,10 +3,11 @@ title: agents-cluster-introspector
 kind: component
 sources:
 - k8s/components/apps/agents/cluster-introspector
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: agents
 consumed_by:
 - overlays/home-edge-lab
+source_hash: 2880cede1a50678a
 source_last_commit: '2026-05-24'
 summary: deploys `busybox:1.37`
 summary_source: derived

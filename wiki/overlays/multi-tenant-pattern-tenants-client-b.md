@@ -3,8 +3,9 @@ title: multi-tenant-pattern-tenants-client-b
 kind: overlay
 sources:
 - k8s/overlays/multi-tenant-pattern/tenants/client-b
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: multi-tenant-pattern
+source_hash: cd7d192eaa5a1fa7
 source_last_commit: '2026-05-24'
 summary: declares `Namespace`
 summary_source: derived

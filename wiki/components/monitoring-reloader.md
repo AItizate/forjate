@@ -3,11 +3,12 @@ title: monitoring-reloader
 kind: component
 sources:
 - k8s/components/apps/monitoring/reloader
-compiled_at: '2026-10-09'
+compiled_at: '2026-11-07'
 category: monitoring
 consumed_by:
 - overlays/usecases-invoice-intake-stages-walk
 - overlays/usecases-support-copilot-stages-walk
+source_hash: a4497f0dc0311ce4
 source_last_commit: '2026-04-27'
 summary: "Stakater Reloader \u2014 auto-restarts Deployments/StatefulSets on Secret/ConfigMap\
   \ changes"

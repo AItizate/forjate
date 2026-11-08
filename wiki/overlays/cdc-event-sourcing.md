@@ -3,7 +3,8 @@ title: cdc-event-sourcing
 kind: overlay
 sources:
 - k8s/overlays/cdc-event-sourcing
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
+source_hash: 603e63f7dc93d094
 source_last_commit: '2026-06-07'
 summary: deploys `mongo:7`
 summary_source: derived

@@ -3,8 +3,9 @@ title: usecases-db-migration-a-to-b
 kind: overlay
 sources:
 - k8s/overlays/usecases/db-migration-a-to-b
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: usecases
+source_hash: 8c750038cd609423
 source_last_commit: '2026-08-26'
 summary: deploys `busybox:1.36`
 summary_source: derived

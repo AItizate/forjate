@@ -3,11 +3,12 @@ title: usecases-openbao-secrets-openbao
 kind: overlay
 sources:
 - k8s/overlays/usecases/openbao-secrets/openbao
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: usecases
 parent: overlays/usecases-openbao-secrets
 consumed_by:
 - overlays/usecases-openbao-secrets
+source_hash: e2fa23e9fbd3ab7b
 source_last_commit: '2026-10-28'
 summary: security-openbao with all four sub-directories, moved to namespace `openbao`
   the way a tenant does it

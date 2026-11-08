@@ -3,8 +3,9 @@ title: multi-tenant-pattern-tenants-client-a
 kind: overlay
 sources:
 - k8s/overlays/multi-tenant-pattern/tenants/client-a
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: multi-tenant-pattern
+source_hash: 0dcbfaa995187cc2
 source_last_commit: '2026-05-24'
 summary: Per-client overlay. Extends the org overlay (../../org) and applies only
 summary_source: derived

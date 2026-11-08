@@ -3,8 +3,9 @@ title: usecases-openbao-secrets
 kind: overlay
 sources:
 - k8s/overlays/usecases/openbao-secrets
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: usecases
+source_hash: 3abcaad506067dc3
 source_last_commit: '2026-10-28'
 summary: 'ephemeral end-to-end proof of security-openbao: static unseal, raft snapshots,
   External Secrets store, a Kubernetes and an AppRole agent; run in CI'

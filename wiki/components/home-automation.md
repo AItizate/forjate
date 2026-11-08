@@ -3,10 +3,11 @@ title: home-automation
 kind: component
 sources:
 - k8s/components/apps/home-automation
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: standalone
 consumed_by:
 - overlays/home-edge-lab
+source_hash: 200ec4a8e6ae9f97
 source_last_commit: '2026-04-27'
 summary: composes `esphome`, `hass`
 summary_source: derived

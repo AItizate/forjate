@@ -3,11 +3,12 @@ title: traefik
 kind: base
 sources:
 - k8s/base/apps/traefik
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: base-app
 parent: base/base
 consumed_by:
 - base/base
+source_hash: 949fac6113c9ffdb
 source_last_commit: '2026-04-27'
 summary: deploys `docker.io/traefik:v3.5.2`
 summary_source: derived

@@ -3,8 +3,9 @@ title: cdc-debezium-mongo-nats
 kind: component
 sources:
 - k8s/components/apps/cdc/debezium-mongo-nats
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: cdc
+source_hash: 4d56fdf99ad6e243
 source_last_commit: '2026-04-27'
 summary: "Debezium Server \u2014 MongoDB Change Streams \u2192 NATS JetStream CDC"
 summary_source: derived

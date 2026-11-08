@@ -3,12 +3,13 @@ title: cloudflare-tunnel
 kind: component
 sources:
 - k8s/components/apps/cloudflare-tunnel
-compiled_at: '2026-10-09'
+compiled_at: '2026-11-07'
 category: standalone
 consumed_by:
 - overlays/bare-metal-starter
 - overlays/home-edge-lab
 - overlays/usecases-support-copilot-stages-walk
+source_hash: 8e9f0f15dd2ba93e
 source_last_commit: '2026-04-27'
 summary: deploys `cloudflare/cloudflared:latest`
 summary_source: derived

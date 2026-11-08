@@ -3,11 +3,12 @@ title: productivity-appflowy-appflowy-cloud
 kind: component
 sources:
 - k8s/components/apps/productivity/appflowy/appflowy-cloud
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: productivity
 parent: components/productivity-appflowy
 consumed_by:
 - components/productivity-appflowy
+source_hash: 95d2419e39d318cc
 source_last_commit: '2026-04-27'
 summary: deploys `appflowyinc/appflowy_cloud:0.13.3`
 summary_source: derived

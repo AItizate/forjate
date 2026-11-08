@@ -3,10 +3,11 @@ title: whoami
 kind: component
 sources:
 - k8s/components/apps/whoami
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: standalone
 consumed_by:
 - overlays/ai-dev-stack
+source_hash: 1b47b738cee36c16
 source_last_commit: '2026-04-27'
 summary: deploys `traefik/whoami`
 summary_source: derived

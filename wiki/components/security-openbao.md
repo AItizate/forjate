@@ -3,11 +3,12 @@ title: security-openbao
 kind: component
 sources:
 - k8s/components/apps/security/openbao
-compiled_at: '2026-11-05'
+compiled_at: '2026-11-07'
 category: security
 consumed_by:
 - overlays/usecases-invoice-intake-stages-run
 - overlays/usecases-openbao-secrets-openbao
+source_hash: 80d2e99bcb3b3d8d
 source_last_commit: '2026-10-28'
 summary: 'secret store (MPL-2.0, Vault API): raft, audit to stdout, kubernetes/approle/userpass
   auth and an SSH CA after bootstrap.sh'

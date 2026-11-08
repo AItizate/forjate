@@ -3,9 +3,10 @@ title: usecases-support-copilot-stages-walk
 kind: overlay
 sources:
 - k8s/overlays/usecases/support-copilot/stages/walk
-compiled_at: '2026-11-06'
+compiled_at: '2026-11-07'
 category: usecases
 parent: overlays/usecases-support-copilot
+source_hash: c633cf34d25ae2d9
 source_last_commit: '2026-10-31'
 summary: 'walk stage of support-copilot: recomposes the Crawl root (base, Crawl components,
   the namespace child) and adds what the records require for walk, nothing the plan

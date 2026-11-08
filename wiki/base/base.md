@@ -3,7 +3,7 @@ title: base
 kind: base
 sources:
 - k8s/base
-compiled_at: '2026-10-29'
+compiled_at: '2026-11-07'
 consumed_by:
 - overlays/agentic-orchestration
 - overlays/agentic-simple-workflow
@@ -19,6 +19,7 @@ consumed_by:
 - overlays/usecases-invoice-intake-stages-walk
 - overlays/usecases-support-copilot
 - overlays/usecases-support-copilot-stages-walk
+source_hash: 427b3b21cac9f5b0
 source_last_commit: '2026-06-07'
 summary: declares `Certificate`, `Namespace`
 summary_source: derived

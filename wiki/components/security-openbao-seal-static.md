@@ -3,11 +3,12 @@ title: security-openbao-seal-static
 kind: component
 sources:
 - k8s/components/apps/security/openbao/seal-static
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: security
 parent: components/security-openbao
 consumed_by:
 - overlays/usecases-openbao-secrets-openbao
+source_hash: 22abb296596ce138
 source_last_commit: '2026-10-28'
 summary: "OpenBao static-key auto-unseal \u2014 applied on top of security/openbao\
   \ via components:"

@@ -3,11 +3,12 @@ title: minio
 kind: base
 sources:
 - k8s/base/apps/minio
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: base-app
 parent: base/base
 consumed_by:
 - base/base
+source_hash: 52df1eb36c7a7776
 source_last_commit: '2026-04-27'
 summary: vendors `operator`
 summary_source: derived

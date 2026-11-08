@@ -3,11 +3,12 @@ title: security-openbao-follow-namespace
 kind: component
 sources:
 - k8s/components/apps/security/openbao/follow-namespace
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: security
 parent: components/security-openbao
 consumed_by:
 - overlays/usecases-openbao-secrets-openbao
+source_hash: 3c8d8f06e5cf2832
 source_last_commit: '2026-10-28'
 summary: 'transformer, not a component: makes security-openbao follow an overlay''s
   namespace: (CRB subject, eso-store server)'

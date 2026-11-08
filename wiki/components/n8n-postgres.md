@@ -3,11 +3,12 @@ title: n8n-postgres
 kind: component
 sources:
 - k8s/components/apps/n8n/postgres
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: n8n
 parent: components/n8n
 consumed_by:
 - components/n8n
+source_hash: 4cbff433abd67b46
 source_last_commit: '2026-04-27'
 summary: deploys `postgres:15`
 summary_source: derived

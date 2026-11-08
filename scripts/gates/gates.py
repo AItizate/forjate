@@ -110,7 +110,11 @@ class Runner:
             return "pass", last[:160]
         if p.returncode == 2:
             return "skipped", last[:160]
-        return "fail", out[-600:]
+        # The check's own verdict first: the table shows the head of this text, and the tail of a pytest run
+        # is its warnings summary, not the reason.
+        tail = out[-600:].splitlines()
+        verdict = next((l for l in reversed(out.splitlines()) if l.startswith("FAIL:")), None)
+        return "fail", "\n".join([verdict, *(l for l in tail if l != verdict)]) if verdict else out[-600:]
 
     def run_verify(self, gate: dict) -> tuple[str, str]:
         job = (gate.get("check") or {}).get("ref") or self.verify_job_name()

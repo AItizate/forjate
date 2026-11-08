@@ -3,10 +3,11 @@ title: workflows-temporal
 kind: component
 sources:
 - k8s/components/apps/workflows/temporal
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: workflows
 consumed_by:
 - components/bundles-temporal-stack
+source_hash: 139941937b335067
 source_last_commit: '2026-04-27'
 summary: "Temporal \u2014 workflow orchestration engine (server + UI)"
 summary_source: derived

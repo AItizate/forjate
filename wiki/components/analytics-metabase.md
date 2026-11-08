@@ -3,8 +3,9 @@ title: analytics-metabase
 kind: component
 sources:
 - k8s/components/apps/analytics/metabase
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: analytics
+source_hash: dc1c1b77004f6915
 source_last_commit: '2026-04-27'
 summary: "Metabase \u2014 open-source BI and analytics platform"
 summary_source: derived

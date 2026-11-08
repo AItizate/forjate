@@ -3,10 +3,11 @@ title: cdc-debezium-mongo-rabbitmq
 kind: component
 sources:
 - k8s/components/apps/cdc/debezium-mongo-rabbitmq
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: cdc
 consumed_by:
 - overlays/cdc-event-sourcing
+source_hash: e7fe0d43614a40cc
 source_last_commit: '2026-04-27'
 summary: "Debezium Server \u2014 MongoDB Change Streams \u2192 RabbitMQ CDC"
 summary_source: derived

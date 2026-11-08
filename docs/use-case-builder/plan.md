@@ -2,7 +2,7 @@
 
 > An agentic team that takes a one-paragraph business problem and turns it into a Forjate overlay, staged Crawl → Walk → Run, with structured, reviewable artifacts at every step.
 
-Status: **Phase 4 done (tag `builder-p4`, 2026-10-11); phase 5 running as `builder-p5` issues: #22, #23, #27 and #41 done (2026-10-31), the skills ask the catalog by capability and carry the governance posture, and the deterministic chain under them is tested** · Owner: Sebas · Created: 2026-10-02
+Status: **Phase 4 done (tag `builder-p4`, 2026-10-11); phase 5 running as `builder-p5` issues: #22, #23, #27, #41, #21, #6 and #28 done (the latest on 2026-11-06), the skills ask the catalog by capability and carry the governance posture, and the deterministic chain under them is tested** · Owner: Sebas · Created: 2026-10-02
 
 ---
 

@@ -3,11 +3,12 @@ title: multi-tenant-pattern-org
 kind: overlay
 sources:
 - k8s/overlays/multi-tenant-pattern/org
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: multi-tenant-pattern
 consumed_by:
 - overlays/multi-tenant-pattern-tenants-client-a
 - overlays/multi-tenant-pattern-tenants-client-b
+source_hash: 1e4d8a06eabdfe14
 source_last_commit: '2026-05-24'
 summary: "The \"org overlay\" \u2014 your company's standard shape on top of Forjate's\
   \ base"

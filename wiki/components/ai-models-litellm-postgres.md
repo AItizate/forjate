@@ -3,12 +3,13 @@ title: ai-models-litellm-postgres
 kind: component
 sources:
 - k8s/components/apps/ai-models/litellm/postgres
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: ai-models
 parent: components/ai-models-litellm
 consumed_by:
 - overlays/agentic-orchestration
 - overlays/ai-dev-stack
+source_hash: fd3da73adee36bfa
 source_last_commit: '2026-06-07'
 summary: composes `postgres`
 summary_source: derived

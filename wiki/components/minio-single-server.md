@@ -3,7 +3,7 @@ title: minio-single-server
 kind: component
 sources:
 - k8s/components/apps/minio/single-server
-compiled_at: '2026-10-29'
+compiled_at: '2026-11-07'
 category: minio
 consumed_by:
 - overlays/agentic-simple-workflow
@@ -12,6 +12,7 @@ consumed_by:
 - overlays/multi-cloud-portable
 - overlays/multi-tenant-pattern-org
 - overlays/usecases-invoice-intake-stages-walk
+source_hash: 174f86654a85e296
 source_last_commit: '2026-04-27'
 summary: deploys `quay.io/minio/minio:latest`
 summary_source: derived

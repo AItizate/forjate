@@ -3,7 +3,7 @@ title: monitoring-prometheus
 kind: component
 sources:
 - k8s/components/apps/monitoring/prometheus
-compiled_at: '2026-10-29'
+compiled_at: '2026-11-07'
 category: monitoring
 consumed_by:
 - overlays/bare-metal-starter
@@ -12,6 +12,7 @@ consumed_by:
 - overlays/multi-tenant-pattern-org
 - overlays/usecases-invoice-intake-stages-walk
 - overlays/usecases-support-copilot-stages-walk
+source_hash: e0c3a9822a17b6e2
 source_last_commit: '2026-04-27'
 summary: deploys `prom/prometheus:v3.2.1`
 summary_source: derived

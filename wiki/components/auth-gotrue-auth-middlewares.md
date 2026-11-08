@@ -3,11 +3,12 @@ title: auth-gotrue-auth-middlewares
 kind: component
 sources:
 - k8s/components/apps/auth/gotrue-auth/middlewares
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: auth
 parent: components/auth-gotrue-auth
 consumed_by:
 - components/auth-gotrue-auth
+source_hash: 54c8319a7b2d2f6c
 source_last_commit: '2026-04-27'
 summary: declares `Middleware`
 summary_source: derived

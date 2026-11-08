@@ -3,8 +3,9 @@ title: surveys-formbricks
 kind: component
 sources:
 - k8s/components/apps/surveys/formbricks
-compiled_at: '2026-11-05'
+compiled_at: '2026-11-07'
 category: surveys
+source_hash: d5cad91b7e088bfd
 source_last_commit: '2026-04-27'
 summary: deploys `ghcr.io/formbricks/formbricks:latest`
 summary_source: derived

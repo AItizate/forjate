@@ -3,7 +3,8 @@ title: multi-cloud-portable
 kind: overlay
 sources:
 - k8s/overlays/multi-cloud-portable
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
+source_hash: 5f49aae57a824c5c
 source_last_commit: '2026-05-24'
 summary: Bare-metal flavor of the multi-cloud-portable overlay
 summary_source: derived

@@ -3,11 +3,12 @@ title: productivity-appflowy-gotrue
 kind: component
 sources:
 - k8s/components/apps/productivity/appflowy/gotrue
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: productivity
 parent: components/productivity-appflowy
 consumed_by:
 - components/productivity-appflowy
+source_hash: d98fe2fe73432e15
 source_last_commit: '2026-04-27'
 summary: deploys `appflowyinc/gotrue:0.13.3`
 summary_source: derived

@@ -24,4 +24,5 @@ discover = _mod.discover
 compile_pages = _mod.compile_pages
 read_frontmatter = _mod.read_frontmatter
 source_last_commit = _mod.source_last_commit
+source_hash = _mod.source_hash
 rel = _mod.rel

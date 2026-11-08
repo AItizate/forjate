@@ -3,8 +3,9 @@ title: security-vault
 kind: component
 sources:
 - k8s/components/apps/security/vault
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: security
+source_hash: 35019f2b53e34d60
 source_last_commit: '2026-10-28'
 summary: 'deprecated in favour of security-openbao: `hashicorp/vault:1.19` (BUSL-1.1),
   file storage, no unseal story'

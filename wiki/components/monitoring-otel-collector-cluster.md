@@ -3,11 +3,12 @@ title: monitoring-otel-collector-cluster
 kind: component
 sources:
 - k8s/components/apps/monitoring/otel-collector/cluster
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: monitoring
 parent: components/monitoring-otel-collector
 consumed_by:
 - components/monitoring-otel-collector
+source_hash: 3df0d227b048f2a5
 source_last_commit: '2026-04-27'
 summary: deploys `otel/opentelemetry-collector-contrib:0.98.0`
 summary_source: derived

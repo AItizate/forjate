@@ -3,8 +3,9 @@ title: pvcs
 kind: component
 sources:
 - k8s/components/pvcs
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: pvcs
+source_hash: 3dfe2b1f2c57e3f9
 source_last_commit: '2026-04-27'
 summary: declares `PersistentVolumeClaim`
 summary_source: derived

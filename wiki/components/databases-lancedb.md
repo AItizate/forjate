@@ -3,8 +3,9 @@ title: databases-lancedb
 kind: component
 sources:
 - k8s/components/apps/databases/lancedb
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: databases
+source_hash: 166f813fa8e1a007
 source_last_commit: '2026-04-27'
 summary: deploys `setchevest/lancedb-server:0.4.6`
 summary_source: derived

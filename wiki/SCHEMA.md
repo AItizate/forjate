@@ -52,9 +52,10 @@ A wiki page describing YAML that changed three weeks ago is not merely
 out of date — it is *lying with the confidence of a curated page*, which is
 worse than having no page at all.
 
-Therefore every page carries `sources:` and `compiled_at:` in frontmatter, and
-`scripts/wiki-lint.py` compares each source path's last commit against the
-page's compile point. Drift is a lint failure, not a matter of taste.
+Therefore every page carries `sources:`, `source_hash:` and `compiled_at:` in
+frontmatter, and `scripts/wiki-lint.py` compares each source path's current
+content hash against the one the page was compiled from. Drift is a lint
+failure, not a matter of taste.
 
 ## Directory layout
 
@@ -103,6 +104,7 @@ category: databases        # component/overlay grouping; omit for concepts
 sources:                   # paths in k8s/** this page derives from
   - k8s/components/apps/databases/postgres
 compiled_at: 2026-08-27    # date this page last reconciled with its sources
+source_hash: 0123456789abcdef  # content hash of the sources it was compiled from
 consumed_by:               # backlinks, computed — do not hand-edit
   - overlays/ai-dev-stack
 links:                     # outbound wiki links, for orphan detection
@@ -121,6 +123,16 @@ Rules:
   page that owns it. Never write it by hand; it will be overwritten.
 - `compiled_at` is only advanced when the page was genuinely reconciled against
   its sources. Advancing it to silence the linter defeats the entire mechanism.
+- `source_hash` is a hash of the content of the `sources` files (tracked files
+  and untracked ones git does not ignore). The compiler writes it and
+  `wiki-lint` compares it: a page whose hash differs from its sources is drifted.
+  It is content, so a squash merge, a rebase or a different clock never moves it.
+- `source_last_commit` is the commit date of the source's last commit, kept for
+  readers. It is history, not content: a squash merge changes it without touching
+  the source, so neither `wiki-compile --check` nor `wiki-lint` decides anything
+  from it. `--check` also ignores `compiled_at`, and fails when the page's
+  content, `source_hash` included, would change.
+
 - `summary` is the one-liner the page contributes to `index.md`. The compiler
   derives one automatically and marks it `summary_source: derived`. To write a
   better one, replace it **and** set `summary_source: authored` — only then does

@@ -3,8 +3,9 @@ title: backup-velero
 kind: component
 sources:
 - k8s/components/apps/backup/velero
-compiled_at: '2026-11-06'
+compiled_at: '2026-11-07'
 category: backup
+source_hash: 39dad7548eea8ccf
 source_last_commit: '2026-11-06'
 summary: "Velero \u2014 cluster-level backup and restore (namespaces, cluster resources,\
   \ PVC data)"

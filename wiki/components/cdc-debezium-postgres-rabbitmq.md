@@ -3,8 +3,9 @@ title: cdc-debezium-postgres-rabbitmq
 kind: component
 sources:
 - k8s/components/apps/cdc/debezium-postgres-rabbitmq
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: cdc
+source_hash: ada6505a425376db
 source_last_commit: '2026-04-27'
 summary: "Debezium Server \u2014 PostgreSQL Logical Replication \u2192 RabbitMQ CDC"
 summary_source: derived

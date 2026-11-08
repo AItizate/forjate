@@ -3,8 +3,9 @@ title: productivity-appflowy
 kind: component
 sources:
 - k8s/components/apps/productivity/appflowy
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: productivity
+source_hash: 2fc6cce3b8e2a3be
 source_last_commit: '2026-04-27'
 summary: AppFlowy Cloud - collaborative workspace (Notion alternative)
 summary_source: derived

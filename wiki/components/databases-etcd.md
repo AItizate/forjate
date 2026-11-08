@@ -3,10 +3,11 @@ title: databases-etcd
 kind: component
 sources:
 - k8s/components/apps/databases/etcd
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: databases
 consumed_by:
 - overlays/ai-dev-stack
+source_hash: 4b08499326789246
 source_last_commit: '2026-04-27'
 summary: deploys `quay.io/coreos/etcd:v3.5.16`
 summary_source: derived

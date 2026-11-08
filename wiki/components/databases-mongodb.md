@@ -3,12 +3,13 @@ title: databases-mongodb
 kind: component
 sources:
 - k8s/components/apps/databases/mongodb
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: databases
 consumed_by:
 - overlays/agentic-orchestration
 - overlays/cdc-event-sourcing
 - overlays/usecases-db-migration-a-to-b
+source_hash: c31d719fc04f3f9c
 source_last_commit: '2026-04-27'
 summary: "MongoDB 7 \u2014 base standalone (without replica set)"
 summary_source: derived

@@ -3,11 +3,12 @@ title: cert-manager
 kind: base
 sources:
 - k8s/base/apps/cert-manager
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: base-app
 parent: base/base
 consumed_by:
 - base/base
+source_hash: aaa31cf0d1207c40
 source_last_commit: '2026-04-27'
 summary: vendors `cert-manager.crds.yaml`
 summary_source: derived

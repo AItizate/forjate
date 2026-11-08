@@ -3,10 +3,11 @@ title: minio-dev
 kind: component
 sources:
 - k8s/components/apps/minio/dev
-compiled_at: '2026-10-29'
+compiled_at: '2026-11-07'
 category: minio
 consumed_by:
 - overlays/usecases-invoice-intake
+source_hash: 9c2aba275dd87f49
 source_last_commit: '2026-10-29'
 summary: deploys `docker.io/bitnamilegacy/minio:2025.7.23`
 summary_source: derived

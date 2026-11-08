@@ -3,11 +3,12 @@ title: n8n-n8n
 kind: component
 sources:
 - k8s/components/apps/n8n/n8n
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: n8n
 parent: components/n8n
 consumed_by:
 - components/n8n
+source_hash: dcedebcc8d1fc428
 source_last_commit: '2026-04-27'
 summary: deploys `busybox:1.36`
 summary_source: derived

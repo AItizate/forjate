@@ -13,8 +13,15 @@ from .domain import Order, Subscription
 app = FastAPI(title="orders-stub")
 
 
+PROBES = {"/healthz", "/readyz"}
+
+
 @app.middleware("http")
 async def record(request: Request, call_next):
+    # Probes are not orders API calls and must not need Postgres: a liveness probe that writes to the
+    # database restarts the pod whenever the database is briefly away (its restart, the seed's reset).
+    if request.url.path in PROBES:
+        return await call_next(request)
     stores.execute("insert into orders_stub_calls (method, path) values (%s, %s)", request.method, request.url.path)
     if request.method != "GET":
         return JSONResponse(status_code=405, content={"detail": "the orders API is read-only for this client"})

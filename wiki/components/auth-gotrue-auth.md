@@ -3,13 +3,14 @@ title: auth-gotrue-auth
 kind: component
 sources:
 - k8s/components/apps/auth/gotrue-auth
-compiled_at: '2026-10-29'
+compiled_at: '2026-11-07'
 category: auth
 consumed_by:
 - overlays/agentic-simple-workflow
 - overlays/home-edge-lab
 - overlays/multi-tenant-pattern-org
 - overlays/usecases-invoice-intake-stages-walk
+source_hash: c493f2dc6daa18a3
 source_last_commit: '2026-04-27'
 summary: "Gotrue Auth \u2014 Google OAuth authentication and authorization with per-app\
   \ RBAC"

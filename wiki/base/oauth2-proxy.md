@@ -3,11 +3,12 @@ title: oauth2-proxy
 kind: base
 sources:
 - k8s/base/apps/oauth2-proxy
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: base-app
 parent: base/base
 consumed_by:
 - base/base
+source_hash: 96d19ca8564472ae
 source_last_commit: '2026-04-27'
 summary: declares `Ingress`, `Middleware`
 summary_source: derived

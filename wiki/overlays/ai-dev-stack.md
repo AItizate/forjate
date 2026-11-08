@@ -3,7 +3,8 @@ title: ai-dev-stack
 kind: overlay
 sources:
 - k8s/overlays/ai-dev-stack
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
+source_hash: 7c675d4d4ab05c59
 source_last_commit: '2026-06-07'
 summary: declares `ClusterIssuer`, `Namespace`
 summary_source: derived

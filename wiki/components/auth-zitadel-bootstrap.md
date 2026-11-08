@@ -6,7 +6,8 @@ sources:
 compiled_at: '2026-11-08'
 category: auth
 parent: components/auth-zitadel
-source_hash: 9832c34ff5092fc4
+source_hash: 0ebabb77e12e68f4
+source_last_commit: '2026-11-08'
 summary: "Zitadel Bootstrap \u2014 configure organizations, projects, roles, and users\
   \ as IaC"
 summary_source: derived

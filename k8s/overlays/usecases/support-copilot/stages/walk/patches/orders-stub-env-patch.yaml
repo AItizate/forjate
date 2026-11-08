@@ -11,5 +11,3 @@ spec:
         env:
         - name: MODEL_MODE
           value: live
-        - name: ORDERS_URL
-          value: https://orders.corp.example.com

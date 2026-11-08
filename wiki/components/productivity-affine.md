@@ -3,8 +3,9 @@ title: productivity-affine
 kind: component
 sources:
 - k8s/components/apps/productivity/affine
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: productivity
+source_hash: b2a66a0f3176a666
 source_last_commit: '2026-10-28'
 summary: "AFFiNE \u2014 open-source Notion + Miro alternative with built-in AI"
 summary_source: derived

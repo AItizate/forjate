@@ -14,12 +14,15 @@ See wiki/SCHEMA.md for the conventions this script implements.
 Usage:
     poetry run python scripts/wiki-compile.py [--check]
 
-    --check   report what would change without writing (for CI)
+    --check   report what would change without writing (for CI); compares
+              content, so the date fields compiled_at and source_last_commit
+              never count as drift
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -543,6 +546,31 @@ def source_last_commit(rel_path: str) -> str | None:
     return value or None
 
 
+def source_hash(rel_path: str) -> str | None:
+    """Content hash of a source path: what is in the files, not when they changed.
+
+    Covers the tracked files and the untracked ones git does not ignore, so a
+    local `.env` or a cache directory does not make a laptop disagree with CI.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+             "--", rel_path],
+            cwd=REPO, capture_output=True, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    digest = hashlib.sha256()
+    for name in sorted(set(filter(None, out.stdout.decode("utf-8").split("\0")))):
+        path = REPO / name
+        if not path.is_file():
+            continue
+        digest.update(name.encode("utf-8") + b"\0" + path.read_bytes() + b"\0")
+    return digest.hexdigest()[:16]
+
+
 def bullets(items: list[str], empty: str = "_none declared_") -> str:
     if not items:
         return empty
@@ -685,6 +713,9 @@ def render_page(page: Page, compiled_at: str) -> str:
         fm["parent"] = page.parent
     if page.consumed_by:
         fm["consumed_by"] = page.consumed_by
+    digest = source_hash(page.rel_source)
+    if digest:
+        fm["source_hash"] = digest
     last = source_last_commit(page.rel_source)
     if last:
         fm["source_last_commit"] = last
@@ -1239,9 +1270,11 @@ def main() -> int:
     compiled_at = date.today().isoformat()
     written, changed, unchanged = 0, [], 0
 
-    # Ignore compiled_at churn when deciding whether anything really changed.
+    # Ignore compiled_at and source_last_commit when deciding whether anything
+    # really changed: both are history, not content. A squash merge rewrites the
+    # commit date of a source without touching a byte of it.
     def strip(t):
-        return re.sub(r"^compiled_at: .*$", "", t or "", flags=re.MULTILINE)
+        return re.sub(r"^(compiled_at|source_last_commit): .*\n?", "", t or "", flags=re.MULTILINE)
 
     def strip_json_date(t):
         return re.sub(r'"compiled_at": "[^"]*"', "", t or "")

@@ -3,13 +3,14 @@ title: ai-models-ollama
 kind: component
 sources:
 - k8s/components/apps/ai-models/ollama
-compiled_at: '2026-10-29'
+compiled_at: '2026-11-07'
 category: ai-models
 consumed_by:
 - overlays/agentic-simple-workflow
 - overlays/quickstart
 - overlays/usecases-invoice-intake
 - overlays/usecases-support-copilot
+source_hash: 4d6d19b022521604
 source_last_commit: '2026-04-27'
 summary: deploys `ollama/ollama:latest`
 summary_source: derived

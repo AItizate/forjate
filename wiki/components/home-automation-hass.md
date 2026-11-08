@@ -3,11 +3,12 @@ title: home-automation-hass
 kind: component
 sources:
 - k8s/components/apps/home-automation/hass
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: home-automation
 parent: components/home-automation
 consumed_by:
 - components/home-automation
+source_hash: 88d133b9cbccbd7f
 source_last_commit: '2026-04-27'
 summary: deploys `homeassistant/raspberrypi4-homeassistant:latest`
 summary_source: derived

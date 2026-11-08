@@ -3,13 +3,14 @@ title: monitoring-grafana
 kind: component
 sources:
 - k8s/components/apps/monitoring/grafana
-compiled_at: '2026-10-09'
+compiled_at: '2026-11-07'
 category: monitoring
 consumed_by:
 - overlays/bare-metal-starter
 - overlays/home-edge-lab
 - overlays/usecases-invoice-intake-stages-walk
 - overlays/usecases-support-copilot-stages-walk
+source_hash: 52770230a014e096
 source_last_commit: '2026-04-27'
 summary: deploys `grafana/grafana:11.6.0`
 summary_source: derived

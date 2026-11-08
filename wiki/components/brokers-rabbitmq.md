@@ -3,10 +3,11 @@ title: brokers-rabbitmq
 kind: component
 sources:
 - k8s/components/apps/brokers/rabbitmq
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: brokers
 consumed_by:
 - overlays/cdc-event-sourcing
+source_hash: 3a450af6cbebab03
 source_last_commit: '2026-04-27'
 summary: "RabbitMQ 3.13 \u2014 AMQP broker with Streams support"
 summary_source: derived

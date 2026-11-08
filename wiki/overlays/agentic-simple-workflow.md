@@ -3,7 +3,8 @@ title: agentic-simple-workflow
 kind: overlay
 sources:
 - k8s/overlays/agentic-simple-workflow
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
+source_hash: 1b14b0e2dfb9f9ae
 source_last_commit: '2026-05-24'
 summary: Smallest production-shaped overlay for a single agentic workload
 summary_source: derived

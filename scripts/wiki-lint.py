@@ -2,12 +2,12 @@
 """Health-check the Forjate wiki.
 
 The lint pass of the LLM Wiki pattern, adapted for a source tree that mutates.
-The check that matters most here is **drift**: a page whose sources in k8s/ were
-committed after the page was last compiled is not merely stale, it states
+The check that matters most here is **drift**: a page whose sources in k8s/ changed
+after the page was last compiled is not merely stale, it states
 outdated facts with the authority of a curated page.
 
 Checks:
-  drift          source path changed in git after the page's compiled_at
+  drift          source path content differs from the page's source_hash
   backlinks      consumed_by differs from what the tree references now (a
                  consumer changed, not the page's own sources)
   missing        a kustomization exists in k8s/ with no page in the wiki
@@ -31,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from wiki_compile_api import (  # noqa: E402
-    REPO, WIKI, compile_pages, read_frontmatter, rel, source_last_commit,
+    REPO, WIKI, compile_pages, read_frontmatter, rel, source_hash,
 )
 
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+\.md)\)")
@@ -82,10 +82,12 @@ def main() -> int:
                 findings.append(("dangling", f"{rp}: source `{s}` no longer exists "
                                              f"— mark the page kind: retired"))
                 continue
-            commit = source_last_commit(str(s))
-            if commit and compiled_at and commit > compiled_at:
-                findings.append(("drift", f"{rp}: `{s}` changed {commit}, "
-                                          f"page compiled {compiled_at}"))
+            # Content, not history: a squash merge moves the commit date of a
+            # source without changing a byte of it.
+            current = source_hash(str(s))
+            if current and fm.get("source_hash") != current:
+                findings.append(("drift", f"{rp}: `{s}` changed since the page was "
+                                          f"compiled ({compiled_at or 'never'})"))
 
         for target in LINK_RE.findall(page.read_text(encoding="utf-8")):
             if target.startswith(("http://", "https://")):

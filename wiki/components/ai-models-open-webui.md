@@ -3,10 +3,11 @@ title: ai-models-open-webui
 kind: component
 sources:
 - k8s/components/apps/ai-models/open-webui
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: ai-models
 consumed_by:
 - overlays/ai-dev-stack
+source_hash: b41743fd231b3ff4
 source_last_commit: '2026-06-07'
 summary: deploys `ghcr.io/open-webui/open-webui:main`
 summary_source: derived

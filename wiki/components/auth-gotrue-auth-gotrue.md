@@ -3,11 +3,12 @@ title: auth-gotrue-auth-gotrue
 kind: component
 sources:
 - k8s/components/apps/auth/gotrue-auth/gotrue
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: auth
 parent: components/auth-gotrue-auth
 consumed_by:
 - components/auth-gotrue-auth
+source_hash: da9b0383ee8cc57b
 source_last_commit: '2026-04-27'
 summary: deploys `busybox:1.36`
 summary_source: derived

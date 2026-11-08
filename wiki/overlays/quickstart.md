@@ -3,7 +3,8 @@ title: quickstart
 kind: overlay
 sources:
 - k8s/overlays/quickstart
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
+source_hash: 468b2e7ced0b8f97
 source_last_commit: '2026-06-07'
 summary: deploys `curlimages/curl:8.10.1`
 summary_source: derived

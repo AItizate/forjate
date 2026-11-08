@@ -3,11 +3,12 @@ title: networking-metallb
 kind: component
 sources:
 - k8s/components/apps/networking/metallb
-compiled_at: '2026-11-05'
+compiled_at: '2026-11-07'
 category: networking
 consumed_by:
 - overlays/bare-metal-starter
 - overlays/home-edge-lab
+source_hash: 9073b8fc8a89447b
 source_last_commit: '2026-04-27'
 summary: vendors `native?ref=v0.15.2`
 summary_source: derived

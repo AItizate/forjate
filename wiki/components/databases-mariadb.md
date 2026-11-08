@@ -3,8 +3,9 @@ title: databases-mariadb
 kind: component
 sources:
 - k8s/components/apps/databases/mariadb
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: databases
+source_hash: 0444fec0fb8dc117
 source_last_commit: '2026-04-27'
 summary: deploys `linuxserver/mariadb`
 summary_source: derived

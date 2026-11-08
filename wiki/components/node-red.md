@@ -3,11 +3,12 @@ title: node-red
 kind: component
 sources:
 - k8s/components/apps/node-red
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: standalone
 consumed_by:
 - overlays/ai-dev-stack
 - overlays/home-edge-lab
+source_hash: e3231052b91e2517
 source_last_commit: '2026-04-27'
 summary: deploys `busybox:1.36`
 summary_source: derived

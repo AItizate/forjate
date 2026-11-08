@@ -3,11 +3,12 @@ title: productivity-affine-server
 kind: component
 sources:
 - k8s/components/apps/productivity/affine/server
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: productivity
 parent: components/productivity-affine
 consumed_by:
 - components/productivity-affine
+source_hash: 107edbfad0adefed
 source_last_commit: '2026-04-27'
 summary: deploys `busybox:1.36`
 summary_source: derived

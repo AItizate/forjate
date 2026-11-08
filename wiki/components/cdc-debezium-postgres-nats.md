@@ -3,8 +3,9 @@ title: cdc-debezium-postgres-nats
 kind: component
 sources:
 - k8s/components/apps/cdc/debezium-postgres-nats
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: cdc
+source_hash: 13f5f555a1c931ee
 source_last_commit: '2026-04-27'
 summary: "Debezium Server \u2014 PostgreSQL Logical Replication \u2192 NATS JetStream\
   \ CDC"

@@ -3,7 +3,8 @@ title: agentic-orchestration
 kind: overlay
 sources:
 - k8s/overlays/agentic-orchestration
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
+source_hash: 107b76ef79c68b18
 source_last_commit: '2026-06-07'
 summary: "Agentic Orchestration \u2014 multi-agent workflow pattern"
 summary_source: derived

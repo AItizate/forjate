@@ -3,10 +3,11 @@ title: databases-milvus
 kind: component
 sources:
 - k8s/components/apps/databases/milvus
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: databases
 consumed_by:
 - overlays/ai-dev-stack
+source_hash: e14466caf99a1ea1
 source_last_commit: '2026-04-27'
 summary: deploys `milvusdb/milvus:v2.5.4`
 summary_source: derived

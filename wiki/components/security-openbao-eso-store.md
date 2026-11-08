@@ -3,11 +3,12 @@ title: security-openbao-eso-store
 kind: component
 sources:
 - k8s/components/apps/security/openbao/eso-store
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: security
 parent: components/security-openbao
 consumed_by:
 - overlays/usecases-openbao-secrets-openbao
+source_hash: ef58d746ecff675d
 source_last_commit: '2026-10-28'
 summary: "OpenBao as an External Secrets store \u2014 applied on top of security/openbao\
   \ via components:"

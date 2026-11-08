@@ -3,11 +3,12 @@ title: auth-gotrue-auth-authz
 kind: component
 sources:
 - k8s/components/apps/auth/gotrue-auth/authz
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: auth
 parent: components/auth-gotrue-auth
 consumed_by:
 - components/auth-gotrue-auth
+source_hash: 402f6e95ed508e1f
 source_last_commit: '2026-04-27'
 summary: deploys `node:20.18-alpine`
 summary_source: derived

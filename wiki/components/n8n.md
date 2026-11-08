@@ -3,8 +3,9 @@ title: n8n
 kind: component
 sources:
 - k8s/components/apps/n8n
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: standalone
+source_hash: c2aeeedc7a2469b0
 source_last_commit: '2026-04-27'
 summary: composes `postgres`, `n8n`
 summary_source: derived

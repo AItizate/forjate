@@ -3,10 +3,11 @@ title: brokers-mosquitto
 kind: component
 sources:
 - k8s/components/apps/brokers/mosquitto
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: brokers
 consumed_by:
 - overlays/home-edge-lab
+source_hash: 235a957939804866
 source_last_commit: '2026-04-27'
 summary: deploys `eclipse-mosquitto`
 summary_source: derived

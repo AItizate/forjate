@@ -3,8 +3,9 @@ title: pvs-local-storage
 kind: component
 sources:
 - k8s/components/pvs/local-storage
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: pvs
+source_hash: 2b38cbf5534c108a
 source_last_commit: '2026-04-27'
 summary: declares `PersistentVolume`
 summary_source: derived

@@ -3,7 +3,8 @@ title: bare-metal-starter
 kind: overlay
 sources:
 - k8s/overlays/bare-metal-starter
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
+source_hash: d616dc88e7f12a23
 source_last_commit: '2026-05-24'
 summary: Starter overlay for a first serious bare-metal cluster
 summary_source: derived

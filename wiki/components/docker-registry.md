@@ -3,8 +3,9 @@ title: docker-registry
 kind: component
 sources:
 - k8s/components/apps/docker-registry
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: standalone
+source_hash: 79d48da0fae79e83
 source_last_commit: '2026-04-27'
 summary: deploys `registry:2`
 summary_source: derived

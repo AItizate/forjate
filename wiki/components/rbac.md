@@ -3,10 +3,11 @@ title: rbac
 kind: component
 sources:
 - k8s/components/rbac
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
 category: rbac
 consumed_by:
 - overlays/home-edge-lab
+source_hash: e39016e99b3f2663
 source_last_commit: '2026-04-27'
 summary: declares `ClusterRole`, `ClusterRoleBinding`, `ServiceAccount`
 summary_source: derived

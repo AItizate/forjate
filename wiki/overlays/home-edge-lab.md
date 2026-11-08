@@ -3,7 +3,8 @@ title: home-edge-lab
 kind: overlay
 sources:
 - k8s/overlays/home-edge-lab
-compiled_at: '2026-08-27'
+compiled_at: '2026-11-07'
+source_hash: 872961a6f00d4c9a
 source_last_commit: '2026-05-24'
 summary: Home automation + IoT + cameras + an agent gateway on a Raspberry Pi and
   a NAS

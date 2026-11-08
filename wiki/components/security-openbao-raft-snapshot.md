@@ -3,11 +3,12 @@ title: security-openbao-raft-snapshot
 kind: component
 sources:
 - k8s/components/apps/security/openbao/raft-snapshot
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: security
 parent: components/security-openbao
 consumed_by:
 - overlays/usecases-openbao-secrets-openbao
+source_hash: 8f4a492ba08ef1d3
 source_last_commit: '2026-10-28'
 summary: "OpenBao raft snapshots \u2014 applied on top of security/openbao via components:"
 summary_source: derived

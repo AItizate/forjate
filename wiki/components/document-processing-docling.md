@@ -3,10 +3,11 @@ title: document-processing-docling
 kind: component
 sources:
 - k8s/components/apps/document-processing/docling
-compiled_at: '2026-10-29'
+compiled_at: '2026-11-07'
 category: document-processing
 consumed_by:
 - overlays/usecases-invoice-intake
+source_hash: 438aaa9dd1dd147f
 source_last_commit: '2026-04-27'
 summary: deploys `ghcr.io/docling-project/docling-serve-cpu:latest`
 summary_source: derived

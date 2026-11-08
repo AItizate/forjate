@@ -3,8 +3,9 @@ title: communication-snappymail
 kind: component
 sources:
 - k8s/components/apps/communication/snappymail
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: communication
+source_hash: 8de5cc84343f141b
 source_last_commit: '2026-04-27'
 summary: "Snappymail \u2014 lightweight webmail client (IMAP/SMTP)"
 summary_source: derived

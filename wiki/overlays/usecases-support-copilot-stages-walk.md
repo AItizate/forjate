@@ -6,6 +6,7 @@ sources:
 compiled_at: '2026-11-08'
 category: usecases
 parent: overlays/usecases-support-copilot
+source_hash: 5f66e70ba7ce650d
 source_last_commit: '2026-11-08'
 summary: 'walk stage of support-copilot: recomposes the Crawl root (base, Crawl components,
   the namespace child) and adds what the records require for walk, nothing the plan

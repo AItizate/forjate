@@ -3,11 +3,12 @@ title: databases-mongodb-replica-set
 kind: component
 sources:
 - k8s/components/apps/databases/mongodb/replica-set
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: databases
 parent: components/databases-mongodb
 consumed_by:
 - overlays/cdc-event-sourcing
+source_hash: 52e346d5b27b6853
 source_last_commit: '2026-04-27'
 summary: "MongoDB replica set enabler \u2014 applied on top of databases/mongodb via\
   \ components:"

@@ -3,7 +3,7 @@ title: ai-models-litellm
 kind: component
 sources:
 - k8s/components/apps/ai-models/litellm
-compiled_at: '2026-10-29'
+compiled_at: '2026-11-07'
 category: ai-models
 consumed_by:
 - overlays/agentic-orchestration
@@ -11,6 +11,7 @@ consumed_by:
 - overlays/quickstart
 - overlays/usecases-invoice-intake-stages-walk
 - overlays/usecases-support-copilot-stages-walk
+source_hash: 85b5d678eb72f844
 source_last_commit: '2026-06-07'
 summary: deploys `ghcr.io/berriai/litellm:main-stable`
 summary_source: derived

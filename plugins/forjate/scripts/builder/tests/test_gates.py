@@ -22,6 +22,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Callable
 
 import pytest
@@ -145,6 +146,9 @@ def make_app(uc: UC, tests: str) -> None:
 
 TEST_OK = "def test_ok():\n    assert True\n"
 TEST_BAD = "def test_bad():\n    assert False, 'regression'\n"
+# a collection error (a test importing a module the app no longer has) beside a warning pytest prints last
+TEST_UNIMPORTABLE = "import warnings\nfrom json import batch\n\ndef test_ok():\n    warnings.warn('alias is deprecated', DeprecationWarning)\n"
+TEST_BAD_WITH_WARNING = "import warnings\n\ndef test_bad():\n    warnings.warn('alias is deprecated', DeprecationWarning)\n    assert False, 'regression'\n"
 
 
 def marked(marker: str, ok: bool) -> str:
@@ -195,6 +199,14 @@ def _(uc): make_app(uc, TEST_OK)
 
 @case("app-tests", "fail", "app tests failed")
 def _(uc): make_app(uc, TEST_BAD)
+
+
+@case("app-tests", "fail", "app tests failed: ERROR tests/test_demo.py;E ImportError: cannot import name 'batch'", id="app-tests-fail-names-the-collection-error")
+def _(uc): make_app(uc, TEST_UNIMPORTABLE)
+
+
+@case("app-tests", "fail", "app tests failed: FAILED tests/test_demo.py::test_bad", id="app-tests-fail-names-the-failing-test")
+def _(uc): make_app(uc, TEST_BAD_WITH_WARNING)
 
 
 @case("app-tests", "skip", "no app/")
@@ -798,6 +810,19 @@ def test_runner_exit_one_when_a_ci_gate_fails_and_names_the_reason(tmp_path: Pat
     assert statuses(p) == {"G-SEC-1": "pass", "G-OPS-1": "fail"}
     assert "branch ref" in next(g["detail"] for g in got["gates"] if g["id"] == "G-OPS-1")
     assert got["exit"] == 1
+
+
+def test_runner_shows_the_failure_not_the_warnings_pytest_prints_last(tmp_path: Path):
+    """G-AI-1..4 failed in the nightly and the table showed a DeprecationWarning, the head of the output's tail;
+    the cause (a test that no longer imported) was further down."""
+    uc = runner_uc(tmp_path, [gate("G-AI-4", "ci", "app-tests")])
+    make_app(SimpleNamespace(root=uc), TEST_UNIMPORTABLE)
+    p = run_gates(uc, "--json")
+    assert p.returncode == 1
+    detail = json.loads(p.stdout)["gates"][0]["detail"]
+    assert detail.startswith("FAIL: app tests failed: ERROR tests/test_demo.py;E ImportError"), detail
+    table = run_gates(uc).stdout
+    assert "DeprecationWarning" not in next(l for l in table.splitlines() if l.startswith("| G-AI-4"))
 
 
 def test_runner_fails_a_gate_whose_check_script_does_not_exist(tmp_path: Path):

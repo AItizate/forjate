@@ -3,8 +3,9 @@ title: cdc-debezium-mariadb-nats
 kind: component
 sources:
 - k8s/components/apps/cdc/debezium-mariadb-nats
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: cdc
+source_hash: eb9c6fa78ced4398
 source_last_commit: '2026-04-27'
 summary: "Debezium Server \u2014 MariaDB Binlog \u2192 NATS JetStream CDC"
 summary_source: derived

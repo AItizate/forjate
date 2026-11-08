@@ -3,8 +3,9 @@ title: brokers-nats
 kind: component
 sources:
 - k8s/components/apps/brokers/nats
-compiled_at: '2026-10-28'
+compiled_at: '2026-11-07'
 category: brokers
+source_hash: 98cd24d88d1fe4ed
 source_last_commit: '2026-04-27'
 summary: "NATS 2.10 with JetStream \u2014 lightweight message streaming with persistence"
 summary_source: derived

@@ -1,0 +1,196 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Zitadel — Cloud-native Identity Provider with built-in user management
+#
+# Replaces GoTrue and complements oauth2-proxy as the OIDC provider.
+# Provides what oauth2-proxy lacks: user creation, RBAC, service accounts.
+#
+# Architecture:
+#   Zitadel (IdP + user DB + RBAC)
+#     ↓ OIDC
+#   oauth2-proxy (Traefik middleware, unchanged)
+#     ↓ ForwardAuth
+#   Protected apps
+#
+# oauth2-proxy changes only its provider config:
+#   provider: google → provider: oidc + oidc-issuer-url: https://zitadel.{domain}
+#
+# Zitadel concepts mapped to the factory:
+#   Organization  → Tenant (multi-org support for internal + external users)
+#   Project       → App group (ai-tools, monitoring, productivity)
+#   Application   → OIDC client (oauth2-proxy, open-webui, n8n)
+#   Role          → Access level (admin, viewer, operator)
+#   Service User  → Machine account (agents, pipelines, CI/CD)
+#
+# Zitadel uses Helm chart via Kustomize helmCharts generator.
+# PostgreSQL uses the factory's own postgres component (not Bitnami Helm).
+# Requires: kustomize with --enable-helm flag
+#
+# Usage:
+#   kubectl kustomize --enable-helm k8s/components/apps/auth/zitadel
+#
+# Dependencies (must be included in tenant overlay or use the zitadel-stack bundle):
+#   - k8s/components/apps/databases/postgres (with namePrefix: zitadel-)
+#
+# Tenant must provide:
+#   - A namespace (set via kustomization `namespace:` field)
+#   - Secret "zitadel-postgres-secret" with: POSTGRES_USER=zitadel, POSTGRES_PASSWORD, POSTGRES_DB=zitadel
+#   - Secret "zitadel-masterkey" with key "masterkey" (32-char encryption key)
+#   - Secret "zitadel-db-config" with key "config-yaml" containing FULL DB config:
+#       Database:
+#         postgres:
+#           Host: zitadel-postgres
+#           Port: 5432
+#           Database: zitadel
+#           User:
+#             Username: zitadel
+#             Password: <same as POSTGRES_PASSWORD>
+#             SSL:
+#               Mode: disable
+#           Admin:
+#             ExistingDatabase: zitadel
+#             Username: zitadel
+#             Password: <same as POSTGRES_PASSWORD>
+#             SSL:
+#               Mode: disable
+#     (configSecretName overrides configmapConfig — include everything, not just passwords)
+#   - Patch for ingress hostname (zitadel.example.com → zitadel.{tenant-domain})
+#   - Patch for oauth2-proxy to use Zitadel as OIDC provider
+#   - Patch for clusterrolebinding subject namespace (rbac/clusterrolebinding.yaml)
+
+# Namespace is NOT set here — the consumer overlay sets it.
+# This allows deploying Zitadel into any namespace (auth, identity, zitadel, etc.)
+#
+# All resources (Helm + kustomize) share the label:
+#   app.kubernetes.io/part-of: zitadel
+#
+# Consumer overlay example:
+#   namespace: auth
+#   resources:
+#     - ../../../../components/apps/auth/zitadel
+
+resources:
+  - ingress.yaml
+
+helmCharts:
+  - name: zitadel
+    repo: https://charts.zitadel.com
+    version: 8.12.2
+    releaseName: zitadel
+    # namespace: set by consumer overlay via kustomization namespace field
+    valuesInline:
+      zitadel:
+        # masterkey read from K8s secret named "zitadel-masterkey" (key: "masterkey")
+        # Create: kubectl create secret generic zitadel-masterkey --from-literal=masterkey=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
+        masterkey: ""
+        masterkeySecretName: zitadel-masterkey
+        # DB passwords come from a consumer-provided secret
+        configSecretName: zitadel-db-config
+        configSecretKey: config-yaml
+        configmapConfig:
+          ExternalSecure: true
+          ExternalDomain: zitadel.example.com
+          ExternalPort: 443
+          TLS:
+            Enabled: false
+          Database:
+            postgres:
+              Host: zitadel-postgres  # factory component with namePrefix zitadel-
+              Port: 5432
+              Database: zitadel
+              User:
+                Username: zitadel
+                SSL:
+                  Mode: disable
+              Admin:
+                # factory component creates POSTGRES_USER as superuser and POSTGRES_DB already
+                # so init connects to the existing zitadel DB, no need to create anything
+                ExistingDatabase: zitadel
+                Username: zitadel
+                SSL:
+                  Mode: disable
+          DefaultInstance:
+            Org:
+              Human:
+                UserName: admin
+                FirstName: Admin
+                LastName: User
+                Email:
+                  Address: admin@example.com
+                  Verified: true
+                Password: ""  # patched by overlay secret
+          Machine:
+            MachineKeyLifetime: 8760h  # 1 year for service accounts
+      # Disable Helm hooks — ArgoCD manages Jobs directly.
+      # Init containers wait for postgres instead.
+      # ZITADEL_PG_HOST must match Database.postgres.Host above.
+      # If using an external postgres, override both in the consumer overlay.
+      initJob:
+        annotations: {}
+        initContainers:
+          - name: wait-for-postgres
+            image: busybox:1.36
+            env:
+              - name: ZITADEL_PG_HOST
+                value: zitadel-postgres
+              - name: ZITADEL_PG_PORT
+                value: "5432"
+            command: ['sh', '-c', 'until nc -z $ZITADEL_PG_HOST $ZITADEL_PG_PORT; do echo "waiting for $ZITADEL_PG_HOST:$ZITADEL_PG_PORT..."; sleep 2; done']
+      setupJob:
+        annotations: {}
+        initContainers:
+          - name: wait-for-postgres
+            image: busybox:1.36
+            env:
+              - name: ZITADEL_PG_HOST
+                value: zitadel-postgres
+              - name: ZITADEL_PG_PORT
+                value: "5432"
+            command: ['sh', '-c', 'until nc -z $ZITADEL_PG_HOST $ZITADEL_PG_PORT; do echo "waiting for $ZITADEL_PG_HOST:$ZITADEL_PG_PORT..."; sleep 2; done']
+      commonLabels:
+        app.kubernetes.io/part-of: zitadel
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+
+
+# The chart hardcodes helm.sh/hook in templates — initJob.annotations: {}
+# doesn't remove them. Kustomize patches apply AFTER Helm rendering,
+# so we can neutralize them here.
+patches:
+  - target:
+      kind: Job
+      name: zitadel-init
+    patch: |
+      - op: replace
+        path: /metadata/annotations/helm.sh~1hook
+        value: ""
+      - op: replace
+        path: /metadata/annotations/helm.sh~1hook-weight
+        value: ""
+      - op: replace
+        path: /metadata/annotations/helm.sh~1hook-delete-policy
+        value: ""
+  - target:
+      kind: Job
+      name: zitadel-setup
+    patch: |
+      - op: replace
+        path: /metadata/annotations/helm.sh~1hook
+        value: ""
+      - op: replace
+        path: /metadata/annotations/helm.sh~1hook-weight
+        value: ""
+      - op: replace
+        path: /metadata/annotations/helm.sh~1hook-delete-policy
+        value: ""
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: zitadel

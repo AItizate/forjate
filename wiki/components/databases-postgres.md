@@ -3,11 +3,12 @@ title: databases-postgres
 kind: component
 sources:
 - k8s/components/apps/databases/postgres
-compiled_at: '2026-11-07'
+compiled_at: '2026-11-08'
 category: databases
 consumed_by:
 - components/ai-models-litellm-postgres
 - components/bundles-temporal-stack
+- components/bundles-zitadel-stack-postgres
 - overlays/agentic-simple-workflow
 - overlays/home-edge-lab
 - overlays/multi-cloud-portable
@@ -65,6 +66,7 @@ summary_source: derived
 
 - [components/ai-models-litellm-postgres](../components/ai-models-litellm-postgres.md)
 - [components/bundles-temporal-stack](../components/bundles-temporal-stack.md)
+- [components/bundles-zitadel-stack-postgres](../components/bundles-zitadel-stack-postgres.md)
 - [overlays/agentic-simple-workflow](../overlays/agentic-simple-workflow.md)
 - [overlays/home-edge-lab](../overlays/home-edge-lab.md)
 - [overlays/multi-cloud-portable](../overlays/multi-cloud-portable.md)

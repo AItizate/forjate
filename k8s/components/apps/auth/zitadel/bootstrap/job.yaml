@@ -1,0 +1,117 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zitadel-bootstrap
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: zitadel-bootstrap
+    spec:
+      serviceAccountName: zitadel-bootstrap
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-zitadel
+          image: curlimages/curl:8.11.0
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Zitadel to be ready..."
+              until curl -sf http://zitadel.${POD_NAMESPACE}.svc.cluster.local:8080/debug/ready; do
+                echo "Zitadel not ready yet, retrying in 5s..."
+                sleep 5
+              done
+              echo "Zitadel is ready!"
+        - name: generate-jwt
+          image: alpine:3.20
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # ZITADEL_AUDIENCE must match the public issuer URL of the Zitadel instance
+            # (the value returned in /.well-known/openid-configuration "issuer").
+            # Override per-tenant via patch when deploying behind a public domain.
+            - name: ZITADEL_AUDIENCE
+              value: "http://zitadel.$(POD_NAMESPACE).svc.cluster.local:8080"
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              apk add --no-cache --quiet openssl jq >/dev/null
+              KID=$(jq -r .keyId /secrets/sa-key.json)
+              SUB=$(jq -r .userId /secrets/sa-key.json)
+              jq -r .key /secrets/sa-key.json > /tmp/private.pem
+              IAT=$(date -u +%s)
+              EXP=$((IAT + 3600))
+              b64url() { openssl base64 -e -A | tr '+/' '-_' | tr -d '='; }
+              HEADER=$(printf '{"alg":"RS256","typ":"JWT","kid":"%s"}' "$KID" | b64url)
+              PAYLOAD=$(printf '{"iss":"%s","sub":"%s","aud":"%s","iat":%s,"exp":%s}' \
+                "$SUB" "$SUB" "$ZITADEL_AUDIENCE" "$IAT" "$EXP" | b64url)
+              SIG=$(printf '%s.%s' "$HEADER" "$PAYLOAD" | \
+                openssl dgst -sha256 -sign /tmp/private.pem | b64url)
+              printf '%s.%s.%s' "$HEADER" "$PAYLOAD" "$SIG" > /jwt/jwt.txt
+              echo "JWT generated ($(wc -c < /jwt/jwt.txt) bytes)"
+          volumeMounts:
+            - name: admin-sa-key
+              mountPath: /secrets
+              readOnly: true
+            - name: jwt
+              mountPath: /jwt
+      containers:
+        - name: bootstrap
+          image: python:3.13-alpine
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              pip install --quiet --no-cache-dir --root-user-action=ignore pyyaml requests
+              exec python /scripts/bootstrap.py
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: JWT_FILE
+              value: "/jwt/jwt.txt"
+            - name: ZITADEL_URL
+              value: "http://zitadel.$(POD_NAMESPACE).svc.cluster.local:8080"
+            # ZITADEL_HOST is the Host header sent on every API request.
+            # Zitadel uses this to resolve the instance — it MUST match a
+            # registered instance domain (typically the public ExternalDomain).
+            # Override per-tenant via patch.
+            - name: ZITADEL_HOST
+              value: "zitadel.$(POD_NAMESPACE).svc.cluster.local:8080"
+          volumeMounts:
+            - name: bootstrap-config
+              mountPath: /config
+            - name: bootstrap-scripts
+              mountPath: /scripts
+            - name: jwt
+              mountPath: /jwt
+              readOnly: true
+      volumes:
+        - name: bootstrap-config
+          configMap:
+            name: zitadel-bootstrap-config
+        - name: bootstrap-scripts
+          configMap:
+            name: zitadel-bootstrap-scripts
+        - name: admin-sa-key
+          secret:
+            secretName: zitadel-admin-sa
+        - name: jwt
+          emptyDir: {}

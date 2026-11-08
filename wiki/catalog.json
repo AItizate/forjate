@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-11-06",
+  "compiled_at": "2026-11-08",
   "stages": [
     "crawl",
     "walk",
@@ -981,6 +981,225 @@
         "components/auth-gotrue-auth"
       ],
       "parent": "components/auth-gotrue-auth",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "capabilities": [],
+      "maturity": "lab",
+      "gpu_required": "unknown",
+      "ha": "unknown",
+      "psa_restricted": "unknown",
+      "secrets": {
+        "takes": "unknown"
+      },
+      "data_classes": [
+        "internal"
+      ],
+      "curated": false,
+      "psa_level": "n/a",
+      "namespace": null,
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
+    },
+    {
+      "path": "apps/auth/zitadel/bootstrap",
+      "name": "auth-zitadel-bootstrap",
+      "category": "auth",
+      "wiki": "wiki/components/auth-zitadel-bootstrap.md",
+      "summary": "Zitadel Bootstrap — configure organizations, projects, roles, and users as IaC",
+      "images": [
+        "alpine:3.20",
+        "curlimages/curl:8.11.0",
+        "python:3.13-alpine"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Job",
+        "ServiceAccount"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": "components/auth-zitadel",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "capabilities": [],
+      "maturity": "lab",
+      "gpu_required": "unknown",
+      "ha": "unknown",
+      "psa_restricted": "unknown",
+      "secrets": {
+        "takes": "unknown"
+      },
+      "data_classes": [
+        "internal"
+      ],
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "zitadel-bootstrap",
+        "workload": {
+          "kind": "Job",
+          "name": "zitadel-bootstrap",
+          "container": "bootstrap"
+        },
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
+    },
+    {
+      "path": "apps/auth/zitadel",
+      "name": "auth-zitadel",
+      "category": "auth",
+      "wiki": "wiki/components/auth-zitadel.md",
+      "summary": "Zitadel — Cloud-native Identity Provider with built-in user management",
+      "images": [],
+      "kinds": [
+        "Ingress"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/bundles-zitadel-stack"
+      ],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "capabilities": [],
+      "maturity": "lab",
+      "gpu_required": "unknown",
+      "ha": "unknown",
+      "psa_restricted": "unknown",
+      "secrets": {
+        "takes": "unknown"
+      },
+      "data_classes": [
+        "internal"
+      ],
+      "curated": false,
+      "psa_level": "unknown",
+      "namespace": null,
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "zitadel",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
+    },
+    {
+      "path": "apps/auth/zitadel/oauth2-proxy-integration",
+      "name": "auth-zitadel-oauth2-proxy-integration",
+      "category": "auth",
+      "wiki": "wiki/components/auth-zitadel-oauth2-proxy-integration.md",
+      "summary": "oauth2-proxy ↔ Zitadel Integration",
+      "images": [],
+      "kinds": [],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": "components/auth-zitadel",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "capabilities": [],
+      "maturity": "lab",
+      "gpu_required": "unknown",
+      "ha": "unknown",
+      "psa_restricted": "unknown",
+      "secrets": {
+        "takes": "unknown"
+      },
+      "data_classes": [
+        "internal"
+      ],
+      "curated": false,
+      "psa_level": "n/a",
+      "namespace": null,
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
+    },
+    {
+      "path": "apps/auth/zitadel/rbac",
+      "name": "auth-zitadel-rbac",
+      "category": "auth",
+      "wiki": "wiki/components/auth-zitadel-rbac.md",
+      "summary": "Zitadel RBAC — Kubernetes RBAC for bootstrap Job",
+      "images": [],
+      "kinds": [
+        "ClusterRole",
+        "ClusterRoleBinding"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": "components/auth-zitadel",
       "stages": [
         "crawl",
         "walk",
@@ -2434,6 +2653,7 @@
       "consumed_by": [
         "components/ai-models-litellm-postgres",
         "components/bundles-temporal-stack",
+        "components/bundles-zitadel-stack-postgres",
         "overlays/agentic-simple-workflow",
         "overlays/home-edge-lab",
         "overlays/multi-cloud-portable",
@@ -5488,6 +5708,135 @@
       "psa_level": "baseline",
       "namespace": null,
       "namespace_how": null
+    },
+    {
+      "path": "bundles/zitadel-stack",
+      "name": "bundles-zitadel-stack",
+      "category": "bundles",
+      "wiki": "wiki/components/bundles-zitadel-stack.md",
+      "summary": "zitadel-stack — Zitadel IdP + PostgreSQL in a single reference",
+      "images": [],
+      "kinds": [],
+      "composes": [
+        "k8s/components/apps/auth/zitadel",
+        "k8s/components/bundles/zitadel-stack/postgres"
+      ],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "capabilities": [],
+      "maturity": "lab",
+      "gpu_required": "unknown",
+      "ha": "unknown",
+      "psa_restricted": "unknown",
+      "secrets": {
+        "takes": "unknown"
+      },
+      "data_classes": [
+        "internal"
+      ],
+      "curated": false,
+      "psa_level": "unknown",
+      "namespace": null,
+      "namespace_how": null,
+      "wiring": {
+        "service": "postgres",
+        "port": 5432,
+        "protocol": "tcp",
+        "label": "postgres",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "postgres",
+          "container": "postgres"
+        },
+        "secret": {
+          "name": "postgres-secret",
+          "keys": [
+            "POSTGRES_DB",
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "zitadel",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
+    },
+    {
+      "path": "bundles/zitadel-stack/postgres",
+      "name": "bundles-zitadel-stack-postgres",
+      "category": "bundles",
+      "wiki": "wiki/components/bundles-zitadel-stack-postgres.md",
+      "summary": "Wraps the factory postgres component with zitadel- prefix",
+      "images": [],
+      "kinds": [],
+      "composes": [
+        "k8s/components/apps/databases/postgres"
+      ],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/bundles-zitadel-stack"
+      ],
+      "parent": "components/bundles-zitadel-stack",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "capabilities": [],
+      "maturity": "lab",
+      "gpu_required": "unknown",
+      "ha": "unknown",
+      "psa_restricted": "unknown",
+      "secrets": {
+        "takes": "unknown"
+      },
+      "data_classes": [
+        "internal"
+      ],
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null,
+      "wiring": {
+        "service": "postgres",
+        "port": 5432,
+        "protocol": "tcp",
+        "label": "postgres",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "postgres",
+          "container": "postgres"
+        },
+        "secret": {
+          "name": "postgres-secret",
+          "keys": [
+            "POSTGRES_DB",
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "pvcs",

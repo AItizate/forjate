@@ -1,0 +1,110 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zitadel-bootstrap-config
+data:
+  # Bootstrap configuration — defines desired state for Zitadel resources.
+  # Override this ConfigMap in the tenant overlay via configMapGenerator.
+  #
+  # The bootstrap job reads this YAML and calls Zitadel API to create/update
+  # each resource. It is idempotent: re-running skips existing resources.
+  bootstrap.yaml: |
+    # Zitadel instance URL (patched by overlay)
+    instance_url: https://zitadel.example.com
+
+    # Organization = Tenant
+    organization:
+      name: default-org
+
+    # Project = group of applications with shared roles
+    project:
+      name: platform
+      # Roles defined at project level, assigned to users
+      roles:
+        - key: admin
+          display_name: Administrator
+          group: platform
+        - key: operator
+          display_name: Operator
+          group: platform
+        - key: viewer
+          display_name: Viewer
+          group: platform
+
+    # OIDC Applications (each gets a client_id + client_secret)
+    applications:
+      # oauth2-proxy — the main gateway for all protected apps
+      - name: oauth2-proxy
+        redirect_uris:
+          - https://auth.example.com/oauth2/callback
+        post_logout_redirect_uris:
+          - https://example.com
+        response_types:
+          - OIDC_RESPONSE_TYPE_CODE
+        grant_types:
+          - OIDC_GRANT_TYPE_AUTHORIZATION_CODE
+        auth_method: OIDC_AUTH_METHOD_TYPE_BASIC
+        # Secret is auto-generated and stored in K8s secret
+
+    # Actions + flows. Argo CD (and most OIDC clients) only read `groups` claims
+    # that are flat lists, while Zitadel emits roles as an object under
+    # urn:zitadel:iam:org:project:roles. This action adds a flat `groups` claim.
+    # actions:
+    #   - name: groupsClaim
+    #     allowed_to_fail: true   # a failing action otherwise blocks every login
+    #     script: |
+    #       function groupsClaim(ctx, api) {
+    #         if (ctx.v1.user.grants === undefined || ctx.v1.user.grants.count == 0) { return; }
+    #         let grants = [];
+    #         ctx.v1.user.grants.grants.forEach((g) => g.roles.forEach((r) => grants.push(r)));
+    #         api.v1.claims.setClaim("groups", grants);
+    #       }
+    # flows:
+    #   - type: complement_token
+    #     triggers: [pre_userinfo_creation, pre_access_token_creation]
+    #     actions: [groupsClaim]
+    #
+    # Public clients (CLI, PKCE) have no secret; only client-id is stored:
+    # applications:
+    #   - name: argocd-cli
+    #     app_type: OIDC_APP_TYPE_NATIVE
+    #     auth_method: OIDC_AUTH_METHOD_TYPE_NONE
+    #     redirect_uris: ["http://localhost:8085/auth/callback"]
+
+    # Human users — managed as code
+    users: []
+    # Example (uncomment and customize in overlay):
+    # users:
+    #   - username: sebas
+    #     first_name: Sebas
+    #     last_name: Etchevest
+    #     email: sebas@example.com
+    #     email_verified: true
+    #     initial_password: changeme123!
+    #     roles:
+    #       - admin
+    #   - username: dev-user
+    #     first_name: Dev
+    #     last_name: User
+    #     email: dev@example.com
+    #     email_verified: true
+    #     initial_password: changeme123!
+    #     roles:
+    #       - viewer
+
+    # Service users — machine accounts for agents and pipelines
+    service_users: []
+    # Example (uncomment and customize in overlay):
+    # service_users:
+    #   - username: temporal-worker
+    #     description: "Temporal workflow worker — accesses AI services"
+    #     roles:
+    #       - operator
+    #   - username: ai-agent
+    #     description: "Agentic orchestration — provisions infra and accesses APIs"
+    #     roles:
+    #       - admin
+    #   - username: argocd
+    #     description: "ArgoCD — reads OIDC tokens for dashboard SSO"
+    #     roles:
+    #       - viewer

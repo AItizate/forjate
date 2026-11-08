@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Zitadel Bootstrap — configure organizations, projects, roles, and users as IaC
+#
+# Runs a Kubernetes Job that calls Zitadel's gRPC/REST API to create:
+#   - Organization (tenant)
+#   - Project (app group)
+#   - OIDC Application (for oauth2-proxy)
+#   - Roles (admin, operator, viewer)
+#   - Human users (with initial passwords)
+#   - Service users (machine accounts for agents/pipelines)
+#
+# The bootstrap config is a YAML file mounted as ConfigMap.
+# To customize: edit the ConfigMap in the overlay's configs/ dir.
+#
+# Requires:
+#   - Zitadel running and healthy
+#   - Secret "zitadel-admin-sa" with admin service account key
+#   - ConfigMap "zitadel-bootstrap-config" with desired state
+
+resources:
+  - job.yaml
+  - configmap.yaml
+  - scripts-configmap.yaml
+  - serviceaccount.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: zitadel-bootstrap

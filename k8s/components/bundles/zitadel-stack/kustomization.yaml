@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# zitadel-stack — Zitadel IdP + PostgreSQL in a single reference
+#
+# Bundles:
+#   - databases/postgres  (StatefulSet, Service) with namePrefix: zitadel-
+#   - auth/zitadel        (Helm chart, Ingress, bootstrap, RBAC)
+#
+# Single SSH reference for remote consumers:
+#   ssh://git@github.com/AItizate/forjate.git//k8s/components/bundles/zitadel-stack?ref=<ref>
+#
+# Requires: kustomize with --enable-helm flag
+#
+# Tenant must provide:
+#   - A namespace (set via kustomization `namespace:` field)
+#   - Secret "zitadel-postgres-secret" with: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+#   - Secret "zitadel-admin-sa" with: service account key JSON (for bootstrap)
+#   - Secret "zitadel-masterkey" with: ZITADEL_MASTERKEY (32-char encryption key)
+#   - Patch for ingress hostname
+#   - Patch for clusterrolebinding subject namespace
+
+resources:
+  - ../../apps/auth/zitadel
+  - postgres
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: zitadel-stack

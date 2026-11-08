@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-11-06'
+compiled_at: '2026-11-08'
 ---
 
 # Forjate wiki — index
@@ -31,7 +31,7 @@ The foundation every tenant inherits.
 
 ## Components
 
-80 pages. Optional building blocks an overlay can activate.
+86 pages. Optional building blocks an overlay can activate.
 
 ### agents
 
@@ -55,6 +55,10 @@ The foundation every tenant inherits.
   - [auth-gotrue-auth-authz](components/auth-gotrue-auth-authz.md) — deploys `node:20.18-alpine` · used by 1
   - [auth-gotrue-auth-gotrue](components/auth-gotrue-auth-gotrue.md) — deploys `busybox:1.36` · used by 1
   - [auth-gotrue-auth-middlewares](components/auth-gotrue-auth-middlewares.md) — declares `Middleware` · used by 1
+- [auth-zitadel](components/auth-zitadel.md) — Zitadel — Cloud-native Identity Provider with built-in user management · used by 1
+  - [auth-zitadel-bootstrap](components/auth-zitadel-bootstrap.md) — Zitadel Bootstrap — configure organizations, projects, roles, and users as IaC · unused in this repo
+  - [auth-zitadel-oauth2-proxy-integration](components/auth-zitadel-oauth2-proxy-integration.md) — oauth2-proxy ↔ Zitadel Integration · unused in this repo
+  - [auth-zitadel-rbac](components/auth-zitadel-rbac.md) — Zitadel RBAC — Kubernetes RBAC for bootstrap Job · unused in this repo
 
 ### backup
 
@@ -69,6 +73,8 @@ The foundation every tenant inherits.
 ### bundles
 
 - [bundles-temporal-stack](components/bundles-temporal-stack.md) — temporal-stack — Temporal + PostgreSQL in a single reference · used by 2
+- [bundles-zitadel-stack](components/bundles-zitadel-stack.md) — zitadel-stack — Zitadel IdP + PostgreSQL in a single reference · unused in this repo
+  - [bundles-zitadel-stack-postgres](components/bundles-zitadel-stack-postgres.md) — Wraps the factory postgres component with zitadel- prefix · used by 1
 
 ### cdc
 
@@ -96,7 +102,7 @@ The foundation every tenant inherits.
 - [databases-milvus](components/databases-milvus.md) — deploys `milvusdb/milvus:v2.5.4` · used by 1
 - [databases-mongodb](components/databases-mongodb.md) — MongoDB 7 — base standalone (without replica set) · used by 3
   - [databases-mongodb-replica-set](components/databases-mongodb-replica-set.md) — MongoDB replica set enabler — applied on top of databases/mongodb via components: · used by 1 as component
-- [databases-postgres](components/databases-postgres.md) — PostgreSQL 16 — generic reusable database component · used by 9
+- [databases-postgres](components/databases-postgres.md) — PostgreSQL 16 — generic reusable database component · used by 10
 - [databases-redis](components/databases-redis.md) — deploys `redis:7-alpine` · used by 1
 
 ### document-processing

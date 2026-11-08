@@ -224,7 +224,7 @@ data:
         }, org_id=org_id)
         if r.ok:
             print(f"  Granted {role_keys} to {user_id}", flush=True)
-        elif "ALREADY_EXISTS" in r.text:
+        elif "ALREADY_EXISTS" in r.text or "already exists" in r.text or r.status_code == 409:
             print(f"  Roles {role_keys} already granted to {user_id}", flush=True)
         else:
             print(f"  Grant HTTP {r.status_code}: {r.text[:200]}", flush=True)
@@ -244,19 +244,26 @@ data:
             print(f"User exists: {u['username']} ({existing})", flush=True)
             grant_roles(existing, project_id, u.get("roles", []), org_id)
             return existing
+        # v2 AddHumanUser. The v1 users/human/_import endpoint ignores
+        # initialPassword and leaves users in state INITIAL with an unverified email.
+        first, last = u.get("first_name", ""), u.get("last_name", "")
         body = {
-            "userName": u["username"],
+            "username": u["username"],
+            "organization": {"orgId": org_id},
             "profile": {
-                "firstName": u.get("first_name", ""),
-                "lastName": u.get("last_name", ""),
-                "displayName": f"{u.get('first_name','')} {u.get('last_name','')}".strip() or u["username"],
+                "givenName": first,
+                "familyName": last,
+                "displayName": f"{first} {last}".strip() or u["username"],
                 "preferredLanguage": u.get("preferred_language", "en"),
             },
-            "email": {"email": u["email"], "isEmailVerified": u.get("email_verified", False)},
+            "email": {"email": u["email"], "isVerified": u.get("email_verified", False)},
         }
         if u.get("initial_password"):
-            body["initialPassword"] = u["initial_password"]
-        r = post("/management/v1/users/human/_import", body, org_id=org_id)
+            body["password"] = {
+                "password": u["initial_password"],
+                "changeRequired": u.get("password_change_required", True),
+            }
+        r = post("/v2/users/human", body)
         if not r.ok:
             print(f"  Create user {u['username']} HTTP {r.status_code}: {r.text[:200]}", flush=True)
             return None

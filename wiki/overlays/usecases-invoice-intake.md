@@ -3,9 +3,9 @@ title: usecases-invoice-intake
 kind: overlay
 sources:
 - k8s/overlays/usecases/invoice-intake
-compiled_at: '2026-11-06'
+compiled_at: '2026-11-08'
 category: usecases
-source_last_commit: '2026-11-06'
+source_last_commit: '2026-11-07'
 summary: 'Crawl root of invoice-intake, assembled from .builder/ by forjate:kustomize.
   Stages extend it: stages/walk, stages/run'
 summary_source: derived

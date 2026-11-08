@@ -3,9 +3,9 @@ title: usecases-support-copilot
 kind: overlay
 sources:
 - k8s/overlays/usecases/support-copilot
-compiled_at: '2026-11-06'
+compiled_at: '2026-11-08'
 category: usecases
-source_last_commit: '2026-10-31'
+source_last_commit: '2026-11-08'
 summary: 'Crawl root of support-copilot, assembled from .builder/ by forjate:kustomize.
   Stages extend it: stages/walk, stages/run'
 summary_source: derived

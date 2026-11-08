@@ -23,9 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # wiki-lint.py compares each page's compiled_at against the last commit
-          # touching its sources, so it needs real history. A shallow clone makes
-          # every `git log` come back empty and the drift check silently passes.
+          # The compiler writes source_last_commit from `git log`, which needs
+          # real history; a shallow clone leaves it empty. Drift itself is a
+          # content hash and does not depend on history.
           fetch-depth: 0
 
       - uses: actions/setup-python@v5

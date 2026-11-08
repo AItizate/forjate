@@ -218,7 +218,10 @@ def check(a: dict, repo: Path) -> tuple[bool, str]:
         return rc == 0 and out == str(a["equals"]), f"{a['query']} = {out!r}"
     if t == "command":
         # A shell command run in the worktree (the generated service builds, its tests pass).
-        rc, out = sh(["bash", "-lc", a["cmd"]], repo)
+        # A login shell rebuilds PATH from the profile: put the main checkout's venv and pinned toolchain back in front,
+        # so `python3` has the repo's dependencies and yq is the version CI pins (run.sh's toolchain_path).
+        front = ":".join(str(d) for d in (REPO / ".tools" / "bin", REPO / ".venv" / "bin") if d.is_dir())
+        rc, out = sh(["bash", "-lc", (f'export PATH="{front}:$PATH"; ' if front else "") + a["cmd"]], repo)
         return rc == 0, "exit 0" if rc == 0 else f"exit {rc}: {out[-400:]}"
     if t == "scaffold_check":
         rc, out = sh([PY, str(BUILDER / "scaffold-check.py"), a["path"]], repo)

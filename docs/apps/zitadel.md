@@ -293,6 +293,16 @@ Argo CD, two clients:
 
 `argocd-cm`: `oidc.config` with `issuer`, `clientID`, `clientSecret: $<sealed-secret>:client-secret` (the Secret needs the label `app.kubernetes.io/part-of: argocd`), `cliClientID`, `enablePKCEAuthentication: true`, `requestedScopes: [openid, profile, email, groups]`. `argocd-rbac-cm`: `scopes: '[groups]'` and `policy.csv` mapping the project roles (`g, admin, role:admin`).
 
+## External identity providers (Google, GitHub, ...)
+
+`identity_providers:` in the bootstrap config creates or updates one IdP template per entry (`google`, `github`, `azure`, `generic_oidc`) and adds it to the instance login policy, which is what puts the button on the login page. Client id and secret are read from the env vars named by `client_id_env` / `client_secret_env` (SealedSecret + `envFrom` on the Job); an entry without credentials is skipped. It is create-or-update, so changing an option and re-running the Job replays. Setting `enabled_in_login_policy: false` removes the button without deleting the template.
+
+Every option is off by default. The safe setup for a closed set of users is `auto_linking: email` and nothing else: the first login with the external account is matched to the existing Zitadel user that has the same **verified** email and linked silently, so roles and grants stay on the same user. With no match nobody is created. `is_auto_creation: true` would let any account of that provider create a user.
+
+Callback URL to register at the provider (login UI v1, Zitadel 2.x): `https://<zitadel-domain>/ui/login/login/externalidp/callback`.
+
+A user who already has a second factor registered is still asked for it after an external login (the policy flag `forceMfaLocalOnly` only affects forced enrolment). The GitHub provider reads the email from GitHub's `/user` profile call, which may expose only the public email: if auto-linking does not match, make the GitHub primary email public and equal to the Zitadel one.
+
 ## Agentic use case
 
 Service accounts enable AI agents to authenticate programmatically:

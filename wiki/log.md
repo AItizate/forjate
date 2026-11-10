@@ -48,3 +48,6 @@ Types: `compile`, `concept`, `lint`, `query`.
 ## [2026-11-06] compile | 1 page(s) changed — 5 base, 80 component, 19 overlay
 ## [2026-11-07] compile | 104 page(s) changed — 5 base, 80 component, 19 overlay (source_hash added)
 ## [2026-11-07] compile | 1 page(s) changed — 5 base, 80 component, 19 overlay
+## [2026-11-10] compile | 5 page(s) changed — 5 base, 81 component, 19 overlay
+## [2026-11-10] compile | 4 page(s) changed — 5 base, 81 component, 19 overlay
+## [2026-11-10] compile | 4 page(s) changed — 5 base, 81 component, 19 overlay

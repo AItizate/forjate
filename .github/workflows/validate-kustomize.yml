@@ -52,6 +52,8 @@ jobs:
             find k8s/overlays -type f -name 'kustomization.yaml' -exec dirname {} \;
             # Component roots that have a top-level kustomization.yaml of their own
             find k8s/components -maxdepth 4 -type f -name 'kustomization.yaml' -exec dirname {} \;
+            # Deeper variants that tenants reference by path on their own
+            echo k8s/components/apps/backup/velero/s3
           } | sort -u > /tmp/targets.txt
           echo "Targets to build:"
           cat /tmp/targets.txt

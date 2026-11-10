@@ -1,7 +1,7 @@
 ---
 title: remote-references
 kind: concept
-summary: how tenants consume the factory by SSH ref, and where pinning is inconsistent
+summary: how tenants consume the factory by SSH ref, and how vendored upstream refs are pinned
 summary_source: authored
 links:
   - concepts/multi-tenant-recursion
@@ -43,22 +43,23 @@ not visible from this repo — it is whatever those repos have pinned. The
 `consumed_by` field on a compiled component page covers **local** overlays only,
 and says nothing about remote tenants.
 
-## Pinning is inconsistent inside the factory itself
+## Pinning what the factory vendors
 
-The same discipline the factory asks of its tenants is not uniformly applied to
-what it vendors from upstream:
+The same discipline the factory asks of its tenants applies to what it vendors
+from upstream:
 
 | Component | Vendored ref | Pinned |
 |---|---|---|
 | [storage-longhorn](../components/storage-longhorn.md) | `v1.9.2` | yes |
 | [sealed-secrets](../components/sealed-secrets.md) | `v0.31.0` | yes |
 | [monitoring-reloader](../components/monitoring-reloader.md) | `v1.4.14` | yes |
-| [continuous-delivery-argocd](../components/continuous-delivery-argocd.md) | `stable` | **no** |
+| [continuous-delivery-argocd](../components/continuous-delivery-argocd.md) | `v3.6.1` | yes |
 
-`stable` is a moving branch. Two `kustomize build` runs of the same overlay, on
-the same commit, weeks apart, can produce different ArgoCD manifests — which is
-precisely the failure mode pinning exists to prevent, in the component whose job
-is deploying everything else.
+ArgoCD used to vendor upstream's `stable` branch, a moving ref: two
+`kustomize build` runs of the same overlay, on the same commit, weeks apart,
+could produce different ArgoCD manifests, in the component whose job is
+deploying everything else. It was pinned to `v3.6.1` (issue #58), the version a
+tenant runs in production. Bump the tag deliberately, in a PR of its own.
 
-The factory's own guidance says to always pin a remote component to a tag or
-commit. Three components follow it; ArgoCD does not.
+Helm-based components pin the chart `version` in their `helmCharts` entry
+instead (Velero: chart `12.2.2`).

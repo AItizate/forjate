@@ -1,0 +1,412 @@
+#!/usr/bin/env python3
+"""
+Zitadel bootstrap (idempotent).
+
+Reads /config/bootstrap.yaml and creates orgs, project, roles,
+Actions and flow triggers, OIDC applications (storing client credentials
+in K8s secrets; public clients store only the client-id),
+human users, service users, and external identity providers (Google,
+GitHub, Azure AD, generic OIDC) enabled on the login policy.
+
+Auth: pre-signed JWT bearer assertion at /jwt/jwt.txt
+      (signed by the generate-jwt init container using the SA key).
+
+Required env:
+  ZITADEL_URL    — base URL Zitadel listens on (svc URL by default)
+  ZITADEL_HOST   — Host header value (must match a registered
+                   instance domain; usually the public ExternalDomain)
+  POD_NAMESPACE  — namespace in which to write OIDC client secrets
+  <client_id_env> / <client_secret_env> of each `identity_providers`
+                 entry (e.g. GOOGLE_CLIENT_ID); a provider without them is skipped
+"""
+import os, sys, json
+from pathlib import Path
+import yaml
+import requests
+
+ZITADEL_URL = os.environ["ZITADEL_URL"]
+ZITADEL_HOST = os.environ["ZITADEL_HOST"]
+NAMESPACE = os.environ.get("POD_NAMESPACE", "security")
+JWT_FILE = os.environ.get("JWT_FILE", "/jwt/jwt.txt")
+CONFIG_FILE = os.environ.get("CONFIG_FILE", "/config/bootstrap.yaml")
+
+s = requests.Session()
+s.headers.update({"Host": ZITADEL_HOST, "Content-Type": "application/json"})
+
+def fail(msg, r=None):
+    if r is not None:
+        print(f"  HTTP {r.status_code}: {r.text[:300]}", flush=True)
+    sys.exit(f"ERROR: {msg}")
+
+def post(path, body=None, org_id=None, ok_codes=(200, 201)):
+    h = {"x-zitadel-orgid": org_id} if org_id else {}
+    r = s.post(f"{ZITADEL_URL}{path}", headers=h, json=body or {})
+    return r
+
+def get(path, org_id=None):
+    h = {"x-zitadel-orgid": org_id} if org_id else {}
+    return s.get(f"{ZITADEL_URL}{path}", headers=h)
+
+def put(path, body=None, org_id=None):
+    h = {"x-zitadel-orgid": org_id} if org_id else {}
+    return s.put(f"{ZITADEL_URL}{path}", headers=h, json=body or {})
+
+def authenticate():
+    jwt = Path(JWT_FILE).read_text().strip()
+    r = s.post(
+        f"{ZITADEL_URL}/oauth/v2/token",
+        headers={"Host": ZITADEL_HOST, "Content-Type": "application/x-www-form-urlencoded"},
+        data={
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "scope": "openid urn:zitadel:iam:org:project:id:zitadel:aud",
+            "assertion": jwt,
+        },
+    )
+    if not r.ok:
+        fail("Failed to get access token", r)
+    s.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
+    print("Authenticated", flush=True)
+
+def ensure_org(name):
+    r = post("/v2/organizations/_search", {
+        "queries": [{"nameQuery": {"name": name, "method": "TEXT_QUERY_METHOD_EQUALS"}}]
+    })
+    if r.ok and r.json().get("result"):
+        oid = r.json()["result"][0]["id"]
+        print(f"Org exists: {name} ({oid})", flush=True)
+        return oid
+    r = post("/v2/organizations", {"name": name})
+    if not r.ok:
+        fail(f"create org {name}", r)
+    oid = r.json()["organizationId"]
+    print(f"Org created: {name} ({oid})", flush=True)
+    return oid
+
+def ensure_project(name, org_id):
+    r = post("/management/v1/projects/_search", {
+        "queries": [{"nameQuery": {"name": name, "method": "TEXT_QUERY_METHOD_EQUALS"}}]
+    }, org_id=org_id)
+    if r.ok and r.json().get("result"):
+        pid = r.json()["result"][0]["id"]
+        print(f"Project exists: {name} ({pid})", flush=True)
+        return pid
+    r = post("/management/v1/projects", {
+        "name": name, "projectRoleAssertion": True, "projectRoleCheck": True,
+    }, org_id=org_id)
+    if not r.ok:
+        fail(f"create project {name}", r)
+    pid = r.json()["id"]
+    print(f"Project created: {name} ({pid})", flush=True)
+    return pid
+
+def ensure_role(project_id, org_id, role):
+    r = post(f"/management/v1/projects/{project_id}/roles", {
+        "roleKey": role["key"],
+        "displayName": role.get("display_name", role["key"]),
+        "group": role.get("group", ""),
+    }, org_id=org_id)
+    if r.ok:
+        print(f"  Role created: {role['key']}", flush=True)
+    elif "ALREADY_EXISTS" in r.text or r.status_code == 409:
+        print(f"  Role exists: {role['key']}", flush=True)
+    else:
+        print(f"  Role {role['key']} HTTP {r.status_code}: {r.text[:200]}", flush=True)
+
+def ensure_oidc_app(project_id, org_id, app):
+    # Search apps within project by name
+    r = post(f"/management/v1/projects/{project_id}/apps/_search", {
+        "queries": [{"nameQuery": {"name": app["name"], "method": "TEXT_QUERY_METHOD_EQUALS"}}]
+    }, org_id=org_id)
+    if r.ok and r.json().get("result"):
+        existing = r.json()["result"][0]
+        cid = existing.get("oidcConfig", {}).get("clientId")
+        print(f"App exists: {app['name']} ({existing['id']}) clientId={cid} — client secret unavailable, skipping", flush=True)
+        return existing["id"], None, None
+    r = post(f"/management/v1/projects/{project_id}/apps/oidc", {
+        "name": app["name"],
+        "redirectUris": app.get("redirect_uris", []),
+        "postLogoutRedirectUris": app.get("post_logout_redirect_uris", []),
+        "responseTypes": app.get("response_types", ["OIDC_RESPONSE_TYPE_CODE"]),
+        "grantTypes": app.get("grant_types", ["OIDC_GRANT_TYPE_AUTHORIZATION_CODE"]),
+        "authMethodType": app.get("auth_method", "OIDC_AUTH_METHOD_TYPE_BASIC"),
+        "appType": app.get("app_type", "OIDC_APP_TYPE_WEB"),
+        "accessTokenType": app.get("access_token_type", "OIDC_TOKEN_TYPE_JWT"),
+        # Without these, Zitadel does not include the
+        # urn:zitadel:iam:org:project:roles claim in the tokens, and
+        # oauth2-proxy's allowed-group check rejects every login.
+        "accessTokenRoleAssertion": app.get("access_token_role_assertion", True),
+        "idTokenRoleAssertion": app.get("id_token_role_assertion", True),
+        "idTokenUserinfoAssertion": app.get("id_token_userinfo_assertion", True),
+    }, org_id=org_id)
+    if not r.ok:
+        fail(f"create app {app['name']}", r)
+    j = r.json()
+    print(f"App created: {app['name']} ({j['appId']}) clientId={j.get('clientId')}", flush=True)
+    return j["appId"], j.get("clientId"), j.get("clientSecret")
+
+def store_oidc_secret(app_name, client_id, client_secret, issuer):
+    # Public clients (auth_method NONE) have no secret: store the client-id only.
+    if not client_id:
+        return
+    sa_token = Path("/var/run/secrets/kubernetes.io/serviceaccount/token").read_text()
+    ca = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    secret_name = f"zitadel-oidc-{app_name}"
+    body = {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {
+            "name": secret_name,
+            "labels": {"app.kubernetes.io/managed-by": "zitadel-bootstrap"},
+        },
+        "type": "Opaque",
+        "stringData": {
+            "client-id": client_id,
+            "issuer-url": issuer,
+            **({"client-secret": client_secret} if client_secret else {}),
+        },
+    }
+    url = f"https://kubernetes.default.svc/api/v1/namespaces/{NAMESPACE}/secrets"
+    h = {"Authorization": f"Bearer {sa_token}", "Content-Type": "application/json"}
+    r = requests.post(url, headers=h, json=body, verify=ca)
+    if r.status_code in (200, 201):
+        print(f"  Stored OIDC secret: {secret_name}", flush=True)
+    elif r.status_code == 409:
+        requests.delete(f"{url}/{secret_name}", headers=h, verify=ca)
+        r = requests.post(url, headers=h, json=body, verify=ca)
+        print(f"  Replaced OIDC secret: {secret_name} (HTTP {r.status_code})", flush=True)
+    else:
+        print(f"  Secret {secret_name} HTTP {r.status_code}: {r.text[:200]}", flush=True)
+
+# Zitadel flow/trigger numeric ids (REST path segments of SetTriggerActions).
+FLOW_TYPES = {"complement_token": 2}
+TRIGGER_TYPES = {"pre_userinfo_creation": 4, "pre_access_token_creation": 5}
+
+def ensure_action(act, org_id):
+    r = post("/management/v1/actions/_search", {
+        "queries": [{"actionNameQuery": {"name": act["name"], "method": "TEXT_QUERY_METHOD_EQUALS"}}]
+    }, org_id=org_id)
+    body = {
+        "name": act["name"],
+        "script": act["script"],
+        "timeout": act.get("timeout", "10s"),
+        # An action that fails and is not allowed to fail blocks every login.
+        "allowedToFail": act.get("allowed_to_fail", True),
+    }
+    if r.ok and r.json().get("result"):
+        aid = r.json()["result"][0]["id"]
+        u = put(f"/management/v1/actions/{aid}", body, org_id=org_id)
+        print(f"Action exists: {act['name']} ({aid}) update HTTP {u.status_code}", flush=True)
+        return aid
+    r = post("/management/v1/actions", body, org_id=org_id)
+    if not r.ok:
+        print(f"  Create action {act['name']} HTTP {r.status_code}: {r.text[:200]}", flush=True)
+        return None
+    aid = r.json()["id"]
+    print(f"Action created: {act['name']} ({aid})", flush=True)
+    return aid
+
+def set_flow_triggers(flow, action_ids, org_id):
+    for trig in flow.get("triggers", []):
+        ids = [action_ids[n] for n in flow.get("actions", []) if action_ids.get(n)]
+        r = post(f"/management/v1/flows/{FLOW_TYPES[flow['type']]}/trigger/{TRIGGER_TYPES[trig]}",
+                 {"actionIds": ids}, org_id=org_id)
+        print(f"  Flow {flow['type']}/{trig} -> {flow.get('actions', [])} HTTP {r.status_code}", flush=True)
+
+def grant_roles(user_id, project_id, role_keys, org_id):
+    if not role_keys or not project_id:
+        return
+    r = post(f"/management/v1/users/{user_id}/grants", {
+        "projectId": project_id, "roleKeys": role_keys,
+    }, org_id=org_id)
+    if r.ok:
+        print(f"  Granted {role_keys} to {user_id}", flush=True)
+    elif "ALREADY_EXISTS" in r.text or "already exists" in r.text or r.status_code == 409:
+        print(f"  Roles {role_keys} already granted to {user_id}", flush=True)
+    else:
+        print(f"  Grant HTTP {r.status_code}: {r.text[:200]}", flush=True)
+
+def find_user(username, org_id):
+    r = post("/v2/users", {
+        "queries": [{"userNameQuery": {"userName": username, "method": "TEXT_QUERY_METHOD_EQUALS"}}]
+    }, org_id=org_id)
+    if r.ok and r.json().get("result"):
+        return r.json()["result"][0]["userId"]
+    return None
+
+def ensure_human(u, project_id, orgs_by_name, default_org_id):
+    org_id = orgs_by_name.get(u.get("organization"), default_org_id)
+    existing = find_user(u["username"], org_id)
+    if existing:
+        print(f"User exists: {u['username']} ({existing})", flush=True)
+        grant_roles(existing, project_id, u.get("roles", []), org_id)
+        return existing
+    # v2 AddHumanUser. The v1 users/human/_import endpoint ignores
+    # initialPassword and leaves users in state INITIAL with an unverified email.
+    first, last = u.get("first_name", ""), u.get("last_name", "")
+    body = {
+        "username": u["username"],
+        "organization": {"orgId": org_id},
+        "profile": {
+            "givenName": first,
+            "familyName": last,
+            "displayName": f"{first} {last}".strip() or u["username"],
+            "preferredLanguage": u.get("preferred_language", "en"),
+        },
+        "email": {"email": u["email"], "isVerified": u.get("email_verified", False)},
+    }
+    if u.get("initial_password"):
+        body["password"] = {
+            "password": u["initial_password"],
+            "changeRequired": u.get("password_change_required", True),
+        }
+    r = post("/v2/users/human", body)
+    if not r.ok:
+        print(f"  Create user {u['username']} HTTP {r.status_code}: {r.text[:200]}", flush=True)
+        return None
+    uid = r.json().get("userId")
+    print(f"User created: {u['username']} ({uid})", flush=True)
+    grant_roles(uid, project_id, u.get("roles", []), org_id)
+    return uid
+
+def ensure_machine(svc, project_id, default_org_id):
+    existing = find_user(svc["username"], default_org_id)
+    if existing:
+        print(f"Service user exists: {svc['username']} ({existing})", flush=True)
+        grant_roles(existing, project_id, svc.get("roles", []), default_org_id)
+        return existing
+    r = post("/management/v1/users/machine", {
+        "userName": svc["username"],
+        "name": svc.get("name", svc["username"]),
+        "description": svc.get("description", ""),
+    }, org_id=default_org_id)
+    if not r.ok:
+        print(f"  Create svc {svc['username']} HTTP {r.status_code}: {r.text[:200]}", flush=True)
+        return None
+    uid = r.json()["userId"]
+    print(f"Service user created: {svc['username']} ({uid})", flush=True)
+    grant_roles(uid, project_id, svc.get("roles", []), default_org_id)
+    return uid
+
+# External identity providers (Google, GitHub, Microsoft, generic OIDC).
+# type -> (admin REST path segment, default scopes)
+IDP_TYPES = {
+    "google": ("google", ["openid", "profile", "email"]),
+    "github": ("github", ["openid", "user:email"]),
+    "azure": ("azure", ["openid", "profile", "email"]),
+    "generic_oidc": ("generic_oidc", ["openid", "profile", "email"]),
+}
+AUTO_LINKING = {
+    "email": "AUTO_LINKING_OPTION_EMAIL",
+    "username": "AUTO_LINKING_OPTION_USERNAME",
+}
+
+def idp_body(idp, client_id, client_secret):
+    opts = idp.get("options", {})
+    body = {
+        "name": idp["name"],
+        "clientId": client_id,
+        "clientSecret": client_secret,
+        "scopes": idp.get("scopes", IDP_TYPES[idp["type"]][1]),
+        # Everything is off unless the config asks for it: only users that
+        # already exist can sign in, and they are matched by auto_linking.
+        "providerOptions": {
+            "isLinkingAllowed": opts.get("is_linking_allowed", False),
+            "isCreationAllowed": opts.get("is_creation_allowed", False),
+            "isAutoCreation": opts.get("is_auto_creation", False),
+            "isAutoUpdate": opts.get("is_auto_update", False),
+            "autoLinking": AUTO_LINKING.get(opts.get("auto_linking"), "AUTO_LINKING_OPTION_UNSPECIFIED"),
+        },
+    }
+    if idp["type"] == "generic_oidc":
+        body["issuer"] = idp["issuer"]
+    if idp["type"] == "azure":
+        body["tenant"] = {"tenantType": idp.get("tenant_type", "AZURE_AD_TENANT_TYPE_COMMON")}
+        body["emailVerified"] = idp.get("email_verified", True)
+    return body
+
+def ensure_login_policy_idp(idp_id, enabled):
+    # An IdP template is only offered on the login page once it is linked
+    # to the login policy.
+    r = post("/admin/v1/policies/login/idps/_search", {})
+    linked = r.ok and any(i.get("idpId") == idp_id for i in r.json().get("result", []))
+    if enabled and not linked:
+        r = post("/admin/v1/policies/login/idps", {"idpId": idp_id, "ownerType": "IDP_OWNER_TYPE_SYSTEM"})
+        print(f"  IdP {idp_id} added to login policy HTTP {r.status_code}", flush=True)
+    elif not enabled and linked:
+        r = s.delete(f"{ZITADEL_URL}/admin/v1/policies/login/idps/{idp_id}")
+        print(f"  IdP {idp_id} removed from login policy HTTP {r.status_code}", flush=True)
+    else:
+        print(f"  IdP {idp_id} login policy unchanged (enabled={enabled})", flush=True)
+
+def ensure_identity_provider(idp):
+    kind = idp.get("type")
+    if kind not in IDP_TYPES:
+        print(f"IdP {idp.get('name')}: unknown type {kind!r}, skipping", flush=True)
+        return
+    client_id = os.environ.get(idp.get("client_id_env", ""))
+    client_secret = os.environ.get(idp.get("client_secret_env", ""))
+    if not (client_id and client_secret):
+        print(f"IdP {idp['name']}: credentials not provided ({idp.get('client_id_env')}), skipping", flush=True)
+        return
+    body = idp_body(idp, client_id, client_secret)
+    path = IDP_TYPES[kind][0]
+    # /admin/v1/idps/_search returns no results for instance-level IdPs;
+    # the working endpoint is /admin/v1/idps/templates/_search.
+    r = post("/admin/v1/idps/templates/_search", {
+        "queries": [{"idpNameQuery": {"name": idp["name"], "method": "TEXT_QUERY_METHOD_EQUALS"}}]
+    })
+    if r.ok and r.json().get("result"):
+        idp_id = r.json()["result"][0]["id"]
+        u = put(f"/admin/v1/idps/{path}/{idp_id}", body)
+        print(f"IdP updated: {idp['name']} ({idp_id}) HTTP {u.status_code}", flush=True)
+        if not u.ok and "not changed" not in u.text.lower():
+            print(f"  {u.text[:300]}", flush=True)
+    else:
+        c = post(f"/admin/v1/idps/{path}", body)
+        if not c.ok:
+            print(f"IdP {idp['name']} create HTTP {c.status_code}: {c.text[:300]}", flush=True)
+            return
+        idp_id = c.json().get("id")
+        print(f"IdP created: {idp['name']} ({idp_id})", flush=True)
+    ensure_login_policy_idp(idp_id, idp.get("enabled_in_login_policy", True))
+
+def main():
+    cfg = yaml.safe_load(Path(CONFIG_FILE).read_text())
+    authenticate()
+
+    orgs_by_name, default_org_id = {}, None
+    for o in cfg.get("organizations", []):
+        oid = ensure_org(o["name"])
+        orgs_by_name[o["name"]] = oid
+        if o.get("is_default") and default_org_id is None:
+            default_org_id = oid
+    if default_org_id is None and orgs_by_name:
+        default_org_id = next(iter(orgs_by_name.values()))
+
+    proj = cfg.get("project") or {}
+    project_id = ensure_project(proj["name"], default_org_id) if proj.get("name") else None
+    for role in proj.get("roles", []):
+        ensure_role(project_id, default_org_id, role)
+
+    action_ids = {a["name"]: ensure_action(a, default_org_id) for a in cfg.get("actions", [])}
+    for flow in cfg.get("flows", []):
+        set_flow_triggers(flow, action_ids, default_org_id)
+
+    issuer = cfg.get("instance_url", ZITADEL_URL)
+    for app in cfg.get("applications", []):
+        if not project_id:
+            continue
+        _, cid, csec = ensure_oidc_app(project_id, default_org_id, app)
+        store_oidc_secret(app["name"], cid, csec, issuer)
+
+    for u in cfg.get("users", []):
+        ensure_human(u, project_id, orgs_by_name, default_org_id)
+    for svc in cfg.get("service_users", []):
+        ensure_machine(svc, project_id, default_org_id)
+
+    for idp in cfg.get("identity_providers", []):
+        ensure_identity_provider(idp)
+    print("=== Bootstrap complete ===", flush=True)
+
+if __name__ == "__main__":
+    main()

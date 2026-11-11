@@ -22,8 +22,14 @@ kind: Kustomization
 resources:
   - job.yaml
   - configmap.yaml
-  - scripts-configmap.yaml
   - serviceaccount.yaml
+
+# The script lives in bootstrap.py (testable, see tests/zitadel/) and reaches the Job
+# as a generated ConfigMap. The name hash is on: editing the script rolls the Job.
+configMapGenerator:
+  - name: zitadel-bootstrap-scripts
+    files:
+      - bootstrap.py
 
 labels:
   - pairs:

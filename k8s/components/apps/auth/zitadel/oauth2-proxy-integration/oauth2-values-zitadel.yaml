@@ -8,7 +8,10 @@
 #   2. redirect-url → https://auth.{your-domain}/oauth2/callback
 #   3. cookie-domain → .{your-domain}
 #   4. whitelist-domain → .{your-domain}
-#   5. client-id and client-secret (from Zitadel bootstrap or admin UI)
+#   5. The Secret zitadel-oidc-oauth2-proxy must exist in oauth2-proxy's namespace.
+#      The bootstrap writes it in ITS OWN namespace (the Zitadel one), keys client-id,
+#      client-secret, issuer-url, for the application named `oauth2-proxy` in its
+#      config. Copy it across (SealedSecret / ESO / reflector) or run both in one namespace.
 
 replicaCount: 1
 
@@ -19,8 +22,10 @@ extraArgs:
   # client-id and client-secret: use env vars from secret (see extraEnv below)
 
   # --- OIDC Claims for RBAC ---
-  # Zitadel includes roles in the token when projectRoleAssertion is enabled
-  oidc-groups-claim: "urn:zitadel:iam:org:project:roles"
+  # Zitadel emits roles as an OBJECT under urn:zitadel:iam:org:project:roles, which
+  # oauth2-proxy cannot read as groups. Define the `groupsClaim` action (commented
+  # example in the bootstrap ConfigMap) so a flat `groups` claim exists.
+  oidc-groups-claim: groups
   allowed-group: admin,operator,viewer
 
   # --- URLs ---
@@ -54,7 +59,8 @@ extraArgs:
 
   # --- UX ---
   skip-provider-button: true
-  ssl-insecure-skip-verify: true
+  # TLS to Zitadel is verified (ssl-insecure-skip-verify is NOT set). If your issuer
+  # uses a private CA, mount it and set `ssl-cert-file`/SSL_CERT_FILE instead.
   code-challenge-method: S256
 
   # --- Logging ---
@@ -67,12 +73,12 @@ extraEnv:
   - name: OAUTH2_PROXY_CLIENT_ID
     valueFrom:
       secretKeyRef:
-        name: zitadel-oidc-credentials
+        name: zitadel-oidc-oauth2-proxy
         key: client-id
   - name: OAUTH2_PROXY_CLIENT_SECRET
     valueFrom:
       secretKeyRef:
-        name: zitadel-oidc-credentials
+        name: zitadel-oidc-oauth2-proxy
         key: client-secret
   - name: OAUTH2_PROXY_COOKIE_SECRET
     valueFrom:

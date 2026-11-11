@@ -1,0 +1,63 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Example tenant overlay for bundles/zitadel-stack. It is the buildable form of the
+# setup guide in docs/apps/zitadel.md and of k8s/components/apps/auth/zitadel/contract.yaml,
+# and CI builds it (kustomize build --enable-helm docs/examples/zitadel-tenant).
+#
+# Copy it into your tenant repo and change:
+#   - the domain (here zitadel.acme.dev), in the three places marked HOSTNAME
+#   - bootstrap.yaml: your organization, project, apps, users, identity providers
+# The Secrets are NOT in this overlay: seal them (see secrets/README.md).
+#
+# Remote tenant: replace the first resource with
+#   ssh://git@github.com/AItizate/forjate.git//k8s/components/bundles/zitadel-stack?ref=<tag>
+
+# `namespace:` is stamped on the plain resources (Ingress, bootstrap). kustomize does not
+# stamp it on the Helm chart's objects, so deploy into the same namespace: Argo CD
+# `destination.namespace: zitadel`, or `kubectl apply -n zitadel`.
+namespace: zitadel
+
+resources:
+  - namespace.yaml
+  - ../../../k8s/components/bundles/zitadel-stack
+
+# The tenant's desired state for the bootstrap Job. `behavior: replace` needs the
+# original in `resources` and must NOT carry `namespace:` (kustomize sets the
+# namespace afterwards; naming it here is what failed in the first version of the guide).
+configMapGenerator:
+  - name: zitadel-bootstrap-config
+    behavior: replace
+    files:
+      - bootstrap.yaml
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  # HOSTNAME 1/3: the public host of the Ingress and its certificate.
+  - target:
+      kind: Ingress
+      name: zitadel
+    patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: zitadel.acme.dev
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: zitadel.acme.dev
+  # HOSTNAME 2/3: the probes send Host: <ExternalDomain>; Zitadel answers by instance
+  # domain. (3/3 is ExternalDomain in the Secret zitadel-db-config, and instance_url
+  # in bootstrap.yaml.)
+  - target:
+      kind: Deployment
+      name: zitadel
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/httpGet/httpHeaders/0/value
+        value: zitadel.acme.dev
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/httpGet/httpHeaders/0/value
+        value: zitadel.acme.dev
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/httpGet/httpHeaders/0/value
+        value: zitadel.acme.dev

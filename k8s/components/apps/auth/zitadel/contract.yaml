@@ -1,0 +1,67 @@
+# What a tenant must provide to run auth/zitadel or bundles/zitadel-stack.
+#
+# This is the ONE list. The kustomization headers, docs/apps/zitadel.md and the
+# example overlay (docs/examples/zitadel-tenant/) repeat names from here, and
+# tests/zitadel/test_contract.py fails when the rendered pods read a Secret or key
+# that is not listed here, or when the docs drift from it.
+#
+# Not a kustomize file (no kind): kustomize ignores it.
+
+namespace:
+  rule: >
+    One namespace for everything. The tenant overlay sets it with `namespace:`;
+    the component never does. All Secrets below live in that namespace, and the
+    bootstrap writes zitadel-oidc-<app> into it too. kustomize does NOT stamp
+    `namespace:` on the Helm chart's objects (they render without one), so deploy
+    into the same namespace: Argo CD `destination.namespace`, or `kubectl apply -n`.
+  example: zitadel
+
+# Secrets the tenant creates BEFORE the first sync (SealedSecret, ESO, ...).
+secrets:
+  - name: zitadel-masterkey
+    keys: {masterkey: "32 characters; encrypts Zitadel's data. Losing it loses the data"}
+    read_by: [Deployment zitadel, Job zitadel-setup]
+  - name: zitadel-db-config
+    keys: {config-yaml: "Zitadel config merged OVER the chart's ConfigMap. Must hold Database.postgres.{User,Admin}.Password; may also override ExternalDomain, FirstInstance.Org.Human.Email..."}
+    read_by: [Deployment zitadel, Job zitadel-init, Job zitadel-setup]
+  - name: zitadel-postgres-secret
+    keys: {POSTGRES_USER: zitadel, POSTGRES_PASSWORD: "same value as the Zitadel DB passwords", POSTGRES_DB: zitadel}
+    read_by: [StatefulSet zitadel-postgres]
+    only_with: bundles/zitadel-stack (the postgres sub-bundle)
+  - name: zitadel-admin-password
+    keys: {password: "first admin (login admin@zitadel.<ExternalDomain>); required, there is no default"}
+    read_by: [Deployment zitadel, Job zitadel-setup]
+  - name: zitadel-bootstrap-env
+    optional: true
+    keys: {"<ENV_NAME>": "one key per `*_env` name used in bootstrap.yaml: client_id_env, client_secret_env, initial_password_env"}
+    read_by: [Job zitadel-bootstrap]
+    only_with: auth/zitadel/bootstrap
+
+# Secrets that appear by themselves. Never create them by hand.
+generated:
+  - name: zitadel-admin-sa
+    keys: [zitadel-admin-sa.json]
+    by: the chart's setup Job, the first time it runs (FirstInstance.Org.Machine)
+    read_by: [Job zitadel-bootstrap]
+  - name: "zitadel-oidc-<app>"
+    keys: [client-id, issuer-url, client-secret]  # no client-secret for public clients
+    by: Job zitadel-bootstrap, one per entry of `applications:`
+    read_by: [the app, e.g. oauth2-proxy -> zitadel-oidc-oauth2-proxy]
+
+# The ConfigMap the tenant replaces (configMapGenerator, behavior: replace, and NO
+# `namespace:` on the generator: kustomize applies the overlay namespace later).
+configmaps:
+  - name: zitadel-bootstrap-config
+    key: bootstrap.yaml
+    only_with: auth/zitadel/bootstrap
+
+# Hostname. The chart cannot be re-valued by a consumer (valuesInline is fixed), so
+# the public host must be changed in these places, all shown in the example overlay.
+hostname:
+  placeholder: zitadel.example.com
+  places:
+    - "Ingress zitadel: spec.rules[0].host and spec.tls[0].hosts[0]"
+    - "Deployment zitadel: the Host header of the three probes"
+    - "Secret zitadel-db-config: `ExternalDomain:` in config-yaml"
+    - "bootstrap.yaml: `instance_url:` (it is also the JWT audience and the Host of API calls)"
+    - "the oauth2-proxy / Argo CD values: the issuer URL"

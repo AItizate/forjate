@@ -1,0 +1,47 @@
+# Desired state of Zitadel for this tenant. Create-or-update, never remove.
+# No secret in this file: `*_env` names an env var of the Secret zitadel-bootstrap-env.
+instance_url: https://zitadel.acme.dev   # HOSTNAME 3/3: same as the Ingress host
+
+organizations:
+  - name: acme
+    is_default: true
+
+project:
+  name: platform
+  roles:
+    - {key: admin, display_name: Administrator, group: platform}
+    - {key: operator, display_name: Operator, group: platform}
+    - {key: viewer, display_name: Viewer, group: platform}
+
+applications:
+  # oauth2-proxy reads the Secret zitadel-oidc-oauth2-proxy (client-id, client-secret,
+  # issuer-url) that the bootstrap creates in this namespace.
+  - name: oauth2-proxy
+    redirect_uris: ["https://auth.acme.dev/oauth2/callback"]
+    post_logout_redirect_uris: ["https://acme.dev"]
+  # Public client (PKCE): only client-id is stored.
+  - name: argocd-cli
+    app_type: OIDC_APP_TYPE_NATIVE
+    auth_method: OIDC_AUTH_METHOD_TYPE_NONE
+    redirect_uris: ["http://localhost:8085/auth/callback"]
+
+users:
+  - username: ana
+    first_name: Ana
+    last_name: Admin
+    email: ana@acme.dev
+    email_verified: true
+    initial_password_env: ANA_INITIAL_PASSWORD   # key in the Secret zitadel-bootstrap-env
+    roles: [admin]
+
+service_users:
+  - username: ci-agent
+    description: Pipeline service account
+    roles: [operator]
+
+# identity_providers:
+#   - name: Google
+#     type: google
+#     client_id_env: GOOGLE_CLIENT_ID
+#     client_secret_env: GOOGLE_CLIENT_SECRET
+#     options: {auto_linking: email}   # read "Version gate" in docs/apps/zitadel.md first

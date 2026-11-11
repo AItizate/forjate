@@ -11,7 +11,8 @@ data:
     Reads /config/bootstrap.yaml and creates orgs, project, roles,
     Actions and flow triggers, OIDC applications (storing client credentials
     in K8s secrets; public clients store only the client-id),
-    human users, service users, and external IdPs.
+    human users, service users, and external identity providers (Google,
+    GitHub, Azure AD, generic OIDC) enabled on the login policy.
 
     Auth: pre-signed JWT bearer assertion at /jwt/jwt.txt
           (signed by the generate-jwt init container using the SA key).
@@ -21,7 +22,8 @@ data:
       ZITADEL_HOST   — Host header value (must match a registered
                        instance domain; usually the public ExternalDomain)
       POD_NAMESPACE  — namespace in which to write OIDC client secrets
-      GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET — optional, enables Google IdP
+      <client_id_env> / <client_secret_env> of each `identity_providers`
+                     entry (e.g. GOOGLE_CLIENT_ID); a provider without them is skipped
     """
     import os, sys, json
     from pathlib import Path
@@ -291,36 +293,88 @@ data:
         grant_roles(uid, project_id, svc.get("roles", []), default_org_id)
         return uid
 
-    def ensure_google_idp():
-        cid = os.environ.get("GOOGLE_CLIENT_ID")
-        csec = os.environ.get("GOOGLE_CLIENT_SECRET")
-        if not (cid and csec):
-            print("Skipping Google IdP (creds not provided)", flush=True)
+    # External identity providers (Google, GitHub, Microsoft, generic OIDC).
+    # type -> (admin REST path segment, default scopes)
+    IDP_TYPES = {
+        "google": ("google", ["openid", "profile", "email"]),
+        "github": ("github", ["openid", "user:email"]),
+        "azure": ("azure", ["openid", "profile", "email"]),
+        "generic_oidc": ("generic_oidc", ["openid", "profile", "email"]),
+    }
+    AUTO_LINKING = {
+        "email": "AUTO_LINKING_OPTION_EMAIL",
+        "username": "AUTO_LINKING_OPTION_USERNAME",
+    }
+
+    def idp_body(idp, client_id, client_secret):
+        opts = idp.get("options", {})
+        body = {
+            "name": idp["name"],
+            "clientId": client_id,
+            "clientSecret": client_secret,
+            "scopes": idp.get("scopes", IDP_TYPES[idp["type"]][1]),
+            # Everything is off unless the config asks for it: only users that
+            # already exist can sign in, and they are matched by auto_linking.
+            "providerOptions": {
+                "isLinkingAllowed": opts.get("is_linking_allowed", False),
+                "isCreationAllowed": opts.get("is_creation_allowed", False),
+                "isAutoCreation": opts.get("is_auto_creation", False),
+                "isAutoUpdate": opts.get("is_auto_update", False),
+                "autoLinking": AUTO_LINKING.get(opts.get("auto_linking"), "AUTO_LINKING_OPTION_UNSPECIFIED"),
+            },
+        }
+        if idp["type"] == "generic_oidc":
+            body["issuer"] = idp["issuer"]
+        if idp["type"] == "azure":
+            body["tenant"] = {"tenantType": idp.get("tenant_type", "AZURE_AD_TENANT_TYPE_COMMON")}
+            body["emailVerified"] = idp.get("email_verified", True)
+        return body
+
+    def ensure_login_policy_idp(idp_id, enabled):
+        # An IdP template is only offered on the login page once it is linked
+        # to the login policy.
+        r = post("/admin/v1/policies/login/idps/_search", {})
+        linked = r.ok and any(i.get("idpId") == idp_id for i in r.json().get("result", []))
+        if enabled and not linked:
+            r = post("/admin/v1/policies/login/idps", {"idpId": idp_id, "ownerType": "IDP_OWNER_TYPE_SYSTEM"})
+            print(f"  IdP {idp_id} added to login policy HTTP {r.status_code}", flush=True)
+        elif not enabled and linked:
+            r = s.delete(f"{ZITADEL_URL}/admin/v1/policies/login/idps/{idp_id}")
+            print(f"  IdP {idp_id} removed from login policy HTTP {r.status_code}", flush=True)
+        else:
+            print(f"  IdP {idp_id} login policy unchanged (enabled={enabled})", flush=True)
+
+    def ensure_identity_provider(idp):
+        kind = idp.get("type")
+        if kind not in IDP_TYPES:
+            print(f"IdP {idp.get('name')}: unknown type {kind!r}, skipping", flush=True)
             return
-        # /admin/v1/idps/_search exists but returns no results for instance-level
-        # IdPs; the working endpoint is /admin/v1/idps/templates/_search.
+        client_id = os.environ.get(idp.get("client_id_env", ""))
+        client_secret = os.environ.get(idp.get("client_secret_env", ""))
+        if not (client_id and client_secret):
+            print(f"IdP {idp['name']}: credentials not provided ({idp.get('client_id_env')}), skipping", flush=True)
+            return
+        body = idp_body(idp, client_id, client_secret)
+        path = IDP_TYPES[kind][0]
+        # /admin/v1/idps/_search returns no results for instance-level IdPs;
+        # the working endpoint is /admin/v1/idps/templates/_search.
         r = post("/admin/v1/idps/templates/_search", {
-            "queries": [{"idpNameQuery": {"name": "Google", "method": "TEXT_QUERY_METHOD_EQUALS"}}]
+            "queries": [{"idpNameQuery": {"name": idp["name"], "method": "TEXT_QUERY_METHOD_EQUALS"}}]
         })
         if r.ok and r.json().get("result"):
-            print(f"Google IdP exists: {r.json()['result'][0]['id']}", flush=True)
-            return
-        r = post("/admin/v1/idps/google", {
-            "name": "Google",
-            "clientId": cid,
-            "clientSecret": csec,
-            "scopes": ["openid", "profile", "email"],
-            "providerOptions": {
-                "isLinkingAllowed": True,
-                "isCreationAllowed": True,
-                "isAutoCreation": True,
-                "isAutoUpdate": True,
-            },
-        })
-        if r.ok:
-            print(f"Google IdP created: {r.json().get('idpId','?')}", flush=True)
+            idp_id = r.json()["result"][0]["id"]
+            u = put(f"/admin/v1/idps/{path}/{idp_id}", body)
+            print(f"IdP updated: {idp['name']} ({idp_id}) HTTP {u.status_code}", flush=True)
+            if not u.ok and "not changed" not in u.text.lower():
+                print(f"  {u.text[:300]}", flush=True)
         else:
-            print(f"Google IdP HTTP {r.status_code}: {r.text[:300]}", flush=True)
+            c = post(f"/admin/v1/idps/{path}", body)
+            if not c.ok:
+                print(f"IdP {idp['name']} create HTTP {c.status_code}: {c.text[:300]}", flush=True)
+                return
+            idp_id = c.json().get("id")
+            print(f"IdP created: {idp['name']} ({idp_id})", flush=True)
+        ensure_login_policy_idp(idp_id, idp.get("enabled_in_login_policy", True))
 
     def main():
         cfg = yaml.safe_load(Path(CONFIG_FILE).read_text())
@@ -356,7 +410,8 @@ data:
         for svc in cfg.get("service_users", []):
             ensure_machine(svc, project_id, default_org_id)
 
-        ensure_google_idp()
+        for idp in cfg.get("identity_providers", []):
+            ensure_identity_provider(idp)
         print("=== Bootstrap complete ===", flush=True)
 
     if __name__ == "__main__":

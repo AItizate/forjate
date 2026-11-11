@@ -71,6 +71,27 @@ data:
     #     auth_method: OIDC_AUTH_METHOD_TYPE_NONE
     #     redirect_uris: ["http://localhost:8085/auth/callback"]
 
+    # External identity providers (Google, GitHub, Azure AD, generic OIDC) on the
+    # login page. Credentials are read from the env vars named below (inject them
+    # with a SealedSecret + envFrom on the bootstrap Job in the overlay); a
+    # provider without credentials is skipped. Create-or-update, so option changes
+    # replay. Every option is off by default.
+    # identity_providers:
+    #   - name: Google
+    #     type: google              # google | github | azure | generic_oidc
+    #     client_id_env: GOOGLE_CLIENT_ID
+    #     client_secret_env: GOOGLE_CLIENT_SECRET
+    #     scopes: [openid, profile, email]   # optional, per-type default
+    #     options:
+    #       auto_linking: email     # link a first external login to the Zitadel user
+    #                               # with the same verified email (or: username)
+    #       is_linking_allowed: false
+    #       is_creation_allowed: false
+    #       is_auto_creation: false # true = anyone with a Google account gets a user
+    #       is_auto_update: false
+    #     enabled_in_login_policy: true      # false hides it from the login page
+    #   # generic_oidc also needs `issuer`; azure takes `tenant_type`, `email_verified`.
+
     # Human users — managed as code
     users: []
     # Example (uncomment and customize in overlay):

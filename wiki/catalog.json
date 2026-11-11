@@ -1024,20 +1024,22 @@
       "name": "auth-zitadel-bootstrap",
       "category": "auth",
       "wiki": "wiki/components/auth-zitadel-bootstrap.md",
-      "summary": "Zitadel Bootstrap — configure organizations, projects, roles, and users as IaC",
+      "summary": "Zitadel Bootstrap — Zitadel's organizations, project, roles, OIDC apps, users and",
       "images": [
-        "alpine:3.20",
-        "curlimages/curl:8.11.0",
-        "python:3.13-alpine"
+        "python:3.13.5-alpine3.22"
       ],
       "kinds": [
         "ConfigMap",
         "Job",
+        "Role",
+        "RoleBinding",
         "ServiceAccount"
       ],
       "composes": [],
       "remote_refs": [],
-      "consumed_by": [],
+      "consumed_by": [
+        "components/bundles-zitadel-stack"
+      ],
       "parent": "components/auth-zitadel",
       "stages": [
         "crawl",
@@ -1056,7 +1058,7 @@
         "internal"
       ],
       "curated": false,
-      "psa_level": "baseline",
+      "psa_level": "restricted",
       "namespace": null,
       "namespace_how": null,
       "wiring": {
@@ -1069,14 +1071,17 @@
           "name": "zitadel-bootstrap",
           "container": "bootstrap"
         },
-        "secret": null,
+        "secret": {
+          "name": "zitadel-bootstrap-env",
+          "keys": []
+        },
         "placeholder_secrets": [],
         "config": null,
         "ingress": null,
         "gpu_limit": false,
         "hostpath": false,
         "hostpath_volumes": [],
-        "secret_mounted": false,
+        "secret_mounted": true,
         "sizing": null,
         "extra_ports": {}
       }
@@ -1098,29 +1103,29 @@
       ],
       "parent": null,
       "stages": [
-        "crawl",
-        "walk",
-        "run"
+        "walk"
       ],
-      "capabilities": [],
+      "capabilities": [
+        "identity-provider"
+      ],
       "maturity": "lab",
-      "gpu_required": "unknown",
-      "ha": "unknown",
-      "psa_restricted": "unknown",
+      "gpu_required": "none",
+      "ha": "single",
+      "psa_restricted": false,
       "secrets": {
-        "takes": "unknown"
+        "takes": "env"
       },
       "data_classes": [
-        "internal"
+        "internal",
+        "pii",
+        "secret"
       ],
-      "curated": false,
-      "psa_level": "unknown",
-      "namespace": null,
-      "namespace_how": null,
+      "licence": "Apache-2.0 (pinned v2.67.2; AGPL-3.0 from v3)",
+      "notes": "OIDC IdP with users, roles and service accounts as code (bootstrap/). Pins Zitadel v2.67.2, affected by CVE-2026-56666 (email auto-link does not check IdP verification; fixed in 4.15.3, separate upgrade), so no auto_linking on azure/generic_oidc. Holds identities and credentials. The tenant contract is contract.yaml; use bundles/zitadel-stack for the Postgres wiring.",
       "wiring": {
-        "service": null,
-        "port": null,
-        "protocol": "tcp",
+        "service": "zitadel",
+        "port": 8080,
+        "protocol": "http",
         "label": null,
         "workload": null,
         "secret": null,
@@ -1133,7 +1138,11 @@
         "secret_mounted": false,
         "sizing": null,
         "extra_ports": {}
-      }
+      },
+      "curated": true,
+      "psa_level": "unknown",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/auth/zitadel/oauth2-proxy-integration",
@@ -1143,59 +1152,6 @@
       "summary": "oauth2-proxy ↔ Zitadel Integration",
       "images": [],
       "kinds": [],
-      "composes": [],
-      "remote_refs": [],
-      "consumed_by": [],
-      "parent": "components/auth-zitadel",
-      "stages": [
-        "crawl",
-        "walk",
-        "run"
-      ],
-      "capabilities": [],
-      "maturity": "lab",
-      "gpu_required": "unknown",
-      "ha": "unknown",
-      "psa_restricted": "unknown",
-      "secrets": {
-        "takes": "unknown"
-      },
-      "data_classes": [
-        "internal"
-      ],
-      "curated": false,
-      "psa_level": "n/a",
-      "namespace": null,
-      "namespace_how": null,
-      "wiring": {
-        "service": null,
-        "port": null,
-        "protocol": "tcp",
-        "label": null,
-        "workload": null,
-        "secret": null,
-        "placeholder_secrets": [],
-        "config": null,
-        "ingress": null,
-        "gpu_limit": false,
-        "hostpath": false,
-        "hostpath_volumes": [],
-        "secret_mounted": false,
-        "sizing": null,
-        "extra_ports": {}
-      }
-    },
-    {
-      "path": "apps/auth/zitadel/rbac",
-      "name": "auth-zitadel-rbac",
-      "category": "auth",
-      "wiki": "wiki/components/auth-zitadel-rbac.md",
-      "summary": "Zitadel RBAC — Kubernetes RBAC for bootstrap Job",
-      "images": [],
-      "kinds": [
-        "ClusterRole",
-        "ClusterRoleBinding"
-      ],
       "composes": [],
       "remote_refs": [],
       "consumed_by": [],
@@ -5771,40 +5727,41 @@
       "name": "bundles-zitadel-stack",
       "category": "bundles",
       "wiki": "wiki/components/bundles-zitadel-stack.md",
-      "summary": "zitadel-stack — Zitadel IdP + PostgreSQL in a single reference",
+      "summary": "zitadel-stack — Zitadel IdP + PostgreSQL + bootstrap in a single reference",
       "images": [],
       "kinds": [],
       "composes": [
         "k8s/components/apps/auth/zitadel",
+        "k8s/components/apps/auth/zitadel/bootstrap",
         "k8s/components/bundles/zitadel-stack/postgres"
       ],
       "remote_refs": [],
       "consumed_by": [],
       "parent": null,
       "stages": [
-        "crawl",
-        "walk",
-        "run"
+        "walk"
       ],
-      "capabilities": [],
+      "capabilities": [
+        "identity-provider"
+      ],
       "maturity": "lab",
-      "gpu_required": "unknown",
-      "ha": "unknown",
-      "psa_restricted": "unknown",
+      "gpu_required": "none",
+      "ha": "single",
+      "psa_restricted": false,
       "secrets": {
-        "takes": "unknown"
+        "takes": "env"
       },
       "data_classes": [
-        "internal"
+        "internal",
+        "pii",
+        "secret"
       ],
-      "curated": false,
-      "psa_level": "unknown",
-      "namespace": null,
-      "namespace_how": null,
+      "licence": "Apache-2.0 (pinned v2.67.2; AGPL-3.0 from v3)",
+      "notes": "Zitadel plus its Postgres and the bootstrap Job, wired. The default way to take identity-provider with users as code. Same v2.67.2 pin and CVE-2026-56666 gate as apps/auth/zitadel.",
       "wiring": {
         "service": "postgres",
         "port": 5432,
-        "protocol": "tcp",
+        "protocol": "http",
         "label": "postgres",
         "workload": {
           "kind": "StatefulSet",
@@ -5828,7 +5785,11 @@
         "secret_mounted": true,
         "sizing": null,
         "extra_ports": {}
-      }
+      },
+      "curated": true,
+      "psa_level": "unknown",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "bundles/zitadel-stack/postgres",

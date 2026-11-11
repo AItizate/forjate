@@ -31,7 +31,7 @@ The foundation every tenant inherits.
 
 ## Components
 
-87 pages. Optional building blocks an overlay can activate.
+86 pages. Optional building blocks an overlay can activate.
 
 ### agents
 
@@ -56,9 +56,8 @@ The foundation every tenant inherits.
   - [auth-gotrue-auth-gotrue](components/auth-gotrue-auth-gotrue.md) — deploys `busybox:1.36` · used by 1
   - [auth-gotrue-auth-middlewares](components/auth-gotrue-auth-middlewares.md) — declares `Middleware` · used by 1
 - [auth-zitadel](components/auth-zitadel.md) — Zitadel — Cloud-native Identity Provider with built-in user management · used by 1
-  - [auth-zitadel-bootstrap](components/auth-zitadel-bootstrap.md) — Zitadel Bootstrap — configure organizations, projects, roles, and users as IaC · unused in this repo
+  - [auth-zitadel-bootstrap](components/auth-zitadel-bootstrap.md) — Zitadel Bootstrap — Zitadel's organizations, project, roles, OIDC apps, users and · used by 1
   - [auth-zitadel-oauth2-proxy-integration](components/auth-zitadel-oauth2-proxy-integration.md) — oauth2-proxy ↔ Zitadel Integration · unused in this repo
-  - [auth-zitadel-rbac](components/auth-zitadel-rbac.md) — Zitadel RBAC — Kubernetes RBAC for bootstrap Job · unused in this repo
 
 ### backup
 
@@ -74,7 +73,7 @@ The foundation every tenant inherits.
 ### bundles
 
 - [bundles-temporal-stack](components/bundles-temporal-stack.md) — temporal-stack — Temporal + PostgreSQL in a single reference · used by 2
-- [bundles-zitadel-stack](components/bundles-zitadel-stack.md) — zitadel-stack — Zitadel IdP + PostgreSQL in a single reference · unused in this repo
+- [bundles-zitadel-stack](components/bundles-zitadel-stack.md) — zitadel-stack — Zitadel IdP + PostgreSQL + bootstrap in a single reference · unused in this repo
   - [bundles-zitadel-stack-postgres](components/bundles-zitadel-stack-postgres.md) — Wraps the factory postgres component with zitadel- prefix · used by 1
 
 ### cdc

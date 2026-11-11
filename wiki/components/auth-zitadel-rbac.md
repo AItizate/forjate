@@ -1,8 +1,6 @@
 ---
 title: auth-zitadel-rbac
-kind: component
-sources:
-- k8s/components/apps/auth/zitadel/rbac
+kind: retired
 compiled_at: '2026-11-08'
 category: auth
 parent: components/auth-zitadel
@@ -47,5 +45,4 @@ _No overlay in this repo references this component._
 
 ## Notes
 
-_No notes yet. This zone is for interpretation: what this is for, how it
-composes with others, gotchas. It survives recompilation — write freely._
+**Retired.** `components/apps/auth/zitadel/rbac/` (a ClusterRole + ClusterRoleBinding that let the bootstrap Job read and write Secrets in every namespace, with a fixed name that collided between tenants) was removed. Replaced by a namespaced `Role` + `RoleBinding` inside [auth-zitadel-bootstrap](auth-zitadel-bootstrap.md): secrets get/create/patch in the Job's own namespace only.

@@ -3,13 +3,15 @@ title: auth-zitadel-bootstrap
 kind: component
 sources:
 - k8s/components/apps/auth/zitadel/bootstrap
-compiled_at: '2026-11-08'
+compiled_at: '2026-11-11'
 category: auth
 parent: components/auth-zitadel
-source_hash: 809fb4544131860a
-source_last_commit: '2026-11-08'
-summary: "Zitadel Bootstrap \u2014 configure organizations, projects, roles, and users\
-  \ as IaC"
+consumed_by:
+- components/bundles-zitadel-stack
+source_hash: f9114686512bbd66
+source_last_commit: '2026-11-11'
+summary: "Zitadel Bootstrap \u2014 Zitadel's organizations, project, roles, OIDC apps,\
+  \ users and"
 summary_source: derived
 ---
 
@@ -19,23 +21,25 @@ summary_source: derived
 
 > Source comment, verbatim from `kustomization.yaml`:
 >
-> Zitadel Bootstrap — configure organizations, projects, roles, and users as IaC
+> Zitadel Bootstrap — Zitadel's organizations, project, roles, OIDC apps, users and
+> identity providers as code.
 >
-> Runs a Kubernetes Job that calls Zitadel's gRPC/REST API to create:
-> - Organization (tenant)
-> - Project (app group)
-> - OIDC Application (for oauth2-proxy)
-> - Roles (admin, operator, viewer)
-> - Human users (with initial passwords)
-> - Service users (machine accounts for agents/pipelines)
+> A PostSync Job (bootstrap.py) reconciles Zitadel with the desired state in the
+> ConfigMap "zitadel-bootstrap-config": create when missing, update when it differs,
+> never remove. It exits non-zero when any entry fails.
 >
-> The bootstrap config is a YAML file mounted as ConfigMap.
-> To customize: edit the ConfigMap in the overlay's configs/ dir.
+> Brings: Job, ConfigMap (desired state, placeholder), ServiceAccount, and a
+> namespaced Role + RoleBinding (secrets get/create/patch in the Job's own
+> namespace only; there is no ClusterRole).
 >
-> Requires:
-> - Zitadel running and healthy
-> - Secret "zitadel-admin-sa" with admin service account key
-> - ConfigMap "zitadel-bootstrap-config" with desired state
+> Tenant must provide (names are the contract, see docs/apps/zitadel.md):
+> - Secret "zitadel-admin-sa"   key zitadel-admin-sa.json  written by the chart's
+> setup Job (FirstInstance.Org.Machine); nothing to do
+> - ConfigMap "zitadel-bootstrap-config"  replace it (configMapGenerator
+> behavior: replace, no `namespace:`) with the
+> tenant's bootstrap.yaml
+> - Secret "zitadel-bootstrap-env" (optional)  one key per `*_env` name used in the
+> config: IdP client id/secret, initial passwords
 
 **Source:** [`k8s/components/apps/auth/zitadel/bootstrap/`](../../k8s/components/apps/auth/zitadel/bootstrap/)
 
@@ -45,18 +49,21 @@ summary_source: derived
 
 - `job.yaml`
 - `configmap.yaml`
-- `scripts-configmap.yaml`
 - `serviceaccount.yaml`
+- `role.yaml`
+- `rolebinding.yaml`
 
 ### Kubernetes kinds
 
-`ConfigMap`, `Job`, `ServiceAccount`
+`ConfigMap`, `Job`, `Role`, `RoleBinding`, `ServiceAccount`
 
 ### Container images
 
-- `alpine:3.20`
-- `curlimages/curl:8.11.0`
-- `python:3.13-alpine`
+- `python:3.13.5-alpine3.22`
+
+### Generated ConfigMaps
+
+- `zitadel-bootstrap-scripts`
 
 ### Labels
 
@@ -64,7 +71,7 @@ summary_source: derived
 
 ### Consumed by
 
-_No overlay in this repo references this component._
+- [components/bundles-zitadel-stack](../components/bundles-zitadel-stack.md)
 
 <!-- END DECLARED -->
 

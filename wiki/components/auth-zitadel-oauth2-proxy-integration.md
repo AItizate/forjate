@@ -3,10 +3,11 @@ title: auth-zitadel-oauth2-proxy-integration
 kind: component
 sources:
 - k8s/components/apps/auth/zitadel/oauth2-proxy-integration
-compiled_at: '2026-11-08'
+compiled_at: '2026-11-11'
 category: auth
 parent: components/auth-zitadel
-source_hash: 6ef0535daa15353b
+source_hash: b03d18b971f3ee76
+source_last_commit: '2026-11-11'
 summary: "oauth2-proxy \u2194 Zitadel Integration"
 summary_source: derived
 ---
@@ -30,9 +31,7 @@ summary_source: derived
 > # kustomization.yaml
 > resources:
 > - ../../base
-> - ../../components/apps/auth/zitadel               # Zitadel IdP
-> - ../../components/apps/auth/zitadel/bootstrap      # IaC user setup
-> - ../../components/apps/auth/zitadel/rbac           # K8s RBAC for bootstrap
+> - ../../components/bundles/zitadel-stack   # Zitadel IdP + postgres + bootstrap
 >
 > # Then in your oauth2-values.yaml, use the Zitadel OIDC values
 > # (see oauth2-values-zitadel.yaml in this directory as template)
@@ -42,7 +41,8 @@ summary_source: derived
 > - Adds: oidc-issuer-url pointing to Zitadel
 > - Adds: oidc-groups-claim for RBAC
 > - Removes: Google-specific client-id
-> - client-id/secret come from zitadel-oidc-credentials secret (auto-created by bootstrap)
+> - client-id/secret come from the Secret zitadel-oidc-oauth2-proxy (created by the
+> bootstrap for the application named oauth2-proxy, in the Zitadel namespace)
 
 **Source:** [`k8s/components/apps/auth/zitadel/oauth2-proxy-integration/`](../../k8s/components/apps/auth/zitadel/oauth2-proxy-integration/)
 

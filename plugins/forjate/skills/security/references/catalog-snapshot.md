@@ -2,7 +2,7 @@
 
 # Catalog snapshot for forjate:security
 
-compiled_at: 2026-10-29
+compiled_at: 2026-11-11
 
 **This is a snapshot, not a rule.** It shows what `wiki/catalog.json` resolved for each capability on the date above. Ask by capability and property, read the catalog at run time, and expect these tables to change as the catalog grows: a capability with one option today may have two tomorrow, and a component listed here may be denied by a context pack. Name a component in a record only after resolving it; name it in prose only when it is the single option for the capability.
 
@@ -12,11 +12,11 @@ who the user is, for oauth2-proxy in front of any HTTP surface.
 
 _asked by: architecture, security_
 
-Single option today: `apps/auth/gotrue-auth`. Prose may name it.
-
 | Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `apps/auth/gotrue-auth` | walk, run | mvp | single | none | baseline | internal, pii | MIT | Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature. |
+| `apps/auth/zitadel` | walk | lab | single | none | unknown | internal, pii, secret | Apache-2.0 (pinned v2.67.2; AGPL-3.0 from v3) | OIDC IdP with users, roles and service accounts as code (bootstrap/). Pins Zitadel v2.67.2, affected by CVE-2026-56666 (email auto-link does not check IdP verification; fixed in 4.15.3, separate upgrade), so no auto_linking on azure/generic_oidc. Holds identities and credentials. The tenant contract is contract.yaml; use bundles/zitadel-stack for the Postgres wiring. |
+| `bundles/zitadel-stack` | walk | lab | single | none | unknown | internal, pii, secret | Apache-2.0 (pinned v2.67.2; AGPL-3.0 from v3) | Zitadel plus its Postgres and the bootstrap Job, wired. The default way to take identity-provider with users as code. Same v2.67.2 pin and CVE-2026-56666 gate as apps/auth/zitadel. |
 
 ## `secrets-mechanism`
 

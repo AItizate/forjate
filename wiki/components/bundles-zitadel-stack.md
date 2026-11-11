@@ -3,10 +3,11 @@ title: bundles-zitadel-stack
 kind: component
 sources:
 - k8s/components/bundles/zitadel-stack
-compiled_at: '2026-11-08'
+compiled_at: '2026-11-11'
 category: bundles
-source_hash: 2f3dd27a4c4fdae1
-summary: "zitadel-stack \u2014 Zitadel IdP + PostgreSQL in a single reference"
+source_hash: 9fc19d28301daba9
+source_last_commit: '2026-11-11'
+summary: "zitadel-stack \u2014 Zitadel IdP + PostgreSQL + bootstrap in a single reference"
 summary_source: derived
 ---
 
@@ -16,40 +17,48 @@ summary_source: derived
 
 > Source comment, verbatim from `kustomization.yaml`:
 >
-> zitadel-stack — Zitadel IdP + PostgreSQL in a single reference
+> zitadel-stack — Zitadel IdP + PostgreSQL + bootstrap in a single reference
 >
 > Bundles:
-> - databases/postgres  (StatefulSet, Service) with namePrefix: zitadel-
-> - auth/zitadel        (Helm chart, Ingress, bootstrap, RBAC)
+> - databases/postgres      (StatefulSet, Service) with namePrefix: zitadel-
+> - auth/zitadel            (Helm chart: Deployment, Service, init/setup hooks,
+> SA, Role; plus the Ingress)
+> - auth/zitadel/bootstrap  (PostSync Job, desired-state ConfigMap, SA, Role,
+> RoleBinding — namespaced, no ClusterRole)
 >
 > Single SSH reference for remote consumers:
 > ssh://git@github.com/AItizate/forjate.git//k8s/components/bundles/zitadel-stack?ref=<ref>
 >
-> Requires: kustomize with --enable-helm flag
+> Requires: kustomize with --enable-helm (Argo CD: kustomize.buildOptions)
 >
-> Tenant must provide:
-> - A namespace (set via kustomization `namespace:` field)
-> - Secret "zitadel-postgres-secret" with: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
-> - Secret "zitadel-admin-sa" with: service account key JSON (for bootstrap)
-> - Secret "zitadel-masterkey" with: ZITADEL_MASTERKEY (32-char encryption key)
-> - Patch for ingress hostname
-> - Patch for clusterrolebinding subject namespace
+> Tenant must provide: ONE contract for names, keys and patches, in
+> k8s/components/apps/auth/zitadel/contract.yaml  (explained in docs/apps/zitadel.md)
+> In short: the Secrets zitadel-masterkey, zitadel-db-config, zitadel-postgres-secret,
+> zitadel-admin-password and (optional) zitadel-bootstrap-env in the overlay's
+> namespace; the hostname patches; the tenant's bootstrap.yaml. A buildable example:
+> docs/examples/zitadel-tenant/.
+>
+> The component pins Zitadel v2.67.2 (chart 8.12.2), affected by CVE-2026-56666
+> (fixed in 4.15.3): read "Version gate" in docs/apps/zitadel.md before enabling
+> auto-linking on an identity provider.
 
 **Source:** [`k8s/components/bundles/zitadel-stack/`](../../k8s/components/bundles/zitadel-stack/)
 
 ### Declared resources
 
 - `../../apps/auth/zitadel`
+- `../../apps/auth/zitadel/bootstrap`
 - `postgres`
 
 ### Depends on
 
 - [components/auth-zitadel](../components/auth-zitadel.md)
+- [components/auth-zitadel-bootstrap](../components/auth-zitadel-bootstrap.md)
 - [components/bundles-zitadel-stack-postgres](../components/bundles-zitadel-stack-postgres.md)
 
 ### Labels
 
-- `app.kubernetes.io/part-of: zitadel-stack`
+- `app.kubernetes.io/ait-bundle: zitadel-stack`
 
 ### Consumed by
 

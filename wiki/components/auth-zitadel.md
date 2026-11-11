@@ -3,12 +3,12 @@ title: auth-zitadel
 kind: component
 sources:
 - k8s/components/apps/auth/zitadel
-compiled_at: '2026-11-08'
+compiled_at: '2026-11-11'
 category: auth
 consumed_by:
 - components/bundles-zitadel-stack
-source_hash: 8b2ceeba13b554b3
-source_last_commit: '2026-11-08'
+source_hash: d04609feea83dc90
+source_last_commit: '2026-11-11'
 summary: "Zitadel \u2014 Cloud-native Identity Provider with built-in user management"
 summary_source: derived
 ---
@@ -48,45 +48,28 @@ summary_source: derived
 > Usage:
 > kubectl kustomize --enable-helm k8s/components/apps/auth/zitadel
 >
-> Dependencies (must be included in tenant overlay or use the zitadel-stack bundle):
+> Version gate: this pins Zitadel v2.67.2 (chart 8.12.2). That version is affected by
+> CVE-2026-56666 (auto-linking an external login by email does not check that the IdP
+> verified the email; fixed in 4.15.3, two majors away, so it is its own PR). Until
+> then do not enable `auto_linking` on a provider whose emails you do not trust
+> (bootstrap.py refuses it for azure and generic_oidc). See docs/apps/zitadel.md.
+>
+> Dependencies (tenant overlay, or use bundles/zitadel-stack which brings them):
 > - k8s/components/apps/databases/postgres (with namePrefix: zitadel-)
+> - ./bootstrap (optional): users, apps and IdPs as code
 >
-> Tenant must provide:
-> - A namespace (set via kustomization `namespace:` field)
-> - Secret "zitadel-postgres-secret" with: POSTGRES_USER=zitadel, POSTGRES_PASSWORD, POSTGRES_DB=zitadel
-> - Secret "zitadel-masterkey" with key "masterkey" (32-char encryption key)
-> - Secret "zitadel-db-config" with key "config-yaml" containing FULL DB config:
-> Database:
-> postgres:
-> Host: zitadel-postgres
-> Port: 5432
-> Database: zitadel
-> User:
-> Username: zitadel
-> Password: <same as POSTGRES_PASSWORD>
-> SSL:
-> Mode: disable
-> Admin:
-> ExistingDatabase: zitadel
-> Username: zitadel
-> Password: <same as POSTGRES_PASSWORD>
-> SSL:
-> Mode: disable
-> (configSecretName overrides configmapConfig — include everything, not just passwords)
-> - Patch for ingress hostname (zitadel.example.com → zitadel.{tenant-domain})
-> - Patch for oauth2-proxy to use Zitadel as OIDC provider
-> - Patch for clusterrolebinding subject namespace (rbac/clusterrolebinding.yaml)
+> Tenant must provide: the contract in ./contract.yaml (ONE list of Secret names and
+> keys, namespace, hostname patches, explained in docs/apps/zitadel.md and built by
+> docs/examples/zitadel-tenant/). Names: zitadel-masterkey, zitadel-db-config,
+> zitadel-postgres-secret, zitadel-admin-password, zitadel-bootstrap-env (optional).
+> The chart generates zitadel-admin-sa itself (no manual step, no default password).
 >
-> Namespace is NOT set here — the consumer overlay sets it.
-> This allows deploying Zitadel into any namespace (auth, identity, zitadel, etc.)
+> Namespace is NOT set here: the consumer overlay sets it (auth, identity, zitadel...).
 >
-> All resources (Helm + kustomize) share the label:
-> app.kubernetes.io/part-of: zitadel
+> Labels on every object: app.kubernetes.io/part-of: zitadel and
+> app.kubernetes.io/ait-component: zitadel.
 >
-> Consumer overlay example:
-> namespace: auth
-> resources:
-> - ../../../../components/apps/auth/zitadel
+> Consumer overlay example: docs/examples/zitadel-tenant/kustomization.yaml
 
 **Source:** [`k8s/components/apps/auth/zitadel/`](../../k8s/components/apps/auth/zitadel/)
 
@@ -100,11 +83,12 @@ summary_source: derived
 
 ### Patches
 
-- `inline → Job/zitadel-init`
+- `inline → ?`
 - `inline → Job/zitadel-setup`
 
 ### Labels
 
+- `app.kubernetes.io/ait-component: zitadel`
 - `app.kubernetes.io/part-of: zitadel`
 
 ### Consumed by

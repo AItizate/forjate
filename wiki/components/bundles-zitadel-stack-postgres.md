@@ -3,12 +3,13 @@ title: bundles-zitadel-stack-postgres
 kind: component
 sources:
 - k8s/components/bundles/zitadel-stack/postgres
-compiled_at: '2026-11-08'
+compiled_at: '2026-11-11'
 category: bundles
 parent: components/bundles-zitadel-stack
 consumed_by:
 - components/bundles-zitadel-stack
-source_hash: 2f21b6434690f613
+source_hash: 3040e95b60c8cd14
+source_last_commit: '2026-11-11'
 summary: Wraps the factory postgres component with zitadel- prefix
 summary_source: derived
 ---
@@ -20,7 +21,9 @@ summary_source: derived
 > Source comment, verbatim from `kustomization.yaml`:
 >
 > Wraps the factory postgres component with zitadel- prefix
-> Produces: zitadel-postgres (StatefulSet, Service), zitadel-postgres-secret (Secret)
+> Produces: zitadel-postgres (StatefulSet, Service). The Secret zitadel-postgres-secret
+> (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB) is NOT shipped: the tenant provides it
+> (apps/auth/zitadel/contract.yaml).
 
 **Source:** [`k8s/components/bundles/zitadel-stack/postgres/`](../../k8s/components/bundles/zitadel-stack/postgres/)
 

@@ -444,6 +444,32 @@ components:
     licence: MIT
     notes: Pair with base oauth2-proxy for one login in front of any HTTP surface. Holds identities, so pii by nature.
     wiring: {protocol: http}
+  apps/auth/zitadel:
+    stages: [walk]
+    capabilities: [identity-provider]
+    maturity: lab
+    gpu_required: none
+    ha: single
+    psa_restricted: false
+    secrets:
+      takes: env
+    data_classes: [internal, pii, secret]
+    licence: Apache-2.0 (pinned v2.67.2; AGPL-3.0 from v3)
+    notes: OIDC IdP with users, roles and service accounts as code (bootstrap/). Pins Zitadel v2.67.2, affected by CVE-2026-56666 (email auto-link does not check IdP verification; fixed in 4.15.3, separate upgrade), so no auto_linking on azure/generic_oidc. Holds identities and credentials. The tenant contract is contract.yaml; use bundles/zitadel-stack for the Postgres wiring.
+    wiring: {service: zitadel, port: 8080, protocol: http}
+  bundles/zitadel-stack:
+    stages: [walk]
+    capabilities: [identity-provider]
+    maturity: lab
+    gpu_required: none
+    ha: single
+    psa_restricted: false
+    secrets:
+      takes: env
+    data_classes: [internal, pii, secret]
+    licence: Apache-2.0 (pinned v2.67.2; AGPL-3.0 from v3)
+    notes: Zitadel plus its Postgres and the bootstrap Job, wired. The default way to take identity-provider with users as code. Same v2.67.2 pin and CVE-2026-56666 gate as apps/auth/zitadel.
+    wiring: {protocol: http}
   apps/continuous-delivery/argocd:
     stages: [walk, run]
     capabilities: [gitops]

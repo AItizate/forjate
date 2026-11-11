@@ -214,16 +214,33 @@ def test_oauth2_template_verifies_tls_and_reads_the_secret_the_bootstrap_writes(
 # ------------------------------------------------------- the example builds
 
 def test_example_overlay_builds_in_one_namespace_with_no_placeholder_host(example):
-    namespaced = [o for o in example if o["kind"] != "Namespace"]
-    # kustomize does not stamp `namespace:` on Helm output: those objects carry none and
-    # land in the deploy namespace (contract.yaml says so). Nothing may carry another.
-    assert {o["metadata"].get("namespace") for o in namespaced} <= {"zitadel", None}
-    assert by_kind(example, "Ingress", "zitadel")["metadata"]["namespace"] == "zitadel"
-    assert by_kind(example, "Job", "zitadel-bootstrap")["metadata"]["namespace"] == "zitadel"
+    # N2: every object, Helm output included, carries the namespace; the contract's patch
+    # (labelSelector part-of=zitadel-stack) is what puts it there.
+    for o in example:
+        if o["kind"] == "Namespace":
+            continue
+        assert o["metadata"].get("namespace") == "zitadel", (o["kind"], o["metadata"]["name"])
     binding = by_kind(example, "RoleBinding", "zitadel-bootstrap")
     assert binding["subjects"][0]["namespace"] == "zitadel"
     text = yaml.safe_dump_all([o for o in example if o["metadata"]["name"] != "zitadel-config-yaml"])
     assert "zitadel.example.com" not in text, "a placeholder host survived the documented patches"
+
+
+def test_bundle_keeps_part_of_zitadel_stack_next_to_ait_bundle(bundle):
+    # Known remote tenants select on part-of=zitadel-stack to force metadata.namespace.
+    for o in bundle:
+        labels = o["metadata"].get("labels") or {}
+        assert labels.get("app.kubernetes.io/part-of") == "zitadel-stack", (o["kind"], o["metadata"]["name"])
+        assert labels.get("app.kubernetes.io/ait-bundle") == "zitadel-stack"
+
+
+def test_contract_namespace_patch_is_the_one_the_example_uses():
+    patch = yaml.safe_load(CONTRACT["namespace"]["patch"])["patches"][0]
+    assert patch["target"]["labelSelector"] == "app.kubernetes.io/part-of=zitadel-stack"
+    example = yaml.safe_load((EXAMPLE / "kustomization.yaml").read_text())
+    assert any(p.get("target", {}).get("labelSelector") == patch["target"]["labelSelector"]
+               and "/metadata/namespace" in p["patch"] for p in example["patches"])
+    assert "part-of=zitadel-stack" in DOCS
 
 
 def test_example_replaces_the_bootstrap_config_with_the_tenants(example):

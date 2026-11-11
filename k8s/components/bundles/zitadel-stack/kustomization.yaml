@@ -31,6 +31,9 @@ resources:
   - ../../apps/auth/zitadel/bootstrap
   - postgres
 
+# part-of is the selector real remote tenants use to force metadata.namespace onto the
+# Helm output (docs/use-case-builder/tenant-patterns.md): do not drop it.
 labels:
   - pairs:
       app.kubernetes.io/ait-bundle: zitadel-stack
+      app.kubernetes.io/part-of: zitadel-stack

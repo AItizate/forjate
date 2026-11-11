@@ -84,7 +84,7 @@ The chart's `init` and `setup` Jobs are Argo CD **Sync** hooks ordered with sync
 
 One contract, in `k8s/components/apps/auth/zitadel/contract.yaml`. The kustomization headers and this page repeat it, and `tests/zitadel/test_contract.py` fails if a rendered pod reads a Secret or key that the contract does not list.
 
-**One namespace for everything**, set by the overlay with `namespace:` (the example uses `zitadel`). kustomize does not stamp `namespace:` on the Helm chart's objects, so deploy into that same namespace: Argo CD `destination.namespace`, or `kubectl apply -n zitadel`.
+**One namespace for everything**, set by the overlay with `namespace:` (the example uses `zitadel`). kustomize does not stamp `namespace:` on the Helm chart's objects, so the overlay forces it with a patch on `app.kubernetes.io/part-of=zitadel-stack` (every object of the bundle carries that label; the example shows the patch). Do not rely on Argo CD `destination.namespace` or `kubectl -n`: a root kustomization that holds several namespaces cannot use them.
 
 **Secrets you create before the first sync** (SealedSecret or ESO):
 
@@ -251,10 +251,10 @@ Copy `docs/examples/zitadel-tenant/` into your tenant repo, change the domain in
 ### Step 3: Sync
 
 ```bash
-kustomize build --enable-helm docs/examples/zitadel-tenant | kubectl apply -n zitadel -f -
+kustomize build --enable-helm docs/examples/zitadel-tenant | kubectl apply -f -
 ```
 
-or let Argo CD do it (destination namespace `zitadel`). Init, setup, the Deployment and the bootstrap Job run in order by themselves; the key of the bootstrap service account is written by the chart.
+or let Argo CD do it. Init, setup, the Deployment and the bootstrap Job run in order by themselves; the key of the bootstrap service account is written by the chart.
 
 ### Step 4: Switch oauth2-proxy to Zitadel
 

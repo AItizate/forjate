@@ -12,9 +12,19 @@ namespace:
     One namespace for everything. The tenant overlay sets it with `namespace:`;
     the component never does. All Secrets below live in that namespace, and the
     bootstrap writes zitadel-oidc-<app> into it too. kustomize does NOT stamp
-    `namespace:` on the Helm chart's objects (they render without one), so deploy
-    into the same namespace: Argo CD `destination.namespace`, or `kubectl apply -n`.
+    `namespace:` on the Helm chart's objects (they render without one), so the
+    overlay must force it, with the patch below (every object of the bundle carries
+    app.kubernetes.io/part-of=zitadel-stack). Do not rely on Argo CD
+    `destination.namespace` or `kubectl -n`: a root kustomization that holds several
+    namespaces cannot use them.
   example: zitadel
+  patch: |
+    patches:
+      - target: {labelSelector: "app.kubernetes.io/part-of=zitadel-stack"}
+        patch: |
+          - op: add
+            path: /metadata/namespace
+            value: zitadel
 
 # Secrets the tenant creates BEFORE the first sync (SealedSecret, ESO, ...).
 secrets:

@@ -112,6 +112,9 @@ spec:
             name: zitadel-bootstrap-scripts
         - name: admin-sa-key
           secret:
-            secretName: zitadel-admin-sa
+            secretName: zitadel-admin-sa  # written by the chart's setup Job (FirstInstance.Org.Machine)
+            items:
+              - key: zitadel-admin-sa.json
+                path: sa-key.json
         - name: jwt
           emptyDir: {}

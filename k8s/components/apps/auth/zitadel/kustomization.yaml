@@ -110,18 +110,39 @@ helmCharts:
                 Username: zitadel
                 SSL:
                   Mode: disable
-          DefaultInstance:
+          # First instance, created once by `zitadel setup`. DefaultInstance would only
+          # apply to instances created LATER; the first one reads FirstInstance, and
+          # without it Zitadel v2.67.2 creates `zitadel-admin` / `Password1!` (steps.yaml)
+          # behind the public Ingress. The password is NOT set here: it comes from the
+          # Secret "zitadel-admin-password" through the env var below, and the Secret
+          # is required, so a missing Secret stops the pod instead of falling back to
+          # the default password.
+          FirstInstance:
             Org:
               Human:
-                UserName: admin
+                UserName: admin  # login: admin@zitadel.<ExternalDomain>
                 FirstName: Admin
                 LastName: User
                 Email:
-                  Address: admin@example.com
+                  Address: admin@example.com  # tenant: override in "zitadel-db-config"
                   Verified: true
-                Password: ""  # patched by overlay secret
-          Machine:
-            MachineKeyLifetime: 8760h  # 1 year for service accounts
+                PasswordChangeRequired: true
+              # IAM_OWNER service account for the bootstrap Job. The chart writes its
+              # JSON key to the Secret "zitadel-admin-sa" (key zitadel-admin-sa.json)
+              # when setup runs for the first time, so there is no manual UI step.
+              Machine:
+                Machine:
+                  Username: zitadel-admin-sa
+                  Name: Bootstrap service account
+                MachineKey:
+                  Type: 1  # JSON, the only supported value
+      # The first admin's password. Never in git, never in a ConfigMap.
+      env:
+        - name: ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: zitadel-admin-password
+              key: password
       # Helm hooks -> Argo CD hooks.
       #
       # The chart ships init/setup as `helm.sh/hook: pre-install,pre-upgrade`. Argo CD
@@ -176,6 +197,13 @@ helmCharts:
               - name: ZITADEL_PG_PORT
                 value: "5432"
             command: ['sh', '-c', 'until nc -z $ZITADEL_PG_HOST $ZITADEL_PG_PORT; do echo "waiting for $ZITADEL_PG_HOST:$ZITADEL_PG_PORT..."; sleep 2; done']
+        # Sidecar the chart adds when FirstInstance.Org.Machine is set: it copies the
+        # machine key into the Secret "zitadel-admin-sa". The chart default image
+        # (bitnami/kubectl:<kube version>) is not published per version any more.
+        machinekeyWriter:
+          image:
+            repository: alpine/k8s
+            tag: 1.31.2
       # Starts only after setup has migrated the database.
       annotations:
         argocd.argoproj.io/sync-wave: "3"
@@ -205,6 +233,36 @@ patches:
         path: /metadata/annotations/helm.sh~1hook-delete-policy
       - op: remove
         path: /metadata/annotations/helm.sh~1hook-weight
+
+  # The chart bakes `-n {{ .Release.Namespace }}` into the machine key writer, and
+  # kustomize renders it with namespace "default". A consumer overlay sets the real
+  # namespace on the objects only, so the sidecar would read the pod and write the
+  # Secret in the wrong namespace. Without -n, kubectl in a pod uses the pod's own
+  # namespace. Same command as the chart (8.12.2) otherwise.
+  - target:
+      kind: Job
+      name: zitadel-setup
+    patch: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: zitadel-setup
+      spec:
+        template:
+          spec:
+            containers:
+              - name: zitadel-machinekey
+                command:
+                  - sh
+                  - -c
+                  - |
+                    until [ ! -z "$(kubectl get po ${POD_NAME} -o jsonpath='{.status.containerStatuses[?(@.name=="zitadel-setup")].state.terminated}')" ]; do
+                      echo 'waiting for zitadel-setup container to terminate'; sleep 5
+                    done
+                    echo 'zitadel-setup container terminated'
+                    if [ -f /machinekey/sa.json ]; then
+                      kubectl create secret generic zitadel-admin-sa --from-file=zitadel-admin-sa.json=/machinekey/sa.json
+                    fi
 
 labels:
   - pairs:

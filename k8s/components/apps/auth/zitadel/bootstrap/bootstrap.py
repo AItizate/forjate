@@ -234,12 +234,21 @@ def validate_idp(idp):
             )
         elif tenant_type and tenant_type not in AZURE_TENANT_TYPES:
             errors.append(f"IdP {name}: tenant_type {tenant_type!r} unknown (known: {sorted(AZURE_TENANT_TYPES)})")
-    if kind in LOOSE_IDPS and opts.get("auto_linking") and not idp.get("trust_idp_email"):
+    linking = opts.get("auto_linking")
+    if linking == "email" and kind in LOOSE_IDPS and not idp.get("trust_idp_email"):
         errors.append(
-            f"IdP {name}: auto_linking={opts['auto_linking']} on a {kind} provider refused. The email/username "
-            "claim of an Entra tenant or a generic OIDC server is not proof of who the person is, and the "
-            "first login would be linked to (and become) the Zitadel user with that email, admins included. "
-            "Set `trust_idp_email: true` on the entry only if you control the IdP and know it verifies emails"
+            f"IdP {name}: auto_linking=email on a {kind} provider refused. The email claim of an Entra tenant "
+            "or a generic OIDC server is not proof of who the person is, and the first login would be linked "
+            "to (and become) the Zitadel user with that email, admins included. Set `trust_idp_email: true` "
+            "on the entry only if you control the IdP and know it verifies emails"
+        )
+    if linking == "username" and not idp.get("trust_idp_username"):
+        errors.append(
+            f"IdP {name}: auto_linking=username refused for every external provider. The username/login is "
+            "chosen by whoever registers it (a GitHub login, an Entra UPN), so anyone who registers the "
+            "login `admin`, or the login of a user in your closed set, is linked to that Zitadel user on "
+            "first login and inherits its grants. Use auto_linking=email on google/github. Set "
+            "`trust_idp_username: true` only for an IdP you operate, where usernames are assigned by you"
         )
     if opts.get("auto_linking") and opts["auto_linking"] not in AUTO_LINKING:
         errors.append(f"IdP {name}: auto_linking {opts['auto_linking']!r} unknown (known: {sorted(AUTO_LINKING)})")
@@ -652,6 +661,9 @@ def ensure_identity_provider(idp):
     if idp.get("trust_idp_email"):
         say(f"  WARNING: {idp['name']} has trust_idp_email=true: whoever can set the email at that IdP "
             "becomes the Zitadel user with that email")
+    if idp.get("trust_idp_username"):
+        say(f"  WARNING: {idp['name']} has trust_idp_username=true: whoever can pick a username at that IdP "
+            "becomes the Zitadel user with that username")
     body = idp_body(idp, client_id, client_secret)
     path = IDP_TYPES[kind][0]
     # /admin/v1/idps/_search returns no results for instance-level IdPs;

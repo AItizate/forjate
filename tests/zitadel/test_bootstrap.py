@@ -346,6 +346,32 @@ def test_loose_idp_auto_linking_needs_the_loud_flag_and_warns(w, capsys):
     assert next(iter(w.z.idps.values()))["providerOptions"]["autoLinking"] == "AUTO_LINKING_OPTION_EMAIL"
 
 
+@pytest.mark.parametrize("kind, extra", [
+    ("google", {}), ("github", {}),
+    ("azure", {"tenant_id": "t-1"}),
+    ("generic_oidc", {"issuer": "https://idp.example.com"}),
+])
+def test_auto_linking_username_is_refused_for_every_external_idp(w, kind, extra):
+    # N1: a GitHub login (or an Entra UPN) is chosen by whoever registers it; linking
+    # on it lets anyone who registers `admin` take over the Zitadel user `admin`.
+    entry = idp(type=kind, options={"auto_linking": "username"}, **extra)
+    assert w.run(cfg(identity_providers=[entry])) == 2
+    assert not w.z.calls and not w.z.idps
+
+
+def test_trust_email_does_not_unlock_username_linking(w):
+    entry = idp(tenant_id="t-1", options={"auto_linking": "username"}, trust_idp_email=True)
+    assert w.run(cfg(identity_providers=[entry])) == 2
+
+
+@pytest.mark.parametrize("kind, extra", [("github", {}), ("azure", {"tenant_id": "t-1"})])
+def test_username_linking_needs_its_own_loud_flag_and_warns(w, kind, extra, capsys):
+    entry = idp(type=kind, options={"auto_linking": "username"}, trust_idp_username=True, **extra)
+    assert w.run(cfg(identity_providers=[entry])) == 0
+    assert "trust_idp_username=true" in capsys.readouterr().out
+    assert next(iter(w.z.idps.values()))["providerOptions"]["autoLinking"] == "AUTO_LINKING_OPTION_USERNAME"
+
+
 @pytest.mark.parametrize("kind", ["google", "github"])
 def test_auto_linking_email_stays_available_for_idps_that_verify_emails(w, kind, capsys):
     entry = idp(type=kind, options={"auto_linking": "email"})

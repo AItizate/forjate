@@ -281,7 +281,7 @@ The component pins chart 8.12.2, which ships **Zitadel v2.67.2**. That version i
 
 What this changes in practice, until the bump:
 
-- `auto_linking: email` is safe only for providers whose emails you trust. Google and GitHub verify them (GitHub: see the note below). **The bootstrap refuses `auto_linking` for `azure` and `generic_oidc`** unless the entry sets `trust_idp_email: true`, and logs a WARNING on every run when it is set.
+- `auto_linking: email` is safe only for providers whose emails you trust. Google and GitHub verify them (GitHub: see the note below). **The bootstrap refuses `auto_linking: email` for `azure` and `generic_oidc`** unless the entry sets `trust_idp_email: true`, and **`auto_linking: username` for every provider** unless it sets `trust_idp_username: true`; both log a WARNING on every run.
 - Every run with `auto_linking` logs a CVE notice.
 - Keep `is_auto_creation` off unless you really want anyone with an account at the provider to get a user.
 
@@ -311,7 +311,8 @@ Every option is off by default. The setup for a closed set of users is `auto_lin
 Safe defaults the script enforces:
 
 - **azure** needs `tenant_id` (your Entra tenant) or an explicit `tenant_type`; there is no default, because `COMMON` accepts any Microsoft account. `email_verified` defaults to `false`: an Entra `email` claim is user-editable.
-- **auto_linking on `azure` and `generic_oidc` is refused** (config error, exit 2) unless the entry sets `trust_idp_email: true`: the email claim of an Entra tenant or a generic OIDC server is not proof of identity, and linking on it hands over the Zitadel user with that email, admins included.
+- **`auto_linking: email` on `azure` and `generic_oidc` is refused** (config error, exit 2) unless the entry sets `trust_idp_email: true`: the email claim of an Entra tenant or a generic OIDC server is not proof of identity, and linking on it hands over the Zitadel user with that email, admins included.
+- **`auto_linking: username` is refused for every provider** (`github`, `google`, `azure`, `generic_oidc`) unless the entry sets `trust_idp_username: true`: a username is chosen by whoever registers it. Anyone could register the GitHub login `admin`, or the login of a user in your closed set, and be linked to that Zitadel user on first login with its grants. Use `email` on Google and GitHub.
 
 Callback URL to register at the provider (login UI v1, Zitadel 2.x): `https://<zitadel-domain>/ui/login/login/externalidp/callback`. Login v2 (the default from Zitadel 4) uses another path.
 
@@ -372,5 +373,5 @@ kubectl logs -n security deploy/oauth2-proxy | grep -i oidc
 | Pods in `CreateContainerConfigError` | a Secret of the contract is missing (`zitadel-masterkey`, `zitadel-admin-password`, `zitadel-db-config`) |
 | `zitadel` Deployment never starts, init/setup Jobs absent | `helm.sh/hook*` annotation back in the render; `tests/zitadel/test_render.py` guards this |
 | Bootstrap: `Failed to get an access token` | `instance_url` is not the issuer (it is the JWT audience and the Host header) |
-| Bootstrap: exit 2 | `CONFIG ERROR` lines on stderr: literal `initial_password`, azure without tenant, `auto_linking` on azure/generic_oidc |
+| Bootstrap: exit 2 | `CONFIG ERROR` lines on stderr: literal `initial_password`, azure without tenant, `auto_linking: email` on azure/generic_oidc, `auto_linking: username` anywhere |
 | `zitadel-admin-sa` missing | setup ran before and the key was not written; see the `zitadel-machinekey` container log. Recreate the machine key in the Console and store it under the same name and key |

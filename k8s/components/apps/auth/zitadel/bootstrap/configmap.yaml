@@ -96,7 +96,8 @@ data:
     #     scopes: [openid, profile, email]   # optional, per-type default
     #     options:
     #       auto_linking: email     # link a first external login to the Zitadel user
-    #                               # with the same verified email (or: username)
+    #                               # with the same verified email. `username` is refused
+    #                               # (anyone can register the GitHub login `admin`)
     #       is_linking_allowed: false
     #       is_creation_allowed: false
     #       is_auto_creation: false # true = anyone with a Google account gets a user
@@ -108,10 +109,11 @@ data:
     #   # explicit `tenant_type`. COMMON accepts any Microsoft account on earth.
     #   # `email_verified` defaults to false (an Entra email is user-editable).
     #   #
-    #   # auto_linking is REFUSED for azure and generic_oidc (the IdP's email/username
-    #   # is not proof of who the person is: linking would hand over the Zitadel user
-    #   # with that email, admins included). Override with `trust_idp_email: true` on
-    #   # the entry only if you control the IdP; the Job logs a WARNING every run.
+    #   # auto_linking: email is REFUSED for azure and generic_oidc (their email claim
+    #   # is not proof of who the person is); override with `trust_idp_email: true` only
+    #   # if you control the IdP. auto_linking: username is REFUSED for every provider
+    #   # (usernames are chosen by whoever registers them); override with
+    #   # `trust_idp_username: true` only for an IdP you operate. WARNING logged each run.
     #   #
     #   # Zitadel < 4.15.3 (the pinned chart ships 2.67.2) does not check that the IdP
     #   # verified the email even for Google/GitHub (CVE-2026-56666). See

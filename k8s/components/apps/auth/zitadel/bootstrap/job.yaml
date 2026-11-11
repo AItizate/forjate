@@ -100,6 +100,10 @@ spec:
         - name: admin-sa-key
           secret:
             secretName: zitadel-admin-sa  # written by the chart's setup Job (FirstInstance.Org.Machine)
+            # Optional so a missing Secret or key does not leave the pod in ContainerCreating
+            # until activeDeadlineSeconds: bootstrap.py checks the file and fails at once
+            # with the instructions (existing instances, lost key).
+            optional: true
             items:
               - key: zitadel-admin-sa.json
                 path: sa-key.json

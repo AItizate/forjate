@@ -133,7 +133,7 @@ class Zitadel:
         if g := m(r"/management/v1/projects/(\w+)/apps/oidc", path):
             i = self.nid("app")
             cid = f"cid-{i}"
-            public = body["authMethodType"] == "OIDC_AUTH_METHOD_TYPE_NONE"
+            public = body["authMethodType"] in ("OIDC_AUTH_METHOD_TYPE_NONE", "OIDC_AUTH_METHOD_TYPE_PRIVATE_KEY_JWT")
             self.apps[i] = {**body, "project": g[1], "clientId": cid, "secret": None if public else f"secret-{i}"}
             out = {"appId": i, "clientId": cid}
             if not public:
@@ -148,6 +148,9 @@ class Zitadel:
             return Resp(200)
         if g := m(r"/management/v1/projects/(\w+)/apps/(\w+)/oidc_config/_generate_client_secret", path):
             a = self.apps[g[2]]
+            if a["secret"] is None:
+                # what Zitadel answers for apps that authenticate without a secret
+                return Resp(400, {"message": "app is not a confidential client"})
             a["secret"] = f"regen-{next(self.ids)}"
             return Resp(200, {"clientSecret": a["secret"]})
         if (method, path) == ("POST", "/management/v1/actions/_search"):

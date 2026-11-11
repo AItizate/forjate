@@ -93,7 +93,7 @@ One contract, in `k8s/components/apps/auth/zitadel/contract.yaml`. The kustomiza
 | `zitadel-masterkey` | `masterkey` (32 characters) | Deployment `zitadel`, Job `zitadel-setup` |
 | `zitadel-db-config` | `config-yaml`: Zitadel config merged **over** the chart's ConfigMap. It must hold `Database.postgres.User.Password` and `Admin.Password`; it can also override `ExternalDomain` and `FirstInstance.Org.Human.Email` | `zitadel`, `zitadel-init`, `zitadel-setup` |
 | `zitadel-postgres-secret` | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (bundle only) | StatefulSet `zitadel-postgres` |
-| `zitadel-admin-password` | `password`: the first admin's password. Required, there is no default | `zitadel`, `zitadel-setup` |
+| `zitadel-admin-password` | `password`: the first admin's password. Required, there is no default. It must satisfy Zitadel's default password policy (at least 8 characters with upper case, lower case, a digit and a symbol) or setup fails on a new instance | `zitadel`, `zitadel-setup` |
 | `zitadel-bootstrap-env` (optional) | one key per `*_env` name in `bootstrap.yaml`: IdP client id/secret, users' initial passwords | Job `zitadel-bootstrap` |
 
 **Secrets that appear by themselves** (never create them by hand):
@@ -189,11 +189,45 @@ patches:
 5. PostSync: the bootstrap Job signs a JWT with the key from `zitadel-admin-sa`, waits for Zitadel, and reconciles organization → project → roles → apps → users → service users → IdPs.
 6. OIDC credentials land in `zitadel-oidc-<app>` in the same namespace.
 
-There is no default admin password and no manual step in the UI.
+There is no default admin password and no manual step in the UI. Init and setup run again on every sync (they are idempotent: setup skips what already exists), which is the price of keeping them as recreatable hooks.
 
 ## First login
 
 The first admin's login name is `admin@zitadel.<ExternalDomain>` (Zitadel suffixes the username with the organization domain), and its password is the value of `zitadel-admin-password`. Zitadel asks to change it at the first login. Use it to enrol a second factor and to create the people who will administer; day-to-day users come from `bootstrap.yaml`.
+
+## Migrating an existing instance
+
+For a tenant that already runs an earlier version of this component. The instance exists, Zitadel's `FirstInstance` never runs again, and the bootstrap service account key was created by hand. Do this **before** syncing the new version, or the Deployment stays in `CreateContainerConfigError` and the bootstrap Job stops at once with "the bootstrap service account key is missing".
+
+1. **Create `zitadel-admin-password`.** The Deployment and the setup Job now require it. On an existing instance its value is never used (the first admin already exists), so a random one is fine:
+   ```bash
+   kubectl create secret generic zitadel-admin-password -n zitadel \
+     --from-literal=password="$(openssl rand -base64 24)Aa1!"
+   ```
+2. **Re-key the bootstrap service account Secret.** The chart writes `zitadel-admin-sa.json`; the old guide had you store the key as `sa-key.json`. The bootstrap Job reads only the new name:
+   ```bash
+   kubectl get secret zitadel-admin-sa -n zitadel -o jsonpath='{.data.sa-key\.json}' | base64 -d > key.json
+   kubectl create secret generic zitadel-admin-sa -n zitadel \
+     --from-file=zitadel-admin-sa.json=key.json --dry-run=client -o yaml | kubectl apply -f -
+   rm key.json
+   ```
+   If you keep the Secret in git as a SealedSecret, seal it under the new key name instead.
+3. **Close the old default admin.** Earlier versions created `zitadel-admin` with the Zitadel default password, behind the public Ingress. If it was never changed, anyone can log in as IAM_OWNER. In the Console create your own admin (or use the one from `bootstrap.yaml`), then change or deactivate `zitadel-admin`, and audit the instance's logins since the first deploy.
+4. **Remove what the old version left.** The cluster-scoped role and binding named `zitadel-bootstrap` (`kubectl delete clusterrole,clusterrolebinding zitadel-bootstrap`; Argo CD prunes them if it tracks them), the `rbac/` entry in your overlay's `resources`, and, if Argo complains about immutable fields on the first sync, the old plain Jobs `zitadel-init` and `zitadel-setup` (they are Argo CD hooks now and are recreated).
+5. **Adapt `bootstrap.yaml`.** `initial_password:` literals are rejected (use `initial_password_env`), `organization:` becomes `organizations:`, and an Azure IdP needs `tenant_id`. The Job exits 2 and lists every `CONFIG ERROR`.
+6. **Namespace patch and labels.** Add the namespace patch of the example overlay; the bundle keeps `part-of: zitadel-stack`, so an existing selector on it still works.
+
+## Recovering the bootstrap service account key
+
+On a **new** instance the chart's setup Job writes the key to `zitadel-admin-sa` itself. If the Secret is missing anyway (the writer container failed, the Secret was deleted, or `kubectl create` found one already there), `FirstInstance` will not run again to rewrite it. Create a new key by hand:
+
+1. Log in to the Console as the first admin (`admin@zitadel.<ExternalDomain>`).
+2. Users → Service Users → `zitadel-admin-sa` (IAM_OWNER, created by `FirstInstance`). On an instance without it, create a service user and give it the `IAM_OWNER` role under Instance → Members.
+3. Keys → New → JSON, download it, and store it:
+   ```bash
+   kubectl create secret generic zitadel-admin-sa -n zitadel --from-file=zitadel-admin-sa.json=./key.json
+   ```
+4. Delete the downloaded file, and delete any older key of that user in the Console. Re-run the bootstrap (`kubectl delete job zitadel-bootstrap -n zitadel`, or sync).
 
 ## Replacing GoTrue
 
@@ -239,7 +273,7 @@ kubectl create namespace zitadel
 kubectl create secret generic zitadel-masterkey -n zitadel \
   --from-literal=masterkey="$(openssl rand -hex 16)"          # 32 characters
 kubectl create secret generic zitadel-admin-password -n zitadel \
-  --from-literal=password="$(openssl rand -base64 24)"
+  --from-literal=password="$(openssl rand -base64 24)Aa1!"   # Zitadel's policy wants upper, lower, digit and symbol
 ```
 
 `zitadel-postgres-secret`, `zitadel-db-config` and `zitadel-bootstrap-env` follow the same pattern; see the example files. The Zitadel DB passwords in `zitadel-db-config` must equal `POSTGRES_PASSWORD`. For anything beyond a lab, seal them (or use ESO) instead of applying them with `kubectl`.
@@ -291,7 +325,7 @@ The bootstrap also leans on the v1 management/admin APIs and Actions v1 (the `gr
 
 The bootstrap creates every application listed under `applications:` and updates the ones that exist (redirect URIs, auth method, role assertions). It logs the `clientId` of every app and stores `zitadel-oidc-<app>` (`client-id`, `issuer-url`, and `client-secret` for confidential clients) in the bootstrap namespace. Seal or copy the secret into the namespace that consumes it.
 
-Zitadel emits roles as an object under `urn:zitadel:iam:org:project:roles`. Argo CD and oauth2-proxy only read claims that are flat lists, so define an action that adds a `groups` claim and attach it to the Complement Token flow (see the commented `actions:` / `flows:` example in the bootstrap ConfigMap). Create it with `allowed_to_fail: true`: a failing action that is not allowed to fail blocks every login. The example collects the roles of **every** grant the user has, across projects, so an `admin` in any project becomes `groups: [admin]` for the relying party; scope it if the instance hosts more than one project.
+Zitadel emits roles as an object under `urn:zitadel:iam:org:project:roles`. Argo CD and oauth2-proxy only read claims that are flat lists, so define an action that adds a `groups` claim and attach it to the Complement Token flow (see the commented `actions:` / `flows:` example in the bootstrap ConfigMap). Create it with `allowed_to_fail: true`: a failing action that is not allowed to fail blocks every login. The example keeps only the grants of the configured project: the bootstrap replaces `{{project_id}}` in the action script with the id of `project:`, so a role named `viewer` in another project does not pass oauth2-proxy's `allowed-group` gate. (It relies on `projectId` being present on the user grants in the Actions v1 context; check it once on a live instance.)
 
 Argo CD, two clients:
 

@@ -39,7 +39,7 @@ secrets:
     read_by: [StatefulSet zitadel-postgres]
     only_with: bundles/zitadel-stack (the postgres sub-bundle)
   - name: zitadel-admin-password
-    keys: {password: "first admin (login admin@zitadel.<ExternalDomain>); required, there is no default"}
+    keys: {password: "first admin (login admin@zitadel.<ExternalDomain>); required, there is no default; must meet Zitadel's default password policy (8+ chars, upper, lower, digit, symbol) or setup fails on a new instance. On an existing instance it is never used"}
     read_by: [Deployment zitadel, Job zitadel-setup]
   - name: zitadel-bootstrap-env
     optional: true
@@ -51,7 +51,11 @@ secrets:
 generated:
   - name: zitadel-admin-sa
     keys: [zitadel-admin-sa.json]
-    by: the chart's setup Job, the first time it runs (FirstInstance.Org.Machine)
+    by: the chart's setup Job, the first time it runs on a NEW instance (FirstInstance.Org.Machine)
+    # Mounted optional on the bootstrap Job so a missing key fails fast with instructions.
+    # Existing instance or lost key: create it by hand, docs/apps/zitadel.md
+    # ("Migrating an existing instance", "Recovering the bootstrap service account key").
+    optional_on_pod: true
     read_by: [Job zitadel-bootstrap]
   - name: "zitadel-oidc-<app>"
     keys: [client-id, issuer-url, client-secret]  # no client-secret for public clients

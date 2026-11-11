@@ -68,7 +68,11 @@ data:
     #       function groupsClaim(ctx, api) {
     #         if (ctx.v1.user.grants === undefined || ctx.v1.user.grants.count == 0) { return; }
     #         let grants = [];
-    #         ctx.v1.user.grants.grants.forEach((g) => g.roles.forEach((r) => grants.push(r)));
+    #         // {{project_id}} is replaced by the bootstrap with the `project:` above, so a
+    #         // role named `viewer` in ANOTHER project does not become a group here.
+    #         ctx.v1.user.grants.grants
+    #           .filter((g) => g.projectId === "{{project_id}}")
+    #           .forEach((g) => g.roles.forEach((r) => grants.push(r)));
     #         api.v1.claims.setClaim("groups", grants);
     #       }
     # flows:

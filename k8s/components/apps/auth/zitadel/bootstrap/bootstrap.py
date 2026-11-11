@@ -178,6 +178,7 @@ AZURE_TENANT_TYPES = {
     "AZURE_AD_TENANT_TYPE_ORGANIZATIONS",
     "AZURE_AD_TENANT_TYPE_CONSUMERS",
 }
+NO_SECRET_AUTH_METHODS = {"OIDC_AUTH_METHOD_TYPE_NONE", "OIDC_AUTH_METHOD_TYPE_PRIVATE_KEY_JWT"}
 # Providers whose email claim the IdP does not guarantee to be verified and unique to
 # the person: any tenant of Entra ID, any OIDC server. Linking on it is account takeover.
 LOOSE_IDPS = {"azure", "generic_oidc"}
@@ -394,7 +395,9 @@ def reconcile_oidc_secret(app, project_id, org_id, app_id, client_id, client_sec
         failed(f"app {app['name']}: no clientId to store")
         return
     name = f"zitadel-oidc-{app['name']}"
-    public = app.get("auth_method") == "OIDC_AUTH_METHOD_TYPE_NONE"
+    # No client secret exists for these: PKCE public clients, and private_key_jwt apps,
+    # which authenticate with a key. Asking Zitadel to generate one fails every run.
+    public = app.get("auth_method") in NO_SECRET_AUTH_METHODS
     cur = k8s("GET", name)
     if cur.status_code == 404:
         current = None
@@ -433,7 +436,7 @@ def reconcile_oidc_secret(app, project_id, org_id, app_id, client_id, client_sec
 
 # -------------------------------------------------------------- actions/flows
 
-def ensure_action(act, org_id):
+def ensure_action(act, org_id, project_id=None):
     r = post("/management/v1/actions/_search", {
         "queries": [{"actionNameQuery": {"name": act["name"], "method": "TEXT_QUERY_METHOD_EQUALS"}}]
     }, org_id=org_id)
@@ -442,7 +445,8 @@ def ensure_action(act, org_id):
         return None
     body = {
         "name": act["name"],
-        "script": act["script"],
+        # {{project_id}} lets a script scope itself to the configured project.
+        "script": act["script"].replace("{{project_id}}", project_id or ""),
         "timeout": act.get("timeout", "10s"),
         # An action that fails and is not allowed to fail blocks every login.
         "allowedToFail": act.get("allowed_to_fail", True),
@@ -705,6 +709,14 @@ def main():
             print(f"CONFIG ERROR: {e}", file=sys.stderr)
         sys.exit(2)
 
+    if not Path(KEY_FILE).is_file():
+        fatal(
+            f"the bootstrap service account key {KEY_FILE} is missing. It comes from the Secret "
+            "zitadel-admin-sa (key zitadel-admin-sa.json), which the chart's setup Job writes when it "
+            "creates a NEW instance. On an instance that already existed, or if that write failed, "
+            "create the key by hand: docs/apps/zitadel.md, 'Migrating an existing instance' and "
+            "'Recovering the bootstrap service account key'"
+        )
     issuer = cfg["instance_url"].rstrip("/")
     ZITADEL_URL = os.environ.get("ZITADEL_URL") or f"http://zitadel.{NAMESPACE}.svc.cluster.local:8080"
     setup_session(os.environ.get("ZITADEL_HOST") or urlparse(issuer).netloc)
@@ -727,7 +739,7 @@ def main():
     for role in proj.get("roles", []):
         ensure_role(project_id, default_org_id, role)
 
-    action_ids = {a["name"]: ensure_action(a, default_org_id) for a in cfg.get("actions", [])}
+    action_ids = {a["name"]: ensure_action(a, default_org_id, project_id) for a in cfg.get("actions", [])}
     for flow in cfg.get("flows", []):
         set_flow_triggers(flow, action_ids, default_org_id)
 

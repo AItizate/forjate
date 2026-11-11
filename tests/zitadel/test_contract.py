@@ -13,6 +13,10 @@ from conftest import COMPONENT, EXAMPLE, ROOT, by_kind
 
 CONTRACT = yaml.safe_load((COMPONENT / "contract.yaml").read_text())
 DOCS = (ROOT / "docs/apps/zitadel.md").read_text()
+# The migration section must name the old things (rbac, ClusterRole, sa-key.json); nowhere else may.
+_m = re.search(r"^## Migrating an existing instance\n.*?(?=^## )", DOCS, re.S | re.M)
+MIGRATION = _m.group(0) if _m else ""
+DOCS_OUTSIDE_MIGRATION = DOCS.replace(MIGRATION, "")
 PODS = ("Deployment", "StatefulSet", "Job")
 
 
@@ -67,6 +71,7 @@ def test_every_required_secret_in_the_contract_is_read_by_a_pod(bundle):
 
 def test_optional_means_optional_on_the_pod_too(bundle):
     optional = {s["name"] for s in CONTRACT["secrets"] if s.get("optional")}
+    optional |= {g["name"] for g in CONTRACT["generated"] if g.get("optional_on_pod")}
     for name, _, opt, where in secret_refs(bundle):
         assert opt == (name in optional), f"{where}: {name} optional={opt}, contract says {name in optional}"
 
@@ -111,7 +116,21 @@ def test_docs_name_every_secret_and_key_of_the_contract():
     "Tenant IaC Factory", "zitadel-postgres-postgresql", "client_credentials",
 ])
 def test_docs_have_none_of_the_names_the_first_version_got_wrong(stale):
-    assert stale not in DOCS
+    assert stale not in DOCS_OUTSIDE_MIGRATION
+
+
+def test_docs_have_a_migration_path_for_existing_instances():
+    # N3: FirstInstance never re-runs on an instance that already exists.
+    assert MIGRATION, "docs/apps/zitadel.md needs a 'Migrating an existing instance' section"
+    for needle in ("zitadel-admin-password", "sa-key.json", "zitadel-admin-sa.json", "zitadel-admin",
+                   "default password", "initial_password"):
+        assert needle in MIGRATION, f"the migration section does not mention {needle}"
+    assert "## Recovering the bootstrap service account key" in DOCS
+
+
+def test_docs_and_contract_state_the_admin_password_policy():
+    for text in (DOCS, (COMPONENT / "contract.yaml").read_text()):
+        assert "password policy" in text
 
 
 def test_docs_workload_names_exist_in_the_render(example):
@@ -177,6 +196,10 @@ def test_bootstrap_job_is_hardened_and_installs_nothing_at_start(bundle):
     main = " ".join(spec["containers"][0]["command"])
     assert "pip install" not in main and "apk add" not in main
     assert spec["containers"][0]["envFrom"][0]["secretRef"]["optional"] is True
+    # N3: a missing zitadel-admin-sa must reach bootstrap.py (fail fast with the
+    # instructions), not park the pod in ContainerCreating until the deadline.
+    sa_volume = next(v for v in spec["volumes"] if v["name"] == "admin-sa-key")
+    assert sa_volume["secret"]["optional"] is True
 
 
 def test_requirements_are_fully_pinned():

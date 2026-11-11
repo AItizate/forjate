@@ -417,3 +417,35 @@ def test_jwt_claims_use_the_issuer_as_audience(monkeypatch):
 def test_host_header_and_audience_derive_from_instance_url(w):
     w.run(cfg())
     assert w.mod.s.headers["Host"] == "zitadel.example.com"
+
+
+# ------------------------------------------------------ round 2 (N3, N5, m3)
+
+def test_private_key_jwt_app_never_asks_for_a_client_secret(w):
+    c = cfg()
+    c["applications"].append({"name": "svc", "auth_method": "OIDC_AUTH_METHOD_TYPE_PRIVATE_KEY_JWT",
+                              "redirect_uris": ["https://svc.example.com/cb"]})
+    assert w.run(c) == 0
+    assert "client-secret" not in w.k.secrets["zitadel-oidc-svc"]
+    del w.k.secrets["zitadel-oidc-svc"]
+    assert w.run(c) == 0, "a lost Secret of a key-authenticated app must not fail every run"
+    assert not [x for x in w.z.calls if "_generate_client_secret" in x[1] and "app5" in x[1]]
+    assert w.k.secrets["zitadel-oidc-svc"]["client-id"]
+
+
+def test_missing_service_account_key_fails_fast_with_the_instructions(w, capsys):
+    # N3: an instance that existed before FirstInstance was configured has no
+    # zitadel-admin-sa Secret. The Job must say so at once, not wait for the deadline.
+    (w.tmp / "key.json").unlink()
+    assert w.run(cfg()) == 1
+    assert not w.z.calls, "no API call, no waiting for Zitadel"
+    err = capsys.readouterr().err
+    assert "zitadel-admin-sa" in err and "zitadel-admin-sa.json" in err
+    assert "Migrating an existing instance" in err
+
+
+def test_action_script_is_scoped_to_the_configured_project(w):
+    script = 'ctx.v1.user.grants.grants.filter((g) => g.projectId === "{{project_id}}")'
+    assert w.run(cfg(actions=[{"name": "groupsClaim", "script": script}])) == 0
+    pid = next(iter(w.z.projects))
+    assert next(iter(w.z.actions.values()))["script"] == script.replace("{{project_id}}", pid)

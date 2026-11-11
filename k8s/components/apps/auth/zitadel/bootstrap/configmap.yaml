@@ -6,15 +6,25 @@ data:
   # Bootstrap configuration — defines desired state for Zitadel resources.
   # Override this ConfigMap in the tenant overlay via configMapGenerator.
   #
-  # The bootstrap job reads this YAML and calls Zitadel API to create/update
-  # each resource. It is idempotent: re-running skips existing resources.
+  # The bootstrap Job reads this YAML and reconciles Zitadel with it: every entry is
+  # created when missing and updated when it differs, so re-running changes nothing
+  # when nothing differs. It never REMOVES anything: delete an app, a grant or an IdP
+  # from this file and it stays in Zitadel until you remove it by hand.
+  # The Job exits non-zero when any entry fails, so a bad entry fails the sync.
+  #
+  # No secret goes in here. Anything sensitive is an env var NAMED in this file
+  # (`*_env`) whose value lives in the Secret "zitadel-bootstrap-env".
   bootstrap.yaml: |
-    # Zitadel instance URL (patched by overlay)
+    # Public URL of Zitadel = its issuer. Also the JWT audience and the Host header
+    # of every API call, so it must equal the chart's ExternalDomain.
     instance_url: https://zitadel.example.com
 
-    # Organization = Tenant
-    organization:
-      name: default-org
+    # Organizations = tenants. The one with is_default is where the project, apps
+    # and users go. Without any, the service account's own organization (ZITADEL)
+    # is used. (`organization:` singular still works, deprecated.)
+    organizations:
+      - name: default-org
+        is_default: true
 
     # Project = group of applications with shared roles
     project:
@@ -44,7 +54,9 @@ data:
         grant_types:
           - OIDC_GRANT_TYPE_AUTHORIZATION_CODE
         auth_method: OIDC_AUTH_METHOD_TYPE_BASIC
-        # Secret is auto-generated and stored in K8s secret
+        # The client secret is generated once and stored in the K8s Secret
+        # zitadel-oidc-oauth2-proxy (client-id, client-secret, issuer-url), in the
+        # namespace of this Job. If that Secret is deleted it is regenerated.
 
     # Actions + flows. Argo CD (and most OIDC clients) only read `groups` claims
     # that are flat lists, while Zitadel emits roles as an object under
@@ -90,18 +102,32 @@ data:
     #       is_auto_creation: false # true = anyone with a Google account gets a user
     #       is_auto_update: false
     #     enabled_in_login_policy: true      # false hides it from the login page
-    #   # generic_oidc also needs `issuer`; azure takes `tenant_type`, `email_verified`.
+    #   # generic_oidc also needs `issuer`.
+    #   #
+    #   # azure has NO default tenant: set `tenant_id: <your Entra tenant GUID>` or an
+    #   # explicit `tenant_type`. COMMON accepts any Microsoft account on earth.
+    #   # `email_verified` defaults to false (an Entra email is user-editable).
+    #   #
+    #   # auto_linking is REFUSED for azure and generic_oidc (the IdP's email/username
+    #   # is not proof of who the person is: linking would hand over the Zitadel user
+    #   # with that email, admins included). Override with `trust_idp_email: true` on
+    #   # the entry only if you control the IdP; the Job logs a WARNING every run.
+    #   #
+    #   # Zitadel < 4.15.3 (the pinned chart ships 2.67.2) does not check that the IdP
+    #   # verified the email even for Google/GitHub (CVE-2026-56666). See
+    #   # docs/apps/zitadel.md, "Version gate".
 
     # Human users — managed as code
     users: []
-    # Example (uncomment and customize in overlay):
+    # Example (uncomment and customize in overlay). A literal `initial_password:` is
+    # rejected: a password in this ConfigMap is a password in git.
     # users:
     #   - username: sebas
     #     first_name: Sebas
     #     last_name: Etchevest
     #     email: sebas@example.com
     #     email_verified: true
-    #     initial_password: changeme123!
+    #     initial_password_env: SEBAS_INITIAL_PASSWORD   # env var in zitadel-bootstrap-env
     #     roles:
     #       - admin
     #   - username: dev-user
@@ -109,8 +135,7 @@ data:
     #     last_name: User
     #     email: dev@example.com
     #     email_verified: true
-    #     initial_password: changeme123!
-    #     roles:
+    #     roles:                  # no password: this user signs in through an IdP
     #       - viewer
 
     # Service users — machine accounts for agents and pipelines

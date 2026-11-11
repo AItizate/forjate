@@ -43,3 +43,17 @@ def bundle():
 @pytest.fixture(scope="session")
 def example():
     return render(EXAMPLE)
+
+
+@pytest.fixture
+def w_module(monkeypatch):
+    """bootstrap.py imported with a stub `requests` (validate_config needs no network)."""
+    import importlib.util
+    import sys
+    import types
+
+    monkeypatch.setitem(sys.modules, "requests", types.ModuleType("requests"))
+    spec = importlib.util.spec_from_file_location("zbootstrap_validate", COMPONENT / "bootstrap/bootstrap.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod

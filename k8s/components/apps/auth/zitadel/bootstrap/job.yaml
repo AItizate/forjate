@@ -38,6 +38,8 @@ spec:
             - --quiet
             - --no-cache-dir
             - --disable-pip-version-check
+            - --require-hashes
+            - "--only-binary=:all:"
             - --target=/deps
             - --requirement=/scripts/requirements.txt
           env:

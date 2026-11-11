@@ -16,6 +16,7 @@ on:
       - 'docs/examples/zitadel-tenant/**'
       - 'docs/apps/zitadel.md'
       - 'tests/zitadel/**'
+      - '.github/toolchain.env'
       - '.github/workflows/validate-zitadel.yml'
   push:
     branches: [main]
@@ -33,12 +34,19 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          # The bootstrap Job runs CPython 3.13 (python:3.13.5-alpine3.22)
+          python-version: '3.13'
 
-      - name: Install kustomize
+      - name: Install kustomize and helm at the pinned versions
+        # .github/toolchain.env is the one place that pins tool versions: the render
+        # (hooks, waves, namespaces) differs between releases.
         run: |
-          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          set -euo pipefail
+          source .github/toolchain.env
+          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz
           sudo mv kustomize /usr/local/bin/
+          curl -sSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv linux-amd64/helm /usr/local/bin/helm
           kustomize version
           helm version
 

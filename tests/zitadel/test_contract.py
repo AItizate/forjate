@@ -202,10 +202,19 @@ def test_bootstrap_job_is_hardened_and_installs_nothing_at_start(bundle):
     assert sa_volume["secret"]["optional"] is True
 
 
-def test_requirements_are_fully_pinned():
-    lines = [l for l in (COMPONENT / "bootstrap/requirements.txt").read_text().splitlines()
-             if l.strip() and not l.startswith("#")]
-    assert lines and all(re.fullmatch(r"[\w.\-]+==\d[\w.]*", l) for l in lines), lines
+def test_requirements_are_fully_pinned_and_hashed():
+    text = (COMPONENT / "bootstrap/requirements.txt").read_text()
+    body = re.sub(r"\\\n", " ", "\n".join(l for l in text.splitlines() if not l.startswith("#")))
+    reqs = [l.split() for l in body.splitlines() if l.strip()]
+    assert reqs
+    for r in reqs:
+        assert re.fullmatch(r"[\w.\-]+==\d[\w.]*", r[0]), r[0]
+        assert len(r) > 1 and all(re.fullmatch(r"--hash=sha256:[0-9a-f]{64}", h) for h in r[1:]), r[0]
+
+
+def test_job_installs_with_hashes_and_binary_wheels_only(bundle):
+    init = by_kind(bundle, "Job", "zitadel-bootstrap")["spec"]["template"]["spec"]["initContainers"][0]
+    assert "--require-hashes" in init["command"] and "--only-binary=:all:" in init["command"]
 
 
 # ------------------------------------------------------------------ labels (m1)

@@ -1,0 +1,14 @@
+# Runtime dependencies of bootstrap.py, installed by the Job's install-deps init
+# container into an emptyDir. Fully pinned (direct and transitive).
+# The Job needs egress to PyPI, or point pip at your mirror with PIP_INDEX_URL on
+# the install-deps container (kustomize patch in the tenant overlay).
+certifi==2026.10.23
+cffi==2.1.1
+charset-normalizer==3.5.2
+cryptography==50.0.2
+idna==3.20
+pycparser==3.12
+PyJWT==2.15.1
+PyYAML==6.0.3
+requests==2.34.2
+urllib3==2.8.0

@@ -3,10 +3,14 @@ kind: Job
 metadata:
   name: zitadel-bootstrap
   annotations:
+    # Runs after the app is Healthy (Zitadel up), recreated on every sync.
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
-  backoffLimit: 3
+  backoffLimit: 2
+  # bootstrap.py waits up to ZITADEL_WAIT_SECONDS (600) for Zitadel; this bounds the
+  # whole Job so a stuck run fails the sync instead of leaving it Running forever.
+  activeDeadlineSeconds: 1500
   ttlSecondsAfterFinished: 300
   template:
     metadata:
@@ -15,94 +19,77 @@ spec:
     spec:
       serviceAccountName: zitadel-bootstrap
       restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
-        - name: wait-for-zitadel
-          image: curlimages/curl:8.11.0
-          env:
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
+        # Dependencies are pinned in requirements.txt and land in an emptyDir, so the
+        # root filesystem stays read-only and the main container needs no network
+        # towards PyPI. Egress to PyPI (or PIP_INDEX_URL) is needed by THIS container.
+        - name: install-deps
+          image: python:3.13.5-alpine3.22
           command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for Zitadel to be ready..."
-              until curl -sf http://zitadel.${POD_NAMESPACE}.svc.cluster.local:8080/debug/ready; do
-                echo "Zitadel not ready yet, retrying in 5s..."
-                sleep 5
-              done
-              echo "Zitadel is ready!"
-        - name: generate-jwt
-          image: alpine:3.20
+            - pip
+            - install
+            - --quiet
+            - --no-cache-dir
+            - --disable-pip-version-check
+            - --target=/deps
+            - --requirement=/scripts/requirements.txt
           env:
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            # ZITADEL_AUDIENCE must match the public issuer URL of the Zitadel instance
-            # (the value returned in /.well-known/openid-configuration "issuer").
-            # Override per-tenant via patch when deploying behind a public domain.
-            - name: ZITADEL_AUDIENCE
-              value: "http://zitadel.$(POD_NAMESPACE).svc.cluster.local:8080"
-          command:
-            - sh
-            - -c
-            - |
-              set -e
-              apk add --no-cache --quiet openssl jq >/dev/null
-              KID=$(jq -r .keyId /secrets/sa-key.json)
-              SUB=$(jq -r .userId /secrets/sa-key.json)
-              jq -r .key /secrets/sa-key.json > /tmp/private.pem
-              IAT=$(date -u +%s)
-              EXP=$((IAT + 3600))
-              b64url() { openssl base64 -e -A | tr '+/' '-_' | tr -d '='; }
-              HEADER=$(printf '{"alg":"RS256","typ":"JWT","kid":"%s"}' "$KID" | b64url)
-              PAYLOAD=$(printf '{"iss":"%s","sub":"%s","aud":"%s","iat":%s,"exp":%s}' \
-                "$SUB" "$SUB" "$ZITADEL_AUDIENCE" "$IAT" "$EXP" | b64url)
-              SIG=$(printf '%s.%s' "$HEADER" "$PAYLOAD" | \
-                openssl dgst -sha256 -sign /tmp/private.pem | b64url)
-              printf '%s.%s.%s' "$HEADER" "$PAYLOAD" "$SIG" > /jwt/jwt.txt
-              echo "JWT generated ($(wc -c < /jwt/jwt.txt) bytes)"
+            - name: HOME
+              value: /tmp
+            - name: TMPDIR
+              value: /tmp
+          securityContext: &restricted
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources: &resources
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
           volumeMounts:
-            - name: admin-sa-key
-              mountPath: /secrets
-              readOnly: true
-            - name: jwt
-              mountPath: /jwt
+            - {name: bootstrap-scripts, mountPath: /scripts, readOnly: true}
+            - {name: deps, mountPath: /deps}
+            - {name: tmp, mountPath: /tmp}
       containers:
         - name: bootstrap
-          image: python:3.13-alpine
-          command:
-            - sh
-            - -c
-            - |
-              set -e
-              pip install --quiet --no-cache-dir --root-user-action=ignore pyyaml requests
-              exec python /scripts/bootstrap.py
+          image: python:3.13.5-alpine3.22
+          command: [python, /scripts/bootstrap.py]
           env:
+            - name: PYTHONPATH
+              value: /deps
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            - name: JWT_FILE
-              value: "/jwt/jwt.txt"
-            - name: ZITADEL_URL
-              value: "http://zitadel.$(POD_NAMESPACE).svc.cluster.local:8080"
-            # ZITADEL_HOST is the Host header sent on every API request.
-            # Zitadel uses this to resolve the instance — it MUST match a
-            # registered instance domain (typically the public ExternalDomain).
-            # Override per-tenant via patch.
-            - name: ZITADEL_HOST
-              value: "zitadel.$(POD_NAMESPACE).svc.cluster.local:8080"
+            # ZITADEL_URL, ZITADEL_HOST and ZITADEL_AUDIENCE are derived from
+            # `instance_url` in the bootstrap config (and POD_NAMESPACE): there is
+            # nothing to patch per tenant.
+            - name: ZITADEL_KEY_FILE
+              value: /secrets/sa-key.json
+          # Credentials the config names with `*_env`: IdP client id/secret and the
+          # initial passwords of human users. Optional: a tenant without IdPs or
+          # passwords does not need the Secret.
+          envFrom:
+            - secretRef:
+                name: zitadel-bootstrap-env
+                optional: true
+          securityContext: *restricted
+          resources: *resources
           volumeMounts:
-            - name: bootstrap-config
-              mountPath: /config
-            - name: bootstrap-scripts
-              mountPath: /scripts
-            - name: jwt
-              mountPath: /jwt
-              readOnly: true
+            - {name: bootstrap-config, mountPath: /config, readOnly: true}
+            - {name: bootstrap-scripts, mountPath: /scripts, readOnly: true}
+            - {name: deps, mountPath: /deps, readOnly: true}
+            - {name: admin-sa-key, mountPath: /secrets, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
       volumes:
         - name: bootstrap-config
           configMap:
@@ -116,5 +103,7 @@ spec:
             items:
               - key: zitadel-admin-sa.json
                 path: sa-key.json
-        - name: jwt
+        - name: deps
+          emptyDir: {}
+        - name: tmp
           emptyDir: {}

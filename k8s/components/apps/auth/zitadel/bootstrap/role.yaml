@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: zitadel-bootstrap
+rules:
+  # The Job stores one Secret per OIDC app (zitadel-oidc-<app>) in ITS OWN namespace:
+  # read it, create it, merge-patch it. No update, no delete (the script never
+  # replaces a Secret), no other namespace, no other resource.
+  # `create` cannot be limited with resourceNames, and the names depend on the
+  # tenant's `applications:`; a tenant that wants them pinned patches resourceNames
+  # onto the get/patch rule.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "patch"]

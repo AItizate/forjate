@@ -5,7 +5,7 @@ sources:
 - k8s/components/bundles/zitadel-stack
 compiled_at: '2026-11-11'
 category: bundles
-source_hash: 9fc19d28301daba9
+source_hash: bfa6393e370c452f
 source_last_commit: '2026-11-11'
 summary: "zitadel-stack \u2014 Zitadel IdP + PostgreSQL + bootstrap in a single reference"
 summary_source: derived
@@ -59,6 +59,7 @@ summary_source: derived
 ### Labels
 
 - `app.kubernetes.io/ait-bundle: zitadel-stack`
+- `app.kubernetes.io/part-of: zitadel-stack`
 
 ### Consumed by
 

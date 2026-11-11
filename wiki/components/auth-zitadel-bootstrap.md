@@ -8,7 +8,7 @@ category: auth
 parent: components/auth-zitadel
 consumed_by:
 - components/bundles-zitadel-stack
-source_hash: f9114686512bbd66
+source_hash: b1ee395540f97327
 source_last_commit: '2026-11-11'
 summary: "Zitadel Bootstrap \u2014 Zitadel's organizations, project, roles, OIDC apps,\
   \ users and"

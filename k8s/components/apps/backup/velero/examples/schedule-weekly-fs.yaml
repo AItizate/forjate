@@ -1,0 +1,18 @@
+# Weekly full-cluster backup, Sunday 03:00, kept 4 weeks (672h). Volume data goes
+# through file-system backup (node agent, kopia), so no CSI snapshot-controller is
+# needed. Fits the s3/ variant. Not in the component's resources.
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: weekly-full
+  namespace: velero
+spec:
+  schedule: "0 3 * * 0"
+  template:
+    ttl: 672h
+    includedNamespaces: ["*"]
+    excludedNamespaces: [velero, kube-system]
+    includeClusterResources: true
+    snapshotVolumes: false
+    defaultVolumesToFsBackup: true
+    storageLocation: default

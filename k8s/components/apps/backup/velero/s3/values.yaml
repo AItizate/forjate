@@ -1,0 +1,41 @@
+# External S3-compatible backend (AWS S3, Cloudflare R2, B2, ...). Defaults are R2-ready;
+# the tenant patches bucket, prefix, s3Url and region on the rendered
+# BackupStorageLocation `default` instead of editing this file. For AWS S3 itself,
+# patch region to the bucket's region and drop s3Url, s3ForcePathStyle and
+# checksumAlgorithm. Credentials: Secret `velero-credentials`, key `cloud`.
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.13.1
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+configuration:
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: CHANGE-ME-velero-backups
+      default: true
+      config:
+        region: auto
+        s3ForcePathStyle: "true"
+        s3Url: https://CHANGE-ME-account-id.r2.cloudflarestorage.com
+        # velero-plugin-for-aws >= 1.10 sends a CRC32 checksum R2 rejects; "" turns it off.
+        checksumAlgorithm: ""
+  # No VolumeSnapshotLocation and no EnableCSI: PVC data goes through the node agent
+  # (kopia file-system backup), which needs no CSI snapshot-controller.
+  volumeSnapshotLocation: []
+  features: ""
+  uploaderType: kopia
+  defaultVolumesToFsBackup: true
+
+credentials:
+  useSecret: true
+  existingSecret: velero-credentials
+
+# CRDs come from the chart's crds/ through includeCRDs in kustomization.yaml, so the
+# pre-install hook Job that applies them with kubectl is not needed.
+upgradeCRDs: false
+
+snapshotsEnabled: false
+deployNodeAgent: true

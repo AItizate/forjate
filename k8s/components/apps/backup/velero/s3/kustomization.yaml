@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Velero with an external S3-compatible backend (AWS S3, Cloudflare R2, B2) and file-system backup.
+#
+# For tenants that reference the component by path, remote ones included:
+#   ssh://git@github.com/AItizate/forjate.git//k8s/components/apps/backup/velero/s3?ref=<tag>
+#
+# The tenant only patches data on the rendered BackupStorageLocation `default`: bucket,
+# prefix, s3Url and region (see ../README.md, "External S3 or R2 from a remote tenant").
+# Defaults are R2-ready: region auto, path-style, checksumAlgorithm "".
+#
+# Volume data goes through file-system backup (kopia, node agent), so no CSI
+# snapshot-controller is needed; CSI snapshots are opt-in by patch.
+# CRDs render as plain resources (no pre-install hook Job), which suits Argo CD.
+# Argo CD needs kustomize.buildOptions: --enable-helm.
+#
+# Needs, supplied by the tenant: Secret `velero-credentials` in namespace velero
+# (key `cloud`) and the bucket in the target store.
+
+resources:
+  - namespace.yaml
+
+helmCharts:
+  - name: velero
+    repo: https://vmware-tanzu.github.io/helm-charts
+    version: 12.2.2
+    releaseName: velero
+    namespace: velero
+    includeCRDs: true
+    valuesFile: values.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: velero

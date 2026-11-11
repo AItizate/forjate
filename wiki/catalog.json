@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-11-08",
+  "compiled_at": "2026-11-11",
   "stages": [
     "crawl",
     "walk",
@@ -1274,7 +1274,64 @@
         "secret"
       ],
       "licence": "Apache-2.0",
-      "notes": "Cluster-level backup of namespaces and PVC data (CSI snapshots or node agent) with schedule, retention and restore. Default target is the in-cluster MinIO, which is not DR on its own; point it off-cluster (values-s3-backend.yaml) at Run. Reads `velero-credentials`. Complements pg_dump CronJobs, does not replace them. Restore runbook in the component README.",
+      "notes": "Cluster-level backup of namespaces and PVC data (CSI snapshots or node agent) with schedule, retention and restore. Default target is the in-cluster MinIO, which is not DR on its own; point it off-cluster at Run with the `apps/backup/velero/s3` variant. Reads `velero-credentials`. Complements pg_dump CronJobs, does not replace them. Restore runbook in the component README.",
+      "curated": true,
+      "psa_level": "unknown",
+      "namespace": "velero",
+      "namespace_how": "declares",
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      }
+    },
+    {
+      "path": "apps/backup/velero/s3",
+      "name": "backup-velero-s3",
+      "category": "backup",
+      "wiki": "wiki/components/backup-velero-s3.md",
+      "summary": "Velero with an external S3-compatible backend (AWS S3, Cloudflare R2, B2) and file-system backup",
+      "images": [],
+      "kinds": [
+        "Namespace"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": "components/backup-velero",
+      "stages": [
+        "walk",
+        "run"
+      ],
+      "capabilities": [],
+      "maturity": "lab",
+      "gpu_required": "none",
+      "ha": "single",
+      "psa_restricted": false,
+      "secrets": {
+        "takes": "env"
+      },
+      "data_classes": [
+        "internal",
+        "pii",
+        "financial",
+        "health",
+        "secret"
+      ],
+      "licence": "Apache-2.0",
+      "notes": "The off-cluster variant of `apps/backup/velero`, which is what resolves the `backup` capability; reference one or the other, never both. Backs up to an external S3-compatible store (AWS S3, Cloudflare R2, B2) with R2-ready defaults, PVC data by file-system backup (node agent, kopia) so no CSI snapshot-controller is needed; CSI is opt-in by patch. Remote tenants consume it by path and patch only the BackupStorageLocation data (bucket, prefix, s3Url, region). CRDs render as plain resources, no hook Job; Argo CD needs `--enable-helm` in `kustomize.buildOptions`. Reads `velero-credentials`. Weekly schedule and DB pre-backup hooks in the parent README.",
       "curated": true,
       "psa_level": "unknown",
       "namespace": "velero",
@@ -2166,7 +2223,7 @@
       ],
       "composes": [],
       "remote_refs": [
-        "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"
+        "https://raw.githubusercontent.com/argoproj/argo-cd/v3.6.1/manifests/install.yaml"
       ],
       "consumed_by": [
         "overlays/bare-metal-starter",

@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-11-08'
+compiled_at: '2026-11-11'
 ---
 
 # Forjate wiki — index
@@ -16,7 +16,7 @@ Conventions and maintenance rules: [SCHEMA.md](SCHEMA.md) · History: [log.md](l
 
 - [component-anatomy](concepts/component-anatomy.md) — what a component is made of, local vs vendored, and how nesting shows up in the wiki
 - [multi-tenant-recursion](concepts/multi-tenant-recursion.md) — base to org to client composition, and how the tree demonstrates it
-- [remote-references](concepts/remote-references.md) — how tenants consume the factory by SSH ref, and where pinning is inconsistent
+- [remote-references](concepts/remote-references.md) — how tenants consume the factory by SSH ref, and how vendored upstream refs are pinned
 - [secret-strategy](concepts/secret-strategy.md) — five mechanisms coexist; external-secrets syncing from openbao is the recommended store pairing; who uses what
 
 ## Base
@@ -31,7 +31,7 @@ The foundation every tenant inherits.
 
 ## Components
 
-86 pages. Optional building blocks an overlay can activate.
+87 pages. Optional building blocks an overlay can activate.
 
 ### agents
 
@@ -63,6 +63,7 @@ The foundation every tenant inherits.
 ### backup
 
 - [backup-velero](components/backup-velero.md) — Velero — cluster-level backup and restore (namespaces, cluster resources, PVC data) · unused in this repo
+  - [backup-velero-s3](components/backup-velero-s3.md) — Velero with an external S3-compatible backend (AWS S3, Cloudflare R2, B2) and file-system backup · unused in this repo
 
 ### brokers
 

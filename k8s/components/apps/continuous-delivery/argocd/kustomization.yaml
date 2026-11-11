@@ -5,9 +5,10 @@ kind: Kustomization
 namespace: argocd
 
 # This file is used to deploy ArgoCD in a Kubernetes cluster.
-# It references the official ArgoCD installation manifests.
+# It references the official ArgoCD installation manifests, pinned to a release tag
+# (never the moving `stable` branch). Bump the tag deliberately, in its own PR.
 resources:
-  - https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+  - https://raw.githubusercontent.com/argoproj/argo-cd/v3.6.1/manifests/install.yaml
   - namespace.yaml
   - certificate.yaml
   - ingress.yaml

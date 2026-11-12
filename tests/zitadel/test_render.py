@@ -53,3 +53,63 @@ def test_config_objects_are_plain_resources_in_the_first_wave(bundle):
         obj = by_kind(bundle, kind, name)
         assert "argocd.argoproj.io/hook" not in annotations(obj)
         assert wave(obj) < wave(by_kind(bundle, "Job", "zitadel-init"))
+
+
+# ------------------------------------------------ chart 10 / Zitadel v4 (issue #60)
+
+def test_the_chart_cleanup_job_is_not_rendered(bundle):
+    """With its helm hook keys stripped it would be a plain Job that deletes Secrets
+    (kubectl delete secret --selector managed-by=Zitadel) on every sync."""
+    assert not [o for o in bundle if o["kind"] == "Job" and "cleanup" in o["metadata"]["name"]]
+
+
+def test_zitadel_and_login_run_the_pinned_v4_images(bundle):
+    from conftest import by_kind as k
+
+    for obj, prefix in ((k(bundle, "Deployment", "zitadel"), "ghcr.io/zitadel/zitadel:"),
+                        (k(bundle, "Deployment", "zitadel-login"), "ghcr.io/zitadel/zitadel-login:")):
+        images = [c["image"] for c in obj["spec"]["template"]["spec"]["containers"]]
+        assert images == [f"{prefix}v4.20.2"]
+    for job in ("zitadel-init", "zitadel-setup"):
+        containers = by_kind(bundle, "Job", job)["spec"]["template"]["spec"]["containers"]
+        assert {c["image"] for c in containers if c["name"] == job} == {"ghcr.io/zitadel/zitadel:v4.20.2"}
+
+
+def test_login_starts_with_zitadel_and_not_before(bundle):
+    assert wave(by_kind(bundle, "Deployment", "zitadel-login")) >= wave(by_kind(bundle, "Deployment", "zitadel"))
+
+
+def test_login_keypair_comes_from_cert_manager_not_from_the_chart(bundle):
+    """The chart's own Secret draws a new random key on every build (permanent
+    OutOfSync). The Certificate owns the Secret, and it exists before the pods."""
+    assert not [o for o in bundle if o["kind"] == "Secret"], "a build must not render any Secret"
+    cert = by_kind(bundle, "Certificate", "zitadel-login-service-key")
+    assert cert["spec"]["secretName"] == "zitadel-login-service-key"
+    assert cert["spec"]["privateKey"]["algorithm"] == "RSA"
+    assert cert["spec"]["privateKey"]["rotationPolicy"] == "Never"
+    assert wave(cert) < wave(by_kind(bundle, "Deployment", "zitadel"))
+    assert wave(by_kind(bundle, "Issuer", "zitadel-login-selfsigned")) <= wave(cert)
+
+
+def test_the_render_is_deterministic(bundle):
+    from conftest import BUNDLE, render
+
+    assert render(BUNDLE) == bundle
+
+
+def test_ingress_routes_login_v2_to_the_login_service(bundle):
+    paths = {p["path"]: p["backend"]["service"] for r in by_kind(bundle, "Ingress", "zitadel")["spec"]["rules"]
+             for p in r["http"]["paths"]}
+    assert paths["/ui/v2/login"] == {"name": "zitadel-login", "port": {"number": 3000}}
+    assert paths["/"] == {"name": "zitadel", "port": {"number": 8080}}
+
+
+def test_login_service_exists_and_is_plain_http(bundle):
+    svc = by_kind(bundle, "Service", "zitadel-login")
+    assert [p["port"] for p in svc["spec"]["ports"]] == [3000]
+
+
+def test_the_example_overlay_sets_the_login_domain(example):
+    login = by_kind(example, "Deployment", "zitadel-login")
+    env = {e["name"]: e.get("value") for e in login["spec"]["template"]["spec"]["containers"][0]["env"]}
+    assert env["ZITADEL_EXTERNALDOMAIN"] == "zitadel.acme.dev"

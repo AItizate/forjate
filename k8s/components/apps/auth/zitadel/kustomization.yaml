@@ -30,11 +30,14 @@ kind: Kustomization
 # Usage:
 #   kubectl kustomize --enable-helm k8s/components/apps/auth/zitadel
 #
-# Version gate: this pins Zitadel v2.67.2 (chart 8.12.2). That version is affected by
-# CVE-2026-56666 (auto-linking an external login by email does not check that the IdP
-# verified the email; fixed in 4.15.3, two majors away, so it is its own PR). Until
-# then do not enable `auto_linking` on a provider whose emails you do not trust
-# (bootstrap.py refuses it for azure and generic_oidc). See docs/apps/zitadel.md.
+# Version: Zitadel v4.20.2 on chart 10.5.0 (the chart ships v4.19.2; `image.tag` pins
+# the newer app). v4.15.3 fixed CVE-2026-56666 (auto-linking an external login by
+# email did not check that the IdP verified the email); later releases closed more
+# advisories in Login V1 and Actions V1, so the pin is the latest stable, not the
+# first fixed one. Do not go below v4.19.5 and skip v4.18.0 (its setup step fails).
+# Licence: AGPL-3.0 (Apache-2.0 up to v2). bootstrap.py still refuses auto_linking
+# on azure and generic_oidc: that is policy, not a version workaround.
+# Upgrading an EXISTING v2.x instance: docs/apps/zitadel.md, "Upgrading to v4".
 #
 # Dependencies (tenant overlay, or use bundles/zitadel-stack which brings them):
 #   - k8s/components/apps/databases/postgres (with namePrefix: zitadel-)
@@ -45,6 +48,8 @@ kind: Kustomization
 # docs/examples/zitadel-tenant/). Names: zitadel-masterkey, zitadel-db-config,
 # zitadel-postgres-secret, zitadel-admin-password, zitadel-bootstrap-env (optional).
 # The chart generates zitadel-admin-sa itself (no manual step, no default password).
+# The Login V2 service keypair (zitadel-login-service-key) is made by cert-manager
+# (login-service-key.yaml); cert-manager is already required by the Ingress issuer.
 #
 # Namespace is NOT set here: the consumer overlay sets it (auth, identity, zitadel...).
 #
@@ -55,14 +60,22 @@ kind: Kustomization
 
 resources:
   - ingress.yaml
+  - login-service-key.yaml
 
 helmCharts:
   - name: zitadel
     repo: https://charts.zitadel.com
-    version: 8.12.2
+    version: 10.5.0
     releaseName: zitadel
+    # `replace` makes Helm (not kustomize) merge valuesInline over the chart defaults,
+    # the only way to honour `Pat: null` below: kustomize merges maps and drops nulls,
+    # so the chart's default Pat block would stay.
+    valuesMerge: replace
     # namespace: set by consumer overlay via kustomization namespace field
     valuesInline:
+      image:
+        # The chart's own appVersion is v4.19.2. Pin the app explicitly.
+        tag: v4.20.2
       zitadel:
         # masterkey read from K8s secret named "zitadel-masterkey" (key: "masterkey")
         # Create: kubectl create secret generic zitadel-masterkey --from-literal=masterkey=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
@@ -76,6 +89,9 @@ helmCharts:
           ExternalDomain: zitadel.example.com
           ExternalPort: 443
           TLS:
+            Enabled: false
+          # Service Ping reports usage to zitadel.com (on by default since v4.0.0).
+          ServicePing:
             Enabled: false
           Database:
             postgres:
@@ -93,9 +109,8 @@ helmCharts:
                 Username: zitadel
                 SSL:
                   Mode: disable
-          # First instance, created once by `zitadel setup`. DefaultInstance would only
-          # apply to instances created LATER; the first one reads FirstInstance, and
-          # without it Zitadel v2.67.2 creates `zitadel-admin` / `Password1!` (steps.yaml)
+          # First instance, created once by `zitadel setup`. Without FirstInstance Zitadel
+          # creates `zitadel-admin` / `Password1!` (steps.yaml, still the default in v4)
           # behind the public Ingress. The password is NOT set here: it comes from the
           # Secret "zitadel-admin-password" through the env var below, and the Secret
           # is required, so a missing Secret stops the pod instead of falling back to
@@ -119,6 +134,21 @@ helmCharts:
                   Name: Bootstrap service account
                 MachineKey:
                   Type: 1  # JSON, the only supported value
+                  # The chart default is 2029-01-01. An expired key breaks the bootstrap
+                  # Job (it authenticates with it), so pin a far date here.
+                  ExpirationDate: "2036-01-01T00:00:00Z"
+                # No PAT: the chart default would add a `zitadel-machine-pat` sidecar and an
+                # IAM_OWNER token nobody asked for (works with valuesMerge: replace).
+                Pat: null
+          # Login V2 is the login UI of every NEW v4 instance (this block is the only
+          # place the first instance reads features from; FirstInstance.Features is
+          # never read). It needs the `zitadel-login` Deployment below and the
+          # /ui/v2/login route of ingress.yaml. An EXISTING instance keeps its Login
+          # until the `loginV2` feature is set: bootstrap.yaml `features.login_v2`.
+          DefaultInstance:
+            Features:
+              LoginV2:
+                Required: true
       # The first admin's password. Never in git, never in a ConfigMap.
       env:
         - name: ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD
@@ -180,16 +210,35 @@ helmCharts:
               - name: ZITADEL_PG_PORT
                 value: "5432"
             command: ['sh', '-c', 'until nc -z $ZITADEL_PG_HOST $ZITADEL_PG_PORT; do echo "waiting for $ZITADEL_PG_HOST:$ZITADEL_PG_PORT..."; sleep 2; done']
-        # Sidecar the chart adds when FirstInstance.Org.Machine is set: it copies the
-        # machine key into the Secret "zitadel-admin-sa". The chart default image
-        # (bitnami/kubectl:<kube version>) is not published per version any more.
-        machinekeyWriter:
+        # (The chart adds a sidecar that copies the machine key into the Secret
+        # "zitadel-admin-sa"; its image comes from `tools.kubectl.image` below.)
+      # The chart default image (bitnami/kubectl:<kube version>) is not published per
+      # version any more. One image for the machine key writer.
+      tools:
+        kubectl:
           image:
             repository: alpine/k8s
-            tag: 1.31.2
+            tag: 1.31.4
       # Starts only after setup has migrated the database.
       annotations:
         argocd.argoproj.io/sync-wave: "3"
+      # The chart's post-delete Job (`kubectl delete secret --selector managed-by=Zitadel`).
+      # Its helm.sh/hook keys are stripped below, which would turn it into a plain Job
+      # that deletes the generated Secrets on every sync. Never enable it here.
+      cleanupJob:
+        enabled: false
+      # Login V2: a separate Deployment (port 3000, path /ui/v2/login). Its init
+      # container waits for Zitadel, so it goes in the same wave as the Deployment.
+      login:
+        enabled: true
+        image:
+          tag: v4.20.2
+        # Made by cert-manager (login-service-key.yaml). Left empty the chart renders
+        # a random keypair in the Secret on EVERY build: a permanent OutOfSync, a
+        # rollout of both Deployments each sync and a private key in the manifests.
+        loginServiceKeySecretName: zitadel-login-service-key
+        annotations:
+          argocd.argoproj.io/sync-wave: "3"
       commonLabels:
         app.kubernetes.io/part-of: zitadel
       replicaCount: 1
@@ -221,7 +270,8 @@ patches:
   # kustomize renders it with namespace "default". A consumer overlay sets the real
   # namespace on the objects only, so the sidecar would read the pod and write the
   # Secret in the wrong namespace. Without -n, kubectl in a pod uses the pod's own
-  # namespace. Same command as the chart (8.12.2) otherwise.
+  # namespace. Same command as the chart (10.5.0) otherwise, minus the labels it adds
+  # for its cleanup Job, which is disabled.
   - target:
       kind: Job
       name: zitadel-setup

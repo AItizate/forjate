@@ -44,4 +44,4 @@ service_users:
 #     type: google
 #     client_id_env: GOOGLE_CLIENT_ID
 #     client_secret_env: GOOGLE_CLIENT_SECRET
-#     options: {auto_linking: email}   # read "Version gate" in docs/apps/zitadel.md first
+#     options: {auto_linking: email}   # read "Version, licence and telemetry" in docs/apps/zitadel.md first

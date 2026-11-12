@@ -3,10 +3,10 @@ title: bundles-zitadel-stack
 kind: component
 sources:
 - k8s/components/bundles/zitadel-stack
-compiled_at: '2026-11-11'
+compiled_at: '2026-11-12'
 category: bundles
-source_hash: bfa6393e370c452f
-source_last_commit: '2026-11-11'
+source_hash: 20619a9528a80ec3
+source_last_commit: '2026-11-12'
 summary: "zitadel-stack \u2014 Zitadel IdP + PostgreSQL + bootstrap in a single reference"
 summary_source: derived
 ---
@@ -21,8 +21,9 @@ summary_source: derived
 >
 > Bundles:
 > - databases/postgres      (StatefulSet, Service) with namePrefix: zitadel-
-> - auth/zitadel            (Helm chart: Deployment, Service, init/setup hooks,
-> SA, Role; plus the Ingress)
+> - auth/zitadel            (Helm chart: Deployments zitadel and zitadel-login (Login
+> V2), Services, init/setup hooks, SA, Role; cert-manager
+> Issuer + Certificate for the login keypair; the Ingress)
 > - auth/zitadel/bootstrap  (PostSync Job, desired-state ConfigMap, SA, Role,
 > RoleBinding — namespaced, no ClusterRole)
 >
@@ -38,9 +39,8 @@ summary_source: derived
 > namespace; the hostname patches; the tenant's bootstrap.yaml. A buildable example:
 > docs/examples/zitadel-tenant/.
 >
-> The component pins Zitadel v2.67.2 (chart 8.12.2), affected by CVE-2026-56666
-> (fixed in 4.15.3): read "Version gate" in docs/apps/zitadel.md before enabling
-> auto-linking on an identity provider.
+> The component pins Zitadel v4.20.2 (chart 10.5.0), AGPL-3.0. Upgrading an existing
+> v2.x instance is not a plain sync: read "Upgrading to v4" in docs/apps/zitadel.md.
 
 **Source:** [`k8s/components/bundles/zitadel-stack/`](../../k8s/components/bundles/zitadel-stack/)
 

@@ -3,13 +3,13 @@ title: auth-zitadel-bootstrap
 kind: component
 sources:
 - k8s/components/apps/auth/zitadel/bootstrap
-compiled_at: '2026-11-11'
+compiled_at: '2026-11-12'
 category: auth
 parent: components/auth-zitadel
 consumed_by:
 - components/bundles-zitadel-stack
-source_hash: b1ee395540f97327
-source_last_commit: '2026-11-11'
+source_hash: 7c1680f365076980
+source_last_commit: '2026-11-12'
 summary: "Zitadel Bootstrap \u2014 Zitadel's organizations, project, roles, OIDC apps,\
   \ users and"
 summary_source: derived

@@ -3,12 +3,12 @@ title: auth-zitadel
 kind: component
 sources:
 - k8s/components/apps/auth/zitadel
-compiled_at: '2026-11-11'
+compiled_at: '2026-11-12'
 category: auth
 consumed_by:
 - components/bundles-zitadel-stack
-source_hash: 8cd9388c2233603d
-source_last_commit: '2026-11-11'
+source_hash: 5b56cf5d9d6d9731
+source_last_commit: '2026-11-12'
 summary: "Zitadel \u2014 Cloud-native Identity Provider with built-in user management"
 summary_source: derived
 ---
@@ -48,11 +48,14 @@ summary_source: derived
 > Usage:
 > kubectl kustomize --enable-helm k8s/components/apps/auth/zitadel
 >
-> Version gate: this pins Zitadel v2.67.2 (chart 8.12.2). That version is affected by
-> CVE-2026-56666 (auto-linking an external login by email does not check that the IdP
-> verified the email; fixed in 4.15.3, two majors away, so it is its own PR). Until
-> then do not enable `auto_linking` on a provider whose emails you do not trust
-> (bootstrap.py refuses it for azure and generic_oidc). See docs/apps/zitadel.md.
+> Version: Zitadel v4.20.2 on chart 10.5.0 (the chart ships v4.19.2; `image.tag` pins
+> the newer app). v4.15.3 fixed CVE-2026-56666 (auto-linking an external login by
+> email did not check that the IdP verified the email); later releases closed more
+> advisories in Login V1 and Actions V1, so the pin is the latest stable, not the
+> first fixed one. Do not go below v4.19.5 and skip v4.18.0 (its setup step fails).
+> Licence: AGPL-3.0 (Apache-2.0 up to v2). bootstrap.py still refuses auto_linking
+> on azure and generic_oidc: that is policy, not a version workaround.
+> Upgrading an EXISTING v2.x instance: docs/apps/zitadel.md, "Upgrading to v4".
 >
 > Dependencies (tenant overlay, or use bundles/zitadel-stack which brings them):
 > - k8s/components/apps/databases/postgres (with namePrefix: zitadel-)
@@ -63,6 +66,8 @@ summary_source: derived
 > docs/examples/zitadel-tenant/). Names: zitadel-masterkey, zitadel-db-config,
 > zitadel-postgres-secret, zitadel-admin-password, zitadel-bootstrap-env (optional).
 > The chart generates zitadel-admin-sa itself (no manual step, no default password).
+> The Login V2 service keypair (zitadel-login-service-key) is made by cert-manager
+> (login-service-key.yaml); cert-manager is already required by the Ingress issuer.
 >
 > Namespace is NOT set here: the consumer overlay sets it (auth, identity, zitadel...).
 >
@@ -76,10 +81,11 @@ summary_source: derived
 ### Declared resources
 
 - `ingress.yaml`
+- `login-service-key.yaml`
 
 ### Kubernetes kinds
 
-`Ingress`
+`Certificate`, `Ingress`, `Issuer`
 
 ### Patches
 

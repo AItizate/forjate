@@ -36,6 +36,7 @@ class Zitadel:
         self.orgs, self.projects, self.roles, self.apps = {}, {}, {}, {}
         self.actions, self.users, self.grants, self.idps = {}, {}, {}, {}
         self.login_idps, self.flows = set(), {}
+        self.features = {}
         self.calls, self.fail = [], []
         self.ready = True
 
@@ -90,6 +91,11 @@ class Zitadel:
             return Resp(200 if self.ready else 503)
         if (method, path) == ("POST", "/oauth/v2/token"):
             return Resp(200, {"access_token": "tok"})
+        if path == "/v2/features/instance":
+            if method == "GET":
+                return Resp(200, dict(self.features))
+            self.features.update(body)
+            return Resp(200, {})
         if (method, path) == ("POST", "/v2/organizations/_search"):
             n = self.names(body)
             return Resp(200, {"result": [{"id": i} for i, name in self.orgs.items() if name == n]})

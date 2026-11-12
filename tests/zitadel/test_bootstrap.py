@@ -376,7 +376,7 @@ def test_username_linking_needs_its_own_loud_flag_and_warns(w, kind, extra, caps
 def test_auto_linking_email_stays_available_for_idps_that_verify_emails(w, kind, capsys):
     entry = idp(type=kind, options={"auto_linking": "email"})
     assert w.run(cfg(identity_providers=[entry])) == 0
-    assert "CVE-2026-56666" in capsys.readouterr().out
+    assert "NOTICE" in capsys.readouterr().out
 
 
 def test_unknown_idp_type_and_missing_issuer_are_config_errors(w):
@@ -449,3 +449,45 @@ def test_action_script_is_scoped_to_the_configured_project(w):
     assert w.run(cfg(actions=[{"name": "groupsClaim", "script": script}])) == 0
     pid = next(iter(w.z.projects))
     assert next(iter(w.z.actions.values()))["script"] == script.replace("{{project_id}}", pid)
+
+
+# ------------------------------------------------- Zitadel v4: features and paging
+
+def test_login_v2_feature_is_set_once_and_the_replay_changes_nothing(w):
+    assert w.run(cfg(features={"login_v2": True})) == 0
+    assert w.z.features == {"loginV2": {"required": True}}
+    puts = lambda: [c for c in w.z.calls if c[:2] == ("PUT", "/v2/features/instance")]
+    assert len(puts()) == 1
+    assert w.run(cfg(features={"login_v2": True})) == 0
+    assert puts() == []  # the feature was already on: the replay makes no PUT
+
+
+def test_login_v2_feature_can_be_switched_off(w):
+    w.z.features = {"loginV2": {"required": True}}
+    assert w.run(cfg(features={"login_v2": False})) == 0
+    assert w.z.features["loginV2"] == {"required": False}
+
+
+def test_no_features_block_means_no_feature_calls(w):
+    assert w.run(cfg()) == 0
+    assert not [c for c in w.z.calls if c[1] == "/v2/features/instance"]
+
+
+def test_a_failing_feature_write_fails_the_run(w):
+    w.z.fail.append((r"PUT /v2/features/instance", 500))
+    assert w.run(cfg(features={"login_v2": True})) == 1
+
+
+def test_every_list_call_asks_for_one_page_of_at_most_1000_rows(w):
+    """Zitadel >= 4.19.5 (A-10018): list endpoints need an explicit limit <= 1000."""
+    assert w.run(cfg(identity_providers=[idp(type="github")])) == 0
+    searches = [c for c in w.z.calls if c[0] == "POST" and (c[1].endswith("_search") or c[1] == "/v2/users")]
+    assert searches
+    for method, path, body, _ in searches:
+        assert 0 < body["query"]["limit"] <= 1000, path
+
+
+def test_an_action_using_project_id_without_a_project_says_so(w, capsys):
+    action = {"name": "g", "script": "function g(ctx, api) { return '{{project_id}}'; }"}
+    assert w.run({"organizations": [{"name": "acme", "is_default": True}], "actions": [action]}) == 0
+    assert "no `project:` is configured" in capsys.readouterr().out

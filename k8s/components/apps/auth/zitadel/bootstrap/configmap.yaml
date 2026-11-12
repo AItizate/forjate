@@ -58,6 +58,12 @@ data:
         # zitadel-oidc-oauth2-proxy (client-id, client-secret, issuer-url), in the
         # namespace of this Job. If that Secret is deleted it is regenerated.
 
+    # Instance features. A NEW v4 instance already uses Login V2 (chart DefaultInstance);
+    # an instance upgraded from v2/v3 keeps Login V1 until this is set. Change the
+    # callback URL at every external IdP too (docs/apps/zitadel.md, "Upgrading to v4").
+    # features:
+    #   login_v2: true
+
     # Actions + flows. Argo CD (and most OIDC clients) only read `groups` claims
     # that are flat lists, while Zitadel emits roles as an object under
     # urn:zitadel:iam:org:project:roles. This action adds a flat `groups` claim.
@@ -119,9 +125,11 @@ data:
     #   # (usernames are chosen by whoever registers them); override with
     #   # `trust_idp_username: true` only for an IdP you operate. WARNING logged each run.
     #   #
-    #   # Zitadel < 4.15.3 (the pinned chart ships 2.67.2) does not check that the IdP
-    #   # verified the email even for Google/GitHub (CVE-2026-56666). See
-    #   # docs/apps/zitadel.md, "Version gate".
+    #   # Zitadel >= 4.15.3 (CVE-2026-56666) checks that the IdP verified the email
+    #   # before auto-linking; the refusals above stay as policy. See
+    #   # docs/apps/zitadel.md, "Version, licence and telemetry".
+    #   #
+    #   # Callback URL to register at the IdP (Login V2): https://<domain>/idps/callback
 
     # Human users — managed as code
     users: []

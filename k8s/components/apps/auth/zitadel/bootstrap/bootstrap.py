@@ -2,7 +2,8 @@
 """
 Zitadel bootstrap: create-or-update, and loud when it cannot converge.
 
-Reads /config/bootstrap.yaml and reconciles organizations, project, roles,
+Reads /config/bootstrap.yaml and reconciles instance features (Login V2),
+organizations, project, roles,
 Actions and flow triggers, OIDC applications (client credentials stored in K8s
 Secrets; public clients store only the client-id), human users, service users
 and external identity providers (Google, GitHub, Azure AD, generic OIDC)
@@ -52,6 +53,7 @@ NAMESPACE = os.environ.get("POD_NAMESPACE", "default")
 SA_DIR = Path(os.environ.get("K8S_SA_DIR", "/var/run/secrets/kubernetes.io/serviceaccount"))
 K8S_API = os.environ.get("K8S_API", "https://kubernetes.default.svc")
 TIMEOUT = 30
+SEARCH_LIMIT = 1000
 
 s = None  # requests.Session, created by setup_session()
 ZITADEL_URL = None
@@ -105,6 +107,13 @@ def _org(org_id):
 
 def post(path, body=None, org_id=None):
     return s.post(f"{ZITADEL_URL}{path}", headers=_org(org_id), json=body or {}, timeout=TIMEOUT)
+
+
+def search(path, body=None, org_id=None):
+    """A list call. Zitadel >= 4.19.5 (advisory A-10018) caps a page at 1000 rows and
+    drops the implicit limit, so ask for one page explicitly. Every caller filters by
+    name or id, or lists a handful of IdPs, so a single page is enough."""
+    return post(path, {**(body or {}), "query": {"limit": SEARCH_LIMIT}}, org_id=org_id)
 
 
 def put(path, body=None, org_id=None):
@@ -256,10 +265,39 @@ def validate_idp(idp):
     return errors
 
 
+# ------------------------------------------------------------------ features
+
+def ensure_features(features):
+    """Instance features. Only `login_v2` is known: `true` (or {required, base_uri}) makes
+    Login V2 the login UI of the instance. A NEW v4 instance gets it from the chart's
+    DefaultInstance block; an instance upgraded from v2/v3 keeps Login V1 until this runs."""
+    lv2 = features.get("login_v2")
+    if lv2 is None:
+        return
+    if isinstance(lv2, bool):
+        lv2 = {"required": lv2}
+    want = {"required": bool(lv2.get("required", True))}
+    if lv2.get("base_uri"):
+        want["baseUri"] = lv2["base_uri"]
+    r = s.get(f"{ZITADEL_URL}/v2/features/instance", timeout=TIMEOUT)
+    if not r.ok:
+        failed("read the instance features", r)
+        return
+    have = r.json().get("loginV2") or {}
+    if have.get("required", False) == want["required"] and have.get("baseUri", "") == want.get("baseUri", have.get("baseUri", "")):
+        say(f"Feature loginV2 unchanged (required={want['required']})")
+        return
+    u = put("/v2/features/instance", {"loginV2": want})
+    if u.ok:
+        say(f"Feature loginV2 set: {want}")
+    else:
+        failed("set the loginV2 instance feature", u)
+
+
 # ---------------------------------------------------------------- org/project
 
 def ensure_org(name):
-    r = post("/v2/organizations/_search", {
+    r = search("/v2/organizations/_search", {
         "queries": [{"nameQuery": {"name": name, "method": "TEXT_QUERY_METHOD_EQUALS"}}]
     })
     if not r.ok:
@@ -278,7 +316,7 @@ def ensure_org(name):
 
 def ensure_project(name, org_id):
     flags = {"projectRoleAssertion": True, "projectRoleCheck": True}
-    r = post("/management/v1/projects/_search", {
+    r = search("/management/v1/projects/_search", {
         "queries": [{"nameQuery": {"name": name, "method": "TEXT_QUERY_METHOD_EQUALS"}}]
     }, org_id=org_id)
     if not r.ok:
@@ -336,7 +374,7 @@ def oidc_body(app):
 def ensure_oidc_app(project_id, org_id, app):
     """Create the app or update its OIDC config. Returns (app_id, client_id, client_secret);
     client_secret is only known right after creation."""
-    r = post(f"/management/v1/projects/{project_id}/apps/_search", {
+    r = search(f"/management/v1/projects/{project_id}/apps/_search", {
         "queries": [{"nameQuery": {"name": app["name"], "method": "TEXT_QUERY_METHOD_EQUALS"}}]
     }, org_id=org_id)
     if not r.ok:
@@ -437,12 +475,15 @@ def reconcile_oidc_secret(app, project_id, org_id, app_id, client_id, client_sec
 # -------------------------------------------------------------- actions/flows
 
 def ensure_action(act, org_id, project_id=None):
-    r = post("/management/v1/actions/_search", {
+    r = search("/management/v1/actions/_search", {
         "queries": [{"actionNameQuery": {"name": act["name"], "method": "TEXT_QUERY_METHOD_EQUALS"}}]
     }, org_id=org_id)
     if not r.ok:
         failed(f"search action {act['name']}", r)
         return None
+    if "{{project_id}}" in act["script"] and not project_id:
+        say(f"  NOTICE: action {act['name']} uses {{{{project_id}}}} but no `project:` is configured, "
+            "so the placeholder becomes an empty string and the script matches no project")
     body = {
         "name": act["name"],
         # {{project_id}} lets a script scope itself to the configured project.
@@ -492,7 +533,7 @@ def grant_roles(user_id, project_id, role_keys, org_id):
     """Make the user's grant on the project carry exactly role_keys."""
     if not role_keys or not project_id:
         return
-    r = post("/management/v1/users/grants/_search", {
+    r = search("/management/v1/users/grants/_search", {
         "queries": [{"userIdQuery": {"userId": user_id}}, {"projectIdQuery": {"projectId": project_id}}]
     }, org_id=org_id)
     if not r.ok:
@@ -520,7 +561,7 @@ def find_user(username, org_id):
     if org_id:
         # v2 list endpoints filter by query; the x-zitadel-orgid header is ignored.
         queries.append({"organizationIdQuery": {"organizationId": org_id}})
-    r = post("/v2/users", {"queries": queries}, org_id=org_id)
+    r = search("/v2/users", {"queries": queries}, org_id=org_id)
     if not r.ok:
         failed(f"search user {username}", r)
         return None, True
@@ -629,7 +670,7 @@ def idp_body(idp, client_id, client_secret):
 def ensure_login_policy_idp(idp_id, enabled):
     # An IdP template is only offered on the login page once it is linked
     # to the login policy.
-    r = post("/admin/v1/policies/login/idps/_search", {})
+    r = search("/admin/v1/policies/login/idps/_search", {})
     if not r.ok:
         failed(f"read the login policy IdPs for {idp_id}", r)
         return
@@ -660,8 +701,9 @@ def ensure_identity_provider(idp):
             f"({idp.get('client_id_env')}, {idp.get('client_secret_env')})")
         return
     if opts.get("auto_linking"):
-        say(f"  NOTICE: {idp['name']} auto-links by {opts['auto_linking']}. Zitadel < 4.15.3 does not check that "
-            "the IdP verified the email (CVE-2026-56666); only enable this for IdPs that verify emails")
+        say(f"  NOTICE: {idp['name']} auto-links by {opts['auto_linking']}: the first login with an external "
+            "account becomes the existing Zitadel user with the same verified email. Only enable this for "
+            "IdPs that verify emails")
     if idp.get("trust_idp_email"):
         say(f"  WARNING: {idp['name']} has trust_idp_email=true: whoever can set the email at that IdP "
             "becomes the Zitadel user with that email")
@@ -672,7 +714,7 @@ def ensure_identity_provider(idp):
     path = IDP_TYPES[kind][0]
     # /admin/v1/idps/_search returns no results for instance-level IdPs;
     # the working endpoint is /admin/v1/idps/templates/_search.
-    r = post("/admin/v1/idps/templates/_search", {
+    r = search("/admin/v1/idps/templates/_search", {
         "queries": [{"idpNameQuery": {"name": idp["name"], "method": "TEXT_QUERY_METHOD_EQUALS"}}]
     })
     if not r.ok:
@@ -722,6 +764,8 @@ def main():
     setup_session(os.environ.get("ZITADEL_HOST") or urlparse(issuer).netloc)
     wait_for_zitadel()
     authenticate(os.environ.get("ZITADEL_AUDIENCE") or issuer)
+
+    ensure_features(cfg.get("features") or {})
 
     orgs_by_name, default_org_id = {}, None
     for o in organizations(cfg):

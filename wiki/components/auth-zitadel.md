@@ -7,7 +7,7 @@ compiled_at: '2026-11-12'
 category: auth
 consumed_by:
 - components/bundles-zitadel-stack
-source_hash: bc0bb21695a274a0
+source_hash: 73b038a3b7798ae0
 source_last_commit: '2026-11-12'
 summary: "Zitadel \u2014 Cloud-native Identity Provider with built-in user management"
 summary_source: derived
@@ -21,28 +21,24 @@ summary_source: derived
 >
 > Zitadel — Cloud-native Identity Provider with built-in user management
 >
-> Replaces GoTrue and complements oauth2-proxy as the OIDC provider.
-> Provides what oauth2-proxy lacks: user creation, RBAC, service accounts.
+> A standalone component: it references, requires and configures no other component.
+> Whatever consumes Zitadel as an OIDC provider is wired by the tenant overlay
+> (docs/tenant-onboarding/zitadel-integrations.md).
 >
-> Architecture:
-> Zitadel (IdP + user DB + RBAC)
-> ↓ OIDC
-> oauth2-proxy (Traefik middleware, unchanged)
-> ↓ ForwardAuth
-> Protected apps
->
-> oauth2-proxy changes only its provider config:
-> provider: google → provider: oidc + oidc-issuer-url: https://zitadel.{domain}
->
-> Zitadel concepts mapped to the factory:
+> Zitadel concepts:
 > Organization  → Tenant (multi-org support for internal + external users)
-> Project       → App group (ai-tools, monitoring, productivity)
-> Application   → OIDC client (oauth2-proxy, open-webui, n8n)
+> Project       → App group
+> Application   → OIDC client
 > Role          → Access level (admin, viewer, operator)
 > Service User  → Machine account (agents, pipelines, CI/CD)
 >
+> Delivery: Argo CD. init/setup/bootstrap are Argo CD hooks ordered with sync-waves
+> (argocd.argoproj.io/* annotations, see below); with plain `kubectl apply` they would
+> run as ordinary Jobs at the same time as the Deployment. docs/apps/zitadel.md
+> ("Delivery requirement") describes the manual order for an Argo-free delivery.
+>
 > Zitadel uses Helm chart via Kustomize helmCharts generator.
-> PostgreSQL uses the factory's own postgres component (not Bitnami Helm).
+> PostgreSQL: bundles/zitadel-stack composes the postgres component (a bundle may).
 > Requires: kustomize with --enable-helm flag
 >
 > Usage:

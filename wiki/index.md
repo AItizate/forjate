@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-11-11'
+compiled_at: '2026-11-12'
 ---
 
 # Forjate wiki — index
@@ -31,7 +31,7 @@ The foundation every tenant inherits.
 
 ## Components
 
-86 pages. Optional building blocks an overlay can activate.
+85 pages. Optional building blocks an overlay can activate.
 
 ### agents
 
@@ -57,7 +57,6 @@ The foundation every tenant inherits.
   - [auth-gotrue-auth-middlewares](components/auth-gotrue-auth-middlewares.md) — declares `Middleware` · used by 1
 - [auth-zitadel](components/auth-zitadel.md) — Zitadel — Cloud-native Identity Provider with built-in user management · used by 1
   - [auth-zitadel-bootstrap](components/auth-zitadel-bootstrap.md) — Zitadel Bootstrap — Zitadel's organizations, project, roles, OIDC apps, users and · used by 1
-  - [auth-zitadel-oauth2-proxy-integration](components/auth-zitadel-oauth2-proxy-integration.md) — oauth2-proxy ↔ Zitadel Integration · unused in this repo
 
 ### backup
 

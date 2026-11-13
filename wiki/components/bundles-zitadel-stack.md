@@ -5,7 +5,7 @@ sources:
 - k8s/components/bundles/zitadel-stack
 compiled_at: '2026-11-12'
 category: bundles
-source_hash: 20619a9528a80ec3
+source_hash: 03761f2296ee0eab
 source_last_commit: '2026-11-12'
 summary: "zitadel-stack \u2014 Zitadel IdP + PostgreSQL + bootstrap in a single reference"
 summary_source: derived
@@ -22,8 +22,7 @@ summary_source: derived
 > Bundles:
 > - databases/postgres      (StatefulSet, Service) with namePrefix: zitadel-
 > - auth/zitadel            (Helm chart: Deployments zitadel and zitadel-login (Login
-> V2), Services, init/setup hooks, SA, Role; cert-manager
-> Issuer + Certificate for the login keypair; the Ingress)
+> V2), Services, init/setup hooks, SA, Role; the Ingress)
 > - auth/zitadel/bootstrap  (PostSync Job, desired-state ConfigMap, SA, Role,
 > RoleBinding — namespaced, no ClusterRole)
 >

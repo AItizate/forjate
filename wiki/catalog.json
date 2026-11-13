@@ -1145,56 +1145,6 @@
       "namespace_how": null
     },
     {
-      "path": "apps/auth/zitadel/oauth2-proxy-integration",
-      "name": "auth-zitadel-oauth2-proxy-integration",
-      "category": "auth",
-      "wiki": "wiki/components/auth-zitadel-oauth2-proxy-integration.md",
-      "summary": "oauth2-proxy ↔ Zitadel Integration",
-      "images": [],
-      "kinds": [],
-      "composes": [],
-      "remote_refs": [],
-      "consumed_by": [],
-      "parent": "components/auth-zitadel",
-      "stages": [
-        "crawl",
-        "walk",
-        "run"
-      ],
-      "capabilities": [],
-      "maturity": "lab",
-      "gpu_required": "unknown",
-      "ha": "unknown",
-      "psa_restricted": "unknown",
-      "secrets": {
-        "takes": "unknown"
-      },
-      "data_classes": [
-        "internal"
-      ],
-      "curated": false,
-      "psa_level": "n/a",
-      "namespace": null,
-      "namespace_how": null,
-      "wiring": {
-        "service": null,
-        "port": null,
-        "protocol": "tcp",
-        "label": null,
-        "workload": null,
-        "secret": null,
-        "placeholder_secrets": [],
-        "config": null,
-        "ingress": null,
-        "gpu_limit": false,
-        "hostpath": false,
-        "hostpath_volumes": [],
-        "secret_mounted": false,
-        "sizing": null,
-        "extra_ports": {}
-      }
-    },
-    {
       "path": "apps/backup/velero",
       "name": "backup-velero",
       "category": "backup",

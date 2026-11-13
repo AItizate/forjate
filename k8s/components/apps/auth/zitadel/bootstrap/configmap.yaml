@@ -43,10 +43,10 @@ data:
 
     # OIDC Applications (each gets a client_id + client_secret)
     applications:
-      # oauth2-proxy — the main gateway for all protected apps
-      - name: oauth2-proxy
+      # An example OIDC client; replace it with the tenant's apps.
+      - name: example-app
         redirect_uris:
-          - https://auth.example.com/oauth2/callback
+          - https://app.example.com/callback
         post_logout_redirect_uris:
           - https://example.com
         response_types:
@@ -55,7 +55,7 @@ data:
           - OIDC_GRANT_TYPE_AUTHORIZATION_CODE
         auth_method: OIDC_AUTH_METHOD_TYPE_BASIC
         # The client secret is generated once and stored in the K8s Secret
-        # zitadel-oidc-oauth2-proxy (client-id, client-secret, issuer-url), in the
+        # zitadel-oidc-example-app (client-id, client-secret, issuer-url), in the
         # namespace of this Job. If that Secret is deleted it is regenerated.
 
     # Instance features. A NEW v4 instance already uses Login V2 (chart DefaultInstance);
@@ -64,7 +64,7 @@ data:
     # features:
     #   login_v2: true
 
-    # Actions + flows. Argo CD (and most OIDC clients) only read `groups` claims
+    # Actions + flows. Many OIDC clients only read `groups` claims
     # that are flat lists, while Zitadel emits roles as an object under
     # urn:zitadel:iam:org:project:roles. This action adds a flat `groups` claim.
     # actions:
@@ -88,14 +88,14 @@ data:
     #
     # Public clients (CLI, PKCE) have no secret; only client-id is stored:
     # applications:
-    #   - name: argocd-cli
+    #   - name: cli-app
     #     app_type: OIDC_APP_TYPE_NATIVE
     #     auth_method: OIDC_AUTH_METHOD_TYPE_NONE
     #     redirect_uris: ["http://localhost:8085/auth/callback"]
 
     # External identity providers (Google, GitHub, Azure AD, generic OIDC) on the
     # login page. Credentials are read from the env vars named below (inject them
-    # with a SealedSecret + envFrom on the bootstrap Job in the overlay); a
+    # through envFrom on the bootstrap Job in the overlay); a
     # provider without credentials is skipped. Create-or-update, so option changes
     # replay. Every option is off by default.
     # identity_providers:
@@ -136,12 +136,12 @@ data:
     # Example (uncomment and customize in overlay). A literal `initial_password:` is
     # rejected: a password in this ConfigMap is a password in git.
     # users:
-    #   - username: sebas
-    #     first_name: Sebas
-    #     last_name: Etchevest
-    #     email: sebas@example.com
+    #   - username: ana
+    #     first_name: Ana
+    #     last_name: Example
+    #     email: ana@example.com
     #     email_verified: true
-    #     initial_password_env: SEBAS_INITIAL_PASSWORD   # env var in zitadel-bootstrap-env
+    #     initial_password_env: ANA_INITIAL_PASSWORD   # env var in zitadel-bootstrap-env
     #     roles:
     #       - admin
     #   - username: dev-user
@@ -156,15 +156,15 @@ data:
     service_users: []
     # Example (uncomment and customize in overlay):
     # service_users:
-    #   - username: temporal-worker
-    #     description: "Temporal workflow worker — accesses AI services"
+    #   - username: pipeline
+    #     description: "Pipeline worker — calls internal APIs"
     #     roles:
     #       - operator
-    #   - username: ai-agent
+    #   - username: agent
     #     description: "Agentic orchestration — provisions infra and accesses APIs"
     #     roles:
     #       - admin
-    #   - username: argocd
-    #     description: "ArgoCD — reads OIDC tokens for dashboard SSO"
+    #   - username: reporter
+    #     description: "Read-only reporting job"
     #     roles:
     #       - viewer

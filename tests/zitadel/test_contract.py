@@ -1,7 +1,7 @@
 """One "what the tenant must provide" contract (findings M2, M6, M8, M1, M7, m1).
 
 contract.yaml is the list. These tests make the rendered pods, the docs, the
-oauth2-proxy template and the buildable example overlay agree with it, so a name
+buildable example overlay agree with it, so a name
 cannot drift in one place only (the first version had five different spellings).
 """
 import re
@@ -135,7 +135,7 @@ def test_docs_and_contract_state_the_admin_password_policy():
 
 def test_docs_workload_names_exist_in_the_render(example):
     names = {(o["kind"].lower(), o["metadata"]["name"]) for o in example}
-    # only the commands aimed at the Zitadel namespace; oauth2-proxy lives elsewhere
+    # only the commands aimed at the Zitadel namespace; other components live elsewhere
     zitadel_lines = "\n".join(l for l in DOCS.splitlines() if "-n zitadel" in l)
     found = re.findall(r"\b(deploy|statefulset|job)/([\w-]+)", zitadel_lines)
     assert found
@@ -229,18 +229,58 @@ def test_labels_follow_the_forjate_convention(bundle):
     assert by_kind(bundle, "Deployment", "zitadel")["metadata"]["labels"]["app.kubernetes.io/ait-component"] == "zitadel"
 
 
-# ------------------------------------------------- oauth2-proxy template (M8)
+# ------------------------------------------------- integration example (outside the component)
 
-def test_oauth2_template_verifies_tls_and_reads_the_secret_the_bootstrap_writes():
-    values = yaml.safe_load((COMPONENT / "oauth2-proxy-integration/oauth2-values-zitadel.yaml").read_text())
+INTEGRATION = ROOT / "docs/examples/oauth2-proxy-with-zitadel"
+
+
+def test_oauth2_example_verifies_tls_and_reads_the_secret_the_bootstrap_writes():
+    values = yaml.safe_load((INTEGRATION / "oauth2-values-zitadel.yaml").read_text())
     assert "ssl-insecure-skip-verify" not in values["extraArgs"]
     refs = {(e["valueFrom"]["secretKeyRef"]["name"], e["valueFrom"]["secretKeyRef"]["key"])
             for e in values["extraEnv"] if e["name"] != "OAUTH2_PROXY_COOKIE_SECRET"}
     assert refs == {("zitadel-oidc-oauth2-proxy", "client-id"), ("zitadel-oidc-oauth2-proxy", "client-secret")}
-    # ... which is what the bootstrap writes for the application named oauth2-proxy
-    default = yaml.safe_load(yaml.safe_load((COMPONENT / "bootstrap/configmap.yaml").read_text())["data"]["bootstrap.yaml"])
-    assert "oauth2-proxy" in [a["name"] for a in default["applications"]]
+    # ... which is what the bootstrap writes for the application the example declares
+    apps = yaml.safe_load((INTEGRATION / "bootstrap-application.yaml").read_text())
+    assert [a["name"] for a in apps] == ["oauth2-proxy"]
     assert values["extraArgs"]["oidc-groups-claim"] == "groups"
+
+
+# ----------------------------------------------- component independence (CLAUDE.md)
+
+FOREIGN = re.compile(r"oauth2-proxy|argocd-cm|temporal|gotrue|n8n|open-webui|litellm|tenant-iac-factory", re.I)
+
+
+def test_component_and_bundle_name_no_other_component():
+    offenders = []
+    for root in (COMPONENT, ROOT / "k8s/components/bundles/zitadel-stack"):
+        for f in root.rglob("*"):
+            if f.is_file() and "charts" not in f.parts and f.suffix in {".yaml", ".py", ".txt"}:
+                for n, line in enumerate(f.read_text().splitlines(), 1):
+                    if FOREIGN.search(line):
+                        offenders.append(f"{f.relative_to(ROOT)}:{n}: {line.strip()[:80]}")
+    assert not offenders, offenders
+
+
+def test_component_docs_name_no_other_component():
+    offenders = [l.strip()[:90] for l in DOCS.splitlines() if FOREIGN.search(l) and "tenant-onboarding" not in l]
+    assert not offenders, offenders
+
+
+def test_ingress_has_no_issuer_or_controller_annotations(bundle):
+    ann = by_kind(bundle, "Ingress", "zitadel")["metadata"].get("annotations") or {}
+    foreign = [k for k in ann if not k.startswith("argocd.argoproj.io/")]
+    assert not foreign, foreign
+    assert not by_kind(bundle, "Ingress", "zitadel")["spec"].get("ingressClassName")
+
+
+def test_the_component_has_no_integration_directory():
+    assert not (COMPONENT / "oauth2-proxy-integration").exists()
+
+
+def test_the_contract_states_the_delivery_requirement():
+    assert CONTRACT["delivery"]["requires"] == "Argo CD"
+    assert "Delivery requirement" in DOCS
 
 
 # ------------------------------------------------------- the example builds

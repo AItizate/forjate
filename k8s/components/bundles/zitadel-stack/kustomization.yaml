@@ -6,8 +6,7 @@ kind: Kustomization
 # Bundles:
 #   - databases/postgres      (StatefulSet, Service) with namePrefix: zitadel-
 #   - auth/zitadel            (Helm chart: Deployments zitadel and zitadel-login (Login
-#                              V2), Services, init/setup hooks, SA, Role; cert-manager
-#                              Issuer + Certificate for the login keypair; the Ingress)
+#                              V2), Services, init/setup hooks, SA, Role; the Ingress)
 #   - auth/zitadel/bootstrap  (PostSync Job, desired-state ConfigMap, SA, Role,
 #                              RoleBinding — namespaced, no ClusterRole)
 #

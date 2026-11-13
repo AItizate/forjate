@@ -76,8 +76,8 @@ CONFIG = {
     "project": {"name": "platform", "roles": [
         {"key": "admin", "display_name": "Administrator"}, {"key": "viewer"}]},
     "applications": [
-        {"name": "oauth2-proxy", "redirect_uris": ["https://auth.example.com/oauth2/callback"]},
-        {"name": "argocd-cli", "app_type": "OIDC_APP_TYPE_NATIVE", "auth_method": "OIDC_AUTH_METHOD_TYPE_NONE",
+        {"name": "web-app", "redirect_uris": ["https://auth.example.com/oauth2/callback"]},
+        {"name": "cli-app", "app_type": "OIDC_APP_TYPE_NATIVE", "auth_method": "OIDC_AUTH_METHOD_TYPE_NONE",
          "redirect_uris": ["http://localhost:8085/auth/callback"]},
     ],
     "users": [{"username": "ana", "email": "ana@example.com", "initial_password_env": "ANA_PASSWORD",
@@ -101,10 +101,10 @@ def passwords(monkeypatch):
 
 def test_fresh_run_converges_and_stores_credentials(w):
     assert w.run(cfg()) == 0
-    assert w.k.secrets["zitadel-oidc-oauth2-proxy"]["client-secret"].startswith("secret-")
-    assert w.k.secrets["zitadel-oidc-oauth2-proxy"]["issuer-url"] == ISSUER
+    assert w.k.secrets["zitadel-oidc-web-app"]["client-secret"].startswith("secret-")
+    assert w.k.secrets["zitadel-oidc-web-app"]["issuer-url"] == ISSUER
     # public client: only the client-id (and issuer), never a secret
-    assert "client-secret" not in w.k.secrets["zitadel-oidc-argocd-cli"]
+    assert "client-secret" not in w.k.secrets["zitadel-oidc-cli-app"]
     assert {r[1] for r in w.z.roles} == {"admin", "viewer"}
     assert sorted(g["roleKeys"][0] for g in w.z.grants.values()) == ["admin", "viewer"]
 
@@ -123,13 +123,13 @@ def test_rerun_is_a_no_op(w):
 
 def test_changed_redirect_uri_is_applied_without_rotating_the_secret(w):
     w.run(cfg())
-    before = w.k.secrets["zitadel-oidc-oauth2-proxy"]["client-secret"]
+    before = w.k.secrets["zitadel-oidc-web-app"]["client-secret"]
     c = cfg()
     c["applications"][0]["redirect_uris"] = ["https://auth.example.com/oauth2/callback", "https://other/cb"]
     assert w.run(c) == 0
     proxy = next(a for a in w.z.apps.values() if a["redirectUris"][0].startswith("https://auth"))
     assert proxy["redirectUris"] == ["https://auth.example.com/oauth2/callback", "https://other/cb"]
-    assert w.k.secrets["zitadel-oidc-oauth2-proxy"]["client-secret"] == before
+    assert w.k.secrets["zitadel-oidc-web-app"]["client-secret"] == before
 
 
 def test_changed_role_display_name_and_grant_are_updated(w):
@@ -157,16 +157,16 @@ def test_action_update_and_flow(w):
 
 def test_lost_confidential_secret_is_regenerated(w):
     w.run(cfg())
-    del w.k.secrets["zitadel-oidc-oauth2-proxy"]
+    del w.k.secrets["zitadel-oidc-web-app"]
     assert w.run(cfg()) == 0
-    assert w.k.secrets["zitadel-oidc-oauth2-proxy"]["client-secret"].startswith("regen-")
+    assert w.k.secrets["zitadel-oidc-web-app"]["client-secret"].startswith("regen-")
 
 
 def test_lost_public_secret_is_recreated_without_regenerating(w):
     w.run(cfg())
-    del w.k.secrets["zitadel-oidc-argocd-cli"]
+    del w.k.secrets["zitadel-oidc-cli-app"]
     assert w.run(cfg()) == 0
-    assert w.k.secrets["zitadel-oidc-argocd-cli"]["client-id"].startswith("cid-")
+    assert w.k.secrets["zitadel-oidc-cli-app"]["client-id"].startswith("cid-")
     assert not [c for c in w.z.calls if "_generate_client_secret" in c[1]]
 
 
@@ -178,7 +178,7 @@ def test_intact_secret_is_never_rotated(w):
 
 def test_only_get_create_patch_are_used_on_secrets(w):
     w.run(cfg())
-    del w.k.secrets["zitadel-oidc-oauth2-proxy"]
+    del w.k.secrets["zitadel-oidc-web-app"]
     w.run(cfg())
     # The namespaced Role grants get/create/update/patch; the fake raises on any other verb.
     assert {c[0] for c in w.k.calls} <= {"GET", "POST", "PATCH"}

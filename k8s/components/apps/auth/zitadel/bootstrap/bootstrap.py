@@ -364,7 +364,7 @@ def oidc_body(app):
         "accessTokenType": app.get("access_token_type", "OIDC_TOKEN_TYPE_JWT"),
         # Without these, Zitadel does not include the
         # urn:zitadel:iam:org:project:roles claim in the tokens, and
-        # oauth2-proxy's allowed-group check rejects every login.
+        # a client that gates on the groups claim rejects every login.
         "accessTokenRoleAssertion": app.get("access_token_role_assertion", True),
         "idTokenRoleAssertion": app.get("id_token_role_assertion", True),
         "idTokenUserinfoAssertion": app.get("id_token_userinfo_assertion", True),

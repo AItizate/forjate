@@ -2,57 +2,40 @@
 
 ## Overview
 
-Zitadel is a cloud-native Identity Provider (IdP) that provides user management, authentication (OIDC/SAML), RBAC, and service accounts — all API-first.
+Zitadel is a cloud-native Identity Provider (IdP) that provides user management, authentication (OIDC/SAML), RBAC, and service accounts, all API-first. This component runs it with its own PostgreSQL (the bundle composes the postgres component) and a bootstrap Job that keeps organizations, projects, roles, OIDC clients, users, service users and external identity providers as code.
 
-In Forjate, Zitadel solves what oauth2-proxy and GoTrue couldn't alone:
+The component stands on its own: it does not reference, require or configure any other component. Whatever consumes Zitadel (an auth proxy, a CI system, an app) is wired by the tenant overlay; recipes are in [`docs/tenant-onboarding/zitadel-integrations.md`](../tenant-onboarding/zitadel-integrations.md).
 
-| Capability | oauth2-proxy | GoTrue | Zitadel |
-|---|---|---|---|
-| Auth gate (pass/deny) | Yes | Yes | Via oauth2-proxy |
-| Create/manage users | No | Yes (basic) | **Yes (full)** |
-| RBAC with roles | No | Per-app only | **Per-org, project, app** |
-| Service accounts | No | No | **Yes (machine users)** |
-| Multi-tenant orgs | No | No | **Native** |
-| API-first (IaC) | No | Partial | **Full gRPC + REST** |
-| SSO (SAML, LDAP) | Partial | No | **Yes** |
+**Delivery requirement: Argo CD.** The init/setup/bootstrap Jobs are Argo CD hooks ordered with sync-waves (`argocd.argoproj.io/*` annotations). Delivered by Argo CD they run in order by themselves. Applied with plain `kubectl apply` the annotations do nothing: the three Jobs run as ordinary Jobs at the same time as the Deployment, so there is no Argo-free automatic path. Apply in order by hand instead: postgres, then Job `zitadel-init`, then Job `zitadel-setup`, then the Deployments, then Job `zitadel-bootstrap` (delete each finished Job before re-applying it).
 
 ## Architecture: How it fits
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  Zitadel (namespace: zitadel)                            │
+│  Zitadel (namespace of the tenant overlay)               │
 │  ├── IdP: user database, authentication, JWT issuance    │
+│  ├── Login V2 (zitadel-login) behind /ui/v2/login        │
 │  ├── RBAC: organizations → projects → roles              │
 │  ├── Service accounts: machine-to-machine tokens         │
 │  └── Admin API: gRPC + REST (for the bootstrap Job)      │
 └────────────────────┬─────────────────────────────────────┘
                      │ OIDC (issuer)
                      ▼
-┌──────────────────────────────────────────────────────────┐
-│  oauth2-proxy (namespace: security)                      │
-│  ├── provider: oidc (was: google)                        │
-│  ├── oidc-issuer-url: https://zitadel.{domain}           │
-│  ├── Reads client creds from zitadel-oidc-oauth2-proxy   │
-│  └── Traefik middlewares UNCHANGED                       │
-└────────────────────┬─────────────────────────────────────┘
-                     │ ForwardAuth headers
-                     ▼
-              Protected applications
-         (X-Auth-Request-User, X-Auth-Request-Groups)
+        OIDC clients (any relying party)
+   client id/secret in Secret zitadel-oidc-<app>,
+   written by the bootstrap for each entry of `applications:`
 ```
 
-**Key point:** oauth2-proxy stays as the Traefik middleware. Only its OIDC provider changes from Google to Zitadel. No middleware changes needed.
-
-## Zitadel concepts → Factory mapping
+## Zitadel concepts → Forjate mapping
 
 | Zitadel | Factory equivalent | Example |
 |---|---|---|
-| Organization | Tenant | aitizate.com, scitrix-tech |
-| Project | App group | platform, ai-tools |
-| Application | OIDC client | oauth2-proxy, ArgoCD |
+| Organization | Tenant | acme, customers |
+| Project | App group | platform |
+| Application | OIDC client | web-app, cli-app |
 | Role | Access level | admin, operator, viewer |
-| Human User | Person | sebas, dev-user |
-| Service User | Machine account | temporal-worker, ai-agent |
+| Human User | Person | ana, dev-user |
+| Service User | Machine account | pipeline, agent |
 
 ## Component structure
 
@@ -70,9 +53,6 @@ k8s/components/apps/auth/zitadel/
 │   ├── serviceaccount.yaml
 │   ├── role.yaml                   # secrets get/create/patch, own namespace only
 │   └── rolebinding.yaml
-└── oauth2-proxy-integration/       # Values template for oauth2-proxy
-    ├── kustomization.yaml
-    └── oauth2-values-zitadel.yaml  # Copy to overlay, customize
 
 k8s/components/bundles/zitadel-stack/   # chart + postgres + bootstrap in one reference
 docs/examples/zitadel-tenant/           # a tenant overlay that CI builds
@@ -86,7 +66,7 @@ One contract, in `k8s/components/apps/auth/zitadel/contract.yaml`. The kustomiza
 
 **One namespace for everything**, set by the overlay with `namespace:` (the example uses `zitadel`). kustomize does not stamp `namespace:` on the Helm chart's objects, so the overlay forces it with a patch on `app.kubernetes.io/part-of=zitadel-stack` (every object of the bundle carries that label; the example shows the patch). Do not rely on Argo CD `destination.namespace` or `kubectl -n`: a root kustomization that holds several namespaces cannot use them.
 
-**Secrets you create before the first sync** (SealedSecret or ESO):
+**Secrets you create before the first sync** (however the tenant manages secrets):
 
 | Secret | Keys | Read by |
 |---|---|---|
@@ -140,7 +120,7 @@ project:
     - {key: viewer, display_name: Viewer, group: platform}
 
 applications:
-  - name: oauth2-proxy
+  - name: web-app
     redirect_uris: ["https://auth.acme.dev/oauth2/callback"]
 
 users:
@@ -212,7 +192,7 @@ For a tenant that already runs an earlier version of this component. The instanc
      --from-file=zitadel-admin-sa.json=key.json --dry-run=client -o yaml | kubectl apply -f -
    rm key.json
    ```
-   If you keep the Secret in git as a SealedSecret, seal it under the new key name instead.
+   If the Secret is managed by a secret tool, change it there under the new key name instead.
 3. **Close the old default admin.** Earlier versions created `zitadel-admin` with the Zitadel default password, behind the public Ingress. If it was never changed, anyone can log in as IAM_OWNER. In the Console create your own admin (or use the one from `bootstrap.yaml`), then change or deactivate `zitadel-admin`, and audit the instance's logins since the first deploy.
 4. **Remove what the old version left.** The cluster-scoped role and binding named `zitadel-bootstrap` (`kubectl delete clusterrole,clusterrolebinding zitadel-bootstrap`; Argo CD prunes them if it tracks them), the `rbac/` entry in your overlay's `resources`, and, if Argo complains about immutable fields on the first sync, the old plain Jobs `zitadel-init` and `zitadel-setup` (they are Argo CD hooks now and are recreated).
 5. **Adapt `bootstrap.yaml`.** `initial_password:` literals are rejected (use `initial_password_env`), `organization:` becomes `organizations:`, and an Azure IdP needs `tenant_id`. The Job exits 2 and lists every `CONFIG ERROR`.
@@ -230,44 +210,21 @@ On a **new** instance the chart's setup Job writes the key to `zitadel-admin-sa`
    ```
 4. Delete the downloaded file, and delete any older key of that user in the Console. Re-run the bootstrap (`kubectl delete job zitadel-bootstrap -n zitadel`, or sync).
 
-## Replacing GoTrue
+### Ingress: tenant patch points
 
-Zitadel replaces GoTrue entirely:
-
-| GoTrue feature | Zitadel equivalent |
-|---|---|
-| User signup/login | Zitadel login UI + OIDC flows |
-| JWT tokens | Zitadel issues JWTs natively |
-| Per-app RBAC (`app_metadata.apps`) | Project roles + `urn:zitadel:iam:org:project:roles` claim |
-| Google OAuth provider | Zitadel as IdP (federated login via Google, GitHub, etc.) |
-| authz middleware (Node.js) | oauth2-proxy `allowed-group` + Zitadel role claims |
-| PostgreSQL user store | Zitadel has its own user DB |
-
-**Migration path:** GoTrue is actively deployed in 2 remote tenant overlays
-(repos that consume this factory via SSH refs). To migrate:
-
-1. Deploy Zitadel in the tenant cluster (add `bundles/zitadel-stack` to the overlay)
-2. Run bootstrap to create the same users that exist in GoTrue's Postgres
-3. Switch oauth2-proxy from GoTrue OIDC to Zitadel OIDC (swap issuer URL)
-4. Migrate gotrue-authz per-app RBAC (`app_metadata.apps`) to Zitadel project roles
-5. Verify all protected apps still authenticate correctly
-6. Remove gotrue-auth component reference from the overlay
-7. GoTrue's Postgres user data can be archived — Zitadel has its own DB
-
-**Important:** Do NOT remove the gotrue-auth component from this factory
-until both remote overlays have been migrated. Coordinate with tenant owners.
+`ingress.yaml` is deliberately plain: host, TLS secret name and two paths (`/ui/v2/login` to `zitadel-login:3000`, `/` to `zitadel:8080`). It carries no certificate-issuer or ingress-controller annotations and no `ingressClassName`, because those are the tenant's choices. Patch them in the overlay (the example overlay does): `cert-manager.io/cluster-issuer: <issuer>` if cert-manager issues the certificate, `ingressClassName`, controller annotations (for Traefik, `traefik.ingress.kubernetes.io/router.entrypoints` and middlewares), and the host and TLS host.
 
 ## Setup guide
 
 ### Prerequisites
 
-- Kubernetes cluster with Traefik and cert-manager
+- Kubernetes cluster with an ingress controller (any) and, if you want TLS from an issuer, whatever issues your certificates (tenant choice, see "Ingress: tenant patch points")
 - `kustomize` with `--enable-helm` (Argo CD: `kustomize.buildOptions: --enable-helm`)
 - A domain for Zitadel (e.g., `zitadel.acme.dev`)
 
 ### Step 1: Create the secrets
 
-Create the five Secrets of the contract in the overlay's namespace. The recipe (one `.env` per Secret, sealed with `kubeseal`) is in `docs/examples/zitadel-tenant/secrets/README.md`. In short:
+Create the Secrets of the contract in the overlay's namespace. The example recipe (one `.env` per Secret, sealed with `kubeseal` as one possible tool) is in `docs/examples/zitadel-tenant/secrets/README.md`. In short:
 
 ```bash
 kubectl create namespace zitadel
@@ -285,29 +242,15 @@ Copy `docs/examples/zitadel-tenant/` into your tenant repo, change the domain in
 
 ### Step 3: Sync
 
-```bash
-kustomize build --enable-helm docs/examples/zitadel-tenant | kubectl apply -f -
-```
+Let Argo CD deliver the overlay (the hooks need it, see "Delivery requirement" in the overview). Init, setup, the Deployments and the bootstrap Job then run in order by themselves; the key of the bootstrap service account is written by the chart. Without Argo CD, apply in the order described there.
 
-or let Argo CD do it. Init, setup, the Deployment and the bootstrap Job run in order by themselves; the key of the bootstrap service account is written by the chart.
-
-### Step 4: Switch oauth2-proxy to Zitadel
-
-```bash
-cp k8s/components/apps/auth/zitadel/oauth2-proxy-integration/oauth2-values-zitadel.yaml \
-   k8s/overlays/{tenant}/oauth2-values.yaml
-```
-
-Update `oidc-issuer-url`, `redirect-url`, `cookie-domain`, `whitelist-domain`. The template reads the Secret `zitadel-oidc-oauth2-proxy`, which the bootstrap creates **in the Zitadel namespace**: copy it to oauth2-proxy's namespace (SealedSecret, ESO, reflector) or run both in one namespace. TLS to Zitadel is verified; the template no longer sets `ssl-insecure-skip-verify`. It reads the `groups` claim, so define the `groupsClaim` action (below).
-
-### Step 5: Verify
+#### Step 4: Verify
 
 ```bash
 kubectl get pods -n zitadel
 kubectl logs -n zitadel job/zitadel-bootstrap          # ends with "Bootstrap complete"
-kubectl get secret zitadel-oidc-oauth2-proxy -n zitadel
+kubectl get secret zitadel-oidc-<app> -n zitadel      # one per entry of `applications:`
 curl https://zitadel.acme.dev/.well-known/openid-configuration
-# Visit any protected app: it should redirect to the Zitadel login
 ```
 
 ## Version, licence and telemetry: Zitadel v4.20.2
@@ -321,7 +264,7 @@ The component pins **chart 10.5.0** and overrides `image.tag` to **Zitadel v4.20
 - Keep `is_auto_creation` off unless you really want anyone with an account at the provider to get a user.
 - **Actions v1** (the `groups` claim of the bootstrap) still works in v4 but is planned for removal in Zitadel v5; replacing it with Actions v2 (an external webhook; in-cluster webhooks are blocked by the default `HTTPClient.DenyList` of private networks) is a follow-up. The bootstrap also uses the v1 management/admin APIs, deprecated but served.
 - Postgres 14 to 18 is supported; the bundle's `postgres:16` needs no change.
-- Zitadel v4.19.5+ rejects requests whose `Host` is not an instance domain: Traefik must forward the public host (it does by default), and in-cluster callers (probes, the bootstrap Job) send it explicitly.
+- Zitadel v4.19.5+ rejects requests whose `Host` is not an instance domain: the ingress controller must forward the public host (most do by default), and in-cluster callers (probes, the bootstrap Job) send it explicitly.
 
 ## Upgrading to v4 (an existing v2.x instance)
 
@@ -338,22 +281,7 @@ The database migration runs in the setup hook and **cannot be undone by revertin
 
 An existing v2.67.2 database (827 events) was migrated to v4.20.2 by the `zitadel-setup` hook in about a minute, and the `groups` claim of the bootstrap's Actions v1 flow kept working under Login V2.
 
-## OIDC clients for Argo CD and other apps
-
-The bootstrap creates every application listed under `applications:` and updates the ones that exist (redirect URIs, auth method, role assertions). It logs the `clientId` of every app and stores `zitadel-oidc-<app>` (`client-id`, `issuer-url`, and `client-secret` for confidential clients) in the bootstrap namespace. Seal or copy the secret into the namespace that consumes it.
-
-Zitadel emits roles as an object under `urn:zitadel:iam:org:project:roles`. Argo CD and oauth2-proxy only read claims that are flat lists, so define an action that adds a `groups` claim and attach it to the Complement Token flow (see the commented `actions:` / `flows:` example in the bootstrap ConfigMap). Create it with `allowed_to_fail: true`: a failing action that is not allowed to fail blocks every login. The example keeps only the grants of the configured project: the bootstrap replaces `{{project_id}}` in the action script with the id of `project:`, so a role named `viewer` in another project does not pass oauth2-proxy's `allowed-group` gate. (It relies on `projectId` being present on the user grants in the Actions v1 context; check it once on a live instance.)
-
-Argo CD, two clients:
-
-| App | Type | Auth method | Redirect URI |
-|---|---|---|---|
-| `argocd` | WEB (default) | BASIC (secret) | `https://<argocd>/auth/callback` |
-| `argocd-cli` | `OIDC_APP_TYPE_NATIVE` | `OIDC_AUTH_METHOD_TYPE_NONE` (PKCE) | `http://localhost:8085/auth/callback` |
-
-`argocd-cm`: `oidc.config` with `issuer`, `clientID`, `clientSecret: $<sealed-secret>:client-secret` (the Secret needs the label `app.kubernetes.io/part-of: argocd`), `cliClientID`, `enablePKCEAuthentication: true`, `requestedScopes: [openid, profile, email, groups]`. `argocd-rbac-cm`: `scopes: '[groups]'` and `policy.csv` mapping the project roles (`g, admin, role:admin`).
-
-## External identity providers (Google, GitHub, ...)
+### External identity providers (Google, GitHub, ...)
 
 `identity_providers:` in the bootstrap config creates or updates one IdP template per entry (`google`, `github`, `azure`, `generic_oidc`) and adds it to the **instance** login policy, which is what puts the button on the login page for every organization that uses the instance default policy. Client id and secret are read from the env vars named by `client_id_env` / `client_secret_env` (they live in `zitadel-bootstrap-env`); an entry without credentials is skipped, loudly. It is create-or-update, so changing an option and re-running the Job replays. `enabled_in_login_policy: false` removes the button without deleting the template. Removing the entry from the YAML removes nothing.
 
@@ -414,9 +342,6 @@ kubectl logs -n zitadel job/zitadel-bootstrap -c install-deps     # needs egress
 
 # Check OIDC discovery
 curl https://zitadel.acme.dev/.well-known/openid-configuration
-
-# Check oauth2-proxy can reach Zitadel
-kubectl logs -n security deploy/oauth2-proxy | grep -i oidc
 ```
 
 | Symptom | Likely cause |

@@ -1,7 +1,7 @@
 # oauth2-proxy values for Zitadel OIDC integration
 #
 # Copy this file to your overlay directory and customize:
-#   cp oauth2-values-zitadel.yaml k8s/overlays/{tenant}/oauth2-values.yaml
+#   cp oauth2-values-zitadel.yaml <your overlay>/oauth2-values.yaml
 #
 # Then update:
 #   1. oidc-issuer-url → https://zitadel.{your-domain}

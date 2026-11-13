@@ -14,7 +14,7 @@ namespace:
     bootstrap writes zitadel-oidc-<app> into it too. kustomize does NOT stamp
     `namespace:` on the Helm chart's objects (they render without one), so the
     overlay must force it, with the patch below (every object of the bundle carries
-    app.kubernetes.io/part-of=zitadel-stack). Do not rely on Argo CD
+    app.kubernetes.io/part-of=zitadel-stack). Do not rely on the deployer's
     `destination.namespace` or `kubectl -n`: a root kustomization that holds several
     namespaces cannot use them.
   example: zitadel
@@ -26,7 +26,7 @@ namespace:
             path: /metadata/namespace
             value: zitadel
 
-# Secrets the tenant creates BEFORE the first sync (SealedSecret, ESO, ...).
+# Secrets the tenant creates BEFORE the first sync (however it manages secrets).
 secrets:
   - name: zitadel-masterkey
     keys: {masterkey: "32 characters; encrypts Zitadel's data. Losing it loses the data"}
@@ -63,7 +63,7 @@ generated:
   - name: "zitadel-oidc-<app>"
     keys: [client-id, issuer-url, client-secret]  # no client-secret for public clients
     by: Job zitadel-bootstrap, one per entry of `applications:`
-    read_by: [the app, e.g. oauth2-proxy -> zitadel-oidc-oauth2-proxy]
+    read_by: [the consuming app, any OIDC client (it needs a copy if it runs in another namespace)]
 
 # The ConfigMap the tenant replaces (configMapGenerator, behavior: replace, and NO
 # `namespace:` on the generator: kustomize applies the overlay namespace later).
@@ -82,4 +82,20 @@ hostname:
     - "Deployment zitadel-login: env ZITADEL_EXTERNALDOMAIN (container 0, env index 1)"
     - "Secret zitadel-db-config: `ExternalDomain:` in config-yaml"
     - "bootstrap.yaml: `instance_url:` (it is also the JWT audience and the Host of API calls)"
-    - "the oauth2-proxy / Argo CD values: the issuer URL"
+    - "the issuer URL configured in every OIDC client (outside this component)"
+
+# What the tenant patches for its cluster (ingress.yaml carries none of these):
+ingress:
+  patch_points:
+    - "annotations: certificate issuer (cert-manager.io/cluster-issuer), ingress controller annotations"
+    - "spec.ingressClassName"
+    - "spec.rules[0].host and spec.tls[0].hosts[0] (see hostname above)"
+
+# How the component is delivered.
+delivery:
+  requires: Argo CD
+  why: >
+    init (wave 1), setup (wave 2) and bootstrap (PostSync) are Argo CD hooks, and the
+    Deployments and Ingress wait in wave 3. Without Argo CD they are ordinary Jobs and
+    run at the same time as the Deployment: apply by hand in the order postgres, init,
+    setup, Deployments, bootstrap (docs/apps/zitadel.md, "Delivery requirement").

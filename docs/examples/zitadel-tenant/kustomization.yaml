@@ -43,11 +43,19 @@ patches:
       - op: add
         path: /metadata/namespace
         value: zitadel
-  # HOSTNAME 1/4: the public host of the Ingress and its certificate.
+  # HOSTNAME 1/4: the public host of the Ingress and its certificate. The component's
+  # Ingress carries no issuer or controller annotations: the tenant's cluster choices go
+  # here (examples: cert-manager issuer, Traefik entrypoint; use your own).
   - target:
       kind: Ingress
       name: zitadel
     patch: |
+      - op: add
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: letsencrypt-prod
+      - op: add
+        path: /metadata/annotations/traefik.ingress.kubernetes.io~1router.entrypoints
+        value: websecure
       - op: replace
         path: /spec/rules/0/host
         value: zitadel.acme.dev

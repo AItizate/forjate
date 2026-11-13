@@ -1,0 +1,11 @@
+# Entry for `applications:` in the tenant's bootstrap.yaml (see the zitadel component).
+- name: oauth2-proxy
+  redirect_uris:
+    - https://auth.example.com/oauth2/callback
+  post_logout_redirect_uris:
+    - https://example.com
+  response_types:
+    - OIDC_RESPONSE_TYPE_CODE
+  grant_types:
+    - OIDC_GRANT_TYPE_AUTHORIZATION_CODE
+  auth_method: OIDC_AUTH_METHOD_TYPE_BASIC

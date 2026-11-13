@@ -41,6 +41,9 @@ secrets:
   - name: zitadel-admin-password
     keys: {password: "first admin (login admin@zitadel.<ExternalDomain>); required, there is no default; must meet Zitadel's default password policy (8+ chars, upper, lower, digit, symbol) or setup fails on a new instance. On an existing instance it is never used"}
     read_by: [Deployment zitadel, Job zitadel-setup]
+  - name: zitadel-login-service-key
+    keys: {tls.crt: "RSA certificate; Zitadel verifies the login service's JWTs with it", tls.key: "its RSA private key; the Login V2 service signs with it"}
+    read_by: [Deployment zitadel, Deployment zitadel-login]
   - name: zitadel-bootstrap-env
     optional: true
     keys: {"<ENV_NAME>": "one key per `*_env` name used in bootstrap.yaml: client_id_env, client_secret_env, initial_password_env"}
@@ -49,10 +52,6 @@ secrets:
 
 # Secrets that appear by themselves. Never create them by hand.
 generated:
-  - name: zitadel-login-service-key
-    keys: [tls.crt, tls.key]
-    by: cert-manager (Issuer zitadel-login-selfsigned + Certificate zitadel-login-service-key in the component; RSA, rotationPolicy Never)
-    read_by: [Deployment zitadel, Deployment zitadel-login]
   - name: zitadel-admin-sa
     keys: [zitadel-admin-sa.json]
     by: the chart's setup Job, the first time it runs on a NEW instance (FirstInstance.Org.Machine)

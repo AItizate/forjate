@@ -79,16 +79,13 @@ def test_login_starts_with_zitadel_and_not_before(bundle):
     assert wave(by_kind(bundle, "Deployment", "zitadel-login")) >= wave(by_kind(bundle, "Deployment", "zitadel"))
 
 
-def test_login_keypair_comes_from_cert_manager_not_from_the_chart(bundle):
+def test_login_keypair_is_a_tenant_secret_and_the_component_has_no_foreign_crds(bundle):
     """The chart's own Secret draws a new random key on every build (permanent
-    OutOfSync). The Certificate owns the Secret, and it exists before the pods."""
+    OutOfSync), so the Secret is the tenant's. The component must not need the CRDs of
+    another component (cert-manager, ...) to render or apply."""
     assert not [o for o in bundle if o["kind"] == "Secret"], "a build must not render any Secret"
-    cert = by_kind(bundle, "Certificate", "zitadel-login-service-key")
-    assert cert["spec"]["secretName"] == "zitadel-login-service-key"
-    assert cert["spec"]["privateKey"]["algorithm"] == "RSA"
-    assert cert["spec"]["privateKey"]["rotationPolicy"] == "Never"
-    assert wave(cert) < wave(by_kind(bundle, "Deployment", "zitadel"))
-    assert wave(by_kind(bundle, "Issuer", "zitadel-login-selfsigned")) <= wave(cert)
+    core = {"v1", "apps/v1", "batch/v1", "networking.k8s.io/v1", "rbac.authorization.k8s.io/v1"}
+    assert {o["apiVersion"] for o in bundle} <= core | {"apps/v1"}, sorted({o["apiVersion"] for o in bundle})
 
 
 def test_the_render_is_deterministic(bundle):

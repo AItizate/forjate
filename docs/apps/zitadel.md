@@ -61,7 +61,6 @@ k8s/components/apps/auth/zitadel/
 ├── kustomization.yaml              # Zitadel v4.20.2 (Helm chart 10.5.0) + Ingress
 ├── contract.yaml                   # THE list of what a tenant must provide
 ├── ingress.yaml                    # zitadel.example.com (patchable); /ui/v2/login -> zitadel-login
-├── login-service-key.yaml          # cert-manager keypair of the Login V2 service
 ├── bootstrap/                      # IaC: orgs, project, roles, apps, users, IdPs
 │   ├── kustomization.yaml
 │   ├── job.yaml                    # PostSync Job (runs bootstrap.py)
@@ -79,7 +78,7 @@ k8s/components/bundles/zitadel-stack/   # chart + postgres + bootstrap in one re
 docs/examples/zitadel-tenant/           # a tenant overlay that CI builds
 ```
 
-The chart's `init` and `setup` Jobs are Argo CD **Sync** hooks ordered with sync-waves (postgres 0, init 1, setup 2, Deployments `zitadel` and `zitadel-login` and Ingress 3; the cert-manager Issuer and Certificate of the login keypair go first, wave -1). The bootstrap Job is a **PostSync** hook. No `helm.sh/hook*` annotation survives the render: Argo CD v3.6.1 treats the presence of the key as "this is a hook", even blank.
+The chart's `init` and `setup` Jobs are Argo CD **Sync** hooks ordered with sync-waves (postgres 0, init 1, setup 2, Deployments `zitadel` and `zitadel-login` and Ingress 3). The bootstrap Job is a **PostSync** hook. No `helm.sh/hook*` annotation survives the render: Argo CD v3.6.1 treats the presence of the key as "this is a hook", even blank.
 
 ## What the tenant must provide
 
@@ -95,6 +94,7 @@ One contract, in `k8s/components/apps/auth/zitadel/contract.yaml`. The kustomiza
 | `zitadel-db-config` | `config-yaml`: Zitadel config merged **over** the chart's ConfigMap. It must hold **both** `Database.postgres.User.Password` and `Admin.Password` (v4 defaults the admin to `postgres`/`postgres`); it can also override `ExternalDomain` and `FirstInstance.Org.Human.Email` | `zitadel`, `zitadel-init`, `zitadel-setup` |
 | `zitadel-postgres-secret` | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (bundle only) | StatefulSet `zitadel-postgres` |
 | `zitadel-admin-password` | `password`: the first admin's password. Required, there is no default. It must satisfy Zitadel's default password policy (at least 8 characters with upper case, lower case, a digit and a symbol) or setup fails on a new instance | `zitadel`, `zitadel-setup` |
+| `zitadel-login-service-key` | `tls.crt`, `tls.key`: an RSA keypair (self-signed is fine, see the example). Zitadel verifies the Login V2 service's JWTs with `tls.crt`; the service signs with `tls.key`. Keep it stable: a new key on every build means a rollout on every sync | Deployments `zitadel` and `zitadel-login` |
 | `zitadel-bootstrap-env` (optional) | one key per `*_env` name in `bootstrap.yaml`: IdP client id/secret, users' initial passwords | Job `zitadel-bootstrap` |
 
 **Secrets that appear by themselves** (never create them by hand):
@@ -102,7 +102,6 @@ One contract, in `k8s/components/apps/auth/zitadel/contract.yaml`. The kustomiza
 | Secret | Keys | Created by |
 |---|---|---|
 | `zitadel-admin-sa` | `zitadel-admin-sa.json` | the chart's setup Job, the first time it runs |
-| `zitadel-login-service-key` | `tls.crt`, `tls.key` (RSA) | cert-manager (`login-service-key.yaml`): Zitadel verifies the login's JWTs with `tls.crt`, the Login V2 service signs with `tls.key` |
 | `zitadel-oidc-<app>` | `client-id`, `issuer-url`, `client-secret` (no secret for public clients) | the bootstrap Job, one per entry of `applications:`, in the same namespace |
 
 **The ConfigMap you replace:** `zitadel-bootstrap-config` (key `bootstrap.yaml`), with `configMapGenerator` + `behavior: replace` and **no** `namespace:` on the generator.
@@ -333,12 +332,11 @@ The database migration runs in the setup hook and **cannot be undone by revertin
 3. **Sync order.** The migration runs in the setup hook (wave 2), before the Deployment is replaced (wave 3): the old pod keeps serving against a database that is being migrated for a short while.
 4. **Login V2 on an instance that existed.** An upgrade keeps Login V1 (`DefaultInstance` is not read again). To adopt V2 put `features: {login_v2: true}` in `bootstrap.yaml`; the bootstrap sets the instance feature `loginV2.required`. **Change the callback URL at every external IdP first or at the same time:** V1 used `https://<zitadel-domain>/ui/login/login/externalidp/callback`, V2 uses `https://<zitadel-domain>/idps/callback`. A GitHub OAuth App accepts only one callback URL, so replace it; at Google add the new redirect URI.
 5. **Whether the Actions v1 `groups` claim fires for Login V2 sessions** is not documented: check `groups` in the token after the upgrade.
-6. **Delete the old plain Jobs before the first sync.** A tenant that ran an earlier version has completed Jobs `zitadel-init`, `zitadel-setup` and `zitadel-bootstrap` that are plain objects (no Argo CD hook annotations). Argo CD reads the hook delete policy from the LIVE object, so `BeforeHookCreation` never fires: it treats the old Job as the hook that already ran, skips the new hooks, and applies the new Deployment **without the database migration** (the v4 pod then crashes with `relation "queue.river_queue" does not exist`). `kubectl delete job zitadel-init zitadel-setup zitadel-bootstrap -n <ns>` first; from then on the hooks are recreated by every sync.
-7. **A SealedSecret over a Secret that was made by hand.** If `zitadel-admin-sa` (or any Secret you now seal) was created with `kubectl`, the sealed-secrets controller refuses it ("already exists and is not managed by SealedSecret") and gives up after its retries. Annotate the live Secret `sealedsecrets.bitnami.com/managed=true` and change the SealedSecret spec once (for example a throwaway `spec.template.metadata.annotations` key, then remove it) so the controller retries. Put the SealedSecrets in sync-wave `-1`: the pods that read them start in later waves.
-8. **Unhealthy workloads elsewhere in the same Argo app hang the sync.** Sync waves and hooks wait for every resource in the sync set to be Healthy, and with `ServerSideApply` that set is the whole app. A parked or broken workload stops the sync before wave 1 (`waiting for healthy state of ...`). Fix or scale down those workloads, or add `ApplyOutOfSyncOnly=true` to the Application's `syncOptions` so only what changed is in the set.
-9. The other steps of "Migrating an existing instance" above (the Secrets, the bootstrap service account key) still apply.
+6. **A leftover Job with the same name blocks the new hooks.** Argo CD reads a hook's delete policy from the LIVE object. If `zitadel-init`, `zitadel-setup` or `zitadel-bootstrap` already exist as completed Jobs **without** hook annotations (they were created by something other than this component's hooks), `BeforeHookCreation` never fires: the old Job counts as the hook that already ran, the new hook is skipped and the Deployment is applied **without the database migration** (the v4 pod then crashes with `relation "queue.river_queue" does not exist`). Delete such Jobs before the first sync; once the hooks own them, every sync recreates them.
+7. **Secrets the component reads must exist and be owned by whatever manages them** before the first sync (see "What the tenant must provide"). A Secret that was created by hand under the same name can be refused by a controller that wants to own it; resolve that on the tenant side.
+8. The other steps of "Migrating an existing instance" above (the Secrets, the bootstrap service account key) still apply.
 
-Validated on a real instance: a v2.67.2 database with 827 events migrated to v4.20.2 in about a minute by the `zitadel-setup` hook, Argo CD SSO (`groups` claim through the Actions v1 flow) and Google/GitHub auto-linking keep working under Login V2.
+An existing v2.67.2 database (827 events) was migrated to v4.20.2 by the `zitadel-setup` hook in about a minute, and the `groups` claim of the bootstrap's Actions v1 flow kept working under Login V2.
 
 ## OIDC clients for Argo CD and other apps
 

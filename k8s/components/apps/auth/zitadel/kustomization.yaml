@@ -48,8 +48,7 @@ kind: Kustomization
 # docs/examples/zitadel-tenant/). Names: zitadel-masterkey, zitadel-db-config,
 # zitadel-postgres-secret, zitadel-admin-password, zitadel-bootstrap-env (optional).
 # The chart generates zitadel-admin-sa itself (no manual step, no default password).
-# The Login V2 service keypair (zitadel-login-service-key) is made by cert-manager
-# (login-service-key.yaml); cert-manager is already required by the Ingress issuer.
+# The Login V2 service keypair is a tenant Secret too: zitadel-login-service-key (tls).
 #
 # Namespace is NOT set here: the consumer overlay sets it (auth, identity, zitadel...).
 #
@@ -60,7 +59,6 @@ kind: Kustomization
 
 resources:
   - ingress.yaml
-  - login-service-key.yaml
 
 helmCharts:
   - name: zitadel
@@ -233,9 +231,9 @@ helmCharts:
         enabled: true
         image:
           tag: v4.20.2
-        # Made by cert-manager (login-service-key.yaml). Left empty the chart renders
-        # a random keypair in the Secret on EVERY build: a permanent OutOfSync, a
-        # rollout of both Deployments each sync and a private key in the manifests.
+        # A tenant Secret (contract.yaml). Left empty the chart renders a random
+        # keypair in the Secret on EVERY build: a permanent OutOfSync, a rollout of
+        # both Deployments each sync and a private key in the manifests.
         loginServiceKeySecretName: zitadel-login-service-key
         annotations:
           argocd.argoproj.io/sync-wave: "3"

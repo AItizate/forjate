@@ -1,6 +1,6 @@
 """No default admin credentials, no manual UI step (finding B2).
 
-Zitadel v2.67.2 cmd/setup/steps.yaml creates `zitadel-admin` / `Password1!` for the
+Zitadel cmd/setup/steps.yaml (v2 and v4) creates `zitadel-admin` / `Password1!` for the
 first instance unless FirstInstance says otherwise, and the Ingress is public. The
 rendered stack must take the password from a Secret and let the chart write the
 bootstrap service account key.
@@ -42,10 +42,28 @@ def test_first_instance_creates_a_machine_user_with_a_json_key(bundle):
     assert machine["MachineKey"]["Type"] == 1
 
 
-def test_default_instance_block_is_gone(bundle):
-    # DefaultInstance only applies to instances created later, so it never
-    # configured the first admin; keeping it hid the real default.
-    assert "DefaultInstance" not in zitadel_config(bundle)
+def test_default_instance_only_selects_login_v2(bundle):
+    # DefaultInstance is what the FIRST instance reads its features from (the first
+    # admin comes from FirstInstance, never from here). Keep it to the one key we mean.
+    assert zitadel_config(bundle)["DefaultInstance"] == {"Features": {"LoginV2": {"Required": True}}}
+
+
+def test_no_machine_pat_sidecar_and_no_pat_config(bundle):
+    cfg = zitadel_config(bundle)
+    assert "Pat" not in cfg["FirstInstance"]["Org"]["Machine"]
+    setup = by_kind(bundle, "Job", "zitadel-setup")
+    assert "zitadel-machine-pat" not in containers(setup)
+    env = [e["name"] for c in setup["spec"]["template"]["spec"]["containers"] for e in c.get("env", [])]
+    assert "ZITADEL_FIRSTINSTANCE_PATPATH" not in env
+
+
+def test_machine_key_expiry_is_pinned_far_away(bundle):
+    key = zitadel_config(bundle)["FirstInstance"]["Org"]["Machine"]["MachineKey"]
+    assert str(key["ExpirationDate"]) >= "2035"
+
+
+def test_service_ping_is_off(bundle):
+    assert zitadel_config(bundle)["ServicePing"] == {"Enabled": False}
 
 
 def test_machine_key_is_written_to_the_secret_the_bootstrap_job_reads(bundle):

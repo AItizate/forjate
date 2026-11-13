@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-11-11",
+  "compiled_at": "2026-11-12",
   "stages": [
     "crawl",
     "walk",
@@ -1120,8 +1120,8 @@
         "pii",
         "secret"
       ],
-      "licence": "Apache-2.0 (pinned v2.67.2; AGPL-3.0 from v3)",
-      "notes": "OIDC IdP with users, roles and service accounts as code (bootstrap/). Pins Zitadel v2.67.2, affected by CVE-2026-56666 (email auto-link does not check IdP verification; fixed in 4.15.3, separate upgrade), so no auto_linking on azure/generic_oidc. Holds identities and credentials. The tenant contract is contract.yaml; use bundles/zitadel-stack for the Postgres wiring.",
+      "licence": "AGPL-3.0 (pinned v4.20.2; Apache-2.0 up to v2)",
+      "notes": "OIDC IdP with users, roles and service accounts as code (bootstrap/). Pins Zitadel v4.20.2 (chart 10.5.0, Login V2, CVE-2026-56666 fixed); the bootstrap still refuses auto_linking on azure/generic_oidc. Holds identities and credentials. The tenant contract is contract.yaml; use bundles/zitadel-stack for the Postgres wiring.",
       "wiring": {
         "service": "zitadel",
         "port": 8080,
@@ -5756,8 +5756,8 @@
         "pii",
         "secret"
       ],
-      "licence": "Apache-2.0 (pinned v2.67.2; AGPL-3.0 from v3)",
-      "notes": "Zitadel plus its Postgres and the bootstrap Job, wired. The default way to take identity-provider with users as code. Same v2.67.2 pin and CVE-2026-56666 gate as apps/auth/zitadel.",
+      "licence": "AGPL-3.0 (pinned v4.20.2; Apache-2.0 up to v2)",
+      "notes": "Zitadel plus its Postgres and the bootstrap Job, wired. The default way to take identity-provider with users as code. Same v4.20.2 pin as apps/auth/zitadel.",
       "wiring": {
         "service": "postgres",
         "port": 5432,

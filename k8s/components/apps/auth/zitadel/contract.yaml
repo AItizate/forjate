@@ -32,7 +32,7 @@ secrets:
     keys: {masterkey: "32 characters; encrypts Zitadel's data. Losing it loses the data"}
     read_by: [Deployment zitadel, Job zitadel-setup]
   - name: zitadel-db-config
-    keys: {config-yaml: "Zitadel config merged OVER the chart's ConfigMap. Must hold Database.postgres.{User,Admin}.Password; may also override ExternalDomain, FirstInstance.Org.Human.Email..."}
+    keys: {config-yaml: "Zitadel config merged OVER the chart's ConfigMap. Must hold BOTH Database.postgres.User.Password and Database.postgres.Admin.Password (v4 defaults Admin to postgres/postgres, so a missing one makes init try that); may also override ExternalDomain, FirstInstance.Org.Human.Email..."}
     read_by: [Deployment zitadel, Job zitadel-init, Job zitadel-setup]
   - name: zitadel-postgres-secret
     keys: {POSTGRES_USER: zitadel, POSTGRES_PASSWORD: "same value as the Zitadel DB passwords", POSTGRES_DB: zitadel}
@@ -41,6 +41,9 @@ secrets:
   - name: zitadel-admin-password
     keys: {password: "first admin (login admin@zitadel.<ExternalDomain>); required, there is no default; must meet Zitadel's default password policy (8+ chars, upper, lower, digit, symbol) or setup fails on a new instance. On an existing instance it is never used"}
     read_by: [Deployment zitadel, Job zitadel-setup]
+  - name: zitadel-login-service-key
+    keys: {tls.crt: "RSA certificate; Zitadel verifies the login service's JWTs with it", tls.key: "its RSA private key; the Login V2 service signs with it"}
+    read_by: [Deployment zitadel, Deployment zitadel-login]
   - name: zitadel-bootstrap-env
     optional: true
     keys: {"<ENV_NAME>": "one key per `*_env` name used in bootstrap.yaml: client_id_env, client_secret_env, initial_password_env"}
@@ -76,6 +79,7 @@ hostname:
   places:
     - "Ingress zitadel: spec.rules[0].host and spec.tls[0].hosts[0]"
     - "Deployment zitadel: the Host header of the three probes"
+    - "Deployment zitadel-login: env ZITADEL_EXTERNALDOMAIN (container 0, env index 1)"
     - "Secret zitadel-db-config: `ExternalDomain:` in config-yaml"
     - "bootstrap.yaml: `instance_url:` (it is also the JWT audience and the Host of API calls)"
     - "the oauth2-proxy / Argo CD values: the issuer URL"

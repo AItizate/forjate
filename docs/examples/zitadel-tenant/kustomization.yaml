@@ -6,7 +6,7 @@ kind: Kustomization
 # and CI builds it (kustomize build --enable-helm docs/examples/zitadel-tenant).
 #
 # Copy it into your tenant repo and change:
-#   - the domain (here zitadel.acme.dev), in the three places marked HOSTNAME
+#   - the domain (here zitadel.acme.dev), in the places marked HOSTNAME
 #   - bootstrap.yaml: your organization, project, apps, users, identity providers
 # The Secrets are NOT in this overlay: seal them (see secrets/README.md).
 #
@@ -43,7 +43,7 @@ patches:
       - op: add
         path: /metadata/namespace
         value: zitadel
-  # HOSTNAME 1/3: the public host of the Ingress and its certificate.
+  # HOSTNAME 1/4: the public host of the Ingress and its certificate.
   - target:
       kind: Ingress
       name: zitadel
@@ -54,8 +54,8 @@ patches:
       - op: replace
         path: /spec/tls/0/hosts/0
         value: zitadel.acme.dev
-  # HOSTNAME 2/3: the probes send Host: <ExternalDomain>; Zitadel answers by instance
-  # domain. (3/3 is ExternalDomain in the Secret zitadel-db-config, and instance_url
+  # HOSTNAME 2/4: the probes send Host: <ExternalDomain>; Zitadel answers by instance
+  # domain. (4/4 is ExternalDomain in the Secret zitadel-db-config, and instance_url
   # in bootstrap.yaml.)
   - target:
       kind: Deployment
@@ -69,4 +69,13 @@ patches:
         value: zitadel.acme.dev
       - op: replace
         path: /spec/template/spec/containers/0/startupProbe/httpGet/httpHeaders/0/value
+        value: zitadel.acme.dev
+  # HOSTNAME 3/4: the Login V2 service builds its API calls and audience from the same
+  # domain (env ZITADEL_EXTERNALDOMAIN of the zitadel-login container).
+  - target:
+      kind: Deployment
+      name: zitadel-login
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
         value: zitadel.acme.dev

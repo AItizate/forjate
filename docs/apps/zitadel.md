@@ -58,9 +58,9 @@ In Forjate, Zitadel solves what oauth2-proxy and GoTrue couldn't alone:
 
 ```
 k8s/components/apps/auth/zitadel/
-├── kustomization.yaml              # Zitadel (Helm chart 8.12.2) + Ingress
+├── kustomization.yaml              # Zitadel v4.20.2 (Helm chart 10.5.0) + Ingress
 ├── contract.yaml                   # THE list of what a tenant must provide
-├── ingress.yaml                    # zitadel.example.com (patchable)
+├── ingress.yaml                    # zitadel.example.com (patchable); /ui/v2/login -> zitadel-login
 ├── bootstrap/                      # IaC: orgs, project, roles, apps, users, IdPs
 │   ├── kustomization.yaml
 │   ├── job.yaml                    # PostSync Job (runs bootstrap.py)
@@ -78,7 +78,7 @@ k8s/components/bundles/zitadel-stack/   # chart + postgres + bootstrap in one re
 docs/examples/zitadel-tenant/           # a tenant overlay that CI builds
 ```
 
-The chart's `init` and `setup` Jobs are Argo CD **Sync** hooks ordered with sync-waves (postgres 0, init 1, setup 2, Deployment and Ingress 3). The bootstrap Job is a **PostSync** hook. No `helm.sh/hook*` annotation survives the render: Argo CD v3.6.1 treats the presence of the key as "this is a hook", even blank.
+The chart's `init` and `setup` Jobs are Argo CD **Sync** hooks ordered with sync-waves (postgres 0, init 1, setup 2, Deployments `zitadel` and `zitadel-login` and Ingress 3). The bootstrap Job is a **PostSync** hook. No `helm.sh/hook*` annotation survives the render: Argo CD v3.6.1 treats the presence of the key as "this is a hook", even blank.
 
 ## What the tenant must provide
 
@@ -91,9 +91,10 @@ One contract, in `k8s/components/apps/auth/zitadel/contract.yaml`. The kustomiza
 | Secret | Keys | Read by |
 |---|---|---|
 | `zitadel-masterkey` | `masterkey` (32 characters) | Deployment `zitadel`, Job `zitadel-setup` |
-| `zitadel-db-config` | `config-yaml`: Zitadel config merged **over** the chart's ConfigMap. It must hold `Database.postgres.User.Password` and `Admin.Password`; it can also override `ExternalDomain` and `FirstInstance.Org.Human.Email` | `zitadel`, `zitadel-init`, `zitadel-setup` |
+| `zitadel-db-config` | `config-yaml`: Zitadel config merged **over** the chart's ConfigMap. It must hold **both** `Database.postgres.User.Password` and `Admin.Password` (v4 defaults the admin to `postgres`/`postgres`); it can also override `ExternalDomain` and `FirstInstance.Org.Human.Email` | `zitadel`, `zitadel-init`, `zitadel-setup` |
 | `zitadel-postgres-secret` | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (bundle only) | StatefulSet `zitadel-postgres` |
 | `zitadel-admin-password` | `password`: the first admin's password. Required, there is no default. It must satisfy Zitadel's default password policy (at least 8 characters with upper case, lower case, a digit and a symbol) or setup fails on a new instance | `zitadel`, `zitadel-setup` |
+| `zitadel-login-service-key` | `tls.crt`, `tls.key`: an RSA keypair (self-signed is fine, see the example). Zitadel verifies the Login V2 service's JWTs with `tls.crt`; the service signs with `tls.key`. Keep it stable: a new key on every build means a rollout on every sync | Deployments `zitadel` and `zitadel-login` |
 | `zitadel-bootstrap-env` (optional) | one key per `*_env` name in `bootstrap.yaml`: IdP client id/secret, users' initial passwords | Job `zitadel-bootstrap` |
 
 **Secrets that appear by themselves** (never create them by hand):
@@ -105,7 +106,7 @@ One contract, in `k8s/components/apps/auth/zitadel/contract.yaml`. The kustomiza
 
 **The ConfigMap you replace:** `zitadel-bootstrap-config` (key `bootstrap.yaml`), with `configMapGenerator` + `behavior: replace` and **no** `namespace:` on the generator.
 
-**The hostname**, in five places (the chart cannot be re-valued by a consumer): the Ingress host and TLS host, the Host header of the three Deployment probes, `ExternalDomain` in `zitadel-db-config`, and `instance_url` in `bootstrap.yaml`. The example overlay shows all of them as patches.
+**The hostname**, in six places (the chart cannot be re-valued by a consumer): the Ingress host and TLS host, the Host header of the three probes of Deployment `zitadel`, the env `ZITADEL_EXTERNALDOMAIN` of Deployment `zitadel-login`, `ExternalDomain` in `zitadel-db-config`, and `instance_url` in `bootstrap.yaml`. The example overlay shows all of them as patches.
 
 Ready-made files and the sealing recipe are in `docs/examples/zitadel-tenant/` (`secrets/`).
 
@@ -309,17 +310,33 @@ curl https://zitadel.acme.dev/.well-known/openid-configuration
 # Visit any protected app: it should redirect to the Zitadel login
 ```
 
-## Version gate: Zitadel 2.67.2 and CVE-2026-56666
+## Version, licence and telemetry: Zitadel v4.20.2
 
-The component pins chart 8.12.2, which ships **Zitadel v2.67.2**. That version is affected by CVE-2026-56666: when an external login is auto-linked by email, Zitadel does not check that the identity provider verified that email. The fix is in **4.15.3**, two major versions away (v2 → v3 → v4, a chart major), so it is its own PR and this one does not upgrade.
+The component pins **chart 10.5.0** and overrides `image.tag` to **Zitadel v4.20.2** (the chart's own app version is v4.19.2). The pin is the latest stable on purpose: v4.15.3 fixed **CVE-2026-56666** (auto-linking an external login by email did not check that the IdP verified the email), but later releases closed more advisories in Login V1 and Actions V1, so the lowest version without a known advisory is **v4.19.5**. Skip **v4.18.0** (its setup step fails).
 
-What this changes in practice, until the bump:
-
-- `auto_linking: email` is safe only for providers whose emails you trust. Google and GitHub verify them (GitHub: see the note below). **The bootstrap refuses `auto_linking: email` for `azure` and `generic_oidc`** unless the entry sets `trust_idp_email: true`, and **`auto_linking: username` for every provider** unless it sets `trust_idp_username: true`; both log a WARNING on every run.
-- Every run with `auto_linking` logs a CVE notice.
+- **Licence:** AGPL-3.0-only from v3 (v2 was Apache-2.0); a commercial licence exists. Running it unmodified and only talking to its API is the use this component makes of it. Not legal advice: check it against how you distribute the stack.
+- **Service Ping** (usage reports to `zitadel.com`, on by default since v4.0.0) is off: `ServicePing.Enabled: false`.
+- **Login V2** is the login UI. A new instance gets it from `DefaultInstance.Features.LoginV2.Required: true`, which is the only place the first instance reads features from. It runs as Deployment `zitadel-login` (port 3000) behind `/ui/v2/login`.
+- The bootstrap refuses `auto_linking: email` for `azure` and `generic_oidc` (unless `trust_idp_email: true`) and `auto_linking: username` for every provider (unless `trust_idp_username: true`). That is policy, kept after the fix: an email or username claim from a loose IdP is not proof of identity.
 - Keep `is_auto_creation` off unless you really want anyone with an account at the provider to get a user.
+- **Actions v1** (the `groups` claim of the bootstrap) still works in v4 but is planned for removal in Zitadel v5; replacing it with Actions v2 (an external webhook; in-cluster webhooks are blocked by the default `HTTPClient.DenyList` of private networks) is a follow-up. The bootstrap also uses the v1 management/admin APIs, deprecated but served.
+- Postgres 14 to 18 is supported; the bundle's `postgres:16` needs no change.
+- Zitadel v4.19.5+ rejects requests whose `Host` is not an instance domain: Traefik must forward the public host (it does by default), and in-cluster callers (probes, the bootstrap Job) send it explicitly.
 
-The bootstrap also leans on the v1 management/admin APIs and Actions v1 (the `groups` claim), which Zitadel v4 deprecates; expect the groups mechanism to change at the bump.
+## Upgrading to v4 (an existing v2.x instance)
+
+The database migration runs in the setup hook and **cannot be undone by reverting git**: migrations are forward only. Take a `pg_dump -Fc` of the Zitadel database and keep the masterkey before you sync; restoring that dump is the only way back (everything written to Zitadel afterwards is lost).
+
+1. **Path.** Upstream recommends v3.4.x (at least 3.4.1), a soak, then v4, because v4 makes OIDC web keys mandatory (advisory A-10017). No chart ships v3 and v3 is end of life. A direct v2.67.2 to v4 jump works (`zitadel setup` is incremental, with no version guard) at one price: **every existing token is invalid, so everybody must log in again**, and a Console logout may fail on `id_token_hint` until the browser state is cleared. Plan a window.
+2. **Immutable Deployment selector.** Chart 10 adds `component: start` to the selector of `Deployment zitadel` (apps/v1 selectors are immutable), so syncing over an existing Deployment fails with "field is immutable". Add a patch to the overlay that removes `component: start` from `spec.selector.matchLabels` (the pod template keeps the label, so the selector stays a valid subset), or delete the Deployment once. `Service zitadel`'s selector is mutable.
+3. **Sync order.** The migration runs in the setup hook (wave 2), before the Deployment is replaced (wave 3): the old pod keeps serving against a database that is being migrated for a short while.
+4. **Login V2 on an instance that existed.** An upgrade keeps Login V1 (`DefaultInstance` is not read again). To adopt V2 put `features: {login_v2: true}` in `bootstrap.yaml`; the bootstrap sets the instance feature `loginV2.required`. **Change the callback URL at every external IdP first or at the same time:** V1 used `https://<zitadel-domain>/ui/login/login/externalidp/callback`, V2 uses `https://<zitadel-domain>/idps/callback`. A GitHub OAuth App accepts only one callback URL, so replace it; at Google add the new redirect URI.
+5. **Whether the Actions v1 `groups` claim fires for Login V2 sessions** is not documented: check `groups` in the token after the upgrade.
+6. **A leftover Job with the same name blocks the new hooks.** Argo CD reads a hook's delete policy from the LIVE object. If `zitadel-init`, `zitadel-setup` or `zitadel-bootstrap` already exist as completed Jobs **without** hook annotations (they were created by something other than this component's hooks), `BeforeHookCreation` never fires: the old Job counts as the hook that already ran, the new hook is skipped and the Deployment is applied **without the database migration** (the v4 pod then crashes with `relation "queue.river_queue" does not exist`). Delete such Jobs before the first sync; once the hooks own them, every sync recreates them.
+7. **Secrets the component reads must exist and be owned by whatever manages them** before the first sync (see "What the tenant must provide"). A Secret that was created by hand under the same name can be refused by a controller that wants to own it; resolve that on the tenant side.
+8. The other steps of "Migrating an existing instance" above (the Secrets, the bootstrap service account key) still apply.
+
+An existing v2.67.2 database (827 events) was migrated to v4.20.2 by the `zitadel-setup` hook in about a minute, and the `groups` claim of the bootstrap's Actions v1 flow kept working under Login V2.
 
 ## OIDC clients for Argo CD and other apps
 
@@ -340,7 +357,7 @@ Argo CD, two clients:
 
 `identity_providers:` in the bootstrap config creates or updates one IdP template per entry (`google`, `github`, `azure`, `generic_oidc`) and adds it to the **instance** login policy, which is what puts the button on the login page for every organization that uses the instance default policy. Client id and secret are read from the env vars named by `client_id_env` / `client_secret_env` (they live in `zitadel-bootstrap-env`); an entry without credentials is skipped, loudly. It is create-or-update, so changing an option and re-running the Job replays. `enabled_in_login_policy: false` removes the button without deleting the template. Removing the entry from the YAML removes nothing.
 
-Every option is off by default. The setup for a closed set of users is `auto_linking: email` and nothing else: the first login with the external account is matched to the existing Zitadel user that has the same **verified** email and linked silently, so roles and grants stay on the same user. With no match nobody is created. Read the version gate above first.
+Every option is off by default. The setup for a closed set of users is `auto_linking: email` and nothing else: the first login with the external account is matched to the existing Zitadel user that has the same **verified** email and linked silently, so roles and grants stay on the same user. With no match nobody is created. Read "Version, licence and telemetry" above first.
 
 Safe defaults the script enforces:
 
@@ -348,7 +365,7 @@ Safe defaults the script enforces:
 - **`auto_linking: email` on `azure` and `generic_oidc` is refused** (config error, exit 2) unless the entry sets `trust_idp_email: true`: the email claim of an Entra tenant or a generic OIDC server is not proof of identity, and linking on it hands over the Zitadel user with that email, admins included.
 - **`auto_linking: username` is refused for every provider** (`github`, `google`, `azure`, `generic_oidc`) unless the entry sets `trust_idp_username: true`: a username is chosen by whoever registers it. Anyone could register the GitHub login `admin`, or the login of a user in your closed set, and be linked to that Zitadel user on first login with its grants. Use `email` on Google and GitHub.
 
-Callback URL to register at the provider (login UI v1, Zitadel 2.x): `https://<zitadel-domain>/ui/login/login/externalidp/callback`. Login v2 (the default from Zitadel 4) uses another path.
+Callback URL to register at the provider: with Login V2 (the default of this component) `https://<zitadel-domain>/idps/callback`; with Login V1 (an instance that never adopted V2) `https://<zitadel-domain>/ui/login/login/externalidp/callback`.
 
 A user who already has a second factor registered is still asked for it after an external login (the policy flag `forceMfaLocalOnly` only affects forced enrolment). The GitHub provider reads the email from GitHub's `/user` profile call, which may expose only the public email: if auto-linking does not match, make the GitHub primary email public and equal to the Zitadel one.
 

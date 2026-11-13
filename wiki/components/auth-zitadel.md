@@ -7,7 +7,7 @@ compiled_at: '2026-11-12'
 category: auth
 consumed_by:
 - components/bundles-zitadel-stack
-source_hash: 5b56cf5d9d6d9731
+source_hash: bc0bb21695a274a0
 source_last_commit: '2026-11-12'
 summary: "Zitadel \u2014 Cloud-native Identity Provider with built-in user management"
 summary_source: derived
@@ -66,8 +66,7 @@ summary_source: derived
 > docs/examples/zitadel-tenant/). Names: zitadel-masterkey, zitadel-db-config,
 > zitadel-postgres-secret, zitadel-admin-password, zitadel-bootstrap-env (optional).
 > The chart generates zitadel-admin-sa itself (no manual step, no default password).
-> The Login V2 service keypair (zitadel-login-service-key) is made by cert-manager
-> (login-service-key.yaml); cert-manager is already required by the Ingress issuer.
+> The Login V2 service keypair is a tenant Secret too: zitadel-login-service-key (tls).
 >
 > Namespace is NOT set here: the consumer overlay sets it (auth, identity, zitadel...).
 >
@@ -81,11 +80,10 @@ summary_source: derived
 ### Declared resources
 
 - `ingress.yaml`
-- `login-service-key.yaml`
 
 ### Kubernetes kinds
 
-`Certificate`, `Ingress`, `Issuer`
+`Ingress`
 
 ### Patches
 

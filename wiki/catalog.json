@@ -1094,9 +1094,7 @@
       "summary": "Zitadel — Cloud-native Identity Provider with built-in user management",
       "images": [],
       "kinds": [
-        "Certificate",
-        "Ingress",
-        "Issuer"
+        "Ingress"
       ],
       "composes": [],
       "remote_refs": [],

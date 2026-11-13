@@ -6,7 +6,7 @@
 |---------|-------|-------|-------|
 | `none` | no Service outside the namespace; Jobs and the verify Job talk to pods directly | nothing | Crawl default |
 | `internal` | a ClusterIP consumed by other namespaces or scheduled Jobs | a NetworkPolicy allowing the caller from Walk; API key between namespaces | Walk when another team's workload calls it |
-| `external` | an Ingress or a tunnel route reachable from the internet | `apps/auth/gotrue-auth` + oauth2-proxy for humans, signature or API key for machines, `apps/cloudflare-tunnel` so no port is opened, rate limiting at Traefik | Walk when a SaaS webhook or users outside the cluster call it |
+| `external` | an Ingress or a tunnel route reachable from the internet | an `identity-provider` component + oauth2-proxy for humans, signature or API key for machines, `apps/cloudflare-tunnel` so no port is opened, rate limiting at Traefik | Walk when a SaaS webhook or users outside the cluster call it |
 
 ## When to expose an API at all
 
@@ -17,8 +17,8 @@
 
 ## What goes in front
 
-Humans: `apps/auth/gotrue-auth` and the oauth2-proxy middleware from base, as in `docs/service-integration.md`. Machines: a signature check for webhooks (Telegram secret token, Stripe signature), an API key in a header for pull callers, scoped per caller and rotated through the secrets mechanism of the stage. Never the agent's own credentials, and never an unauthenticated route "because it is only a pilot": a pilot with real customer data is the thing the security expert has to sign.
+Humans: the stage's `identity-provider` component (the snapshot lists the candidates) and the oauth2-proxy middleware from base, as in `docs/service-integration.md`. Machines: a signature check for webhooks (Telegram secret token, Stripe signature), an API key in a header for pull callers, scoped per caller and rotated through the secrets mechanism of the stage. Never the agent's own credentials, and never an unauthenticated route "because it is only a pilot": a pilot with real customer data is the thing the security expert has to sign.
 
 ## Record it
 
-`settings.api_surface`, `settings.auth_in_front`, and the component (`apps/auth/gotrue-auth`, `apps/cloudflare-tunnel`) in `choice` for the stage where it appears. The route itself (hostname, path) is the kustomize skill's to write.
+`settings.api_surface`, `settings.auth_in_front`, and the components (the `identity-provider` one, `apps/cloudflare-tunnel`) in `choice` for the stage where it appears. The route itself (hostname, path) is the kustomize skill's to write.

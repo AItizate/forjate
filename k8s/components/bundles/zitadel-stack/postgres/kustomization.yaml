@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Wraps the factory postgres component with zitadel- prefix
+# Produces: zitadel-postgres (StatefulSet, Service). The Secret zitadel-postgres-secret
+# (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB) is NOT shipped: the tenant provides it
+# (apps/auth/zitadel/contract.yaml).
+
+resources:
+  - ../../../apps/databases/postgres
+
+namePrefix: zitadel-
+
+# Unique instance label — prevents service selector collision when
+# multiple postgres instances share a namespace. namePrefix only
+# renames resources, not labels/selectors.
+labels:
+  - pairs:
+      app.kubernetes.io/instance: zitadel-postgres
+    includeSelectors: true
+
+# namePrefix renames the Secret but doesn't propagate to envFrom.secretRef.name
+patches:
+  - target:
+      kind: StatefulSet
+      name: postgres
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/envFrom/0/secretRef/name
+        value: zitadel-postgres-secret

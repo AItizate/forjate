@@ -1,0 +1,115 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zitadel-bootstrap
+  annotations:
+    # Runs after the app is Healthy (Zitadel up), recreated on every sync.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  # bootstrap.py waits up to ZITADEL_WAIT_SECONDS (600) for Zitadel; this bounds the
+  # whole Job so a stuck run fails the sync instead of leaving it Running forever.
+  activeDeadlineSeconds: 1500
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: zitadel-bootstrap
+    spec:
+      serviceAccountName: zitadel-bootstrap
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Dependencies are pinned in requirements.txt and land in an emptyDir, so the
+        # root filesystem stays read-only and the main container needs no network
+        # towards PyPI. Egress to PyPI (or PIP_INDEX_URL) is needed by THIS container.
+        - name: install-deps
+          image: python:3.13.5-alpine3.22
+          command:
+            - pip
+            - install
+            - --quiet
+            - --no-cache-dir
+            - --disable-pip-version-check
+            - --require-hashes
+            - "--only-binary=:all:"
+            - --target=/deps
+            - --requirement=/scripts/requirements.txt
+          env:
+            - name: HOME
+              value: /tmp
+            - name: TMPDIR
+              value: /tmp
+          securityContext: &restricted
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources: &resources
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          volumeMounts:
+            - {name: bootstrap-scripts, mountPath: /scripts, readOnly: true}
+            - {name: deps, mountPath: /deps}
+            - {name: tmp, mountPath: /tmp}
+      containers:
+        - name: bootstrap
+          image: python:3.13.5-alpine3.22
+          command: [python, /scripts/bootstrap.py]
+          env:
+            - name: PYTHONPATH
+              value: /deps
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # ZITADEL_URL, ZITADEL_HOST and ZITADEL_AUDIENCE are derived from
+            # `instance_url` in the bootstrap config (and POD_NAMESPACE): there is
+            # nothing to patch per tenant.
+            - name: ZITADEL_KEY_FILE
+              value: /secrets/sa-key.json
+          # Credentials the config names with `*_env`: IdP client id/secret and the
+          # initial passwords of human users. Optional: a tenant without IdPs or
+          # passwords does not need the Secret.
+          envFrom:
+            - secretRef:
+                name: zitadel-bootstrap-env
+                optional: true
+          securityContext: *restricted
+          resources: *resources
+          volumeMounts:
+            - {name: bootstrap-config, mountPath: /config, readOnly: true}
+            - {name: bootstrap-scripts, mountPath: /scripts, readOnly: true}
+            - {name: deps, mountPath: /deps, readOnly: true}
+            - {name: admin-sa-key, mountPath: /secrets, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: bootstrap-config
+          configMap:
+            name: zitadel-bootstrap-config
+        - name: bootstrap-scripts
+          configMap:
+            name: zitadel-bootstrap-scripts
+        - name: admin-sa-key
+          secret:
+            secretName: zitadel-admin-sa  # written by the chart's setup Job (FirstInstance.Org.Machine)
+            # Optional so a missing Secret or key does not leave the pod in ContainerCreating
+            # until activeDeadlineSeconds: bootstrap.py checks the file and fails at once
+            # with the instructions (existing instances, lost key).
+            optional: true
+            items:
+              - key: zitadel-admin-sa.json
+                path: sa-key.json
+        - name: deps
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

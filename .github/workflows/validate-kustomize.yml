@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'k8s/**'
+      - 'docs/examples/**'
       - '.github/workflows/validate-kustomize.yml'
   push:
     branches: [main]
@@ -54,6 +55,9 @@ jobs:
             find k8s/components -maxdepth 4 -type f -name 'kustomization.yaml' -exec dirname {} \;
             # Deeper variants that tenants reference by path on their own
             echo k8s/components/apps/backup/velero/s3
+            # Example tenant overlays that the docs tell people to copy: if the guide
+            # drifts from the components, this build is what fails.
+            find docs/examples -type f -name 'kustomization.yaml' -exec dirname {} \;
           } | sort -u > /tmp/targets.txt
           echo "Targets to build:"
           cat /tmp/targets.txt

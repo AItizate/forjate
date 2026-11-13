@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-11-10",
+  "compiled_at": "2026-11-12",
   "stages": [
     "crawl",
     "walk",
@@ -1018,6 +1018,131 @@
         "sizing": null,
         "extra_ports": {}
       }
+    },
+    {
+      "path": "apps/auth/zitadel/bootstrap",
+      "name": "auth-zitadel-bootstrap",
+      "category": "auth",
+      "wiki": "wiki/components/auth-zitadel-bootstrap.md",
+      "summary": "Zitadel Bootstrap — Zitadel's organizations, project, roles, OIDC apps, users and",
+      "images": [
+        "python:3.13.5-alpine3.22"
+      ],
+      "kinds": [
+        "ConfigMap",
+        "Job",
+        "Role",
+        "RoleBinding",
+        "ServiceAccount"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/bundles-zitadel-stack"
+      ],
+      "parent": "components/auth-zitadel",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "capabilities": [],
+      "maturity": "lab",
+      "gpu_required": "unknown",
+      "ha": "unknown",
+      "psa_restricted": "unknown",
+      "secrets": {
+        "takes": "unknown"
+      },
+      "data_classes": [
+        "internal"
+      ],
+      "curated": false,
+      "psa_level": "restricted",
+      "namespace": null,
+      "namespace_how": null,
+      "wiring": {
+        "service": null,
+        "port": null,
+        "protocol": "tcp",
+        "label": "zitadel-bootstrap",
+        "workload": {
+          "kind": "Job",
+          "name": "zitadel-bootstrap",
+          "container": "bootstrap"
+        },
+        "secret": {
+          "name": "zitadel-bootstrap-env",
+          "keys": []
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
+    },
+    {
+      "path": "apps/auth/zitadel",
+      "name": "auth-zitadel",
+      "category": "auth",
+      "wiki": "wiki/components/auth-zitadel.md",
+      "summary": "Zitadel — Cloud-native Identity Provider with built-in user management",
+      "images": [],
+      "kinds": [
+        "Ingress"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/bundles-zitadel-stack"
+      ],
+      "parent": null,
+      "stages": [
+        "walk"
+      ],
+      "capabilities": [
+        "identity-provider"
+      ],
+      "maturity": "lab",
+      "gpu_required": "none",
+      "ha": "single",
+      "psa_restricted": false,
+      "secrets": {
+        "takes": "env"
+      },
+      "data_classes": [
+        "internal",
+        "pii",
+        "secret"
+      ],
+      "licence": "AGPL-3.0 (pinned v4.20.2; Apache-2.0 up to v2)",
+      "notes": "OIDC IdP with users, roles and service accounts as code (bootstrap/). Pins Zitadel v4.20.2 (chart 10.5.0, Login V2, CVE-2026-56666 fixed); the bootstrap still refuses auto_linking on azure/generic_oidc. Holds identities and credentials. The tenant contract is contract.yaml; use bundles/zitadel-stack for the Postgres wiring.",
+      "wiring": {
+        "service": "zitadel",
+        "port": 8080,
+        "protocol": "http",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "zitadel",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": null,
+        "extra_ports": {}
+      },
+      "curated": true,
+      "psa_level": "unknown",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/backup/velero",
@@ -2491,6 +2616,7 @@
       "consumed_by": [
         "components/ai-models-litellm-postgres",
         "components/bundles-temporal-stack",
+        "components/bundles-zitadel-stack-postgres",
         "overlays/agentic-simple-workflow",
         "overlays/home-edge-lab",
         "overlays/multi-cloud-portable",
@@ -5545,6 +5671,140 @@
       "psa_level": "baseline",
       "namespace": null,
       "namespace_how": null
+    },
+    {
+      "path": "bundles/zitadel-stack",
+      "name": "bundles-zitadel-stack",
+      "category": "bundles",
+      "wiki": "wiki/components/bundles-zitadel-stack.md",
+      "summary": "zitadel-stack — Zitadel IdP + PostgreSQL + bootstrap in a single reference",
+      "images": [],
+      "kinds": [],
+      "composes": [
+        "k8s/components/apps/auth/zitadel",
+        "k8s/components/apps/auth/zitadel/bootstrap",
+        "k8s/components/bundles/zitadel-stack/postgres"
+      ],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "walk"
+      ],
+      "capabilities": [
+        "identity-provider"
+      ],
+      "maturity": "lab",
+      "gpu_required": "none",
+      "ha": "single",
+      "psa_restricted": false,
+      "secrets": {
+        "takes": "env"
+      },
+      "data_classes": [
+        "internal",
+        "pii",
+        "secret"
+      ],
+      "licence": "AGPL-3.0 (pinned v4.20.2; Apache-2.0 up to v2)",
+      "notes": "Zitadel plus its Postgres and the bootstrap Job, wired. The default way to take identity-provider with users as code. Same v4.20.2 pin as apps/auth/zitadel.",
+      "wiring": {
+        "service": "postgres",
+        "port": 5432,
+        "protocol": "http",
+        "label": "postgres",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "postgres",
+          "container": "postgres"
+        },
+        "secret": {
+          "name": "postgres-secret",
+          "keys": [
+            "POSTGRES_DB",
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": "zitadel",
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      },
+      "curated": true,
+      "psa_level": "unknown",
+      "namespace": null,
+      "namespace_how": null
+    },
+    {
+      "path": "bundles/zitadel-stack/postgres",
+      "name": "bundles-zitadel-stack-postgres",
+      "category": "bundles",
+      "wiki": "wiki/components/bundles-zitadel-stack-postgres.md",
+      "summary": "Wraps the factory postgres component with zitadel- prefix",
+      "images": [],
+      "kinds": [],
+      "composes": [
+        "k8s/components/apps/databases/postgres"
+      ],
+      "remote_refs": [],
+      "consumed_by": [
+        "components/bundles-zitadel-stack"
+      ],
+      "parent": "components/bundles-zitadel-stack",
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "capabilities": [],
+      "maturity": "lab",
+      "gpu_required": "unknown",
+      "ha": "unknown",
+      "psa_restricted": "unknown",
+      "secrets": {
+        "takes": "unknown"
+      },
+      "data_classes": [
+        "internal"
+      ],
+      "curated": false,
+      "psa_level": "baseline",
+      "namespace": null,
+      "namespace_how": null,
+      "wiring": {
+        "service": "postgres",
+        "port": 5432,
+        "protocol": "tcp",
+        "label": "postgres",
+        "workload": {
+          "kind": "StatefulSet",
+          "name": "postgres",
+          "container": "postgres"
+        },
+        "secret": {
+          "name": "postgres-secret",
+          "keys": [
+            "POSTGRES_DB",
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD"
+          ]
+        },
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": true,
+        "sizing": null,
+        "extra_ports": {}
+      }
     },
     {
       "path": "pvcs",

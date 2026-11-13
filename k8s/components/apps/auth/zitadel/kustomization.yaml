@@ -1,0 +1,298 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Zitadel — Cloud-native Identity Provider with built-in user management
+#
+# A standalone component: it references, requires and configures no other component.
+# Whatever consumes Zitadel as an OIDC provider is wired by the tenant overlay
+# (docs/tenant-onboarding/zitadel-integrations.md).
+#
+# Zitadel concepts:
+#   Organization  → Tenant (multi-org support for internal + external users)
+#   Project       → App group
+#   Application   → OIDC client
+#   Role          → Access level (admin, viewer, operator)
+#   Service User  → Machine account (agents, pipelines, CI/CD)
+#
+# Delivery: Argo CD. init/setup/bootstrap are Argo CD hooks ordered with sync-waves
+# (argocd.argoproj.io/* annotations, see below); with plain `kubectl apply` they would
+# run as ordinary Jobs at the same time as the Deployment. docs/apps/zitadel.md
+# ("Delivery requirement") describes the manual order for an Argo-free delivery.
+#
+# Zitadel uses Helm chart via Kustomize helmCharts generator.
+# PostgreSQL: bundles/zitadel-stack composes the postgres component (a bundle may).
+# Requires: kustomize with --enable-helm flag
+#
+# Usage:
+#   kubectl kustomize --enable-helm k8s/components/apps/auth/zitadel
+#
+# Version: Zitadel v4.20.2 on chart 10.5.0 (the chart ships v4.19.2; `image.tag` pins
+# the newer app). v4.15.3 fixed CVE-2026-56666 (auto-linking an external login by
+# email did not check that the IdP verified the email); later releases closed more
+# advisories in Login V1 and Actions V1, so the pin is the latest stable, not the
+# first fixed one. Do not go below v4.19.5 and skip v4.18.0 (its setup step fails).
+# Licence: AGPL-3.0 (Apache-2.0 up to v2). bootstrap.py still refuses auto_linking
+# on azure and generic_oidc: that is policy, not a version workaround.
+# Upgrading an EXISTING v2.x instance: docs/apps/zitadel.md, "Upgrading to v4".
+#
+# Needs a PostgreSQL reachable at Database.postgres.Host (default `zitadel-postgres`,
+# overridable: an external database works). bundles/zitadel-stack ships one for
+# convenience; this component does not depend on it. ./bootstrap (optional) holds
+# users, apps and IdPs as code.
+#
+# Tenant must provide: the contract in ./contract.yaml (ONE list of Secret names and
+# keys, namespace, hostname patches, explained in docs/apps/zitadel.md and built by
+# docs/examples/zitadel-tenant/). Names: zitadel-masterkey, zitadel-db-config,
+# zitadel-postgres-secret, zitadel-admin-password, zitadel-bootstrap-env (optional).
+# The chart generates zitadel-admin-sa itself (no manual step, no default password).
+# The Login V2 service keypair is a tenant Secret too: zitadel-login-service-key (tls).
+#
+# Namespace is NOT set here: the consumer overlay sets it (auth, identity, zitadel...).
+#
+# Labels on every object: app.kubernetes.io/part-of: zitadel and
+# app.kubernetes.io/ait-component: zitadel.
+#
+# Consumer overlay example: docs/examples/zitadel-tenant/kustomization.yaml
+
+resources:
+  - ingress.yaml
+
+helmCharts:
+  - name: zitadel
+    repo: https://charts.zitadel.com
+    version: 10.5.0
+    releaseName: zitadel
+    # `replace` makes Helm (not kustomize) merge valuesInline over the chart defaults,
+    # the only way to honour `Pat: null` below: kustomize merges maps and drops nulls,
+    # so the chart's default Pat block would stay.
+    valuesMerge: replace
+    # namespace: set by consumer overlay via kustomization namespace field
+    valuesInline:
+      image:
+        # The chart's own appVersion is v4.19.2. Pin the app explicitly.
+        tag: v4.20.2
+      zitadel:
+        # masterkey read from K8s secret named "zitadel-masterkey" (key: "masterkey")
+        # Create: kubectl create secret generic zitadel-masterkey --from-literal=masterkey=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
+        masterkey: ""
+        masterkeySecretName: zitadel-masterkey
+        # DB passwords come from a consumer-provided secret
+        configSecretName: zitadel-db-config
+        configSecretKey: config-yaml
+        configmapConfig:
+          ExternalSecure: true
+          ExternalDomain: zitadel.example.com
+          ExternalPort: 443
+          TLS:
+            Enabled: false
+          # Service Ping reports usage to zitadel.com (on by default since v4.0.0).
+          ServicePing:
+            Enabled: false
+          Database:
+            postgres:
+              Host: zitadel-postgres  # default host name; override for an external database
+              Port: 5432
+              Database: zitadel
+              User:
+                Username: zitadel
+                SSL:
+                  Mode: disable
+              Admin:
+                # the database is expected to have the POSTGRES_USER superuser and POSTGRES_DB already
+                # so init connects to the existing zitadel DB, no need to create anything
+                ExistingDatabase: zitadel
+                Username: zitadel
+                SSL:
+                  Mode: disable
+          # First instance, created once by `zitadel setup`. Without FirstInstance Zitadel
+          # creates `zitadel-admin` / `Password1!` (steps.yaml, still the default in v4)
+          # behind the public Ingress. The password is NOT set here: it comes from the
+          # Secret "zitadel-admin-password" through the env var below, and the Secret
+          # is required, so a missing Secret stops the pod instead of falling back to
+          # the default password.
+          FirstInstance:
+            Org:
+              Human:
+                UserName: admin  # login: admin@zitadel.<ExternalDomain>
+                FirstName: Admin
+                LastName: User
+                Email:
+                  Address: admin@example.com  # tenant: override in "zitadel-db-config"
+                  Verified: true
+                PasswordChangeRequired: true
+              # IAM_OWNER service account for the bootstrap Job. The chart writes its
+              # JSON key to the Secret "zitadel-admin-sa" (key zitadel-admin-sa.json)
+              # when setup runs for the first time, so there is no manual UI step.
+              Machine:
+                Machine:
+                  Username: zitadel-admin-sa
+                  Name: Bootstrap service account
+                MachineKey:
+                  Type: 1  # JSON, the only supported value
+                  # The chart default is 2029-01-01. An expired key breaks the bootstrap
+                  # Job (it authenticates with it), so pin a far date here.
+                  ExpirationDate: "2036-01-01T00:00:00Z"
+                # No PAT: the chart default would add a `zitadel-machine-pat` sidecar and an
+                # IAM_OWNER token nobody asked for (works with valuesMerge: replace).
+                Pat: null
+          # Login V2 is the login UI of every NEW v4 instance (this block is the only
+          # place the first instance reads features from; FirstInstance.Features is
+          # never read). It needs the `zitadel-login` Deployment below and the
+          # /ui/v2/login route of ingress.yaml. An EXISTING instance keeps its Login
+          # until the `loginV2` feature is set: bootstrap.yaml `features.login_v2`.
+          DefaultInstance:
+            Features:
+              LoginV2:
+                Required: true
+      # The first admin's password. Never in git, never in a ConfigMap.
+      env:
+        - name: ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: zitadel-admin-password
+              key: password
+      # Helm hooks -> Argo CD hooks.
+      #
+      # The chart ships init/setup as `helm.sh/hook: pre-install,pre-upgrade`. Argo CD
+      # maps those to PreSync, which runs BEFORE the postgres StatefulSet exists, so
+      # init would wait for a database that the same sync has not created yet.
+      # Blanking the annotation does not help either: Argo CD (gitops-engine
+      # pkg/sync/hook/helm/hook.go, v3.6.1) treats any object that carries the
+      # `helm.sh/hook` KEY as a hook, whatever its value, and then finds no phase, so
+      # the Job is neither synced nor run.
+      #
+      # So every `helm.sh/hook*` key is deleted by the patch at the bottom of this
+      # file (Helm values cannot delete a chart default annotation through the
+      # kustomize inflator) and the Jobs become Argo CD Sync hooks ordered with
+      # sync-waves:
+      #   wave 0  postgres, ServiceAccount, ConfigMap, Role   (plain resources)
+      #   wave 1  zitadel-init  (hook, Sync, recreated on each sync)
+      #   wave 2  zitadel-setup (hook, Sync, recreated on each sync)
+      #   wave 3  zitadel Deployment + Ingress
+      # The hooks are recreated (BeforeHookCreation) instead of patched, so a chart
+      # bump that changes the Job template never hits "field is immutable".
+      # tests/zitadel/test_render.py asserts this on the rendered output.
+      #
+      # The init containers wait for postgres: the pod can start before the
+      # StatefulSet pod is ready even inside wave ordering.
+      # ZITADEL_PG_HOST must match Database.postgres.Host above.
+      # If using an external postgres, override both in the consumer overlay.
+      initJob:
+        annotations:
+          argocd.argoproj.io/hook: Sync
+          argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+          argocd.argoproj.io/sync-wave: "1"
+        initContainers:
+          - name: wait-for-postgres
+            image: busybox:1.36
+            env:
+              - name: ZITADEL_PG_HOST
+                value: zitadel-postgres
+              - name: ZITADEL_PG_PORT
+                value: "5432"
+            command: ['sh', '-c', 'until nc -z $ZITADEL_PG_HOST $ZITADEL_PG_PORT; do echo "waiting for $ZITADEL_PG_HOST:$ZITADEL_PG_PORT..."; sleep 2; done']
+      setupJob:
+        annotations:
+          argocd.argoproj.io/hook: Sync
+          argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+          argocd.argoproj.io/sync-wave: "2"
+        initContainers:
+          - name: wait-for-postgres
+            image: busybox:1.36
+            env:
+              - name: ZITADEL_PG_HOST
+                value: zitadel-postgres
+              - name: ZITADEL_PG_PORT
+                value: "5432"
+            command: ['sh', '-c', 'until nc -z $ZITADEL_PG_HOST $ZITADEL_PG_PORT; do echo "waiting for $ZITADEL_PG_HOST:$ZITADEL_PG_PORT..."; sleep 2; done']
+        # (The chart adds a sidecar that copies the machine key into the Secret
+        # "zitadel-admin-sa"; its image comes from `tools.kubectl.image` below.)
+      # The chart default image (bitnami/kubectl:<kube version>) is not published per
+      # version any more. One image for the machine key writer.
+      tools:
+        kubectl:
+          image:
+            repository: alpine/k8s
+            tag: 1.31.4
+      # Starts only after setup has migrated the database.
+      annotations:
+        argocd.argoproj.io/sync-wave: "3"
+      # The chart's post-delete Job (`kubectl delete secret --selector managed-by=Zitadel`).
+      # Its helm.sh/hook keys are stripped below, which would turn it into a plain Job
+      # that deletes the generated Secrets on every sync. Never enable it here.
+      cleanupJob:
+        enabled: false
+      # Login V2: a separate Deployment (port 3000, path /ui/v2/login). Its init
+      # container waits for Zitadel, so it goes in the same wave as the Deployment.
+      login:
+        enabled: true
+        image:
+          tag: v4.20.2
+        # A tenant Secret (contract.yaml). Left empty the chart renders a random
+        # keypair in the Secret on EVERY build: a permanent OutOfSync, a rollout of
+        # both Deployments each sync and a private key in the manifests.
+        loginServiceKeySecretName: zitadel-login-service-key
+        annotations:
+          argocd.argoproj.io/sync-wave: "3"
+      commonLabels:
+        app.kubernetes.io/part-of: zitadel
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+
+
+# The chart hooks the ServiceAccount, the config ConfigMap and both Jobs with
+# helm.sh/hook*. Argo CD treats the mere presence of the key as "this is a hook"
+# (see the comment on initJob), so the keys are DELETED, never blanked. The
+# annotationSelector matches exactly the objects that carry the key.
+patches:
+  - target:
+      annotationSelector: helm.sh/hook
+    patch: |
+      - op: remove
+        path: /metadata/annotations/helm.sh~1hook
+      - op: remove
+        path: /metadata/annotations/helm.sh~1hook-delete-policy
+      - op: remove
+        path: /metadata/annotations/helm.sh~1hook-weight
+
+  # The chart bakes `-n {{ .Release.Namespace }}` into the machine key writer, and
+  # kustomize renders it with namespace "default". A consumer overlay sets the real
+  # namespace on the objects only, so the sidecar would read the pod and write the
+  # Secret in the wrong namespace. Without -n, kubectl in a pod uses the pod's own
+  # namespace. Same command as the chart (10.5.0) otherwise, minus the labels it adds
+  # for its cleanup Job, which is disabled.
+  - target:
+      kind: Job
+      name: zitadel-setup
+    patch: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: zitadel-setup
+      spec:
+        template:
+          spec:
+            containers:
+              - name: zitadel-machinekey
+                command:
+                  - sh
+                  - -c
+                  - |
+                    until [ ! -z "$(kubectl get po ${POD_NAME} -o jsonpath='{.status.containerStatuses[?(@.name=="zitadel-setup")].state.terminated}')" ]; do
+                      echo 'waiting for zitadel-setup container to terminate'; sleep 5
+                    done
+                    echo 'zitadel-setup container terminated'
+                    if [ -f /machinekey/sa.json ]; then
+                      kubectl create secret generic zitadel-admin-sa --from-file=zitadel-admin-sa.json=/machinekey/sa.json
+                    fi
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: zitadel
+      app.kubernetes.io/ait-component: zitadel

@@ -1,8 +1,7 @@
 ---
 title: auth-zitadel-oauth2-proxy-integration
-kind: component
-sources:
-- k8s/components/apps/auth/zitadel/oauth2-proxy-integration
+kind: retired
+sources: []
 compiled_at: '2026-11-11'
 category: auth
 parent: components/auth-zitadel
@@ -66,3 +65,7 @@ _No overlay in this repo references this component._
 
 _No notes yet. This zone is for interpretation: what this is for, how it
 composes with others, gotchas. It survives recompilation — write freely._
+
+> **Retired 2026-11-12.** The directory `k8s/components/apps/auth/zitadel/oauth2-proxy-integration` left the zitadel component (component independence rule).
+> Replaced by the tenant integration example `docs/examples/oauth2-proxy-with-zitadel/` and
+> `docs/tenant-onboarding/zitadel-integrations.md`.

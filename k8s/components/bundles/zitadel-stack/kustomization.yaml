@@ -18,7 +18,7 @@ kind: Kustomization
 # Tenant must provide: ONE contract for names, keys and patches, in
 #   k8s/components/apps/auth/zitadel/contract.yaml  (explained in docs/apps/zitadel.md)
 # In short: the Secrets zitadel-masterkey, zitadel-db-config, zitadel-postgres-secret,
-# zitadel-admin-password and (optional) zitadel-bootstrap-env in the overlay's
+# zitadel-admin-password, zitadel-login-service-key (tls) and (optional) zitadel-bootstrap-env in the overlay's
 # namespace; the hostname patches; the tenant's bootstrap.yaml. A buildable example:
 # docs/examples/zitadel-tenant/.
 #

@@ -756,7 +756,7 @@ def main():
             f"the bootstrap service account key {KEY_FILE} is missing. It comes from the Secret "
             "zitadel-admin-sa (key zitadel-admin-sa.json), which the chart's setup Job writes when it "
             "creates a NEW instance. On an instance that already existed, or if that write failed, "
-            "create the key by hand: docs/apps/zitadel.md, 'Migrating an existing instance' and "
+            "create the key by hand: docs/apps/zitadel.md, 'Adopting an existing Zitadel instance' and "
             "'Recovering the bootstrap service account key'"
         )
     issuer = cfg["instance_url"].rstrip("/")

@@ -35,9 +35,10 @@ kind: Kustomization
 # on azure and generic_oidc: that is policy, not a version workaround.
 # Upgrading an EXISTING v2.x instance: docs/apps/zitadel.md, "Upgrading to v4".
 #
-# Dependencies (tenant overlay, or use bundles/zitadel-stack which brings them):
-#   - k8s/components/apps/databases/postgres (with namePrefix: zitadel-)
-#   - ./bootstrap (optional): users, apps and IdPs as code
+# Needs a PostgreSQL reachable at Database.postgres.Host (default `zitadel-postgres`,
+# overridable: an external database works). bundles/zitadel-stack ships one for
+# convenience; this component does not depend on it. ./bootstrap (optional) holds
+# users, apps and IdPs as code.
 #
 # Tenant must provide: the contract in ./contract.yaml (ONE list of Secret names and
 # keys, namespace, hostname patches, explained in docs/apps/zitadel.md and built by
@@ -89,7 +90,7 @@ helmCharts:
             Enabled: false
           Database:
             postgres:
-              Host: zitadel-postgres  # factory component with namePrefix zitadel-
+              Host: zitadel-postgres  # default host name; override for an external database
               Port: 5432
               Database: zitadel
               User:
@@ -97,7 +98,7 @@ helmCharts:
                 SSL:
                   Mode: disable
               Admin:
-                # factory component creates POSTGRES_USER as superuser and POSTGRES_DB already
+                # the database is expected to have the POSTGRES_USER superuser and POSTGRES_DB already
                 # so init connects to the existing zitadel DB, no need to create anything
                 ExistingDatabase: zitadel
                 Username: zitadel

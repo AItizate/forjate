@@ -53,7 +53,7 @@ In Forjate, Zitadel solves what oauth2-proxy and GoTrue couldn't alone:
 Template: [`docs/examples/oauth2-proxy-with-zitadel/`](../examples/oauth2-proxy-with-zitadel/) (values file and the matching `applications:` entry for the bootstrap).
 
 ```bash
-cp k8s/components/apps/auth/zitadel/oauth2-proxy-integration/oauth2-values-zitadel.yaml \
+cp docs/examples/oauth2-proxy-with-zitadel/oauth2-values-zitadel.yaml \
    k8s/overlays/{tenant}/oauth2-values.yaml
 ```
 

@@ -4,19 +4,19 @@ contract.yaml is the list. These tests make the rendered pods, the docs, the
 buildable example overlay agree with it, so a name
 cannot drift in one place only (the first version had five different spellings).
 """
+import os
 import re
 
 import pytest
 import yaml
 
-from conftest import COMPONENT, EXAMPLE, ROOT, by_kind
+from conftest import COMPONENT, EXAMPLE, ROOT, by_kind, render
 
 CONTRACT = yaml.safe_load((COMPONENT / "contract.yaml").read_text())
 DOCS = (ROOT / "docs/apps/zitadel.md").read_text()
-# The migration section must name the old things (rbac, ClusterRole, sa-key.json); nowhere else may.
-_m = re.search(r"^## Migrating an existing instance\n.*?(?=^## )", DOCS, re.S | re.M)
-MIGRATION = _m.group(0) if _m else ""
-DOCS_OUTSIDE_MIGRATION = DOCS.replace(MIGRATION, "")
+# The component docs carry generic notes only: no tenant's previous layout anywhere.
+_m = re.search(r"^## Adopting an existing Zitadel instance\n.*?(?=^## )", DOCS, re.S | re.M)
+ADOPTION = _m.group(0) if _m else ""
 PODS = ("Deployment", "StatefulSet", "Job")
 
 
@@ -116,15 +116,15 @@ def test_docs_name_every_secret_and_key_of_the_contract():
     "Tenant IaC Factory", "zitadel-postgres-postgresql", "client_credentials",
 ])
 def test_docs_have_none_of_the_names_the_first_version_got_wrong(stale):
-    assert stale not in DOCS_OUTSIDE_MIGRATION
+    assert stale not in DOCS
 
 
 def test_docs_have_a_migration_path_for_existing_instances():
     # N3: FirstInstance never re-runs on an instance that already exists.
-    assert MIGRATION, "docs/apps/zitadel.md needs a 'Migrating an existing instance' section"
-    for needle in ("zitadel-admin-password", "sa-key.json", "zitadel-admin-sa.json", "zitadel-admin",
+    assert ADOPTION, "docs/apps/zitadel.md needs an 'Adopting an existing Zitadel instance' section"
+    for needle in ("zitadel-admin-password", "zitadel-admin-sa.json", "zitadel-admin",
                    "default password", "initial_password"):
-        assert needle in MIGRATION, f"the migration section does not mention {needle}"
+        assert needle in ADOPTION, f"the adoption section does not mention {needle}"
     assert "## Recovering the bootstrap service account key" in DOCS
 
 
@@ -286,8 +286,7 @@ def test_the_contract_states_the_delivery_requirement():
 # ------------------------------------------------------- the example builds
 
 def test_example_overlay_builds_in_one_namespace_with_no_placeholder_host(example):
-    # N2: every object, Helm output included, carries the namespace; the contract's patch
-    # (labelSelector part-of=zitadel-stack) is what puts it there.
+    # N2: every object, Helm output included, carries the namespace.
     for o in example:
         if o["kind"] == "Namespace":
             continue
@@ -330,3 +329,15 @@ def test_example_ships_an_example_for_every_secret_of_the_contract():
 def test_example_bootstrap_config_passes_the_scripts_own_validation(w_module):
     cfg = yaml.safe_load((EXAMPLE / "bootstrap.yaml").read_text())
     assert w_module.validate_config(cfg) == []
+
+
+def test_overlay_namespace_reaches_the_helm_objects(tmp_path):
+    """F2: with chart 10 the overlay's `namespace:` alone puts every object in the namespace,
+    so the part-of patch is only a safeguard."""
+    (tmp_path / "kustomization.yaml").write_text(
+        "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nnamespace: idp\n"
+        f"resources:\n  - {os.path.relpath(ROOT / 'k8s/components/bundles/zitadel-stack', tmp_path)}\n")
+    objs = render(tmp_path)
+    assert objs and all(o["metadata"].get("namespace") == "idp" for o in objs if o["kind"] != "Namespace"), [
+        (o["kind"], o["metadata"]["name"], o["metadata"].get("namespace")) for o in objs
+        if o["metadata"].get("namespace") != "idp"]

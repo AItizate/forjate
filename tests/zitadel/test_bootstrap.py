@@ -441,7 +441,7 @@ def test_missing_service_account_key_fails_fast_with_the_instructions(w, capsys)
     assert not w.z.calls, "no API call, no waiting for Zitadel"
     err = capsys.readouterr().err
     assert "zitadel-admin-sa" in err and "zitadel-admin-sa.json" in err
-    assert "Migrating an existing instance" in err
+    assert "Adopting an existing Zitadel instance" in err
 
 
 def test_action_script_is_scoped_to_the_configured_project(w):

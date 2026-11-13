@@ -11,10 +11,11 @@ namespace:
   rule: >
     One namespace for everything. The tenant overlay sets it with `namespace:`;
     the component never does. All Secrets below live in that namespace, and the
-    bootstrap writes zitadel-oidc-<app> into it too. kustomize does NOT stamp
-    `namespace:` on the Helm chart's objects (they render without one), so the
-    overlay must force it, with the patch below (every object of the bundle carries
-    app.kubernetes.io/part-of=zitadel-stack). Do not rely on the deployer's
+    bootstrap writes zitadel-oidc-<app> into it too. With chart 10 the Helm objects
+    render with `namespace: default` and the overlay's `namespace:` replaces it, so that
+    is enough; the patch below (every object of the bundle carries
+    app.kubernetes.io/part-of=zitadel-stack) is an optional safeguard, for example for an
+    older chart pin whose objects render without a namespace. Do not rely on the deployer's
     `destination.namespace` or `kubectl -n`: a root kustomization that holds several
     namespaces cannot use them.
   example: zitadel
@@ -40,7 +41,7 @@ secrets:
     only_with: bundles/zitadel-stack (the postgres sub-bundle)
   - name: zitadel-admin-password
     keys: {password: "first admin (login admin@zitadel.<ExternalDomain>); required, there is no default; must meet Zitadel's default password policy (8+ chars, upper, lower, digit, symbol) or setup fails on a new instance. On an existing instance it is never used"}
-    read_by: [Deployment zitadel, Job zitadel-setup]
+    read_by: [Deployment zitadel, Job zitadel-init, Job zitadel-setup]
   - name: zitadel-login-service-key
     keys: {tls.crt: "RSA certificate; Zitadel verifies the login service's JWTs with it", tls.key: "its RSA private key; the Login V2 service signs with it"}
     read_by: [Deployment zitadel, Deployment zitadel-login]
@@ -57,7 +58,7 @@ generated:
     by: the chart's setup Job, the first time it runs on a NEW instance (FirstInstance.Org.Machine)
     # Mounted optional on the bootstrap Job so a missing key fails fast with instructions.
     # Existing instance or lost key: create it by hand, docs/apps/zitadel.md
-    # ("Migrating an existing instance", "Recovering the bootstrap service account key").
+    # ("Adopting an existing Zitadel instance", "Recovering the bootstrap service account key").
     optional_on_pod: true
     read_by: [Job zitadel-bootstrap]
   - name: "zitadel-oidc-<app>"

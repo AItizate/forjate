@@ -64,7 +64,7 @@ The chart's `init` and `setup` Jobs are Argo CD **Sync** hooks ordered with sync
 
 One contract, in `k8s/components/apps/auth/zitadel/contract.yaml`. The kustomization headers and this page repeat it, and `tests/zitadel/test_contract.py` fails if a rendered pod reads a Secret or key that the contract does not list.
 
-**One namespace for everything**, set by the overlay with `namespace:` (the example uses `zitadel`). kustomize does not stamp `namespace:` on the Helm chart's objects, so the overlay forces it with a patch on `app.kubernetes.io/part-of=zitadel-stack` (every object of the bundle carries that label; the example shows the patch). Do not rely on Argo CD `destination.namespace` or `kubectl -n`: a root kustomization that holds several namespaces cannot use them.
+**One namespace for everything**, set by the overlay with `namespace:` (the example uses `zitadel`). With chart 10 the Helm objects render with `namespace: default` and the overlay's `namespace:` replaces it, so setting `namespace:` is enough (`test_overlay_namespace_reaches_the_helm_objects` proves it). The example also keeps a patch on `app.kubernetes.io/part-of=zitadel-stack` (every object of the bundle carries that label) as a safeguard, for example if you pin an older chart whose objects render without a namespace. Do not rely on Argo CD `destination.namespace` or `kubectl -n`: a root kustomization that holds several namespaces cannot use them.
 
 **Secrets you create before the first sync** (however the tenant manages secrets):
 
@@ -176,27 +176,19 @@ There is no default admin password and no manual step in the UI. Init and setup 
 
 The first admin's login name is `admin@zitadel.<ExternalDomain>` (Zitadel suffixes the username with the organization domain), and its password is the value of `zitadel-admin-password`. Zitadel asks to change it at the first login. Use it to enrol a second factor and to create the people who will administer; day-to-day users come from `bootstrap.yaml`.
 
-## Migrating an existing instance
+## Adopting an existing Zitadel instance
 
-For a tenant that already runs an earlier version of this component. The instance exists, Zitadel's `FirstInstance` never runs again, and the bootstrap service account key was created by hand. Do this **before** syncing the new version, or the Deployment stays in `CreateContainerConfigError` and the bootstrap Job stops at once with "the bootstrap service account key is missing".
+For a Zitadel instance that this component's setup hook did not create (it was installed some other way, or an earlier setup already ran): Zitadel's `FirstInstance` never runs again, so the bootstrap service account key does not come from the chart. Do this **before** syncing, or the Deployment stays in `CreateContainerConfigError` and the bootstrap Job stops at once with "the bootstrap service account key is missing".
 
-1. **Create `zitadel-admin-password`.** The Deployment and the setup Job now require it. On an existing instance its value is never used (the first admin already exists), so a random one is fine:
+1. **Create `zitadel-admin-password`.** The Deployment and the Jobs require it. On an existing instance its value is never used (the first admin already exists), so a random one is fine:
    ```bash
    kubectl create secret generic zitadel-admin-password -n zitadel \
      --from-literal=password="$(openssl rand -base64 24)Aa1!"
    ```
-2. **Re-key the bootstrap service account Secret.** The chart writes `zitadel-admin-sa.json`; the old guide had you store the key as `sa-key.json`. The bootstrap Job reads only the new name:
-   ```bash
-   kubectl get secret zitadel-admin-sa -n zitadel -o jsonpath='{.data.sa-key\.json}' | base64 -d > key.json
-   kubectl create secret generic zitadel-admin-sa -n zitadel \
-     --from-file=zitadel-admin-sa.json=key.json --dry-run=client -o yaml | kubectl apply -f -
-   rm key.json
-   ```
-   If the Secret is managed by a secret tool, change it there under the new key name instead.
-3. **Close the old default admin.** Earlier versions created `zitadel-admin` with the Zitadel default password, behind the public Ingress. If it was never changed, anyone can log in as IAM_OWNER. In the Console create your own admin (or use the one from `bootstrap.yaml`), then change or deactivate `zitadel-admin`, and audit the instance's logins since the first deploy.
-4. **Remove what the old version left.** The cluster-scoped role and binding named `zitadel-bootstrap` (`kubectl delete clusterrole,clusterrolebinding zitadel-bootstrap`; Argo CD prunes them if it tracks them), the `rbac/` entry in your overlay's `resources`, and, if Argo complains about immutable fields on the first sync, the old plain Jobs `zitadel-init` and `zitadel-setup` (they are Argo CD hooks now and are recreated).
-5. **Adapt `bootstrap.yaml`.** `initial_password:` literals are rejected (use `initial_password_env`), `organization:` becomes `organizations:`, and an Azure IdP needs `tenant_id`. The Job exits 2 and lists every `CONFIG ERROR`.
-6. **Namespace patch and labels.** Add the namespace patch of the example overlay; the bundle keeps `part-of: zitadel-stack`, so an existing selector on it still works.
+2. **Provide the bootstrap service account key** as the Secret `zitadel-admin-sa`, key `zitadel-admin-sa.json` (the JSON key of an `IAM_OWNER` service user); see "Recovering the bootstrap service account key" below. The bootstrap Job reads only that name and key.
+3. **Close a first admin that kept Zitadel's built-in password.** A Zitadel that was set up without `FirstInstance` creates `zitadel-admin` with the documented default password. If it was never changed and the instance is reachable, anyone can log in as `IAM_OWNER`: create your own admin in the Console, change or deactivate `zitadel-admin`, and audit the logins since the first deploy.
+4. **Adapt `bootstrap.yaml`.** `initial_password:` literals are rejected (use `initial_password_env`), the list is `organizations:` (the singular form is deprecated), and an Azure IdP needs `tenant_id`. The Job exits 2 and lists every `CONFIG ERROR`.
+5. **Set the overlay `namespace:`** (and keep the labels the bundle sets) so every object, the chart's included, lands in the namespace that holds the Secrets.
 
 ## Recovering the bootstrap service account key
 
@@ -210,7 +202,7 @@ On a **new** instance the chart's setup Job writes the key to `zitadel-admin-sa`
    ```
 4. Delete the downloaded file, and delete any older key of that user in the Console. Re-run the bootstrap (`kubectl delete job zitadel-bootstrap -n zitadel`, or sync).
 
-### Ingress: tenant patch points
+## Ingress: tenant patch points
 
 `ingress.yaml` is deliberately plain: host, TLS secret name and two paths (`/ui/v2/login` to `zitadel-login:3000`, `/` to `zitadel:8080`). It carries no certificate-issuer or ingress-controller annotations and no `ingressClassName`, because those are the tenant's choices. Patch them in the overlay (the example overlay does): `cert-manager.io/cluster-issuer: <issuer>` if cert-manager issues the certificate, `ingressClassName`, controller annotations (for Traefik, `traefik.ingress.kubernetes.io/router.entrypoints` and middlewares), and the host and TLS host.
 
@@ -244,7 +236,7 @@ Copy `docs/examples/zitadel-tenant/` into your tenant repo, change the domain in
 
 Let Argo CD deliver the overlay (the hooks need it, see "Delivery requirement" in the overview). Init, setup, the Deployments and the bootstrap Job then run in order by themselves; the key of the bootstrap service account is written by the chart. Without Argo CD, apply in the order described there.
 
-#### Step 4: Verify
+### Step 4: Verify
 
 ```bash
 kubectl get pods -n zitadel
@@ -277,9 +269,7 @@ The database migration runs in the setup hook and **cannot be undone by revertin
 5. **Whether the Actions v1 `groups` claim fires for Login V2 sessions** is not documented: check `groups` in the token after the upgrade.
 6. **A leftover Job with the same name blocks the new hooks.** Argo CD reads a hook's delete policy from the LIVE object. If `zitadel-init`, `zitadel-setup` or `zitadel-bootstrap` already exist as completed Jobs **without** hook annotations (they were created by something other than this component's hooks), `BeforeHookCreation` never fires: the old Job counts as the hook that already ran, the new hook is skipped and the Deployment is applied **without the database migration** (the v4 pod then crashes with `relation "queue.river_queue" does not exist`). Delete such Jobs before the first sync; once the hooks own them, every sync recreates them.
 7. **Secrets the component reads must exist and be owned by whatever manages them** before the first sync (see "What the tenant must provide"). A Secret that was created by hand under the same name can be refused by a controller that wants to own it; resolve that on the tenant side.
-8. The other steps of "Migrating an existing instance" above (the Secrets, the bootstrap service account key) still apply.
-
-An existing v2.67.2 database (827 events) was migrated to v4.20.2 by the `zitadel-setup` hook in about a minute, and the `groups` claim of the bootstrap's Actions v1 flow kept working under Login V2.
+8. The other steps of "Adopting an existing Zitadel instance" above (the Secrets, the bootstrap service account key) still apply.
 
 ### External identity providers (Google, GitHub, ...)
 

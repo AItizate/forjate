@@ -13,11 +13,12 @@ kind: Kustomization
 # Remote tenant: replace the first resource with
 #   ssh://git@github.com/AItizate/forjate.git//k8s/components/bundles/zitadel-stack?ref=<tag>
 
-# `namespace:` is stamped on the plain resources (Ingress, bootstrap, postgres), but
-# kustomize does NOT stamp it on the Helm chart's objects. The first patch below forces
-# it on everything the bundle labels part-of=zitadel-stack, so one root kustomization
-# can hold several namespaces (the forjate remote pattern) and nothing depends on the
-# deployer's `-n` / Argo `destination.namespace`.
+# `namespace:` is stamped on every object, the Helm chart's included (chart 10 renders
+# `namespace: default` and the transformer replaces it). The first patch below also
+# forces it on everything the bundle labels part-of=zitadel-stack: a safeguard for an
+# older chart pin whose objects render without a namespace. Either way one root
+# kustomization can hold several namespaces and nothing depends on the deployer's
+# `-n` / Argo `destination.namespace`.
 namespace: zitadel
 
 resources:

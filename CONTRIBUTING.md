@@ -6,6 +6,8 @@ This guide explains how to add new applications to the component catalog, making
 
 The goal is to create a robust catalog of reusable components. When adding a new application, consider if it's a "local" component (managed within this repository) or a "remote" component (managed by an SME in an external repository).
 
+**Components are independent.** A component must not reference, require, or clean up after another component, and must not assume a tenant's previous setup. Wiring between components (OIDC clients, SSO configs, middleware chains) lives in tenant overlays or integration examples; tenant-specific migrations live in the tenant's runbook. See "Component Independence" in `CLAUDE.md`.
+
 ---
 
 ## Pattern 1: Adding a Local Component

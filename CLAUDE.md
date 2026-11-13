@@ -202,6 +202,18 @@ resources:
 
 Use placeholder values (e.g., `my-app.example.com` for hostnames) that tenants can patch.
 
+### Component Independence (rule)
+
+Every component must stand on its own. A component must not:
+
+- reference another component's resources, Secret names, namespaces or labels (e.g. the zitadel component knows nothing about oauth2-proxy, argocd or temporal);
+- require another component to be present, or list one as a hard dependency in its `kustomization.yaml`;
+- clean up after, migrate from, or assume a tenant's previous setup (no PreSync "delete legacy objects" hooks, no references to `tenant-iac-factory` or other prior layouts).
+
+Integration between components (an OIDC client for oauth2-proxy, an Argo CD SSO config, a Traefik middleware chain) belongs to the tenant overlay or to integration docs and examples, not inside a component. Tenant-specific migration steps belong to the tenant repo's runbook. Component docs may only carry generic, component-local upgrade notes.
+
+When reviewing a component PR, check for cross-component names, Secrets, namespaces and docs that require another component.
+
 ### Adding a Remote Component
 
 1. Create stub directory: `k8s/components/apps/{category}/{component-name}`

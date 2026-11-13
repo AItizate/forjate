@@ -7,7 +7,7 @@ compiled_at: '2026-11-12'
 category: auth
 consumed_by:
 - components/bundles-zitadel-stack
-source_hash: 73b038a3b7798ae0
+source_hash: c9fd215c8a94cf92
 source_last_commit: '2026-11-12'
 summary: "Zitadel \u2014 Cloud-native Identity Provider with built-in user management"
 summary_source: derived
@@ -53,9 +53,10 @@ summary_source: derived
 > on azure and generic_oidc: that is policy, not a version workaround.
 > Upgrading an EXISTING v2.x instance: docs/apps/zitadel.md, "Upgrading to v4".
 >
-> Dependencies (tenant overlay, or use bundles/zitadel-stack which brings them):
-> - k8s/components/apps/databases/postgres (with namePrefix: zitadel-)
-> - ./bootstrap (optional): users, apps and IdPs as code
+> Needs a PostgreSQL reachable at Database.postgres.Host (default `zitadel-postgres`,
+> overridable: an external database works). bundles/zitadel-stack ships one for
+> convenience; this component does not depend on it. ./bootstrap (optional) holds
+> users, apps and IdPs as code.
 >
 > Tenant must provide: the contract in ./contract.yaml (ONE list of Secret names and
 > keys, namespace, hostname patches, explained in docs/apps/zitadel.md and built by

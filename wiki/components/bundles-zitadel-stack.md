@@ -5,7 +5,7 @@ sources:
 - k8s/components/bundles/zitadel-stack
 compiled_at: '2026-11-12'
 category: bundles
-source_hash: 03761f2296ee0eab
+source_hash: 185e043a3e6326ee
 source_last_commit: '2026-11-12'
 summary: "zitadel-stack \u2014 Zitadel IdP + PostgreSQL + bootstrap in a single reference"
 summary_source: derived
@@ -34,7 +34,7 @@ summary_source: derived
 > Tenant must provide: ONE contract for names, keys and patches, in
 > k8s/components/apps/auth/zitadel/contract.yaml  (explained in docs/apps/zitadel.md)
 > In short: the Secrets zitadel-masterkey, zitadel-db-config, zitadel-postgres-secret,
-> zitadel-admin-password and (optional) zitadel-bootstrap-env in the overlay's
+> zitadel-admin-password, zitadel-login-service-key (tls) and (optional) zitadel-bootstrap-env in the overlay's
 > namespace; the hostname patches; the tenant's bootstrap.yaml. A buildable example:
 > docs/examples/zitadel-tenant/.
 >

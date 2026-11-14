@@ -108,6 +108,18 @@ def main():
     with open(os.path.join(target_dir, "README.md"), 'w') as f:
         f.write(readme_content)
 
+    # --- 5b. Tenant .gitignore (the factory's own is excluded from the copy) ---
+    # `kustomize build --enable-helm` drops every helmCharts chart into charts/ next to the
+    # kustomization: a download cache that must not be committed.
+    with open(os.path.join(target_dir, ".gitignore"), 'w') as f:
+        f.write(
+            "# Real credentials never land in git; the committed examples do.\n"
+            "**/*.env\n"
+            "!**/*.env.example\n"
+            "# `kustomize build --enable-helm` caches the pulled charts here; never commit them\n"
+            "**/charts/\n"
+        )
+
     # --- 6. Cleanup ---
     # The ignore logic should handle all cleanup implicitly. 
     # This section can be removed or used for post-generation tasks if needed.

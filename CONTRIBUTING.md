@@ -41,6 +41,8 @@ resources:
   - ingress.yaml
 ```
 
+**Helm charts:** a component that uses `helmCharts:` needs `kustomize build --enable-helm`, which downloads the chart into `charts/` next to the kustomization. That directory is a cache, never source: `**/charts/` is in `.gitignore` (and in the use-case template and the tenant `.gitignore` that `init-tenant.py` writes), and a tenant repo should ignore it too. Pin the chart `version:` in the kustomization instead.
+
 ---
 
 ## Pattern 2: Adding a Remote Component

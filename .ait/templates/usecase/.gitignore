@@ -1,3 +1,5 @@
 # Real credentials never land in git; the committed examples do.
 secrets/*.env
 !secrets/*.env.example
+# `kustomize build --enable-helm` caches the pulled chart here; never commit it
+**/charts/

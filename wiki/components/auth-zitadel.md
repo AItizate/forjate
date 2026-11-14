@@ -3,12 +3,12 @@ title: auth-zitadel
 kind: component
 sources:
 - k8s/components/apps/auth/zitadel
-compiled_at: '2026-11-12'
+compiled_at: '2026-11-14'
 category: auth
 consumed_by:
 - components/bundles-zitadel-stack
-source_hash: c9fd215c8a94cf92
-source_last_commit: '2026-11-12'
+source_hash: e2fa3202a375ab47
+source_last_commit: '2026-11-14'
 summary: "Zitadel \u2014 Cloud-native Identity Provider with built-in user management"
 summary_source: derived
 ---

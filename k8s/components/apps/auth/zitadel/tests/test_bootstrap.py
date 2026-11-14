@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 from fakes import Kubernetes, Zitadel
-from conftest import COMPONENT
+from conftest import COMPONENT, EXAMPLE
 
 SCRIPT = COMPONENT / "bootstrap/bootstrap.py"
 ISSUER = "https://zitadel.example.com"
@@ -379,6 +379,81 @@ def test_auto_linking_email_stays_available_for_idps_that_verify_emails(w, kind,
     assert "NOTICE" in capsys.readouterr().out
 
 
+def test_auto_linking_turns_linking_on_by_default(w):
+    # Scitrix: `auto_linking: email` alone left isLinkingAllowed=false, nothing failed and the
+    # user saw "cannot link" at the login page.
+    assert w.run(cfg(identity_providers=[idp(type="google", options={"auto_linking": "email"})])) == 0
+    opts = next(iter(w.z.idps.values()))["providerOptions"]
+    assert opts["isLinkingAllowed"] is True and opts["autoLinking"] == "AUTO_LINKING_OPTION_EMAIL"
+    assert opts["isCreationAllowed"] is False and opts["isAutoCreation"] is False
+
+
+def test_linking_stays_off_without_auto_linking(w):
+    assert w.run(cfg(identity_providers=[idp(type="google")])) == 0
+    assert next(iter(w.z.idps.values()))["providerOptions"]["isLinkingAllowed"] is False
+
+
+def test_auto_linking_with_linking_explicitly_off_is_a_config_error(w, capsys):
+    entry = idp(type="google", options={"auto_linking": "email", "is_linking_allowed": False})
+    assert w.run(cfg(identity_providers=[entry])) == 2
+    assert "is_linking_allowed" in capsys.readouterr().err and not w.z.idps
+
+
+def add_human(w, username, email, org=None):
+    w.z.users[f"first-{username}"] = {"username": username, "org": org, "kind": "human", "email": email}
+
+
+def test_duplicate_email_fails_the_run_when_an_idp_links_by_email(w, capsys):
+    # Scitrix: FirstInstance admin and an org user shared one email, so email auto-linking
+    # was ambiguous and the person saw "account not found".
+    add_human(w, "admin@zitadel.example.com", "Ana@Example.com", org="zitadel-org")
+    entry = idp(type="google", options={"auto_linking": "email"})
+    assert w.run(cfg(identity_providers=[entry])) == 1
+    out = capsys.readouterr().out
+    assert "ana@example.com belongs to 2 users" in out and "FirstInstance.Org.Human.Email" in out
+
+
+def test_duplicate_email_is_ignored_when_no_idp_links_by_email(w):
+    add_human(w, "admin@zitadel.example.com", "ana@example.com", org="zitadel-org")
+    assert w.run(cfg(identity_providers=[idp(type="google")])) == 0
+    assert w.run(cfg()) == 0
+
+
+def test_distinct_emails_pass_the_preflight_and_the_rerun_stays_clean(w):
+    add_human(w, "admin@zitadel.example.com", "zitadel-admin@example.com", org="zitadel-org")
+    c = cfg(identity_providers=[idp(type="google", options={"auto_linking": "email"})])
+    assert w.run(c) == 0 and w.run(c) == 0
+
+
+# ------------------------------------------------------------- login policy
+
+def test_self_registration_is_switched_off_by_default_and_the_rest_is_kept(w):
+    assert w.z.login_policy["allowRegister"] is True
+    assert w.run(cfg()) == 0
+    assert w.z.login_policy["allowRegister"] is False
+    assert w.z.login_policy["allowUsernamePassword"] is True
+    assert w.z.login_policy["passwordlessType"] == "PASSWORDLESS_TYPE_ALLOWED"
+
+
+def test_login_policy_replay_makes_no_put(w):
+    assert w.run(cfg()) == 0
+    puts = lambda: [c for c in w.z.calls if c[:2] == ("PUT", "/admin/v1/policies/login")]
+    assert len(puts()) == 1
+    assert w.run(cfg()) == 0
+    assert puts() == []  # the calls are per run: the replay makes none
+
+
+def test_self_registration_is_opt_in(w):
+    assert w.run(cfg(login_policy={"allow_register": True})) == 0
+    assert w.z.login_policy["allowRegister"] is True
+    assert not [c for c in w.z.calls if c[:2] == ("PUT", "/admin/v1/policies/login")]
+
+
+def test_login_policy_failure_fails_the_run(w):
+    w.z.fail.append((r"PUT /admin/v1/policies/login$", 500))
+    assert w.run(cfg()) == 1
+
+
 def test_unknown_idp_type_and_missing_issuer_are_config_errors(w):
     assert w.run(cfg(identity_providers=[idp(type="okta")])) == 2
     assert w.run(cfg(identity_providers=[idp(type="generic_oidc")])) == 2
@@ -491,3 +566,11 @@ def test_an_action_using_project_id_without_a_project_says_so(w, capsys):
     action = {"name": "g", "script": "function g(ctx, api) { return '{{project_id}}'; }"}
     assert w.run({"organizations": [{"name": "acme", "is_default": True}], "actions": [action]}) == 0
     assert "no `project:` is configured" in capsys.readouterr().out
+
+
+def test_example_overlay_gives_the_first_admin_an_email_no_user_shares():
+    ex = EXAMPLE
+    db = yaml.safe_load((ex / "secrets/zitadel-db-config.yaml.example").read_text())
+    admin = db["FirstInstance"]["Org"]["Human"]["Email"]["Address"].lower()
+    users = yaml.safe_load((ex / "bootstrap.yaml").read_text()).get("users", [])
+    assert admin not in {u["email"].lower() for u in users}

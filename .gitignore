@@ -8,7 +8,9 @@ __pycache__/
 implementation_plan.md
 **/sample_data/**
 
-k8s/**/charts/**
+# `kustomize build --enable-helm` pulls each helmCharts entry into charts/ next to the
+# kustomization: a download cache, never a source (the chart is pinned in the kustomization)
+**/charts/
 # use-case builder
 .pytest_cache/
 evals-workspace/

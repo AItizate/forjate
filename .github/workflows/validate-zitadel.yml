@@ -14,8 +14,8 @@ on:
       - 'k8s/components/bundles/zitadel-stack/**'
       - 'k8s/components/apps/databases/postgres/**'
       - 'docs/examples/zitadel-tenant/**'
+      - 'docs/examples/oauth2-proxy-with-zitadel/**'
       - 'docs/apps/zitadel.md'
-      - 'tests/zitadel/**'
       - '.github/toolchain.env'
       - '.github/workflows/validate-zitadel.yml'
   push:
@@ -24,7 +24,7 @@ on:
       - 'k8s/components/apps/auth/zitadel/**'
       - 'k8s/components/bundles/zitadel-stack/**'
       - 'docs/examples/zitadel-tenant/**'
-      - 'tests/zitadel/**'
+      - 'docs/examples/oauth2-proxy-with-zitadel/**'
 
 jobs:
   zitadel:
@@ -56,4 +56,4 @@ jobs:
           poetry install --no-root
 
       - name: Render, contract and bootstrap tests
-        run: poetry run pytest tests/zitadel -v
+        run: poetry run pytest k8s/components/apps/auth/zitadel/tests docs/examples/oauth2-proxy-with-zitadel/tests -v

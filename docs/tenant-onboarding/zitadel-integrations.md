@@ -75,6 +75,24 @@ Argo CD, two clients:
 
 `argocd-cm`: `oidc.config` with `issuer`, `clientID`, `clientSecret: $<sealed-secret>:client-secret` (the Secret needs the label `app.kubernetes.io/part-of: argocd`), `cliClientID`, `enablePKCEAuthentication: true`, `requestedScopes: [openid, profile, email, groups]`. `argocd-rbac-cm`: `scopes: '[groups]'` and `policy.csv` mapping the project roles (`g, admin, role:admin`).
 
+**Restart `argocd-server` when OIDC is first enabled or its issuer changes.** `argocd-server` builds the HTTP client that verifies SSO session tokens against the issuer once per pod. A pod that started before `oidc.config` existed keeps the TLS config of that moment (its own certificate pool): the login callback works (it reloads the config by itself, log line `oidc config modified. restarting`) but every request after it fails with `Failed to verify session token ... x509: certificate signed by unknown authority`, and the browser loops back to the login. Neither the network nor the CA bundle is at fault. Roll the pod with the OIDC change by putting an annotation on the pod template of the Deployment in the same overlay and bumping it whenever `oidc.config` is first added or its issuer changes:
+
+```yaml
+# oidc/argocd-server-restart-patch.yaml, listed under `patches:` with
+# target: {kind: Deployment, name: argocd-server}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-server
+spec:
+  template:
+    metadata:
+      annotations:
+        acme.dev/oidc-config-revision: "1"   # bump with the OIDC config
+```
+
+Without such an annotation, run `kubectl -n argocd rollout restart deploy/argocd-server` once after the sync that adds `oidc.config`. This belongs to the tenant overlay: the `auth/zitadel` and `continuous-delivery/argocd` components do not know each other.
+
 
 # Replacing GoTrue
 

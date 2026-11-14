@@ -2,7 +2,7 @@
 #
 # This is the ONE list. The kustomization headers, docs/apps/zitadel.md and the
 # example overlay (docs/examples/zitadel-tenant/) repeat names from here, and
-# tests/zitadel/test_contract.py fails when the rendered pods read a Secret or key
+# tests/test_contract.py fails when the rendered pods read a Secret or key
 # that is not listed here, or when the docs drift from it.
 #
 # Not a kustomize file (no kind): kustomize ignores it.

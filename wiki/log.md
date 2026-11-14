@@ -63,3 +63,5 @@ Types: `compile`, `concept`, `lint`, `query`.
 ## [2026-11-12] compile | 2 page(s) changed — 5 base, 86 component, 19 overlay
 ## [2026-11-12] compile | 5 page(s) changed — 5 base, 85 component, 19 overlay
 ## [2026-11-12] compile | 3 page(s) changed — 5 base, 85 component, 19 overlay
+## [2026-11-14] compile | 2 page(s) changed — 5 base, 85 component, 19 overlay
+## [2026-11-14] compile | 2 page(s) changed — 5 base, 85 component, 19 overlay

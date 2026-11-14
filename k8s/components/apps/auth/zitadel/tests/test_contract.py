@@ -229,25 +229,9 @@ def test_labels_follow_the_forjate_convention(bundle):
     assert by_kind(bundle, "Deployment", "zitadel")["metadata"]["labels"]["app.kubernetes.io/ait-component"] == "zitadel"
 
 
-# ------------------------------------------------- integration example (outside the component)
-
-INTEGRATION = ROOT / "docs/examples/oauth2-proxy-with-zitadel"
-
-
-def test_oauth2_example_verifies_tls_and_reads_the_secret_the_bootstrap_writes():
-    values = yaml.safe_load((INTEGRATION / "oauth2-values-zitadel.yaml").read_text())
-    assert "ssl-insecure-skip-verify" not in values["extraArgs"]
-    refs = {(e["valueFrom"]["secretKeyRef"]["name"], e["valueFrom"]["secretKeyRef"]["key"])
-            for e in values["extraEnv"] if e["name"] != "OAUTH2_PROXY_COOKIE_SECRET"}
-    assert refs == {("zitadel-oidc-oauth2-proxy", "client-id"), ("zitadel-oidc-oauth2-proxy", "client-secret")}
-    # ... which is what the bootstrap writes for the application the example declares
-    apps = yaml.safe_load((INTEGRATION / "bootstrap-application.yaml").read_text())
-    assert [a["name"] for a in apps] == ["oauth2-proxy"]
-    assert values["extraArgs"]["oidc-groups-claim"] == "groups"
-
-
 # ----------------------------------------------- component independence (CLAUDE.md)
 
+# The tests name the foreign components in order to forbid them, so `tests/` is not scanned.
 FOREIGN = re.compile(r"oauth2-proxy|argocd-cm|temporal|gotrue|n8n|open-webui|litellm|tenant-iac-factory", re.I)
 
 
@@ -255,7 +239,7 @@ def test_component_and_bundle_name_no_other_component():
     offenders = []
     for root in (COMPONENT, ROOT / "k8s/components/bundles/zitadel-stack"):
         for f in root.rglob("*"):
-            if f.is_file() and "charts" not in f.parts and f.suffix in {".yaml", ".py", ".txt"}:
+            if f.is_file() and not {"charts", "tests"} & set(f.parts) and f.suffix in {".yaml", ".py", ".txt"}:
                 for n, line in enumerate(f.read_text().splitlines(), 1):
                     if FOREIGN.search(line):
                         offenders.append(f"{f.relative_to(ROOT)}:{n}: {line.strip()[:80]}")

@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-11-06'
+compiled_at: '2026-11-12'
 ---
 
 # Forjate wiki — index
@@ -16,7 +16,7 @@ Conventions and maintenance rules: [SCHEMA.md](SCHEMA.md) · History: [log.md](l
 
 - [component-anatomy](concepts/component-anatomy.md) — what a component is made of, local vs vendored, and how nesting shows up in the wiki
 - [multi-tenant-recursion](concepts/multi-tenant-recursion.md) — base to org to client composition, and how the tree demonstrates it
-- [remote-references](concepts/remote-references.md) — how tenants consume the factory by SSH ref, and where pinning is inconsistent
+- [remote-references](concepts/remote-references.md) — how tenants consume the factory by SSH ref, and how vendored upstream refs are pinned
 - [secret-strategy](concepts/secret-strategy.md) — five mechanisms coexist; external-secrets syncing from openbao is the recommended store pairing; who uses what
 
 ## Base
@@ -31,7 +31,7 @@ The foundation every tenant inherits.
 
 ## Components
 
-80 pages. Optional building blocks an overlay can activate.
+85 pages. Optional building blocks an overlay can activate.
 
 ### agents
 
@@ -55,10 +55,13 @@ The foundation every tenant inherits.
   - [auth-gotrue-auth-authz](components/auth-gotrue-auth-authz.md) — deploys `node:20.18-alpine` · used by 1
   - [auth-gotrue-auth-gotrue](components/auth-gotrue-auth-gotrue.md) — deploys `busybox:1.36` · used by 1
   - [auth-gotrue-auth-middlewares](components/auth-gotrue-auth-middlewares.md) — declares `Middleware` · used by 1
+- [auth-zitadel](components/auth-zitadel.md) — Zitadel — Cloud-native Identity Provider with built-in user management · used by 1
+  - [auth-zitadel-bootstrap](components/auth-zitadel-bootstrap.md) — Zitadel Bootstrap — Zitadel's organizations, project, roles, OIDC apps, users and · used by 1
 
 ### backup
 
 - [backup-velero](components/backup-velero.md) — Velero — cluster-level backup and restore (namespaces, cluster resources, PVC data) · unused in this repo
+  - [backup-velero-s3](components/backup-velero-s3.md) — Velero with an external S3-compatible backend (AWS S3, Cloudflare R2, B2) and file-system backup · unused in this repo
 
 ### brokers
 
@@ -69,6 +72,8 @@ The foundation every tenant inherits.
 ### bundles
 
 - [bundles-temporal-stack](components/bundles-temporal-stack.md) — temporal-stack — Temporal + PostgreSQL in a single reference · used by 2
+- [bundles-zitadel-stack](components/bundles-zitadel-stack.md) — zitadel-stack — Zitadel IdP + PostgreSQL + bootstrap in a single reference · unused in this repo
+  - [bundles-zitadel-stack-postgres](components/bundles-zitadel-stack-postgres.md) — Wraps the factory postgres component with zitadel- prefix · used by 1
 
 ### cdc
 
@@ -96,7 +101,7 @@ The foundation every tenant inherits.
 - [databases-milvus](components/databases-milvus.md) — deploys `milvusdb/milvus:v2.5.4` · used by 1
 - [databases-mongodb](components/databases-mongodb.md) — MongoDB 7 — base standalone (without replica set) · used by 3
   - [databases-mongodb-replica-set](components/databases-mongodb-replica-set.md) — MongoDB replica set enabler — applied on top of databases/mongodb via components: · used by 1 as component
-- [databases-postgres](components/databases-postgres.md) — PostgreSQL 16 — generic reusable database component · used by 9
+- [databases-postgres](components/databases-postgres.md) — PostgreSQL 16 — generic reusable database component · used by 10
 - [databases-redis](components/databases-redis.md) — deploys `redis:7-alpine` · used by 1
 
 ### document-processing

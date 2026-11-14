@@ -1,0 +1,90 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Example tenant overlay for bundles/zitadel-stack. It is the buildable form of the
+# setup guide in docs/apps/zitadel.md and of k8s/components/apps/auth/zitadel/contract.yaml,
+# and CI builds it (kustomize build --enable-helm docs/examples/zitadel-tenant).
+#
+# Copy it into your tenant repo and change:
+#   - the domain (here zitadel.acme.dev), in the places marked HOSTNAME
+#   - bootstrap.yaml: your organization, project, apps, users, identity providers
+# The Secrets are NOT in this overlay: seal them (see secrets/README.md).
+#
+# Remote tenant: replace the first resource with
+#   ssh://git@github.com/AItizate/forjate.git//k8s/components/bundles/zitadel-stack?ref=<tag>
+
+# `namespace:` is stamped on every object, the Helm chart's included (chart 10 renders
+# `namespace: default` and the transformer replaces it). The first patch below also
+# forces it on everything the bundle labels part-of=zitadel-stack: a safeguard for an
+# older chart pin whose objects render without a namespace. Either way one root
+# kustomization can hold several namespaces and nothing depends on the deployer's
+# `-n` / Argo `destination.namespace`.
+namespace: zitadel
+
+resources:
+  - namespace.yaml
+  - ../../../k8s/components/bundles/zitadel-stack
+
+# The tenant's desired state for the bootstrap Job. `behavior: replace` needs the
+# original in `resources` and must NOT carry `namespace:` (kustomize sets the
+# namespace afterwards; naming it here is what failed in the first version of the guide).
+configMapGenerator:
+  - name: zitadel-bootstrap-config
+    behavior: replace
+    files:
+      - bootstrap.yaml
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  # Namespace on the Helm output (contract.yaml, `namespace`).
+  - target:
+      labelSelector: app.kubernetes.io/part-of=zitadel-stack
+    patch: |
+      - op: add
+        path: /metadata/namespace
+        value: zitadel
+  # HOSTNAME 1/4: the public host of the Ingress and its certificate. The component's
+  # Ingress carries no issuer or controller annotations: the tenant's cluster choices go
+  # here (examples: cert-manager issuer, Traefik entrypoint; use your own).
+  - target:
+      kind: Ingress
+      name: zitadel
+    patch: |
+      - op: add
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: letsencrypt-prod
+      - op: add
+        path: /metadata/annotations/traefik.ingress.kubernetes.io~1router.entrypoints
+        value: websecure
+      - op: replace
+        path: /spec/rules/0/host
+        value: zitadel.acme.dev
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: zitadel.acme.dev
+  # HOSTNAME 2/4: the probes send Host: <ExternalDomain>; Zitadel answers by instance
+  # domain. (4/4 is ExternalDomain in the Secret zitadel-db-config, and instance_url
+  # in bootstrap.yaml.)
+  - target:
+      kind: Deployment
+      name: zitadel
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/httpGet/httpHeaders/0/value
+        value: zitadel.acme.dev
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/httpGet/httpHeaders/0/value
+        value: zitadel.acme.dev
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/httpGet/httpHeaders/0/value
+        value: zitadel.acme.dev
+  # HOSTNAME 3/4: the Login V2 service builds its API calls and audience from the same
+  # domain (env ZITADEL_EXTERNALDOMAIN of the zitadel-login container).
+  - target:
+      kind: Deployment
+      name: zitadel-login
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
+        value: zitadel.acme.dev

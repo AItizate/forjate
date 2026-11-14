@@ -1,0 +1,59 @@
+name: Validate Zitadel
+
+# The zitadel component renders Helm output and ships a reconciler script. This gate
+# runs what no other workflow does: the Argo CD hook/sync-wave semantics of the render,
+# the tenant contract (Secret names and keys against the rendered pods and the docs),
+# and bootstrap.py against a mocked Zitadel and Secrets API (idempotency,
+# create-or-update, exit codes). The example overlay itself is built by
+# validate-kustomize.yml.
+
+on:
+  pull_request:
+    paths:
+      - 'k8s/components/apps/auth/zitadel/**'
+      - 'k8s/components/bundles/zitadel-stack/**'
+      - 'k8s/components/apps/databases/postgres/**'
+      - 'docs/examples/zitadel-tenant/**'
+      - 'docs/apps/zitadel.md'
+      - 'tests/zitadel/**'
+      - '.github/toolchain.env'
+      - '.github/workflows/validate-zitadel.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'k8s/components/apps/auth/zitadel/**'
+      - 'k8s/components/bundles/zitadel-stack/**'
+      - 'docs/examples/zitadel-tenant/**'
+      - 'tests/zitadel/**'
+
+jobs:
+  zitadel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          # The bootstrap Job runs CPython 3.13 (python:3.13.5-alpine3.22)
+          python-version: '3.13'
+
+      - name: Install kustomize and helm at the pinned versions
+        # .github/toolchain.env is the one place that pins tool versions: the render
+        # (hooks, waves, namespaces) differs between releases.
+        run: |
+          set -euo pipefail
+          source .github/toolchain.env
+          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz
+          sudo mv kustomize /usr/local/bin/
+          curl -sSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv linux-amd64/helm /usr/local/bin/helm
+          kustomize version
+          helm version
+
+      - name: Install poetry and dependencies
+        run: |
+          pipx install poetry
+          poetry install --no-root
+
+      - name: Render, contract and bootstrap tests
+        run: poetry run pytest tests/zitadel -v

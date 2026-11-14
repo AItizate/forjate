@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zitadel
+  annotations:
+    # Deliberately no issuer, ingress-class or controller annotations: those are the
+    # tenant's choice, patch them in the overlay (docs/apps/zitadel.md, "Ingress: tenant
+    # patch points").
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  rules:
+    - host: zitadel.example.com
+      http:
+        paths:
+          # Login V2 is a separate service; everything else (API, Console, OIDC, the
+          # IdP callback /idps/callback) is Zitadel itself.
+          - path: /ui/v2/login
+            pathType: Prefix
+            backend:
+              service:
+                name: zitadel-login
+                port:
+                  number: 3000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zitadel
+                port:
+                  number: 8080
+  tls:
+    - hosts:
+        - zitadel.example.com
+      secretName: zitadel-tls

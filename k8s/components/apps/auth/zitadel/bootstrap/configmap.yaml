@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zitadel-bootstrap-config
+data:
+  # Bootstrap configuration — defines desired state for Zitadel resources.
+  # Override this ConfigMap in the tenant overlay via configMapGenerator.
+  #
+  # The bootstrap Job reads this YAML and reconciles Zitadel with it: every entry is
+  # created when missing and updated when it differs, so re-running changes nothing
+  # when nothing differs. It never REMOVES anything: delete an app, a grant or an IdP
+  # from this file and it stays in Zitadel until you remove it by hand.
+  # The Job exits non-zero when any entry fails, so a bad entry fails the sync.
+  #
+  # No secret goes in here. Anything sensitive is an env var NAMED in this file
+  # (`*_env`) whose value lives in the Secret "zitadel-bootstrap-env".
+  bootstrap.yaml: |
+    # Public URL of Zitadel = its issuer. Also the JWT audience and the Host header
+    # of every API call, so it must equal the chart's ExternalDomain.
+    instance_url: https://zitadel.example.com
+
+    # Organizations = tenants. The one with is_default is where the project, apps
+    # and users go. Without any, the service account's own organization (ZITADEL)
+    # is used. (`organization:` singular still works, deprecated.)
+    organizations:
+      - name: default-org
+        is_default: true
+
+    # Project = group of applications with shared roles
+    project:
+      name: platform
+      # Roles defined at project level, assigned to users
+      roles:
+        - key: admin
+          display_name: Administrator
+          group: platform
+        - key: operator
+          display_name: Operator
+          group: platform
+        - key: viewer
+          display_name: Viewer
+          group: platform
+
+    # OIDC Applications (each gets a client_id + client_secret)
+    applications:
+      # An example OIDC client; replace it with the tenant's apps.
+      - name: example-app
+        redirect_uris:
+          - https://app.example.com/callback
+        post_logout_redirect_uris:
+          - https://example.com
+        response_types:
+          - OIDC_RESPONSE_TYPE_CODE
+        grant_types:
+          - OIDC_GRANT_TYPE_AUTHORIZATION_CODE
+        auth_method: OIDC_AUTH_METHOD_TYPE_BASIC
+        # The client secret is generated once and stored in the K8s Secret
+        # zitadel-oidc-example-app (client-id, client-secret, issuer-url), in the
+        # namespace of this Job. If that Secret is deleted it is regenerated.
+
+    # Instance features. A NEW v4 instance already uses Login V2 (chart DefaultInstance);
+    # an instance upgraded from v2/v3 keeps Login V1 until this is set. Change the
+    # callback URL at every external IdP too (docs/apps/zitadel.md, "Upgrading to v4").
+    # features:
+    #   login_v2: true
+
+    # Actions + flows. Many OIDC clients only read `groups` claims
+    # that are flat lists, while Zitadel emits roles as an object under
+    # urn:zitadel:iam:org:project:roles. This action adds a flat `groups` claim.
+    # actions:
+    #   - name: groupsClaim
+    #     allowed_to_fail: true   # a failing action otherwise blocks every login
+    #     script: |
+    #       function groupsClaim(ctx, api) {
+    #         if (ctx.v1.user.grants === undefined || ctx.v1.user.grants.count == 0) { return; }
+    #         let grants = [];
+    #         // {{project_id}} is replaced by the bootstrap with the `project:` above, so a
+    #         // role named `viewer` in ANOTHER project does not become a group here.
+    #         ctx.v1.user.grants.grants
+    #           .filter((g) => g.projectId === "{{project_id}}")
+    #           .forEach((g) => g.roles.forEach((r) => grants.push(r)));
+    #         api.v1.claims.setClaim("groups", grants);
+    #       }
+    # flows:
+    #   - type: complement_token
+    #     triggers: [pre_userinfo_creation, pre_access_token_creation]
+    #     actions: [groupsClaim]
+    #
+    # Public clients (CLI, PKCE) have no secret; only client-id is stored:
+    # applications:
+    #   - name: cli-app
+    #     app_type: OIDC_APP_TYPE_NATIVE
+    #     auth_method: OIDC_AUTH_METHOD_TYPE_NONE
+    #     redirect_uris: ["http://localhost:8085/auth/callback"]
+
+    # External identity providers (Google, GitHub, Azure AD, generic OIDC) on the
+    # login page. Credentials are read from the env vars named below (inject them
+    # through envFrom on the bootstrap Job in the overlay); a
+    # provider without credentials is skipped. Create-or-update, so option changes
+    # replay. Every option is off by default.
+    # identity_providers:
+    #   - name: Google
+    #     type: google              # google | github | azure | generic_oidc
+    #     client_id_env: GOOGLE_CLIENT_ID
+    #     client_secret_env: GOOGLE_CLIENT_SECRET
+    #     scopes: [openid, profile, email]   # optional, per-type default
+    #     options:
+    #       auto_linking: email     # link a first external login to the Zitadel user
+    #                               # with the same verified email. `username` is refused
+    #                               # (anyone can register the GitHub login `admin`)
+    #       is_linking_allowed: false
+    #       is_creation_allowed: false
+    #       is_auto_creation: false # true = anyone with a Google account gets a user
+    #       is_auto_update: false
+    #     enabled_in_login_policy: true      # false hides it from the login page
+    #   # generic_oidc also needs `issuer`.
+    #   #
+    #   # azure has NO default tenant: set `tenant_id: <your Entra tenant GUID>` or an
+    #   # explicit `tenant_type`. COMMON accepts any Microsoft account on earth.
+    #   # `email_verified` defaults to false (an Entra email is user-editable).
+    #   #
+    #   # auto_linking: email is REFUSED for azure and generic_oidc (their email claim
+    #   # is not proof of who the person is); override with `trust_idp_email: true` only
+    #   # if you control the IdP. auto_linking: username is REFUSED for every provider
+    #   # (usernames are chosen by whoever registers them); override with
+    #   # `trust_idp_username: true` only for an IdP you operate. WARNING logged each run.
+    #   #
+    #   # Zitadel >= 4.15.3 (CVE-2026-56666) checks that the IdP verified the email
+    #   # before auto-linking; the refusals above stay as policy. See
+    #   # docs/apps/zitadel.md, "Version, licence and telemetry".
+    #   #
+    #   # Callback URL to register at the IdP (Login V2): https://<domain>/idps/callback
+
+    # Human users — managed as code
+    users: []
+    # Example (uncomment and customize in overlay). A literal `initial_password:` is
+    # rejected: a password in this ConfigMap is a password in git.
+    # users:
+    #   - username: ana
+    #     first_name: Ana
+    #     last_name: Example
+    #     email: ana@example.com
+    #     email_verified: true
+    #     initial_password_env: ANA_INITIAL_PASSWORD   # env var in zitadel-bootstrap-env
+    #     roles:
+    #       - admin
+    #   - username: dev-user
+    #     first_name: Dev
+    #     last_name: User
+    #     email: dev@example.com
+    #     email_verified: true
+    #     roles:                  # no password: this user signs in through an IdP
+    #       - viewer
+
+    # Service users — machine accounts for agents and pipelines
+    service_users: []
+    # Example (uncomment and customize in overlay):
+    # service_users:
+    #   - username: pipeline
+    #     description: "Pipeline worker — calls internal APIs"
+    #     roles:
+    #       - operator
+    #   - username: agent
+    #     description: "Agentic orchestration — provisions infra and accesses APIs"
+    #     roles:
+    #       - admin
+    #   - username: reporter
+    #     description: "Read-only reporting job"
+    #     roles:
+    #       - viewer

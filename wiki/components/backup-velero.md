@@ -3,9 +3,9 @@ title: backup-velero
 kind: component
 sources:
 - k8s/components/apps/backup/velero
-compiled_at: '2026-11-07'
+compiled_at: '2026-11-10'
 category: backup
-source_hash: 39dad7548eea8ccf
+source_hash: 84ff8adb8ca0527d
 source_last_commit: '2026-11-06'
 summary: "Velero \u2014 cluster-level backup and restore (namespaces, cluster resources,\
   \ PVC data)"
@@ -24,9 +24,9 @@ summary_source: derived
 > Installation uses the Kustomize helmCharts generator:
 > kubectl kustomize --enable-helm k8s/components/apps/backup/velero
 >
-> Backend: values-minio-backend.yaml (default, in-cluster MinIO). To use an external
-> S3 store instead, point valuesFile at values-s3-backend.yaml in your overlay's own
-> helmCharts entry (see README, "Switching backend").
+> Backend: values-minio-backend.yaml (default, in-cluster MinIO). For an external
+> S3-compatible store (AWS S3, Cloudflare R2, ...) reference the s3/ sub-directory
+> instead of this one; it works from remote tenants too (see README).
 >
 > Needs, supplied by the overlay: Secret `velero-credentials` in namespace velero
 > (key `cloud`) and a `velero` bucket in the target store. The examples/ directory is

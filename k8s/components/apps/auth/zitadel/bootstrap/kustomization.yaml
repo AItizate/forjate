@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Zitadel Bootstrap — Zitadel's organizations, project, roles, OIDC apps, users and
+# identity providers as code.
+#
+# A PostSync Job (bootstrap.py) reconciles Zitadel with the desired state in the
+# ConfigMap "zitadel-bootstrap-config": create when missing, update when it differs,
+# never remove. It exits non-zero when any entry fails.
+#
+# Brings: Job, ConfigMap (desired state, placeholder), ServiceAccount, and a
+# namespaced Role + RoleBinding (secrets get/create/patch in the Job's own
+# namespace only; there is no ClusterRole).
+#
+# Tenant must provide (names are the contract, see docs/apps/zitadel.md):
+#   - Secret "zitadel-admin-sa"   key zitadel-admin-sa.json  written by the chart's
+#                                 setup Job (FirstInstance.Org.Machine); nothing to do
+#   - ConfigMap "zitadel-bootstrap-config"  replace it (configMapGenerator
+#                                 behavior: replace, no `namespace:`) with the
+#                                 tenant's bootstrap.yaml
+#   - Secret "zitadel-bootstrap-env" (optional)  one key per `*_env` name used in the
+#                                 config: IdP client id/secret, initial passwords
+
+resources:
+  - job.yaml
+  - configmap.yaml
+  - serviceaccount.yaml
+  - role.yaml
+  - rolebinding.yaml
+
+# The script lives in bootstrap.py (testable, see tests/zitadel/) and reaches the Job
+# as a generated ConfigMap. The name hash is on: editing the script rolls the Job.
+configMapGenerator:
+  - name: zitadel-bootstrap-scripts
+    files:
+      - bootstrap.py
+      - requirements.txt
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: zitadel-bootstrap

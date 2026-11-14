@@ -64,6 +64,13 @@ data:
     # features:
     #   login_v2: true
 
+    # Instance login policy. Zitadel ships with self-registration ON (allowRegister=true):
+    # anyone who reaches the login page can create a local account. The bootstrap turns
+    # it OFF; set `allow_register: true` to opt in. Only this flag is managed. An
+    # organization with a login policy of its own overrides the instance policy.
+    # login_policy:
+    #   allow_register: false
+
     # Actions + flows. Many OIDC clients only read `groups` claims
     # that are flat lists, while Zitadel emits roles as an object under
     # urn:zitadel:iam:org:project:roles. This action adds a flat `groups` claim.
@@ -108,12 +115,16 @@ data:
     #       auto_linking: email     # link a first external login to the Zitadel user
     #                               # with the same verified email. `username` is refused
     #                               # (anyone can register the GitHub login `admin`)
-    #       is_linking_allowed: false
+    #       is_linking_allowed: true  # defaults to true when auto_linking is set; auto_linking
+    #                               # with an explicit false is a config error (Zitadel ignores
+    #                               # auto-linking while linking is off: "cannot link")
     #       is_creation_allowed: false
     #       is_auto_creation: false # true = anyone with a Google account gets a user
     #       is_auto_update: false
     #     enabled_in_login_policy: true      # false hides it from the login page
     #   # generic_oidc also needs `issuer`.
+    #   # With auto_linking set, the bootstrap also fails (exit 1, every run) when two human
+    #   # users share an email: the FirstInstance admin must not use the email of an org user.
     #   #
     #   # azure has NO default tenant: set `tenant_id: <your Entra tenant GUID>` or an
     #   # explicit `tenant_type`. COMMON accepts any Microsoft account on earth.

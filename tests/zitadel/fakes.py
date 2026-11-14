@@ -37,6 +37,10 @@ class Zitadel:
         self.actions, self.users, self.grants, self.idps = {}, {}, {}, {}
         self.login_idps, self.flows = set(), {}
         self.features = {}
+        # Zitadel's shipped instance login policy: self-registration on.
+        self.login_policy = {"allowUsernamePassword": True, "allowExternalIdp": True, "allowRegister": True,
+                             "passwordlessType": "PASSWORDLESS_TYPE_ALLOWED", "isDefault": True,
+                             "details": {"sequence": "1"}}
         self.calls, self.fail = [], []
         self.ready = True
 
@@ -95,6 +99,13 @@ class Zitadel:
             if method == "GET":
                 return Resp(200, dict(self.features))
             self.features.update(body)
+            return Resp(200, {})
+        if path == "/admin/v1/policies/login":
+            if method == "GET":
+                return Resp(200, {"policy": dict(self.login_policy)})
+            if {k: v for k, v in self.login_policy.items() if k not in ("details", "isDefault")} == body:
+                return Resp(*NOCHANGE)
+            self.login_policy = {**body, "isDefault": True, "details": {"sequence": "2"}}
             return Resp(200, {})
         if (method, path) == ("POST", "/v2/organizations/_search"):
             n = self.names(body)
@@ -175,6 +186,10 @@ class Zitadel:
             self.flows[(g[1], g[2])] = body["actionIds"]
             return Resp(200)
         if (method, path) == ("POST", "/v2/users"):
+            if any("typeQuery" in q for q in body["queries"]):
+                return Resp(200, {"result": [
+                    {"userId": i, "username": u["username"], "human": {"email": {"email": u.get("email", "")}}}
+                    for i, u in self.users.items() if u["kind"] == "human"]})
             n = self.names(body)
             org_q = [q["organizationIdQuery"]["organizationId"] for q in body["queries"] if "organizationIdQuery" in q]
             return Resp(200, {"result": [
@@ -183,7 +198,8 @@ class Zitadel:
         if (method, path) == ("POST", "/v2/users/human"):
             i = self.nid("usr")
             self.users[i] = {"username": body["username"], "org": (body.get("organization") or {}).get("orgId"),
-                             "password": (body.get("password") or {}).get("password"), "kind": "human"}
+                             "password": (body.get("password") or {}).get("password"), "kind": "human",
+                             "email": (body.get("email") or {}).get("email", "")}
             return Resp(200, {"userId": i})
         if (method, path) == ("POST", "/management/v1/users/machine"):
             i = self.nid("usr")

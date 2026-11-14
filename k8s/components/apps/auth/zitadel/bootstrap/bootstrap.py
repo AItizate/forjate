@@ -2,8 +2,8 @@
 """
 Zitadel bootstrap: create-or-update, and loud when it cannot converge.
 
-Reads /config/bootstrap.yaml and reconciles instance features (Login V2),
-organizations, project, roles,
+Reads /config/bootstrap.yaml and reconciles instance features (Login V2), the instance
+login policy (self-registration off unless asked for), organizations, project, roles,
 Actions and flow triggers, OIDC applications (client credentials stored in K8s
 Secrets; public clients store only the client-id), human users, service users
 and external identity providers (Google, GitHub, Azure AD, generic OIDC)
@@ -262,6 +262,14 @@ def validate_idp(idp):
         )
     if opts.get("auto_linking") and opts["auto_linking"] not in AUTO_LINKING:
         errors.append(f"IdP {name}: auto_linking {opts['auto_linking']!r} unknown (known: {sorted(AUTO_LINKING)})")
+    if opts.get("auto_linking") and opts.get("is_linking_allowed") is False:
+        # Zitadel stores both flags and ignores autoLinking while isLinkingAllowed is off: the
+        # login page then says "cannot link" and nothing in the API call fails.
+        errors.append(
+            f"IdP {name}: auto_linking={opts['auto_linking']} with is_linking_allowed=false never links "
+            "anyone (Zitadel ignores auto-linking while linking is off, the user sees 'cannot link'). "
+            "Drop is_linking_allowed (it defaults to true when auto_linking is set) or drop auto_linking"
+        )
     return errors
 
 
@@ -292,6 +300,36 @@ def ensure_features(features):
         say(f"Feature loginV2 set: {want}")
     else:
         failed("set the loginV2 instance feature", u)
+
+
+# --------------------------------------------------------------- login policy
+
+# Read-only fields of the GET answer; the PUT body is the rest of the policy.
+LOGIN_POLICY_READONLY = {"details", "isDefault"}
+
+
+def ensure_login_policy(settings):
+    """Instance login policy. Zitadel ships with `allowRegister=true`: anyone who can reach
+    the login page may create a local account. Self-registration is therefore OFF unless
+    `login_policy.allow_register: true` asks for it. Only `allowRegister` is managed; the rest
+    of the policy is written back as it is. Organizations with a policy of their own are not
+    touched: they override the instance policy."""
+    want = bool((settings or {}).get("allow_register", False))
+    r = s.get(f"{ZITADEL_URL}/admin/v1/policies/login", timeout=TIMEOUT)
+    if not r.ok:
+        failed("read the instance login policy", r)
+        return
+    policy = r.json().get("policy") or {}
+    if bool(policy.get("allowRegister", False)) == want:
+        say(f"Login policy allowRegister unchanged ({want})")
+        return
+    body = {k: v for k, v in policy.items() if k not in LOGIN_POLICY_READONLY}
+    body["allowRegister"] = want
+    u = put("/admin/v1/policies/login", body)
+    if u.ok:
+        say(f"Login policy allowRegister set to {want}")
+    else:
+        failed("set the instance login policy allowRegister", u)
 
 
 # ---------------------------------------------------------------- org/project
@@ -613,6 +651,31 @@ def ensure_human(u, project_id, orgs_by_name, default_org_id):
     return uid
 
 
+def check_unique_emails():
+    """Only meaningful when an IdP links by email. Two human users with the same email (the
+    FirstInstance admin and an organization user, typically) make the match ambiguous and the
+    person sees "account not found" after the IdP login. Reported as a failed item, loudly,
+    on every run, until one of the two emails changes."""
+    r = search("/v2/users", {"queries": [{"typeQuery": {"type": "TYPE_HUMAN"}}]})
+    if not r.ok:
+        failed("list the human users to check that emails are unique", r)
+        return
+    by_email = {}
+    for u in r.json().get("result", []):
+        email = ((u.get("human") or {}).get("email") or {}).get("email", "").strip().lower()
+        if email:
+            by_email.setdefault(email, []).append(u.get("username") or u.get("userId"))
+    for email, names in sorted(by_email.items()):
+        if len(names) > 1:
+            failed(
+                f"email {email} belongs to {len(names)} users ({', '.join(sorted(map(str, names)))}): "
+                "auto_linking=email cannot tell them apart and the login ends in 'account not found'. "
+                "The usual culprit is FirstInstance.Org.Human.Email equal to a user's email: give the "
+                "admin its own address (a plus-address works) and change it on the live user. "
+                "docs/apps/zitadel.md, 'First login'"
+            )
+
+
 def ensure_machine(svc, project_id, default_org_id):
     existing, err = find_user(svc["username"], default_org_id)
     if err:
@@ -647,7 +710,8 @@ def idp_body(idp, client_id, client_secret):
         # Everything is off unless the config asks for it: only users that
         # already exist can sign in, and they are matched by auto_linking.
         "providerOptions": {
-            "isLinkingAllowed": opts.get("is_linking_allowed", False),
+            # auto_linking only works with linking on, so setting it turns linking on.
+            "isLinkingAllowed": opts.get("is_linking_allowed", bool(opts.get("auto_linking"))),
             "isCreationAllowed": opts.get("is_creation_allowed", False),
             "isAutoCreation": opts.get("is_auto_creation", False),
             "isAutoUpdate": opts.get("is_auto_update", False),
@@ -766,6 +830,7 @@ def main():
     authenticate(os.environ.get("ZITADEL_AUDIENCE") or issuer)
 
     ensure_features(cfg.get("features") or {})
+    ensure_login_policy(cfg.get("login_policy"))
 
     orgs_by_name, default_org_id = {}, None
     for o in organizations(cfg):
@@ -800,7 +865,10 @@ def main():
     for svc in cfg.get("service_users", []):
         ensure_machine(svc, project_id, default_org_id)
 
-    for idp in cfg.get("identity_providers", []):
+    idps = cfg.get("identity_providers", [])
+    if any((i.get("options") or {}).get("auto_linking") == "email" for i in idps):
+        check_unique_emails()
+    for idp in idps:
         ensure_identity_provider(idp)
 
     if FAILURES:

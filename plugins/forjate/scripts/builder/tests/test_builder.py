@@ -666,6 +666,40 @@ def test_tenant_target_gives_psa_exceptions_their_own_namespace_child(tmp_path: 
     assert ns["metadata"]["labels"]["pod-security.kubernetes.io/enforce"] == "restricted"
 
 
+def test_walk_generated_from_g1_records_has_one_server_the_mounted_secrets_and_scoped_system_urls(tmp_path: Path):
+    """#46: G1's Walk as the generator renders it, without the agent's hand edits. The temporal bundle composes
+    the database the records also chose, so the copy the relocation layer would move is deleted (one server);
+    minio-secret is sealed because scaffold workloads mount it after apps/minio/dev is gone; ERP_URL goes only to
+    the workloads the allow-list comment names, so verify, seed and the doubles stay on the doubles."""
+    k8s = tmp_path / "k8s"
+    (k8s / "overlays" / "usecases").mkdir(parents=True)
+    for d in ("components", "base"):
+        (k8s / d).symlink_to(REPO / "k8s" / d)
+    uc = k8s / "overlays" / "usecases" / "invoice-intake"
+    shutil.copytree(USECASES / "invoice-intake" / ".builder", uc / ".builder")
+    r = run(str(BUILDER.parent.parent / "skills" / "kustomize" / "scripts" / "assemble.py"), str(uc))
+    assert r.returncode == 0, r.stdout + r.stderr
+    walk = uc / "stages" / "walk"
+    relocated = yaml.safe_load((walk / "relocated" / "kustomization.yaml").read_text())
+    pg = [p["patch"] for p in relocated["patches"] if p["target"]["name"] == "postgres"]
+    assert pg and all("$patch: delete" in p for p in pg), pg
+    exc = yaml.safe_load((walk / "namespaces" / "uc-invoice-intake-baseline" / "kustomization.yaml").read_text())
+    assert len(exc["resources"]) == len(set(exc["resources"])), exc["resources"]
+    child = yaml.safe_load((walk / "namespaces" / "uc-invoice-intake" / "kustomization.yaml").read_text())
+    assert "secrets/sealed-minio-secret.yaml" in child["resources"]
+    env = lambda w: {e["name"] for e in yaml.safe_load((walk / "patches" / f"{w}-env-patch.yaml").read_text())["spec"]["template"]["spec"]["containers"][0]["env"]}
+    assert env("worker") == {"MODEL_MODE", "ERP_URL"}
+    assert "ERP_URL" not in env("invoice-intake-verify") | env("invoice-intake-seed") | env("odoo-stub")
+    if not shutil.which("kubectl"):
+        return  # the build is the Validate workflows' job; locally it also proves the duplicate is gone
+    for f in uc.rglob("*.env.example"):
+        f.with_suffix("").write_text(f.read_text())
+    b = subprocess.run(["kubectl", "kustomize", "--enable-helm", str(walk)], capture_output=True, text=True)
+    assert b.returncode == 0, b.stderr
+    docs = [d for d in yaml.safe_load_all(b.stdout) if d]
+    assert sum(1 for d in docs if d["kind"] == "StatefulSet" and d["metadata"]["name"] == "postgres") == 1
+
+
 # --- phase 5 (#27): governance settings vocabulary, autonomy ceiling, per-stage component sets ---------
 
 SKILLS_DIR = BUILDER.parent.parent / "skills"

@@ -292,6 +292,12 @@ class Assembly:
             for s in self.stage_secrets(st):
                 if s[2].startswith("integration:") and s[0] not in names:
                     out.append(s); names.add(s[0])
+        # a Secret a scaffold workload mounts outlives the component that brought it: the workload still reads it
+        workloads = (self.scaffold or {}).get("spec", {}).get("workloads", [])
+        for sname, keys, origin in self.crawl_secrets():
+            users = [w["name"] for w in workloads if sname in (w.get("secrets") or [])]
+            if users and sname not in names:
+                out.append((sname, keys, f"scaffold: mounted by {', '.join(users)}; {origin} no longer runs at {stage}")); names.add(sname)
         return out
 
     def env_example(self, name: str, keys: list[str], origin: str, *, stage: str) -> str:
@@ -608,12 +614,19 @@ class Assembly:
                 self.notes.append(f"OPEN: {c} was moved to {n} at walk and the {stage} record says {place.get(c) or 'nothing'}; a stage overlay never moves a component back, edit the walk exception")
         relocate = {c: n for c, n in place.items() if c in before and c not in prev_place}
         placed = {c: place[c] for c in scoped if c in place}
+        # a moved component that a component composed into the same namespace already brings (a bundle that
+        # recomposes the database the records also chose) is deleted, not moved: one server, not two
+        absorbed = {c: p for c, n in relocate.items() for p, m in placed.items()
+                    if m == n and f"k8s/components/{c}" in (self.fact(p, "composes") or [])}
         arriving: dict[str, list[str]] = {}
         for c, n in list(relocate.items()) + list(placed.items()):
             arriving.setdefault(n, []).append(c)
         wrapped = f"../../namespaces/{ns}" if stage == "walk" else "../walk"
         if relocate or dropped:
             moves = [{"target": {"kind": kind, "name": name, "namespace": ns}, "patch": f"- op: replace\n  path: /metadata/namespace\n  value: {n}\n"}
+                     if c not in absorbed else
+                     {"target": {"kind": kind, "name": name, "namespace": ns},
+                      "patch": f"# {absorbed[c]} composes {c} and runs in {n}: this copy is deleted, not moved\n$patch: delete\nkind: {kind}\nmetadata:\n  name: {name}\n"}
                      for c, n in relocate.items() for kind, name in self.objects_of(c)]
             # a component the previous stage ran and no record repeats at this stage leaves the build:
             # superseded by one that covers its capability (the records' choice), or dropped on purpose
@@ -659,14 +672,20 @@ class Assembly:
         patches.append({"path": "patches/namespace-psa-patch.yaml", "target": {"kind": "Namespace", "name": ns}})
         # the model runs live from Walk; the external systems are the real ones
         if stage == "walk" and sc.get("workloads"):
-            env = [{"name": "MODEL_MODE", "value": "live"}]
+            names = [w["name"] for w in sc["workloads"]] + list(self.setting("architecture", stage, "workloads", []) or [])
+            systems: list[tuple[dict, list[str]]] = []
             for line in self.setting("security", stage, "egress_allowlist", []) or []:
-                host = str(line).split("#")[0].strip().partition(":")[0]
+                dest, _, comment = str(line).partition("#")
+                host = dest.strip().partition(":")[0]
+                # the allow-list comment names the workloads that reach the host; the rest (verify, seed, the doubles)
+                # stay on the doubles. A comment that names no workload leaves the host to every workload.
+                named = [n for n in names if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", comment)]
                 if "odoo" in host or "erp" in host:
-                    env.append({"name": "ERP_URL", "value": f"https://{host}"})
+                    systems.append(({"name": "ERP_URL", "value": f"https://{host}"}, named))
                 if "orders" in host:
-                    env.append({"name": "ORDERS_URL", "value": f"https://{host}"})
+                    systems.append(({"name": "ORDERS_URL", "value": f"https://{host}"}, named))
             for w in sc["workloads"]:
+                env = [{"name": "MODEL_MODE", "value": "live"}] + [e for e, named in systems if not named or w["name"] in named]
                 kind = "Job" if w["kind"] == "job" else "Deployment"
                 self.write(sdir / "patches" / f"{w['name']}-env-patch.yaml", f"# {stage}: the real model and the real systems (strategic merge on the container name, order-independent).\n" + dump(
                     {"apiVersion": "batch/v1" if kind == "Job" else "apps/v1", "kind": kind, "metadata": {"name": w["name"]}, "spec": {"template": {"spec": {"containers": [{"name": w["name"], "env": env}]}}}}))
@@ -839,6 +858,7 @@ class Assembly:
                 res.append("netpols.yaml")
             if not res:
                 continue
+            res = list(dict.fromkeys(res))  # a bundle and the component it composes mount the same Secret
             sub = {"namespace": n, "resources": res}
             if config:
                 sub["configMapGenerator"] = config

@@ -47,22 +47,25 @@ k8s/components/apps/auth/zitadel/
 ├── bootstrap/                      # IaC: orgs, project, roles, apps, users, IdPs
 │   ├── kustomization.yaml
 │   ├── job.yaml                    # PostSync Job (runs bootstrap.py)
-│   ├── bootstrap.py                # the reconciler (tested, see tests/zitadel/)
+│   ├── bootstrap.py                # the reconciler (tested, see ../tests/)
 │   ├── requirements.txt            # pinned dependencies of bootstrap.py
 │   ├── configmap.yaml              # desired state placeholder (the tenant replaces it)
 │   ├── serviceaccount.yaml
 │   ├── role.yaml                   # secrets get/create/patch, own namespace only
 │   └── rolebinding.yaml
+└── tests/                          # pytest: render, contract, bootstrap.py against a mock (CI: validate-zitadel.yml)
 
 k8s/components/bundles/zitadel-stack/   # chart + postgres + bootstrap in one reference
 docs/examples/zitadel-tenant/           # a tenant overlay that CI builds
 ```
 
+The tests live inside the component, next to the script and the contract they check, so they travel with it and run when only the component changes. Kustomize never reads them (a component builds only what its `kustomization.yaml` lists) and `wiki-compile.py` ignores them. Run them with `poetry run pytest k8s/components/apps/auth/zitadel/tests`.
+
 The chart's `init` and `setup` Jobs are Argo CD **Sync** hooks ordered with sync-waves (postgres 0, init 1, setup 2, Deployments `zitadel` and `zitadel-login` and Ingress 3). The bootstrap Job is a **PostSync** hook. No `helm.sh/hook*` annotation survives the render: Argo CD v3.6.1 treats the presence of the key as "this is a hook", even blank.
 
 ## What the tenant must provide
 
-One contract, in `k8s/components/apps/auth/zitadel/contract.yaml`. The kustomization headers and this page repeat it, and `tests/zitadel/test_contract.py` fails if a rendered pod reads a Secret or key that the contract does not list.
+One contract, in `k8s/components/apps/auth/zitadel/contract.yaml`. The kustomization headers and this page repeat it, and `k8s/components/apps/auth/zitadel/tests/test_contract.py` fails if a rendered pod reads a Secret or key that the contract does not list.
 
 **One namespace for everything**, set by the overlay with `namespace:` (the example uses `zitadel`). With chart 10 the Helm objects render with `namespace: default` and the overlay's `namespace:` replaces it, so setting `namespace:` is enough (`test_overlay_namespace_reaches_the_helm_objects` proves it). The example also keeps a patch on `app.kubernetes.io/part-of=zitadel-stack` (every object of the bundle carries that label) as a safeguard, for example if you pin an older chart whose objects render without a namespace. Do not rely on Argo CD `destination.namespace` or `kubectl -n`: a root kustomization that holds several namespaces cannot use them.
 
@@ -354,7 +357,7 @@ curl https://zitadel.acme.dev/.well-known/openid-configuration
 | Symptom | Likely cause |
 |---|---|
 | Pods in `CreateContainerConfigError` | a Secret of the contract is missing (`zitadel-masterkey`, `zitadel-admin-password`, `zitadel-db-config`) |
-| `zitadel` Deployment never starts, init/setup Jobs absent | `helm.sh/hook*` annotation back in the render; `tests/zitadel/test_render.py` guards this |
+| `zitadel` Deployment never starts, init/setup Jobs absent | `helm.sh/hook*` annotation back in the render; `k8s/components/apps/auth/zitadel/tests/test_render.py` guards this |
 | Bootstrap: `Failed to get an access token` | `instance_url` is not the issuer (it is the JWT audience and the Host header) |
 | Bootstrap: exit 2 | `CONFIG ERROR` lines on stderr: literal `initial_password`, azure without tenant, `auto_linking: email` on azure/generic_oidc, `auto_linking: username` anywhere |
 | Google/GitHub login says "cannot link" / "linking is not enabled" | the IdP was created with `isLinkingAllowed=false` (an older bootstrap, or `is_linking_allowed: false`); re-run the bootstrap with `auto_linking` set |

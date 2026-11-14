@@ -171,7 +171,7 @@ helmCharts:
       #   wave 3  zitadel Deployment + Ingress
       # The hooks are recreated (BeforeHookCreation) instead of patched, so a chart
       # bump that changes the Job template never hits "field is immutable".
-      # tests/zitadel/test_render.py asserts this on the rendered output.
+      # tests/test_render.py asserts this on the rendered output.
       #
       # The init containers wait for postgres: the pod can start before the
       # StatefulSet pod is ready even inside wave ordering.

@@ -28,7 +28,7 @@ resources:
   - role.yaml
   - rolebinding.yaml
 
-# The script lives in bootstrap.py (testable, see tests/zitadel/) and reaches the Job
+# The script lives in bootstrap.py (testable, see ../tests/) and reaches the Job
 # as a generated ConfigMap. The name hash is on: editing the script rolls the Job.
 configMapGenerator:
   - name: zitadel-bootstrap-scripts

@@ -174,7 +174,9 @@ There is no default admin password and no manual step in the UI. Init and setup 
 
 ## First login
 
-The first admin's login name is `admin@zitadel.<ExternalDomain>` (Zitadel suffixes the username with the organization domain), and its password is the value of `zitadel-admin-password`. Zitadel asks to change it at the first login. Use it to enrol a second factor and to create the people who will administer; day-to-day users come from `bootstrap.yaml`.
+The first admin's login name is the FirstInstance username **as rendered**: `admin@zitadel.<ExternalDomain>` (Zitadel suffixes the username `admin` with the domain of the instance's first organization, so on `secure.example.com` it is `admin@zitadel.secure.example.com`; typing just `admin` finds nothing). Its password is the value of `zitadel-admin-password`. Zitadel asks to change it at the first login. Use it to enrol a second factor and to create the people who will administer; day-to-day users come from `bootstrap.yaml`.
+
+**Give the first admin an email nobody else uses.** `FirstInstance.Org.Human.Email.Address` (override it in `zitadel-db-config`, the example uses `zitadel-admin@acme.dev`) must differ from the email of every other human user, above all the people in `bootstrap.yaml`. The first admin lives in its own organization (`ZITADEL`), so Zitadel accepts the duplicate, but with `auto_linking: email` the first Google/GitHub login of that person matches two users and ends in "account not found". When an IdP links by email the bootstrap checks this on every run and **fails** (exit 1, `email ... belongs to 2 users`) until one of the two emails changes. A plus-address (`you+zitadel-admin@gmail.com`) is enough and still reaches your inbox. On an instance that already exists, change the email of the live admin in the Console (or `POST /v2/users/{id}/email` with `isVerified: true`) and also in `zitadel-db-config`, so a rebuilt instance gets the same value.
 
 ## Adopting an existing Zitadel instance
 
@@ -213,6 +215,8 @@ On a **new** instance the chart's setup Job writes the key to `zitadel-admin-sa`
 - Kubernetes cluster with an ingress controller (any) and, if you want TLS from an issuer, whatever issues your certificates (tenant choice, see "Ingress: tenant patch points")
 - `kustomize` with `--enable-helm` (Argo CD: `kustomize.buildOptions: --enable-helm`)
 - A domain for Zitadel (e.g., `zitadel.acme.dev`)
+- Free capacity for the Postgres volume (10Gi by default). A storage provisioner with a scheduling reserve (Longhorn is one: `insufficient storage` on a PVC that finds no node with room for its replicas) leaves `zitadel-postgres-0` `Pending`, which is easy to mistake for a Zitadel problem. Before the first sync check the provisioner's free capacity (for Longhorn: *Node* in its UI, or `kubectl get nodes.longhorn.io -n longhorn-system`) and free or grow storage first: delete retired PVCs, lower the replica count, add disks.
+- `kustomize build --enable-helm` writes the downloaded chart to `charts/` next to the kustomization that declares it. That directory is a cache: keep `**/charts/` in the tenant's `.gitignore` (this repository's `.gitignore`, the use-case template and `init-tenant.py` already do) and never commit it.
 
 ### Step 1: Create the secrets
 
@@ -281,7 +285,20 @@ Safe defaults the script enforces:
 
 - **azure** needs `tenant_id` (your Entra tenant) or an explicit `tenant_type`; there is no default, because `COMMON` accepts any Microsoft account. `email_verified` defaults to `false`: an Entra `email` claim is user-editable.
 - **`auto_linking: email` on `azure` and `generic_oidc` is refused** (config error, exit 2) unless the entry sets `trust_idp_email: true`: the email claim of an Entra tenant or a generic OIDC server is not proof of identity, and linking on it hands over the Zitadel user with that email, admins included.
+- **`auto_linking` turns linking on.** Zitadel ignores `autoLinking` while the IdP's `isLinkingAllowed` is off, and the login page then says "cannot link" with no error anywhere in the API. So `is_linking_allowed` defaults to `true` when `auto_linking` is set, and `auto_linking` together with an explicit `is_linking_allowed: false` is a config error (exit 2). Without `auto_linking` the default stays `false`. `is_creation_allowed` and `is_auto_creation` stay off: linking never creates users.
+- **Emails must be unique across human users** when any IdP uses `auto_linking: email`. The bootstrap lists the human users after it has applied the config and fails the run when two share an email (typical case: the first admin and a person in `bootstrap.yaml`, see "First login"). The check runs on every replay, so it keeps reporting until fixed.
 - **`auto_linking: username` is refused for every provider** (`github`, `google`, `azure`, `generic_oidc`) unless the entry sets `trust_idp_username: true`: a username is chosen by whoever registers it. Anyone could register the GitHub login `admin`, or the login of a user in your closed set, and be linked to that Zitadel user on first login with its grants. Use `email` on Google and GitHub.
+
+### Self-registration
+
+Zitadel's instance login policy ships with `allowRegister=true`: anyone who can reach the login page may create a local account. The bootstrap switches it **off** on every run (`GET` then `PUT /admin/v1/policies/login`, the rest of the policy is written back as it is, no call when it already matches). To keep registration open, opt in:
+
+```yaml
+login_policy:
+  allow_register: true
+```
+
+Only the instance default policy is managed. An organization that has a login policy of its own (Console: *Settings > Login Behaviour > Override*) overrides it and must be checked there. Users created by `is_creation_allowed` / `is_auto_creation` on an IdP are a separate path and stay off by default.
 
 Callback URL to register at the provider: with Login V2 (the default of this component) `https://<zitadel-domain>/idps/callback`; with Login V1 (an instance that never adopted V2) `https://<zitadel-domain>/ui/login/login/externalidp/callback`.
 
@@ -340,4 +357,8 @@ curl https://zitadel.acme.dev/.well-known/openid-configuration
 | `zitadel` Deployment never starts, init/setup Jobs absent | `helm.sh/hook*` annotation back in the render; `tests/zitadel/test_render.py` guards this |
 | Bootstrap: `Failed to get an access token` | `instance_url` is not the issuer (it is the JWT audience and the Host header) |
 | Bootstrap: exit 2 | `CONFIG ERROR` lines on stderr: literal `initial_password`, azure without tenant, `auto_linking: email` on azure/generic_oidc, `auto_linking: username` anywhere |
+| Google/GitHub login says "cannot link" / "linking is not enabled" | the IdP was created with `isLinkingAllowed=false` (an older bootstrap, or `is_linking_allowed: false`); re-run the bootstrap with `auto_linking` set |
+| Google/GitHub login says "account not found" although the user exists | two human users share the verified email (first admin vs an org user); the bootstrap now reports it as `email ... belongs to 2 users` |
+| `zitadel-postgres-0` `Pending`, event `insufficient storage` (Longhorn) | no node can take the new PVC; see "Prerequisites" |
+| Bootstrap: `FAILED: email ... belongs to N users` | see "First login" |
 | `zitadel-admin-sa` missing | setup ran before and the key was not written; see the `zitadel-machinekey` container log. Recreate the machine key in the Console and store it under the same name and key |

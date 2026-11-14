@@ -7,7 +7,7 @@ compiled_at: '2026-11-14'
 category: auth
 consumed_by:
 - components/bundles-zitadel-stack
-source_hash: 9ce924745ecdf54b
+source_hash: e2fa3202a375ab47
 source_last_commit: '2026-11-14'
 summary: "Zitadel \u2014 Cloud-native Identity Provider with built-in user management"
 summary_source: derived

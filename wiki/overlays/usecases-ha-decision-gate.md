@@ -3,10 +3,11 @@ title: usecases-ha-decision-gate
 kind: overlay
 sources:
 - k8s/overlays/usecases/ha-decision-gate
-compiled_at: '2026-10-02'
+compiled_at: '2026-11-15'
 category: usecases
-source_last_commit: '2026-10-02'
-summary: deploys `homeassistant/home-assistant:stable`
+source_hash: 85e0877b0bdc2d8a
+source_last_commit: '2026-11-15'
+summary: deploys `python:3.12-slim`
 summary_source: derived
 ---
 
@@ -23,17 +24,17 @@ summary_source: derived
 
 ### Kubernetes kinds
 
-`Deployment`, `Ingress`, `Job`, `Namespace`, `PersistentVolumeClaim`, `Service`, `StatefulSet`, `UseCase`
+`Deployment`, `Job`, `Namespace`, `Service`
 
 ### Container images
 
-- `homeassistant/home-assistant:stable`
 - `python:3.12-slim`
 
 ### Depends on
 
 - [base/base](../base/base.md)
-- `k8s/overlays/usecases/ha-decision-gate/namespaces/uc-ha-decision-gate`
+- [components/home-automation-hass](../components/home-automation-hass.md) — resource, via namespaces/uc-ha-decision-gate
+- [components/ai-models-ollama](../components/ai-models-ollama.md) — resource, via namespaces/uc-ha-decision-gate
 
 ### Labels
 

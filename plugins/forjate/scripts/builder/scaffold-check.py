@@ -29,6 +29,12 @@
      `wiring.secret.keys` names them (MinIO's are MINIO_ROOT_USER/MINIO_ROOT_PASSWORD, not an S3 SDK's
      names): a key the app never reads is a credential it never gets. The verify Job (phase verify) never
      runs MODEL_MODE=live: the Crawl gate runs where no provider key exists.
+  8. Walking skeleton (#44), when scaffold.yaml has `spec.skeleton` (a legacy full app has none and skips
+     this): every architecture workload of every stage in scope has a scaffold workload whose `stage` is the
+     first stage that lists it; every tool line is a seam; every seam carries its `SEAM <id>` marker in its
+     contract module; the connection diagram exists and names every workload and every seam; the verify
+     Job's code checks `connected: <seam>` for every wired Crawl seam and reads the strict switch;
+     pending assertions, workarounds and seam gates point at seams and gates that exist.
 
 Exit 1 with one finding per line; 0 clean.
 """
@@ -45,7 +51,7 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from common import load_catalog, load_yaml, schema_errors  # noqa: E402
+from common import STAGES, load_catalog, load_yaml, schema_errors  # noqa: E402
 
 TOOL_LINE = re.compile(r"^\s*(?P<name>[a-z][a-z0-9_]*)\s*:\s*(?P<desc>[^\[]*?)\s*(\[(?P<flags>[^\]]*)\])?\s*$")
 TEMPLATE = re.compile(r"^AItizate/gh-actions-templates/\.github/workflows/(?P<name>[a-z0-9-]+-template\.yml)@(?P<ref>.+)$")
@@ -110,7 +116,7 @@ def check_workloads(arch: dict, scaffold: dict, app: Path, findings: list[str]) 
     have = {w["name"]: w for w in (scaffold.get("spec") or {}).get("workloads", [])}
     by_phase = {w.get("phase"): w for w in have.values() if w.get("phase")}
     for w in wanted:
-        generic = {"seed-job": "seed", "verify-job": "verify", "run-job": "run", "replay-job": "run", "intake-job": "run"}.get(w)
+        generic = GENERIC_JOBS.get(w)
         if w not in have and not (generic and generic in by_phase):
             findings.append(f"workload {w}: in the architecture record at Crawl but not in scaffold.yaml (nor a Job with phase {generic or '?'})")
     pkg = (scaffold.get("spec") or {}).get("package", "")
@@ -507,6 +513,125 @@ def check_secret_keys(scaffold: dict, app: Path, findings: list[str]) -> None:
                             f"the catalog's keys are {', '.join(keys)}, read them by that name")
 
 
+# --------------------------------------------------------------------------- 8. walking skeleton
+GENERIC_JOBS = {"seed-job": "seed", "verify-job": "verify", "run-job": "run", "replay-job": "run", "intake-job": "run"}
+
+
+def stages_in_scope(b: Path, arch: dict) -> list[str]:
+    plan = b / "stage-plan.yaml"
+    if plan.is_file():
+        stages = (load_yaml(plan).get("spec") or {}).get("stages") or {}
+        return [s for s in STAGES if (stages.get(s) or {}).get("in_scope")]
+    return [s for s in STAGES if s in ((arch.get("spec") or {}).get("stages") or {})]
+
+
+def first_stage(record: dict, key: str, stages: list[str], parse=str) -> dict[str, str]:
+    """name -> the first stage in scope whose settings list it (stages accumulate)."""
+    out: dict[str, str] = {}
+    for st in stages:
+        sd = ((record.get("spec") or {}).get("stages") or {}).get(st) or {}
+        for item in (sd.get("settings") or {}).get(key) or []:
+            name = parse(item)
+            if name:
+                out.setdefault(name, st)
+    return out
+
+
+def tool_name(line) -> str:
+    m = TOOL_LINE.match(str(line))
+    return m.group("name") if m else ""
+
+
+def check_skeleton(uc: Path, scaffold: dict, app: Path, findings: list[str]) -> None:
+    spec = scaffold.get("spec") or {}
+    sk = spec.get("skeleton")
+    if not sk:
+        return
+    b = uc / ".builder"
+    workloads = spec.get("workloads", [])
+    have = {w["name"]: w for w in workloads}
+    seams = sk.get("seams") or []
+    seam_ids = [s["id"] for s in seams]
+    for dup in sorted({i for i in seam_ids if seam_ids.count(i) > 1}):
+        findings.append(f"skeleton: seam id {dup} is declared twice")
+    known = set(seam_ids)
+    arch_path = b / "decisions" / "architecture.yaml"
+    arch = load_yaml(arch_path) if arch_path.is_file() else {}
+    stages = stages_in_scope(b, arch)
+    # every workload of every stage in scope, at the stage that first lists it
+    for name, st in sorted(first_stage(arch, "workloads", stages).items()):
+        w = have.get(name)
+        if w is None and name in GENERIC_JOBS:
+            w = next((x for x in workloads if x.get("kind") == "job" and x.get("phase") == GENERIC_JOBS[name]), None)
+        if w is None and name.startswith("cron"):
+            w = next((x for x in workloads if x.get("kind") == "cronjob"), None)
+        if w is None:
+            findings.append(f"skeleton: workload {name} is in the architecture record at {st} but has no entry point in scaffold.yaml")
+        elif w.get("stage", "crawl") != st:
+            findings.append(f"skeleton: workload {w['name']} has stage {w.get('stage', 'crawl')} but the architecture record first lists {name} at {st}")
+    # every tool line is a seam, at the stage that first lists it
+    ai_path = b / "decisions" / "ai-engineering.yaml"
+    if ai_path.is_file():
+        tool_stage = first_stage(load_yaml(ai_path), "tools", stages, tool_name)
+        by_name = {s["name"]: s for s in seams if s.get("kind") == "tool"}
+        for name, st in sorted(tool_stage.items()):
+            if name not in by_name:
+                findings.append(f"skeleton: tool {name} is not a seam (kind tool) in scaffold.yaml skeleton.seams")
+        for t in spec.get("tools", []):
+            if t["name"] in tool_stage and t.get("stage", "crawl") != tool_stage[t["name"]]:
+                findings.append(f"skeleton: tool {t['name']} has stage {t.get('stage', 'crawl')} but the AI-engineering record first lists it at {tool_stage[t['name']]}")
+    # markers in the contract modules
+    src = app / "src"
+    for s in seams:
+        marker = re.compile(rf"SEAM\s+{re.escape(s['id'])}\b")
+        contract = s.get("contract", "")
+        target = src / contract if contract.endswith(".py") else None
+        if target is not None and not target.is_file():
+            findings.append(f"skeleton: seam {s['id']}: contract module {contract} does not exist under app/src/")
+            continue
+        files = [target] if target is not None else (sorted(src.rglob("*.py")) if src.is_dir() else [])
+        if not any(marker.search(f.read_text(errors="replace")) for f in files):
+            findings.append(f"skeleton: seam {s['id']}: no `SEAM {s['id']}` marker in {contract or 'app/src/'}, where the business rule goes")
+    # the diagram names every workload and every seam
+    diagram = uc / sk.get("diagram", "")
+    if not sk.get("diagram") or not diagram.is_file():
+        findings.append(f"skeleton: connection diagram {sk.get('diagram') or '(none)'} does not exist")
+    else:
+        text = diagram.read_text(errors="replace")
+        missing = [w["name"] for w in workloads if w["name"] not in text] + [s["id"] for s in seams if s["id"] not in text and s["name"] not in text]
+        if missing:
+            findings.append(f"skeleton: the connection diagram does not name {', '.join(missing)}")
+    # the verify Job connects every wired Crawl seam and reads the strict switch
+    verify = sk.get("verify") or {}
+    vw = have.get(verify.get("job", ""))
+    if vw is None or vw.get("phase") != "verify":
+        findings.append(f"skeleton: verify.job {verify.get('job')} is not a workload with phase verify")
+    else:
+        pkg = Pkg(app, spec.get("package", ""))
+        mod = module_of(vw)
+        text = "\n".join(ast.unparse(pkg.modules[m]) for m in pkg.import_closure(mod)) if mod in pkg.modules else ""
+        unnamed = [s["id"] for s in seams if s.get("stage") == "crawl" and s.get("status") == "wired" and f"connected: {s['id']}" not in text]
+        if unnamed:
+            findings.append(f"skeleton: the verify Job ({mod}) never checks the wired Crawl seam(s) {', '.join(unnamed)}; print `[PASS] connected: <seam>` for each")
+        strict = verify.get("strict_env", "VERIFY_STRICT")
+        if strict not in text:
+            findings.append(f"skeleton: the verify Job ({mod}) never reads {strict}; pending assertions must fail when it is 1 (the Walk overlay sets it)")
+    for p in verify.get("pending") or []:
+        bad = [x for x in p.get("seams", []) if x not in known]
+        if bad:
+            findings.append(f"skeleton: pending assertion {p['assertion'][:60]!r} names unknown seam(s) {', '.join(bad)}")
+    for wa in sk.get("workarounds") or []:
+        if wa["seam"] not in known:
+            findings.append(f"skeleton: workaround names unknown seam {wa['seam']}")
+    gates_path = b / "gates.yaml"
+    if gates_path.is_file():
+        gate_ids = {g["id"] for t in ((load_yaml(gates_path).get("spec") or {}).get("transitions") or {}).values() for g in t.get("gates") or []}
+        for s in seams:
+            bad = [g for g in s.get("gates") or [] if g not in gate_ids]
+            if bad:
+                findings.append(f"skeleton: seam {s['id']} names gate(s) {', '.join(bad)} that gates.yaml does not have")
+
+
 def main(argv: list[str]) -> int:
     as_json = "--json" in argv
     args = [a for a in argv if not a.startswith("--")]
@@ -546,6 +671,7 @@ def main(argv: list[str]) -> int:
     if scaffold:
         check_readiness(scaffold, app, findings)
         check_startup_probes(uc, scaffold, findings)
+        check_skeleton(uc, scaffold, app, findings)
     check_workflows(app, findings)
     check_dockerfile(app, findings)
     if scaffold:

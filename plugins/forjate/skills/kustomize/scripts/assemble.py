@@ -11,6 +11,9 @@ overlay (default): writes under <usecase-dir>/ the Crawl root (kustomization.yam
   and the egress allow-list from the security record, sealed-secret placeholders replacing every generated
   Secret, the ArgoCD Application and repo-server wiring, images: as the write-back surface), .gitignore
   and a README with the decision summary and the checklist.
+  A scaffold workload lands at the stage its `stage` names (default crawl) and stays in every later one;
+  when the scaffold is a walking skeleton (spec.skeleton), the Walk verify Job runs with its strict switch,
+  so what Crawl's verify left [PENDING] fails until the backlog implements it.
 
 tenant: writes the tenant-root shape (docs/use-case-builder/tenant-patterns.md) under <tenant-repo>/k8s/:
   a root kustomization pulling the factory base and components by SSH ref pinned to --factory-ref,
@@ -243,6 +246,17 @@ class Assembly:
         path.write_text(text if text.endswith("\n") else text + "\n")
         self.written.append(path)
 
+    # ------------------------------------------------------------ scaffold
+    def workloads_at(self, stage: str) -> list[dict]:
+        """The scaffold's workloads that run at a stage: those whose `stage` (default crawl) is this one or an earlier one."""
+        return [w for w in (self.scaffold or {}).get("spec", {}).get("workloads", [])
+                if STAGES.index(w.get("stage", "crawl")) <= STAGES.index(stage)]
+
+    def strict_env(self) -> str | None:
+        """The verify Job's strict switch when the scaffold is a walking skeleton (#44): Walk fails what Crawl left pending."""
+        sk = (self.scaffold or {}).get("spec", {}).get("skeleton")
+        return ((sk.get("verify") or {}).get("strict_env") or "VERIFY_STRICT") if sk else None
+
     # ------------------------------------------------------------ secrets
     def crawl_secrets(self) -> list[tuple[str, list[str], str]]:
         """(secret name, keys, origin) the Crawl overlay generates: component Secrets and scaffold secrets."""
@@ -293,7 +307,7 @@ class Assembly:
                 if s[2].startswith("integration:") and s[0] not in names:
                     out.append(s); names.add(s[0])
         # a Secret a scaffold workload mounts outlives the component that brought it: the workload still reads it
-        workloads = (self.scaffold or {}).get("spec", {}).get("workloads", [])
+        workloads = self.workloads_at(stage)
         for sname, keys, origin in self.crawl_secrets():
             users = [w["name"] for w in workloads if sname in (w.get("secrets") or [])]
             if users and sname not in names:
@@ -371,7 +385,7 @@ class Assembly:
         infra = [c for c in crawl if self.infra(c)]
         sc = (self.scaffold or {}).get("spec", {})
         image = sc.get("image")
-        workloads = sc.get("workloads", [])
+        workloads = self.workloads_at("crawl")   # a later stage's workloads land with that stage
         # root
         root = {"apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization",
                 "resources": ["../../../base"] + [self.rel_component(c, 3) for c in infra] + [f"./namespaces/{ns}"],
@@ -495,7 +509,7 @@ class Assembly:
              "spec": {"podSelector": {}, "policyTypes": ["Egress"], "egress": [{"to": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}}}], "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}]}]}},
         ]
         comps = [c for c in self.choices(stage) if not self.infra(c) and self.meta(c).get("label")]
-        workloads = (self.scaffold or {}).get("spec", {}).get("workloads", [])
+        workloads = self.workloads_at(stage)
         # (pod label, port, namespace): a component a psa_exceptions entry moved is reached across namespaces
         targets = [(self.meta(c)["label"], self.meta(c)["port"], self.home(c, stage)) for c in comps] + [(w["name"], w.get("port", 8000), ns) for w in workloads if w["kind"] == "deployment"]
 
@@ -672,7 +686,7 @@ class Assembly:
         patches.append({"path": "patches/namespace-psa-patch.yaml", "target": {"kind": "Namespace", "name": ns}})
         # the model runs live from Walk; the external systems are the real ones
         if stage == "walk" and sc.get("workloads"):
-            names = [w["name"] for w in sc["workloads"]] + list(self.setting("architecture", stage, "workloads", []) or [])
+            names = [w["name"] for w in self.workloads_at(stage)] + list(self.setting("architecture", stage, "workloads", []) or [])
             systems: list[tuple[dict, list[str]]] = []
             for line in self.setting("security", stage, "egress_allowlist", []) or []:
                 dest, _, comment = str(line).partition("#")
@@ -684,8 +698,12 @@ class Assembly:
                     systems.append(({"name": "ERP_URL", "value": f"https://{host}"}, named))
                 if "orders" in host:
                     systems.append(({"name": "ORDERS_URL", "value": f"https://{host}"}, named))
-            for w in sc["workloads"]:
+            strict = self.strict_env()
+            for w in self.workloads_at(stage):
                 env = [{"name": "MODEL_MODE", "value": "live"}] + [e for e, named in systems if not named or w["name"] in named]
+                if strict and w.get("phase") == "verify":
+                    # Walk closes with the minimal implementation: what Crawl's verify left [PENDING] now fails
+                    env.append({"name": strict, "value": "1"})
                 kind = "Job" if w["kind"] == "job" else "Deployment"
                 self.write(sdir / "patches" / f"{w['name']}-env-patch.yaml", f"# {stage}: the real model and the real systems (strategic merge on the container name, order-independent).\n" + dump(
                     {"apiVersion": "batch/v1" if kind == "Job" else "apps/v1", "kind": kind, "metadata": {"name": w["name"]}, "spec": {"template": {"spec": {"containers": [{"name": w["name"], "env": env}]}}}}))
@@ -694,9 +712,14 @@ class Assembly:
         mech = self.setting("security", stage, "secrets_mechanism", "sealed-secrets")
         # Walk writes the NetworkPolicies and the surface; Run inherits them from ../walk and adds only what changes.
         sub_resources = (["netpols.yaml"] if stage == "walk" else []) + [self.rel_component(c, 7) for c in scoped if c not in placed]
+        # the workloads the scaffold puts at this stage (stage: walk or run) arrive here, from the same image
+        for w in (self.scaffold or {}).get("spec", {}).get("workloads", []):
+            if w.get("stage", "crawl") == stage:
+                self.write(sdir / "namespaces" / ns / f"{w['name']}.yaml", self.workload_manifest(w, image=image))
+                sub_resources.append(f"{w['name']}.yaml")
         all_secrets = self.secrets_at(stage)
         # a component's Secret stays in uc-<name> while a workload there consumes it or the component runs there
-        consumed = {x for w in sc.get("workloads", []) for x in w.get("secrets") or []}
+        consumed = {x for w in self.workloads_at(stage) for x in w.get("secrets") or []}
         all_secrets = [t for t in all_secrets if t[2] not in self.catalog or self.home(t[2], stage) == ns or t[0] in consumed]
         if stage == "walk":
             for sname, keys, origin in self.crawl_secrets():
@@ -965,7 +988,7 @@ class Assembly:
         psa = self.setting("security", stage, "psa_level", "baseline")
         self.write(nsdir / "namespace.yaml", dump({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": ns, "labels": {"forjate.io/usecase": self.name, "pod-security.kubernetes.io/enforce": psa, "pod-security.kubernetes.io/warn": "restricted", "pod-security.kubernetes.io/audit": "restricted"}}}))
         resources = ["namespace.yaml"] + [self.ssh_component(c) for c in comps] + ["netpols.yaml"]
-        for w in sc.get("workloads", []):
+        for w in self.workloads_at(stage):
             self.write(nsdir / f"{w['name']}.yaml", self.workload_manifest(w, image=image))
             resources.append(f"{w['name']}.yaml")
         patches: list[dict] = []
@@ -976,7 +999,7 @@ class Assembly:
                 self.write(nsdir / f"{meta['service']}-service.yaml", dump({"apiVersion": "v1", "kind": "Service", "metadata": {"name": meta["service"]}, "spec": {"selector": {"app": meta["label"]}, "ports": ports}}))
                 resources.append(f"{meta['service']}-service.yaml")
         secrets = self.secrets_at(stage)
-        consumed = {x for w in sc.get("workloads", []) for x in w.get("secrets") or []}
+        consumed = {x for w in self.workloads_at(stage) for x in w.get("secrets") or []}
         secrets = [t for t in secrets if t[2] not in self.catalog or self.home(t[2], stage) == ns or t[0] in consumed]
         aliases = [{"apiVersion": "v1", "kind": "Service", "metadata": {"name": svc, "labels": {"forjate.io/psa-exception": n}},
                     "spec": {"type": "ExternalName", "externalName": f"{svc}.{n}.svc.cluster.local"}}

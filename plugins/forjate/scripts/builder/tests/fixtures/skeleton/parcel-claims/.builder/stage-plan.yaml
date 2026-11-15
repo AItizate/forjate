@@ -1,0 +1,9 @@
+apiVersion: forjate.io/v0
+kind: StagePlan
+metadata: { usecase: parcel-claims, version: 1 }
+spec:
+  stages:
+    crawl: { in_scope: true, goal: Prove a damaged-parcel report reaches a claim draft end to end on seeded reports., forjate_tier: lab, autonomy: assistive }
+    walk: { in_scope: true, goal: The claims clerk files real claims from the review surface., forjate_tier: mvp, autonomy: semi-autonomous }
+    run: { in_scope: false, skip_reason: Not requested., goal: n/a }
+  experts: []

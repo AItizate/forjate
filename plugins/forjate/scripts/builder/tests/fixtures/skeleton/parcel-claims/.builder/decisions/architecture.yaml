@@ -1,0 +1,19 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: architecture, usecase: parcel-claims, author: "forjate:architecture", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        topology: batch
+        runtime: python
+        workloads: [seed-job, run-job, verify-job, carrier-stub]
+      rationale: A batch over seeded reports against a stub of the carrier API.
+    walk:
+      choice: []
+      settings:
+        topology: batch
+        runtime: python
+        workloads: [run-job, review-api, verify-job]
+      rationale: The clerk approves claims on a review surface; the batch files them.

@@ -94,6 +94,10 @@
                   "cronjob"
                 ]
               },
+              "stage": {
+                "$ref": "_defs.schema.json#/$defs/stage",
+                "description": "The first stage whose architecture record lists the workload (stages accumulate). The assembly wires it at that stage and every later one. Default crawl."
+              },
               "phase": {
                 "enum": [
                   "seed",
@@ -165,7 +169,170 @@
                   "type": "string"
                 },
                 "description": "The flags from the AI-engineering record's tool line: read-only, idempotent, requires approval token."
+              },
+              "stage": {
+                "$ref": "_defs.schema.json#/$defs/stage",
+                "description": "The first stage whose AI-engineering record lists the tool. Default crawl."
               }
+            }
+          }
+        },
+        "skeleton": {
+          "type": "object",
+          "description": "The walking-skeleton contract (#44): every workload of every stage in scope has an entry point, every store, queue, model route and system is wired through a seam with a contract, and the verify Job proves the route. The business rules behind each seam are the backlog's (backlog.py). Absent on a legacy full app.",
+          "required": [
+            "diagram",
+            "seams",
+            "verify"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "diagram": {
+              "type": "string",
+              "description": "Path relative to the use case of the connection diagram (Mermaid), e.g. app/docs/connections.md. It names every workload and every seam."
+            },
+            "seams": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "kind",
+                  "name",
+                  "stage",
+                  "record",
+                  "contract",
+                  "status"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]*$",
+                    "description": "Stable id: the `SEAM <id>` marker in the code and the backlog ticket T-<id>."
+                  },
+                  "kind": {
+                    "enum": [
+                      "tool",
+                      "model",
+                      "store",
+                      "queue",
+                      "system",
+                      "surface",
+                      "workload"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The tool, workload, store or system the seam stands for, as the record names it."
+                  },
+                  "stage": {
+                    "$ref": "_defs.schema.json#/$defs/stage"
+                  },
+                  "record": {
+                    "type": "string",
+                    "pattern": "^decisions/[a-z-]+\\.yaml$",
+                    "description": "The decision record that specifies the seam."
+                  },
+                  "contract": {
+                    "type": "string",
+                    "description": "Module path relative to app/src (or a route) where the contract lives and the SEAM marker sits."
+                  },
+                  "double": {
+                    "type": "string",
+                    "description": "What stands in for the real thing at Crawl: a stub workload, the model double, an in-namespace store."
+                  },
+                  "status": {
+                    "enum": [
+                      "wired",
+                      "stub"
+                    ],
+                    "description": "wired: the call goes through the real transport and the double decides; stub: the body raises NotImplementedError with the reason."
+                  },
+                  "gates": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^G-[A-Z]+-[0-9]+$"
+                    },
+                    "description": "gates.yaml ids the seam serves."
+                  },
+                  "summary": {
+                    "type": "string",
+                    "description": "One line: what the business rule behind the seam will do."
+                  }
+                }
+              }
+            },
+            "verify": {
+              "type": "object",
+              "required": [
+                "job"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "job": {
+                  "type": "string",
+                  "description": "The verify Job's workload name (the gates' verify-job ref)."
+                },
+                "strict_env": {
+                  "type": "string",
+                  "default": "VERIFY_STRICT",
+                  "description": "Environment variable that turns [PENDING] assertions into failures; the Walk overlay sets it to 1."
+                },
+                "pending": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "assertion",
+                      "seams"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "assertion": {
+                        "type": "string",
+                        "description": "The quality or data-pipeline assertion, verbatim."
+                      },
+                      "seams": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9-]*$"
+                        }
+                      }
+                    }
+                  },
+                  "description": "Record assertions whose truth needs business logic: verify prints [PENDING] for them at Crawl and fails them under strict_env."
+                }
+              }
+            },
+            "workarounds": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "seam",
+                  "problem",
+                  "workaround"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "seam": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]*$"
+                  },
+                  "problem": {
+                    "type": "string"
+                  },
+                  "workaround": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Where components do not integrate cleanly (heterogeneous credentials, a missing integration, a bundle that recomposes a shared store): what the skeleton did instead."
             }
           }
         },

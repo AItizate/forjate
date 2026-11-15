@@ -1,0 +1,18 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: quality, usecase: parcel-claims, author: "forjate:quality", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        verify_job: claims-verify
+        verify_assertions:
+          - 10 reports processed, each reaches the carrier stub once
+          - a second run changes no counts
+          - 7 reports classified damaged, 3 not damaged
+        kpi_metric: draft_rate
+        test_pyramid:
+          - "unit: pure functions for the damage predicate and the claim idempotency key"
+          - "e2e: the verify Job"
+      rationale: Seeded reports with labels.

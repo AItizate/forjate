@@ -1,0 +1,12 @@
+name: Build, scan, push and write back
+on: { push: { branches: [main] } }
+jobs:
+  build-scan-push:
+    uses: AItizate/gh-actions-templates/.github/workflows/build-push-generic-template.yml@v1
+    with: { registry_url: ghcr.io, repository_name: example/parcel-claims, image_tag: "${{ github.sha }}", docker_file: ./Dockerfile }
+  write-back:
+    needs: build-scan-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: peter-evans/repository-dispatch@v3
+        with: { event-type: app-image-updated, client-payload: '{"app_name": "parcel-claims"}' }

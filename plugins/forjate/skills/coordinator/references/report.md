@@ -42,10 +42,14 @@ Pack overrides: <from gates.yaml, or none>
 
 ## Assembly
 <from usecase.yaml, kustomization.yaml, stages/* and .builder/scaffold.yaml when present; otherwise "not assembled yet">
-- Workload: <scaffold runtime, package and image, workloads with their commands, tools with their flags; tests and scaffold-check result when known; "runtime <x> not yet available" when the scaffold does not implement the architecture's choice>
+- Workload: <scaffold runtime, package and image, workloads with their commands and stage, tools with their flags, seams and workarounds, the connection diagram's path; tests and scaffold-check result when known; "runtime <x> not yet available" when the scaffold does not implement the architecture's choice>
 - Overlay: <root and stages that build, kubeconform result, the gates.py ci table for crawl->walk when run>
 - Assembly notes: <every note the generator printed: surfaces the scaffold does not ship yet, guessed secret keys, matrices to write by hand>
 - Crawl proof: <ephemeral.sh up result and the KPI/EVAL lines from the verify Job, or "not run">
+
+## Backlog
+<from .builder/backlog.yaml when present: tickets per stage and kind, then one line per ticket `<id> [<stage>] <title> (gates: <ids>)`; a ticket without a gate is listed last. When the scaffold has no skeleton: "legacy full app, no backlog". When the skeleton has no backlog: "not derived yet: run backlog.py">
+Walk closes with the minimal implementation: every Walk ticket done and the verify Job passing with its strict switch (`VERIFY_STRICT=1`, which the Walk overlay sets).
 
 ## Tenant drift
 <only inside a tenant repo: the four lists tenant-drift.py prints; otherwise omit the section>

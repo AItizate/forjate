@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AItizate/forjate/plugins/forjate/scripts/builder/schemas/backlog.schema.json",
+  "title": "Backlog",
+  "description": "The tickets backlog.py derives from a walking skeleton (#44): one per seam, per later-stage workload, per pending assertion, per workaround and per OPEN note, each linked to the record that specifies it and the gates it serves. An agent team picks them up at Walk.",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "forjate.io/v0"
+    },
+    "kind": {
+      "const": "Backlog"
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "usecase",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "usecase": {
+          "$ref": "_defs.schema.json#/$defs/name"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "generated_by": {
+          "type": "string"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": [
+        "tickets"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tickets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "kind",
+              "title",
+              "stage",
+              "record",
+              "gates",
+              "acceptance"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^T-[a-z0-9][a-z0-9-]*$",
+                "description": "Stable: T-<seam id>, T-wl-<workload>, T-assert-<n>, T-wa-<seam>, T-open-<n>."
+              },
+              "kind": {
+                "enum": [
+                  "seam",
+                  "workload",
+                  "assertion",
+                  "workaround",
+                  "open"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "stage": {
+                "$ref": "_defs.schema.json#/$defs/stage",
+                "description": "The stage whose exit needs the ticket closed."
+              },
+              "seam": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              },
+              "record": {
+                "type": "string",
+                "description": "decisions/<area>.yaml, optionally #<path> to the setting."
+              },
+              "contract": {
+                "type": "string",
+                "description": "Where the work happens: app/src/<module> carrying the SEAM marker, or the workload's entry point."
+              },
+              "gates": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^G-[A-Z]+-[0-9]+$"
+                }
+              },
+              "acceptance": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                },
+                "description": "Done when: gate texts and verify assertions, verbatim."
+              },
+              "depends_on": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^T-[a-z0-9][a-z0-9-]*$"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,8 +1,19 @@
 # Tools and the model client
 
-## A tool module
+## A seam
 
-One file per line of the AI-engineering record's `tools`, named after the tool. The flags are code:
+Every tool line, the model call, every store, queue and external system on a route, and every later-stage surface is a seam. A seam has four parts:
+
+1. A **contract**: the typed arguments and result, with the flags as code (table below).
+2. A **transport**: the real HTTP, SQL or queue call to the store, the stub or the double.
+3. A **decision delegated to the double**: replay labels or rules.
+4. A **marker** `# SEAM <id>: <what the business rule will do>` where the rule will go.
+
+`scaffold.yaml` `skeleton.seams` lists each one with its record, its gates and its status. A seam is `wired` when the call goes through and the double decides. It is `stub` when the system arrives at a later stage: the contract and the token check are there, and the body raises `NotImplementedError("backlog ticket T-<id>")`. `backlog.py` writes ticket `T-<id>` from the entry. The agent team replaces the marker with the rule and writes the rule's unit tests.
+
+## A tool contract
+
+One file per line of the AI-engineering record's `tools`, named after the tool. The flags are code; the business behind the transport is the seam:
 
 ```python
 # src/invoice_intake/tools/post_to_erp.py
@@ -24,8 +35,11 @@ def post_to_erp(args: PostToErpArgs, *, approval_token: str, idempotency_key: st
     if not approval_valid(approval_token, args.invoice_id):
         raise ApprovalRequired("post_to_erp needs the clerk's approval token for this invoice")
     with timed_call("post_to_erp", args, data_class=settings.data_class):
+        # SEAM erp-posting: map the invoice to the ERP's payable fields and its supplier ids (backlog)
         return erp_client().post_payable(args, idempotency_key=idempotency_key, timeout=timeout_s)
 ```
+
+At Crawl the ERP client points at the stub, which records the write and dedupes on the key, so the contract (token first, one write per key) is proven by the verify Job, and the field mapping is the ticket.
 
 | Flag in the record | In the signature | In the body |
 |--------------------|------------------|-------------|
@@ -80,5 +94,5 @@ def model_for(settings) -> Model:
 | `input:` | the delimiter in the prompt and a size limit before the call; file type allow-list in the pipeline step |
 | `output:` | pydantic validation; `allowed_fields` filter on every emitted answer; amount and id checked against the source of truth in code |
 | `budget:` | `max_tool_calls` and per-turn timeout in the agent loop; one model call per item in a batch |
-| `escalation:` | a pure predicate (`should_escalate(turn) -> Reason | None`) with unit tests, called before any reply |
+| `escalation:` | a predicate seam (`should_escalate(turn) -> Reason | None`) called before any reply; the skeleton's version reads the double's label or a keyword rule, the full predicate and its unit tests are the ticket |
 | `privacy:` | `redact()` before the model call at Walk; fields never placed in the prompt are never read from the store in the first place |

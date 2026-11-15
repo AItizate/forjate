@@ -23,7 +23,10 @@ One session, one business problem, one deployable use case. The builder is a Cla
    │
    ▼  forjate:app-scaffold                 forjate:kustomize (assemble)
 app/ + .builder/scaffold.yaml       kustomization.yaml, namespaces/, usecase.yaml, stages/walk, stages/run, README
+(a walking skeleton)
    │
+   ▼  backlog.py                    .builder/backlog.yaml + backlog.md: one ticket per seam, linked to record and gate,
+   │                                for the agent team that implements the business at Walk
    ▼  ephemeral.sh up <name>        builds app/ into <name>:dev, seed -> run -> verify on k3d
    ▼  gates.py run <name> --transition 'crawl->walk'
 report
@@ -38,12 +41,13 @@ Every arrow is a file in git, so a person can stop, read and change course at an
 | `forjate:coordinator` | user-invocable skill, `/usecase` | intake, orchestration, the report; `review` prints the report (and, inside a tenant repo, the drift between its `CLAUDE.md` and its tree first); `assemble` runs only the builders |
 | `forjate:stage-planner` | skill + agent | the stage plan with observable exit criteria and the expert selection |
 | ten experts | skill + agent each | a Decision record per area, per stage, with alternatives, risks, gates and the pack rules that shaped it |
-| `forjate:app-scaffold` | builder skill + agent | the workload: entrypoints per architecture workload, typed tools per AI-engineering line, a model double for CI, seed and verify scripts, tests, Dockerfile, workflows that call the shared CI templates `@v1`; writes `scaffold.yaml` |
+| `forjate:app-scaffold` | builder skill + agent | the walking skeleton: an entry point per workload of every stage, a typed tool contract per AI-engineering line, every seam wired to its double, a model double for CI, seed and the verify Job that proves the route, a connection diagram, contract tests, Dockerfile, workflows that call the shared CI templates `@v1`; writes `scaffold.yaml` with `spec.skeleton`; no business logic (`walking-skeleton.md`) |
 | `forjate:kustomize` | shared skill + agent | the overlay from the records (`scripts/assemble.py`), or the tenant-root shape (`--target tenant`); builds, validates, runs the ci gates |
 | `forjate:context-pack` | shared skill | the one interface through which corporate rules reach every skill |
 | `scripts/builder/validate.py` | CI | schemas, catalog, packs, cross-record consistency, gates consolidation, ci refs |
 | `scripts/builder/secret-scan.py` | CI gate | plaintext credentials in generator literals, configs, patches, env values, tracked `.env` |
-| `scripts/builder/scaffold-check.py` | CI gate | tool signatures match the record, templates pinned `@v1`, no hand-rolled build |
+| `scripts/builder/scaffold-check.py` | CI gate | tool signatures match the record, templates pinned `@v1`, no hand-rolled build; on a skeleton, every stage's workloads, the seam markers, the diagram, the verify's `connected:` checks and strict switch |
+| `scripts/builder/backlog.py` | builder step | the backlog from the skeleton, deterministic; `--check` says whether it is stale |
 | `scripts/gates/gates.py` | runner | executes `gates.yaml` for a transition: `ci` checks from `scripts/gates/checks/`, the verify Job, metrics, manual gates listed |
 | `.github/workflows/gates.yml` | reusable workflow | tenants run the gates by tag |
 

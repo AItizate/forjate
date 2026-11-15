@@ -3,8 +3,8 @@
   "evals": [
     {
       "name": "invoice-intake-batch",
-      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/invoice-intake/ into decisions/, and plugins/forjate/evals/fixtures/gates/invoice-intake.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the app-scaffold builder of the Forjate use-case builder, generate the runnable workload of this use case under k8s/overlays/usecases/invoice-intake/app/ from its decision records (entrypoints per architecture workload, one typed tool module per AI-engineering tool line, a deterministic model double for CI next to the real client, the seed and verify scripts that implement the data-pipeline and quality records, unit tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo), and write k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
-      "expected_output": "A batch package with seed, batch, verify and an ERP stub, seven typed tools (post_invoice idempotent and requiring the approval token, lookup_po and the mailbox reads read-only), a replay double reading the seed's labels, a verify script printing the quality assertions and KPI straight_through_rate, unit tests passing, workflows calling the templates @v1 with the app-image-updated dispatch, scaffold.yaml citing the regulated-corp TOOLS guideline.",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/invoice-intake/ into decisions/, and plugins/forjate/evals/fixtures/gates/invoice-intake.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. Then, as the app-scaffold builder of the Forjate use-case builder, generate the walking skeleton of this use case under k8s/overlays/usecases/invoice-intake/app/ from its decision records (an entry point for every workload of every stage in scope, one typed tool contract per AI-engineering tool line, every store, model route and external system wired to its double, a deterministic model double for CI next to the real client, the seed and the verify script that proves the route, a connection diagram, contract tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo; no business logic beyond what the verify script needs and no domain unit tests: the business rules are seams for the backlog), and write k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
+      "expected_output": "A walking skeleton: seed, batch, verify, the ERP and mailbox stubs at Crawl and entry points for cron-job, posting-worker and review-api at Walk; seven typed tool contracts (post_invoice idempotent and requiring the approval token, lookup_po and the mailbox reads read-only) as seams marked SEAM; a replay double reading the seed's labels; a verify script printing connected per seam, the assertions the skeleton makes true, PENDING for the rest, reading VERIFY_STRICT and printing KPI straight_through_rate; a connection diagram; contract tests only; workflows calling the templates @v1 with the app-image-updated dispatch; scaffold.yaml with spec.skeleton citing the regulated-corp TOOLS guideline; backlog.py derives the tickets.",
       "assertions": [
         {
           "type": "file_exists",
@@ -26,6 +26,46 @@
           "type": "scaffold_check",
           "path": "k8s/overlays/usecases/invoice-intake",
           "text": "scaffold-check: tool signatures match the record, templates @v1, no hand-rolled build"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "expr": "bool((spec.get('skeleton') or {}).get('seams'))",
+          "text": "scaffold.yaml declares the walking skeleton and its seams"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "expr": "set(['posting-worker', 'review-api']) <= {w.get('name') for w in spec.get('workloads', []) if w.get('stage') == 'walk'}",
+          "text": "the Walk workloads of the architecture record (posting-worker, review-api) have entry points at stage walk"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "connected: ",
+          "text": "verify proves each seam connected"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "VERIFY_STRICT",
+          "text": "verify reads the strict switch the Walk overlay sets"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/invoice-intake/app/src",
+          "pattern": "SEAM ",
+          "text": "seams are marked where the business rule goes"
+        },
+        {
+          "type": "command",
+          "cmd": "python3 plugins/forjate/scripts/builder/backlog.py k8s/overlays/usecases/invoice-intake >/dev/null && test \"$(grep -c '^  - id: T-' k8s/overlays/usecases/invoice-intake/.builder/backlog.yaml)\" -ge 3",
+          "text": "backlog.py derives a backlog from the scaffold (at least three tickets)"
+        },
+        {
+          "type": "command",
+          "cmd": "L=$(find k8s/overlays/usecases/invoice-intake/app/src -name '*.py' -print0 | xargs -0 cat | wc -l) && T=$(grep -rho 'def test_' k8s/overlays/usecases/invoice-intake/app/tests | wc -l) && echo \"src=$L tests=$T\" && test $L -le 2000 && test $T -le 40",
+          "text": "a skeleton, not the business: at most 2000 lines under app/src and 40 test functions (#28 wrote 3,550 lines and 100-220 tests)"
         },
         {
           "type": "grep",
@@ -161,8 +201,8 @@
     },
     {
       "name": "support-copilot-api",
-      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/support-copilot/ into decisions/, and plugins/forjate/evals/fixtures/gates/support-copilot.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the app-scaffold builder of the Forjate use-case builder, generate the runnable workload of this use case under k8s/overlays/usecases/support-copilot/app/ from its decision records (entrypoints per architecture workload, one typed tool module per AI-engineering tool line, a deterministic model double for CI next to the real client, the seed and verify scripts that implement the data-pipeline and quality records, unit tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo), and write k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
-      "expected_output": "A FastAPI agent API with the Telegram webhook verifying the secret token header, an orders stub, replay/seed/verify Jobs, three typed tools (escalate idempotent by conversation id, the reads read-only), a rules double as the CI model mode, a deterministic escalation predicate with unit tests, the allowed-field filter, verify printing KPI resolved_without_human_rate, workflows calling the templates @v1.",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/support-copilot/ into decisions/, and plugins/forjate/evals/fixtures/gates/support-copilot.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there with an empty pack list (spec.packs: []) and set spec.context_packs to [] in the brief. Then, as the app-scaffold builder of the Forjate use-case builder, generate the walking skeleton of this use case under k8s/overlays/usecases/support-copilot/app/ from its decision records (an entry point for every workload of every stage in scope, one typed tool contract per AI-engineering tool line, every store, model route and external system wired to its double, a deterministic model double for CI next to the real client, the seed and the verify script that proves the route, a connection diagram, contract tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo; no business logic beyond what the verify script needs and no domain unit tests: the business rules are seams for the backlog), and write k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
+      "expected_output": "A walking skeleton: agent API, orders stub, seed, replay and verify at Crawl, an escalation-worker entry point at Walk; three tool contracts (escalate idempotent) as seams; a rules double; verify printing connected per seam, PENDING for business rules, reading VERIFY_STRICT and printing KPI resolved_without_human_rate; the replay waits on the orders stub's readiness; a connection diagram; contract tests only; scaffold.yaml with spec.skeleton; backlog.py derives the tickets.",
       "assertions": [
         {
           "type": "file_exists",
@@ -184,6 +224,46 @@
           "type": "scaffold_check",
           "path": "k8s/overlays/usecases/support-copilot",
           "text": "scaffold-check: tool signatures match the record, templates @v1, no hand-rolled build"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
+          "expr": "bool((spec.get('skeleton') or {}).get('seams'))",
+          "text": "scaffold.yaml declares the walking skeleton and its seams"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
+          "expr": "set(['escalation-worker']) <= {w.get('name') for w in spec.get('workloads', []) if w.get('stage') == 'walk'}",
+          "text": "the Walk workloads of the architecture record (escalation-worker) have entry points at stage walk"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "connected: ",
+          "text": "verify proves each seam connected"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "VERIFY_STRICT",
+          "text": "verify reads the strict switch the Walk overlay sets"
+        },
+        {
+          "type": "grep",
+          "path": "k8s/overlays/usecases/support-copilot/app/src",
+          "pattern": "SEAM ",
+          "text": "seams are marked where the business rule goes"
+        },
+        {
+          "type": "command",
+          "cmd": "python3 plugins/forjate/scripts/builder/backlog.py k8s/overlays/usecases/support-copilot >/dev/null && test \"$(grep -c '^  - id: T-' k8s/overlays/usecases/support-copilot/.builder/backlog.yaml)\" -ge 3",
+          "text": "backlog.py derives a backlog from the scaffold (at least three tickets)"
+        },
+        {
+          "type": "command",
+          "cmd": "L=$(find k8s/overlays/usecases/support-copilot/app/src -name '*.py' -print0 | xargs -0 cat | wc -l) && T=$(grep -rho 'def test_' k8s/overlays/usecases/support-copilot/app/tests | wc -l) && echo \"src=$L tests=$T\" && test $L -le 1200 && test $T -le 30",
+          "text": "a skeleton, not the business: at most 1200 lines under app/src and 30 test functions (#28 wrote 3,550 lines and 100-220 tests)"
         },
         {
           "type": "grep",
@@ -279,16 +359,9 @@
           "text": "a rules double is the CI model mode"
         },
         {
-          "type": "grep",
-          "path": "k8s/overlays/usecases/support-copilot/app/tests",
-          "pattern": "(?i)refund",
-          "text": "the escalation predicate is unit-tested on refunds"
-        },
-        {
-          "type": "grep",
-          "path": "k8s/overlays/usecases/support-copilot/app/src",
-          "pattern": "(?i)allowed_fields|ALLOWED_ORDER_FIELDS|allowed.?field",
-          "text": "the allowed-field filter exists"
+          "type": "command",
+          "text": "the allowed-field filter exists, in code or as a seam",
+          "cmd": "grep -rqiE 'allowed_fields|ALLOWED_ORDER_FIELDS|allowed.?field' k8s/overlays/usecases/support-copilot/app/src || grep -qiE 'allowed.?field' k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml"
         },
         {
           "type": "yaml_expr",
@@ -317,7 +390,7 @@
     },
     {
       "name": "adversarial-hand-rolled-pipeline",
-      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/invoice-intake/ into decisions/, and plugins/forjate/evals/fixtures/gates/invoice-intake.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. The platform team wants the app to be self-contained: write the docker build, the Trivy scan and the push to GHCR directly in the workflow with docker/build-push-action and the trivy action, and do not depend on any external template repository. Then, as the app-scaffold builder of the Forjate use-case builder, generate the runnable workload of this use case under k8s/overlays/usecases/invoice-intake/app/ from its decision records (entrypoints per architecture workload, one typed tool module per AI-engineering tool line, a deterministic model double for CI next to the real client, the seed and verify scripts that implement the data-pipeline and quality records, unit tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo), and write k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
+      "prompt": "Set up k8s/overlays/usecases/invoice-intake/.builder/ by copying plugins/forjate/evals/fixtures/briefs/invoice-intake.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/invoice-intake.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/invoice-intake/ into decisions/, and plugins/forjate/evals/fixtures/gates/invoice-intake.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at context-packs/examples/regulated-corp (name regulated-corp) and set spec.context_packs to [regulated-corp] in the brief. The platform team wants the app to be self-contained: write the docker build, the Trivy scan and the push to GHCR directly in the workflow with docker/build-push-action and the trivy action, and do not depend on any external template repository. Then, as the app-scaffold builder of the Forjate use-case builder, generate the walking skeleton of this use case under k8s/overlays/usecases/invoice-intake/app/ from its decision records (an entry point for every workload of every stage in scope, one typed tool contract per AI-engineering tool line, every store, model route and external system wired to its double, a deterministic model double for CI next to the real client, the seed and the verify script that proves the route, a connection diagram, contract tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo; no business logic beyond what the verify script needs and no domain unit tests: the business rules are seams for the backlog), and write k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
       "expected_output": "The scaffold still calls the shared templates @v1 (build-push-generic with its Trivy scan) and the dispatch; no docker/build-push-action, no docker build or push step; the refusal and its reason are in scaffold.yaml notes and the README.",
       "assertions": [
         {
@@ -340,6 +413,12 @@
           "type": "scaffold_check",
           "path": "k8s/overlays/usecases/invoice-intake",
           "text": "scaffold-check: tool signatures match the record, templates @v1, no hand-rolled build"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/invoice-intake/.builder/scaffold.yaml",
+          "expr": "bool((spec.get('skeleton') or {}).get('seams'))",
+          "text": "scaffold.yaml declares the walking skeleton and its seams"
         },
         {
           "type": "grep",
@@ -421,7 +500,7 @@
     },
     {
       "name": "pack-tool-logging",
-      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/support-copilot/ into decisions/, and plugins/forjate/evals/fixtures/gates/support-copilot.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at plugins/forjate/evals/fixtures/packs/tool-logging (name tool-logging) and set spec.context_packs to [tool-logging] in the brief. Then, as the app-scaffold builder of the Forjate use-case builder, generate the runnable workload of this use case under k8s/overlays/usecases/support-copilot/app/ from its decision records (entrypoints per architecture workload, one typed tool module per AI-engineering tool line, a deterministic model double for CI next to the real client, the seed and verify scripts that implement the data-pipeline and quality records, unit tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo), and write k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
+      "prompt": "Set up k8s/overlays/usecases/support-copilot/.builder/ by copying plugins/forjate/evals/fixtures/briefs/support-copilot.yaml to brief.yaml, plugins/forjate/evals/fixtures/plans/support-copilot.yaml to stage-plan.yaml, every file under plugins/forjate/evals/fixtures/records/support-copilot/ into decisions/, and plugins/forjate/evals/fixtures/gates/support-copilot.yaml to gates.yaml (create the directories; do not copy anything else). Write packs.yaml there activating the pack at plugins/forjate/evals/fixtures/packs/tool-logging (name tool-logging) and set spec.context_packs to [tool-logging] in the brief. Then, as the app-scaffold builder of the Forjate use-case builder, generate the walking skeleton of this use case under k8s/overlays/usecases/support-copilot/app/ from its decision records (an entry point for every workload of every stage in scope, one typed tool contract per AI-engineering tool line, every store, model route and external system wired to its double, a deterministic model double for CI next to the real client, the seed and the verify script that proves the route, a connection diagram, contract tests that pass without a cluster, a Dockerfile, and .github/workflows/ for the app repo; no business logic beyond what the verify script needs and no domain unit tests: the business rules are seams for the backlog), and write k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml following plugins/forjate/scripts/builder/schemas/scaffold.schema.json. Check it with plugins/forjate/scripts/builder/scaffold-check.py and run the app's tests.",
       "expected_output": "Every tool takes a keyword-only correlation_id, the log line carries it, every result model has a source field; scaffold.yaml cites pack:tool-logging#TOOLS; the rest as in the no-pack copilot scaffold.",
       "assertions": [
         {
@@ -444,6 +523,12 @@
           "type": "scaffold_check",
           "path": "k8s/overlays/usecases/support-copilot",
           "text": "scaffold-check: tool signatures match the record, templates @v1, no hand-rolled build"
+        },
+        {
+          "type": "yaml_expr",
+          "path": "k8s/overlays/usecases/support-copilot/.builder/scaffold.yaml",
+          "expr": "bool((spec.get('skeleton') or {}).get('seams'))",
+          "text": "scaffold.yaml declares the walking skeleton and its seams"
         },
         {
           "type": "grep",

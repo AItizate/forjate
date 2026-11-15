@@ -44,7 +44,7 @@ An exit criterion is a gate: `{ id, text, owner, check }`. The `check` says how 
 
 A manual gate is a meeting; an automated gate is a proof. Keep manual gates to the approver's sign-off and the decisions only a person can make (retention, budget), and express everything else as `verify-job`, `ci` or `metric`, even when the check does not exist yet: naming it is what makes the quality expert build it. If more than a third of a transition's gates are manual, rewrite them.
 
-Crawl always carries at least one `verify-job` gate because the ephemeral runner blocks on it: `ephemeral.sh up <name>` returning 0 is the proof that Crawl works. Walk carries at least one `metric` gate tied to the brief's success metric. Run carries the compliance and operability gates the regulated flag demands.
+Crawl always carries at least one `verify-job` gate because the ephemeral runner blocks on it: `ephemeral.sh up <name>` returning 0 is the proof that Crawl works. Walk carries at least one `metric` gate tied to the brief's success metric and, when the use case has a scaffolded app, the minimal-implementation gate: the scaffold delivers a walking skeleton whose business rules are a backlog, an agent team implements them during Walk, and the Walk verify Job runs strict. Walk closes with a minimal implementation of the business, not the full one; Run hardens what Walk implemented. Run carries the compliance and operability gates the regulated flag demands.
 
 Gate ids follow `G-<AREA>-<n>`: `G-Q-1` for quality, `G-SEC-1` for security, `G-BIZ-1` for business, `G-OPS-1` for devops. Keep the numbering per area; the quality expert consolidates them later into `gates.yaml`.
 

@@ -1,9 +1,8 @@
-# Runtime dependencies of bootstrap.py, installed by the Job's install-deps init
-# container into an emptyDir. Fully pinned (direct and transitive).
-# The Job needs egress to PyPI, or point pip at your mirror with PIP_INDEX_URL on
-# the install-deps container (kustomize patch in the tenant overlay).
+# Runtime dependencies of bootstrap.py, baked into the Job's image at build time
+# (image/Dockerfile); the Job installs nothing. Fully pinned (direct and transitive).
 # Every file is hashed (pip --require-hashes, binary wheels only): musllinux x86_64 and
-# aarch64 for CPython 3.13, or pure Python. Regenerate hashes when bumping a version.
+# aarch64 for CPython 3.13, or pure Python. Regenerate hashes when bumping a version,
+# then rebuild and republish the image (image/published.yaml, kustomization `images:`).
 certifi==2026.10.23 \
     --hash=sha256:e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1
 cffi==2.1.1 \

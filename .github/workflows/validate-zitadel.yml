@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          # The bootstrap Job runs CPython 3.13 (python:3.13.5-alpine3.22)
+          # The bootstrap Job image runs CPython 3.13 (bootstrap/image/Dockerfile)
           python-version: '3.13'
 
       - name: Install kustomize and helm at the pinned versions

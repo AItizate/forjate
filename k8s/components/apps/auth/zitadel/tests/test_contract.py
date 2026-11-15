@@ -187,8 +187,8 @@ def test_bootstrap_job_is_hardened_and_installs_nothing_at_start(bundle):
     assert job["spec"]["activeDeadlineSeconds"]
     assert spec["securityContext"]["runAsNonRoot"] is True
     assert spec["securityContext"]["seccompProfile"]["type"] == "RuntimeDefault"
-    for c in spec["containers"] + spec["initContainers"]:
-        assert re.search(r":\d+\.\d+\.\d+", c["image"]), f"{c['image']} is a floating tag"
+    for c in spec["containers"] + spec.get("initContainers", []):
+        assert re.search(r"@sha256:[0-9a-f]{64}$", c["image"]), f"{c['image']} is not pinned by digest"
         sc = c["securityContext"]
         assert sc["allowPrivilegeEscalation"] is False and sc["readOnlyRootFilesystem"] is True
         assert sc["capabilities"]["drop"] == ["ALL"]
@@ -212,9 +212,10 @@ def test_requirements_are_fully_pinned_and_hashed():
         assert len(r) > 1 and all(re.fullmatch(r"--hash=sha256:[0-9a-f]{64}", h) for h in r[1:]), r[0]
 
 
-def test_job_installs_with_hashes_and_binary_wheels_only(bundle):
-    init = by_kind(bundle, "Job", "zitadel-bootstrap")["spec"]["template"]["spec"]["initContainers"][0]
-    assert "--require-hashes" in init["command"] and "--only-binary=:all:" in init["command"]
+def test_image_installs_with_hashes_and_binary_wheels_only():
+    # The install moved from the Job to the image build (M7): same guarantees.
+    dockerfile = (COMPONENT / "bootstrap/image/Dockerfile").read_text()
+    assert "--require-hashes" in dockerfile and "--only-binary=:all:" in dockerfile
 
 
 # ------------------------------------------------------------------ labels (m1)

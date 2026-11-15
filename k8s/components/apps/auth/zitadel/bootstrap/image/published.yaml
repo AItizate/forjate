@@ -1,0 +1,11 @@
+# What the digest in ../kustomization.yaml (`images:`) was built from. Updated together
+# with that digest each time the image is published (docs/apps/zitadel.md, "Bootstrap
+# image"); the tests fail when requirements.txt or the Dockerfile base changes without
+# a new image, and when the digest here and in the kustomization disagree.
+image: ghcr.io/aitizate/zitadel-bootstrap
+# PLACEHOLDER (all zeros): no image has been published yet.
+digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+# sha256 of ../requirements.txt at build time.
+requirements_sha256: e0fa1e34afc6bae0e7459b064d8b9b9742900073da0b5fb12bf5e7be9598ff46
+# The PYTHON_IMAGE build argument of Dockerfile at build time.
+base: python:3.13.13-alpine3.23@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc

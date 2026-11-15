@@ -46,9 +46,10 @@ k8s/components/apps/auth/zitadel/
 ├── ingress.yaml                    # zitadel.example.com (patchable); /ui/v2/login -> zitadel-login
 ├── bootstrap/                      # IaC: orgs, project, roles, apps, users, IdPs
 │   ├── kustomization.yaml
-│   ├── job.yaml                    # PostSync Job (runs bootstrap.py)
-│   ├── bootstrap.py                # the reconciler (tested, see ../tests/)
-│   ├── requirements.txt            # pinned dependencies of bootstrap.py
+│   ├── job.yaml                    # PostSync Job (runs bootstrap.py in the image below)
+│   ├── bootstrap.py                # the reconciler (tested, see ../tests/), mounted from a ConfigMap
+│   ├── requirements.txt            # pinned, hashed dependencies of bootstrap.py (baked into the image)
+│   ├── image/                      # Dockerfile of the Job image + published.yaml (what the digest was built from)
 │   ├── configmap.yaml              # desired state placeholder (the tenant replaces it)
 │   ├── serviceaccount.yaml
 │   ├── role.yaml                   # secrets get/create/patch, own namespace only
@@ -174,6 +175,24 @@ patches:
 6. OIDC credentials land in `zitadel-oidc-<app>` in the same namespace.
 
 There is no default admin password and no manual step in the UI. Init and setup run again on every sync (they are idempotent: setup skips what already exists), which is the price of keeping them as recreatable hooks.
+
+### Bootstrap image
+
+The bootstrap Job runs `ghcr.io/aitizate/zitadel-bootstrap`, pinned **by digest** in `bootstrap/kustomization.yaml` (`images:`). The image is CPython plus the dependencies of `bootstrap/requirements.txt` (every file checked against its hash, binary wheels only), installed when the image is built. The Job installs nothing when it starts, so it needs no egress to a package index: under a default-deny NetworkPolicy it only needs the Zitadel API (`instance_url`) and the Kubernetes API (for the `zitadel-oidc-*` Secrets).
+
+- **What is in it** (`bootstrap/image/Dockerfile`): the official `python:<version>-alpine` image, pinned by the digest of its multi-arch index, with the Alpine updates applied; then pip, ensurepip, apk and the busybox shell and applets are removed. It runs as UID/GID 65532, the identity the Job's `securityContext` sets. The Job keeps `runAsNonRoot`, a read-only root filesystem, no capabilities and `RuntimeDefault` seccomp; the tests pin that.
+- **What is not in it**: `bootstrap.py`. The script reaches the Job as the ConfigMap `zitadel-bootstrap-scripts` (name hash on, so editing the script rolls the Job), which keeps the script reviewable in git and means a script change does not need a new image. The image changes only when `requirements.txt` or the base image changes.
+- **How it is built**: `.github/workflows/build-zitadel-bootstrap-image.yml`. On a pull request it builds, runs the image offline (no network, read-only, all capabilities dropped) and fails on a shell or pip in the image, and scans it with Trivy (HIGH or CRITICAL with a fix available fails). A maintainer publishes from `main` by running the workflow by hand with `publish: true`: it pushes amd64 and arm64 with SBOM and provenance attestations and prints the index digest.
+- **How the digest gets into the manifests**: a pull request that writes the printed digest in `bootstrap/kustomization.yaml` (`images:`) and the digest, `requirements_sha256` and `base` in `bootstrap/image/published.yaml`. The tests fail when the two digests disagree, when `requirements.txt` or the Dockerfile base changed after the recorded build, and while the digest is the all-zero placeholder ("not published yet"). Verify a published image with `gh attestation verify oci://ghcr.io/aitizate/zitadel-bootstrap@<digest> -R AItizate/forjate`.
+- **Using your own registry** (air-gapped cluster, pull-through mirror): copy the image **by digest** (for example `crane copy ghcr.io/aitizate/zitadel-bootstrap@<digest> registry.example.com/mirror/zitadel-bootstrap`, which keeps the digest) and override only the name in your overlay; the digest from the component stays:
+
+  ```yaml
+  images:
+    - name: ghcr.io/aitizate/zitadel-bootstrap
+      newName: registry.example.com/mirror/zitadel-bootstrap
+  ```
+
+  To run an image you built yourself from `bootstrap/image/Dockerfile`, set `digest:` too.
 
 ## First login
 
@@ -348,7 +367,6 @@ kubectl logs -n zitadel job/zitadel-setup -c zitadel-machinekey   # writes zitad
 
 # Bootstrap job logs (exit 1: an item failed, see the list at the end; exit 2: invalid config)
 kubectl logs -n zitadel job/zitadel-bootstrap
-kubectl logs -n zitadel job/zitadel-bootstrap -c install-deps     # needs egress to PyPI
 
 # Check OIDC discovery
 curl https://zitadel.acme.dev/.well-known/openid-configuration
@@ -358,6 +376,7 @@ curl https://zitadel.acme.dev/.well-known/openid-configuration
 |---|---|
 | Pods in `CreateContainerConfigError` | a Secret of the contract is missing (`zitadel-masterkey`, `zitadel-admin-password`, `zitadel-db-config`) |
 | `zitadel` Deployment never starts, init/setup Jobs absent | `helm.sh/hook*` annotation back in the render; `k8s/components/apps/auth/zitadel/tests/test_render.py` guards this |
+| Bootstrap pod in `ErrImagePull` / `ImagePullBackOff` | the node cannot reach `ghcr.io`: mirror the image by digest, see "Bootstrap image" |
 | Bootstrap: `Failed to get an access token` | `instance_url` is not the issuer (it is the JWT audience and the Host header) |
 | Bootstrap: exit 2 | `CONFIG ERROR` lines on stderr: literal `initial_password`, azure without tenant, `auto_linking: email` on azure/generic_oidc, `auto_linking: username` anywhere |
 | Google/GitHub login says "cannot link" / "linking is not enabled" | the IdP was created with `isLinkingAllowed=false` (an older bootstrap, or `is_linking_allowed: false`); re-run the bootstrap with `auto_linking` set |

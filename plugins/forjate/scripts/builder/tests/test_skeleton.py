@@ -243,3 +243,44 @@ def test_backlog_and_skeleton_checks_name_no_component():
     """Facts about components come from the catalog; the backlog only reads the records and the scaffold."""
     for f in ("backlog.py",):
         assert not re.search(r"[\"']apps/", (BUILDER / f).read_text())
+
+
+# ----------------------------------------------------------------------------------------------- assembly
+def test_assembly_wires_each_workload_at_its_stage_and_walk_runs_verify_strict(tmp_path: Path):
+    """G2's records with a skeleton scaffold: the Walk workload lands in stages/walk, not in the Crawl root, and
+    the Walk verify Job fails what Crawl left pending (VERIFY_STRICT=1)."""
+    repo = BUILDER.parents[3]
+    k8s = tmp_path / "k8s"
+    (k8s / "overlays" / "usecases").mkdir(parents=True)
+    for d in ("components", "base"):
+        (k8s / d).symlink_to(repo / "k8s" / d)
+    dst = k8s / "overlays" / "usecases" / "support-copilot"
+    shutil.copytree(repo / "k8s" / "overlays" / "usecases" / "support-copilot" / ".builder", dst / ".builder")
+    doc = scaffold(dst)
+    doc["spec"]["workloads"].append({"name": "escalation-worker", "kind": "deployment", "stage": "walk", "port": 8002,
+                                     "health_path": "/healthz", "command": ["python", "-m", "support_copilot.escalation_worker"]})
+    doc["spec"]["skeleton"] = {"diagram": "app/docs/connections.md",
+                               "seams": [{"id": "queue-push", "kind": "workload", "name": "escalation-worker", "stage": "walk",
+                                          "record": "decisions/architecture.yaml", "contract": "support_copilot/escalation_worker.py", "status": "stub"}],
+                               "verify": {"job": "copilot-validate"}}
+    save(dst, doc)
+    r = subprocess.run([sys.executable, str(BUILDER.parent.parent / "skills" / "kustomize" / "scripts" / "assemble.py"), str(dst), "--force"],
+                       capture_output=True, text=True, cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    crawl_ns = dst / "namespaces" / "uc-support-copilot"
+    walk_ns = dst / "stages" / "walk" / "namespaces" / "uc-support-copilot"
+    assert not (crawl_ns / "escalation-worker.yaml").exists()
+    assert "escalation-worker.yaml" not in (crawl_ns / "kustomization.yaml").read_text()
+    assert (walk_ns / "escalation-worker.yaml").is_file()
+    assert "escalation-worker.yaml" in yaml.safe_load((walk_ns / "kustomization.yaml").read_text())["resources"]
+    patch = yaml.safe_load((dst / "stages" / "walk" / "patches" / "copilot-validate-env-patch.yaml").read_text())
+    env = patch["spec"]["template"]["spec"]["containers"][0]["env"]
+    assert {"name": "VERIFY_STRICT", "value": "1"} in env
+    agent = yaml.safe_load((dst / "stages" / "walk" / "patches" / "agent-api-env-patch.yaml").read_text())
+    assert not any(e["name"] == "VERIFY_STRICT" for e in agent["spec"]["template"]["spec"]["containers"][0]["env"])
+    if shutil.which("kubectl"):
+        for ex in dst.rglob("*.env.example"):   # as CI does: the gitignored .env copies of the committed examples
+            shutil.copy(ex, ex.with_suffix(""))
+        b = subprocess.run(["kubectl", "kustomize", str(dst / "stages" / "walk")], capture_output=True, text=True)
+        assert b.returncode == 0, b.stderr
+        assert "name: escalation-worker" in b.stdout

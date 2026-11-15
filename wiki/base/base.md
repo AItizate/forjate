@@ -3,7 +3,7 @@ title: base
 kind: base
 sources:
 - k8s/base
-compiled_at: '2026-11-07'
+compiled_at: '2026-11-15'
 consumed_by:
 - overlays/agentic-orchestration
 - overlays/agentic-simple-workflow
@@ -15,6 +15,7 @@ consumed_by:
 - overlays/multi-tenant-pattern-org
 - overlays/quickstart
 - overlays/usecases-db-migration-a-to-b
+- overlays/usecases-ha-decision-gate
 - overlays/usecases-invoice-intake
 - overlays/usecases-invoice-intake-stages-walk
 - overlays/usecases-support-copilot
@@ -67,6 +68,7 @@ summary_source: derived
 - [overlays/multi-tenant-pattern-org](../overlays/multi-tenant-pattern-org.md)
 - [overlays/quickstart](../overlays/quickstart.md)
 - [overlays/usecases-db-migration-a-to-b](../overlays/usecases-db-migration-a-to-b.md)
+- [overlays/usecases-ha-decision-gate](../overlays/usecases-ha-decision-gate.md)
 - [overlays/usecases-invoice-intake](../overlays/usecases-invoice-intake.md)
 - [overlays/usecases-invoice-intake-stages-walk](../overlays/usecases-invoice-intake-stages-walk.md)
 - [overlays/usecases-support-copilot](../overlays/usecases-support-copilot.md)

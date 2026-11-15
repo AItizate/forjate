@@ -332,6 +332,14 @@ Combined with Crossplane, an agent can:
 3. Access provisioned resources with its token
 4. All governed by RBAC roles defined in git
 
+## How it is validated
+
+Three layers, from cheapest to most real:
+
+1. **Render and contract tests** (`k8s/components/apps/auth/zitadel/tests`, `validate-zitadel.yml`): the hooks and sync-waves of the render, the contract against the rendered pods, and `bootstrap.py` against a mocked Zitadel.
+2. **The `zitadel-e2e` use case** (`k8s/overlays/usecases/zitadel-e2e/`, [README](../../k8s/overlays/usecases/zitadel-e2e/README.md)): a real Zitadel v4 with Login V2 and PostgreSQL on k3d, the three hooks run as plain Jobs in the order of "Delivery requirement", and a verify Job that asserts six behaviours against the live instance: discovery and JWKS through the issuer URL, an idempotent second bootstrap run, the `groups` claim in the id_token of a user with a project role, the IdP linking settings (and the exit 2 of `auto_linking` with `is_linking_allowed: false`), the FirstInstance email uniqueness check (`belongs to 2 users`) and self-registration off by default. It runs on every change to what it composes and nightly (`usecase-e2e-nightly.yml`, `workflow_dispatch` with `usecase: zitadel-e2e`). Run it locally with `./scripts/ephemeral/ephemeral.sh up zitadel-e2e`.
+3. **A real cluster**, for what the use case leaves out: a real external IdP login, Argo CD delivery, Longhorn and the tenant's own wiring.
+
 ## Troubleshooting
 
 ```bash

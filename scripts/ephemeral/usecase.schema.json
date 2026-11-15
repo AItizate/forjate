@@ -58,6 +58,10 @@
           "description": "How long before gc reclaims the environment.",
           "pattern": "^[1-9][0-9]*[mhd]$"
         },
+        "nightly": {
+          "type": "boolean",
+          "description": "Run this use case in the nightly L3 workflow (usecase-e2e-nightly.yml) although it ships no app/. Use cases with an app/ directory are always included. Default false."
+        },
         "components": {
           "type": "array",
           "description": "Catalog components this use case pulls in, relative to k8s/components/. Informational: reviewers and the catalog read it, the runner does not.",

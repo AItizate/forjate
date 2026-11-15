@@ -1,0 +1,71 @@
+# Desired state of Zitadel for this use case: the tenant file of docs/examples/zitadel-tenant,
+# trimmed to what the verify Job asserts. No secret in here (`*_env` names a key of the Secret
+# zitadel-bootstrap-env).
+instance_url: http://zitadel.uc-zitadel-e2e.svc.cluster.local   # = ExternalDomain in secrets/zitadel-db-config.yaml
+
+# A new v4 instance already runs Login V2; setting it makes the bootstrap read the feature on
+# every run, so a second run must report it unchanged (assertion 2).
+features:
+  login_v2: true
+
+# No login_policy: self-registration must come out OFF (assertion 6).
+
+organizations:
+  - name: e2e
+    is_default: true
+
+project:
+  name: platform
+  roles:
+    - {key: admin, display_name: Administrator, group: platform}
+    - {key: operator, display_name: Operator, group: platform}
+    - {key: viewer, display_name: Viewer, group: platform}
+
+# Flat `groups` claim from the project roles (assertion 3). The action of
+# k8s/components/apps/auth/zitadel/bootstrap/configmap.yaml, as the tenant would copy it.
+actions:
+  - name: groupsClaim
+    allowed_to_fail: true
+    script: |
+      function groupsClaim(ctx, api) {
+        if (ctx.v1.user.grants === undefined || ctx.v1.user.grants.count == 0) { return; }
+        let grants = [];
+        ctx.v1.user.grants.grants
+          .filter((g) => g.projectId === "{{project_id}}")
+          .forEach((g) => g.roles.forEach((r) => grants.push(r)));
+        api.v1.claims.setClaim("groups", grants);
+      }
+flows:
+  - type: complement_token
+    triggers: [pre_userinfo_creation, pre_access_token_creation]
+    actions: [groupsClaim]
+
+applications:
+  # Confidential web client. Nothing ever calls the redirect URI: the verify Job takes the
+  # authorization code from the callback URL that Zitadel builds.
+  - name: portal
+    redirect_uris: ["https://portal.example.test/callback"]
+
+users:
+  - username: ana
+    first_name: Ana
+    last_name: Admin
+    email: ana@e2e.example.test
+    email_verified: true
+    initial_password_env: ANA_INITIAL_PASSWORD
+    password_change_required: false
+    roles: [admin]
+
+service_users:
+  - username: ci-agent
+    description: Pipeline service account
+    roles: [operator]
+
+# Placeholder credentials: the IdP template is created and its options read back, nobody ever
+# signs in through Google (assertions 4 and 5).
+identity_providers:
+  - name: Google
+    type: google
+    client_id_env: GOOGLE_CLIENT_ID
+    client_secret_env: GOOGLE_CLIENT_SECRET
+    options: {auto_linking: email}

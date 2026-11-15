@@ -1,0 +1,45 @@
+# What the lifecycle Jobs may do, in their own namespace only (no ClusterRole). Each rule
+# exists for one step of scripts/seed.sh, scripts/run-hook.sh or scripts/verify.py.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: zitadel-e2e
+rules:
+  # seed: the Login V2 keypair. verify: the OIDC client Secrets and the bootstrap service
+  # account key, read to ask Zitadel for tokens and to prove the Secrets were not rewritten.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create"]
+  # verify: a throwaway bootstrap config per run (the variants of assertions 4 to 6).
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "create", "patch", "delete"]
+  # run-hook.sh: runs a copy of a hook Job and reads its exit code and log.
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # seed: wait for PostgreSQL, scale the Deployments up once setup has migrated.
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "deployments"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: zitadel-e2e
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: zitadel-e2e
+subjects:
+  - kind: ServiceAccount
+    name: zitadel-e2e

@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-11-12'
+compiled_at: '2026-11-15'
 ---
 
 # Forjate wiki — index
@@ -72,7 +72,7 @@ The foundation every tenant inherits.
 ### bundles
 
 - [bundles-temporal-stack](components/bundles-temporal-stack.md) — temporal-stack — Temporal + PostgreSQL in a single reference · used by 2
-- [bundles-zitadel-stack](components/bundles-zitadel-stack.md) — zitadel-stack — Zitadel IdP + PostgreSQL + bootstrap in a single reference · unused in this repo
+- [bundles-zitadel-stack](components/bundles-zitadel-stack.md) — zitadel-stack — Zitadel IdP + PostgreSQL + bootstrap in a single reference · used by 1
   - [bundles-zitadel-stack-postgres](components/bundles-zitadel-stack-postgres.md) — Wraps the factory postgres component with zitadel- prefix · used by 1
 
 ### cdc
@@ -222,3 +222,4 @@ Concrete environments assembled from base + components.
 - [usecases-openbao-secrets-openbao](overlays/usecases-openbao-secrets-openbao.md) — security-openbao with all four sub-directories, moved to namespace `openbao` the way a tenant does it · 5 local references
 - [usecases-support-copilot](overlays/usecases-support-copilot.md) — Crawl root of support-copilot, assembled from .builder/ by forjate:kustomize. Stages extend it: stages/walk, stages/run · 3 local references
 - [usecases-support-copilot-stages-walk](overlays/usecases-support-copilot-stages-walk.md) — walk stage of support-copilot: recomposes the Crawl root (base, Crawl components, the namespace child) and adds what the records require for walk, nothing the plan put out of scope · 11 local references
+- [usecases-zitadel-e2e](overlays/usecases-zitadel-e2e.md) — Zitadel v4 with Login V2 and PostgreSQL, validated end to end on k3d. Everything lives in one · 1 local reference

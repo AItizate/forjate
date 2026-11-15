@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-11-12",
+  "compiled_at": "2026-11-15",
   "stages": [
     "crawl",
     "walk",
@@ -5686,7 +5686,9 @@
         "k8s/components/bundles/zitadel-stack/postgres"
       ],
       "remote_refs": [],
-      "consumed_by": [],
+      "consumed_by": [
+        "overlays/usecases-zitadel-e2e"
+      ],
       "parent": null,
       "stages": [
         "walk"

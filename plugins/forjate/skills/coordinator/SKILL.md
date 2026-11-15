@@ -63,7 +63,15 @@ Roles the plan wants but that have no agent yet are not an error: list them in t
 
 Two builders, not experts; they decide nothing the records decided. Both run after wave 3 so `gates.yaml` is what the assembly honours. Delegate each in the foreground and wait for it to return before the next step: the scaffold writes what the assembly reads, and in a non-interactive run a turn that ends while a builder still works ends the run with the builder cut off (`app/` half written, no overlay, no report).
 
-**Scaffold.** When the architecture record lists workloads (anything but a pure operator Job), delegate to the `app-scaffold` agent with the use-case directory. It writes `app/` (entrypoints per workload, one typed tool module per AI-engineering tool line, the model double for CI, the seed and verify scripts, tests, a Dockerfile, the workflows that call the shared CI templates) and `.builder/scaffold.yaml`, and reports its tests and `scaffold-check.py`. Log: `- <date> scaffold: app/ generated, tests <pass|fail>, scaffold-check <clean|n findings>`.
+**Scaffold.** When the architecture record lists workloads (anything but a pure operator Job), delegate to the `app-scaffold` agent with the use-case directory. It writes a walking skeleton under `app/`: an entry point for every workload of every stage in scope, one typed tool contract per AI-engineering tool line, every store, queue, model route and system wired through a seam to its double, the seed and the verify Job that proves the route, the connection diagram, contract tests, a Dockerfile and the workflows that call the shared CI templates. It also writes `.builder/scaffold.yaml` with `spec.skeleton`, and reports its tests and `scaffold-check.py`. It writes no business logic and no domain unit tests: those are the backlog's. Log: `- <date> scaffold: skeleton generated, <n> seams, tests <pass|fail>, scaffold-check <clean|n findings>`.
+
+**Backlog.** Right after the scaffold returns, derive the backlog yourself. It is deterministic, so no agent is needed:
+
+```bash
+poetry run python ${CLAUDE_PLUGIN_ROOT}/scripts/builder/backlog.py <usecase-dir>
+```
+
+It writes `.builder/backlog.yaml` and `.builder/backlog.md`. Each seam, each later-stage workload, each pending verify assertion, each workaround and each `OPEN:` note of the scaffold gets a ticket, linked to its record and its gates. The agent team implements these tickets at Walk, and Walk closes when the Walk tickets are done (the minimal implementation). Exit 2 means the scaffold has no `spec.skeleton`; say so in the report instead of inventing tickets. Log: `- <date> backlog: <n> tickets (walk <a>, run <b>)`.
 
 **Assembly.** Delegate to the `kustomize` agent with the use-case directory (and `--target tenant <repo>` when the user wants the tenant-root shape for im-u, globant or another tenant repo). It runs `assemble.py`, reviews and fills what it wrote, then builds the root and every stage, runs `kubeconform`, `validate.py`, `scaffold-check.py`, `secret-scan.py` and `gates.py run <name> --transition 'crawl->walk' --only ci`, and returns the build results, the gates table and every note. Carry the notes into the report under "Assembly notes". When the user allows a cluster, `./scripts/ephemeral/ephemeral.sh up <name>` is the Crawl proof: the verify Job's exit code is `G-Q-1`. Log: `- <date> assembly: overlay written, root and stages build, ci gates <n pass / m fail / k skipped>`.
 
@@ -73,7 +81,7 @@ Print the review report (`references/report.md`) and stop. The gates section lis
 
 ## Resume
 
-Read what exists, in this order: `brief.yaml`, `packs.yaml`, `stage-plan.yaml`, `decisions/*.yaml`, `gates.yaml`, `scaffold.yaml`, `usecase.yaml`, `log.md`. Validate. Continue from the first missing or invalid artifact using the build steps above, skipping every completed step: missing records mean wave 2 for those roles only; records present and `gates.yaml` missing or stale means wave 3 only; gates present and no `app/` or no `kustomization.yaml` means step 5 only. Say in one line what you found and where you are picking up. A valid artifact is never rewritten on resume unless the user asks.
+Read what exists, in this order: `brief.yaml`, `packs.yaml`, `stage-plan.yaml`, `decisions/*.yaml`, `gates.yaml`, `scaffold.yaml`, `backlog.yaml`, `usecase.yaml`, `log.md`. Validate. Continue from the first missing or invalid artifact using the build steps above, skipping every completed step: missing records mean wave 2 for those roles only; records present and `gates.yaml` missing or stale means wave 3 only; gates present and no `app/` or no `kustomization.yaml` means step 5 only; a skeleton with no `backlog.yaml`, or one `backlog.py --check` calls stale, means the backlog step only. Say in one line what you found and where you are picking up. A valid artifact is never rewritten on resume unless the user asks.
 
 ## Review
 

@@ -170,6 +170,7 @@ def test_backlog_has_a_ticket_per_seam_linked_to_record_and_gate(tmp_path: Path)
         assert t["record"].startswith(s["record"])
         assert t["gates"], t
         assert any(f"SEAM {s['id']}" in a for a in t["acceptance"])
+        assert any("test_pyramid (unit: pure functions" in a for a in t["acceptance"]), t   # the domain tests moved here
     # file_claim: the walk tool line, its gate's text verbatim as acceptance
     assert tickets["T-claim-filing"]["record"] == "decisions/ai-engineering.yaml#stages.walk.settings.tools"
     assert "no claim reaches the carrier without the clerk's approval token" in tickets["T-claim-filing"]["acceptance"]

@@ -20,6 +20,7 @@ spec:
     - every lookup is read-only and logged with its data class
     - '`SEAM shipment-lookup` in parcel_claims/tools/lookup_shipment.py is replaced by the rule it describes'
     - the verify Job passes with VERIFY_STRICT=1
+    - 'the rule''s unit tests, per the quality record''s test_pyramid (unit: pure functions for the damage predicate and the claim idempotency key)'
   - id: T-damage-classifier
     kind: seam
     title: 'classify_damage: classify the report as damaged or not'
@@ -34,6 +35,7 @@ spec:
     - 7 reports classified damaged, 3 not damaged
     - '`SEAM damage-classifier` in parcel_claims/model.py is replaced by the rule it describes'
     - the verify Job passes with VERIFY_STRICT=1
+    - 'the rule''s unit tests, per the quality record''s test_pyramid (unit: pure functions for the damage predicate and the claim idempotency key)'
   - id: T-claim-filing
     kind: seam
     title: 'file_claim: create the claim at the carrier once the clerk approved it'
@@ -47,6 +49,7 @@ spec:
     - no claim reaches the carrier without the clerk's approval token
     - '`SEAM claim-filing` in parcel_claims/tools/file_claim.py is replaced by the rule it describes'
     - the verify Job passes with VERIFY_STRICT=1
+    - 'the rule''s unit tests, per the quality record''s test_pyramid (unit: pure functions for the damage predicate and the claim idempotency key)'
   - id: T-review-surface
     kind: seam
     title: 'review-api: the clerk sees each draft and approves or rejects it'
@@ -60,6 +63,7 @@ spec:
     - the review surface answers behind auth
     - '`SEAM review-surface` in parcel_claims/review_api.py is replaced by the rule it describes'
     - the verify Job passes with VERIFY_STRICT=1
+    - 'the rule''s unit tests, per the quality record''s test_pyramid (unit: pure functions for the damage predicate and the claim idempotency key)'
   - id: T-assert-1
     kind: assertion
     title: 'Make it true: 7 reports classified damaged, 3 not damaged'

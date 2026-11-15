@@ -8,7 +8,8 @@ Reads .builder/scaffold.yaml (its `spec.skeleton`), the decision records and gat
 inputs write the same tickets with the same ids, so running it again after a scaffold change is a diff.
 
   - one ticket per seam (T-<seam id>): the business rule behind the `SEAM <id>` marker, linked to the
-    record that specifies it and the gates it serves;
+    record that specifies it and the gates it serves, with the unit tests the quality record's
+    test_pyramid asks for (the skeleton writes no domain unit tests);
   - one per workload of a later stage that no seam stands for (T-wl-<name>);
   - one per pending verify assertion (T-assert-<n>), depending on the tickets of its seams;
   - one per workaround (T-wa-<seam>) and per `OPEN:` note of scaffold.yaml (T-open-<n>).
@@ -53,6 +54,19 @@ class Inputs:
         plan = load_yaml(b / "stage-plan.yaml") if (b / "stage-plan.yaml").is_file() else {}
         stages = (plan.get("spec") or {}).get("stages") or {}
         self.in_scope = [s for s in STAGES if (stages.get(s) or {}).get("in_scope")] if stages else list(STAGES)
+        quality = load_yaml(b / "decisions" / "quality.yaml") if (b / "decisions" / "quality.yaml").is_file() else {}
+        self.unit_line = self._unit_line(quality)
+
+    @staticmethod
+    def _unit_line(quality: dict) -> str | None:
+        """The quality record's `unit:` layer of test_pyramid, first stage that has one: the skeleton writes no domain
+        unit tests, so each seam ticket ships the ones its rule needs."""
+        for st in STAGES:
+            sd = ((quality.get("spec") or {}).get("stages") or {}).get(st) or {}
+            for line in (sd.get("settings") or {}).get("test_pyramid") or []:
+                if str(line).strip().lower().startswith("unit:"):
+                    return str(line).strip()
+        return None
 
     def due(self, stage: str) -> str:
         """Walk closes with the minimal implementation: Crawl's seams are due there too."""
@@ -79,6 +93,8 @@ def tickets(inp: Inputs) -> list[dict]:
         acceptance = [inp.gate_text[g] for g in gates if g in inp.gate_text]
         acceptance += [p["assertion"] for p in pending if s["id"] in p["seams"]]
         acceptance += [f"`SEAM {s['id']}` in {s['contract']} is replaced by the rule it describes", done_line]
+        if inp.unit_line:
+            acceptance.append(f"the rule's unit tests, per the quality record's test_pyramid ({inp.unit_line})")
         out.append({"id": f"T-{s['id']}", "kind": "seam",
                     "title": f"{s['name']}: {s['summary']}" if s.get("summary") else f"Implement {s['kind']} {s['name']}",
                     "stage": inp.due(s["stage"]), "seam": s["id"], "record": record,

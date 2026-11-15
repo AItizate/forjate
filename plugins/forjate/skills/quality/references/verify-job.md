@@ -16,6 +16,14 @@
 
 Each line goes in `settings.verify_assertions`; the Job's script is the app-scaffold's to write from that list, the kustomize skill wires the Job.
 
+The scaffold writes a walking skeleton (#44). At Crawl, its verify Job does three things:
+
+- it proves every seam connected;
+- it checks every assertion that the doubles' decisions make true;
+- it prints `[PENDING]` for an assertion that needs a business rule nobody has implemented yet.
+
+A pending assertion does not fail Crawl. At Walk, the overlay sets `VERIFY_STRICT=1` and a pending assertion fails, which is the minimal-implementation gate. Write the assertions you want true at the end of Walk, exactly as you would for a full app: the scaffold decides which ones are pending, and the backlog turns each one into a ticket. Never soften an assertion so that Crawl passes.
+
 ## Shape
 
 From the kustomize skill's lifecycle Job pattern: `suspend: true`, `backoffLimit: 0`, `ttlSecondsAfterFinished`, `restartPolicy: Never`, restricted-compatible security context, requests and limits, `envFrom` the component Secrets by their mounted names. It reads endpoints from `usecase.yaml` (`<service>.uc-<name>.svc.cluster.local:<port>`) and nothing else; a verify Job that reaches outside the namespace at Crawl is a finding.

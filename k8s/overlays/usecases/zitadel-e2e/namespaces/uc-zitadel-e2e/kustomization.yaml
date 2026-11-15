@@ -1,0 +1,106 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Everything the use case runs, in one namespace. `namespace:` is stamped on every object,
+# the Helm chart's included (chart 10 renders `namespace: default`).
+namespace: uc-zitadel-e2e
+
+resources:
+  - namespace.yaml
+  - ../../../../../components/bundles/zitadel-stack
+  - serviceaccount.yaml
+  - rbac.yaml
+  - zitadel-e2e-seed-job.yaml
+  - zitadel-e2e-verify-job.yaml
+
+# The tenant's Secrets (contract.yaml). The seed Job adds the Login V2 keypair, generated
+# at run time so that no private key sits in git.
+secretGenerator:
+  - name: zitadel-masterkey
+    envs: [secrets/zitadel-masterkey.env]
+  - name: zitadel-postgres-secret
+    envs: [secrets/zitadel-postgres-secret.env]
+  - name: zitadel-admin-password
+    envs: [secrets/zitadel-admin-password.env]
+  - name: zitadel-bootstrap-env
+    envs: [secrets/zitadel-bootstrap-env.env]
+  - name: zitadel-db-config
+    files: [config-yaml=secrets/zitadel-db-config.yaml]
+
+configMapGenerator:
+  # The tenant's desired state for the bootstrap Job (behavior: replace, no `namespace:`).
+  - name: zitadel-bootstrap-config
+    behavior: replace
+    files:
+      - bootstrap.yaml
+  - name: zitadel-e2e-scripts
+    files:
+      - scripts/run-hook.sh
+      - scripts/seed.sh
+      - scripts/verify.py
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+# Not started by `kubectl apply`: the seed Job starts them in the documented order
+# (docs/apps/zitadel.md, "Delivery requirement"), so Zitadel must not run before
+# `zitadel setup` has migrated the database.
+replicas:
+  - name: zitadel
+    count: 0
+  - name: zitadel-login
+    count: 0
+
+patches:
+  # The hooks are applied suspended: they are templates. run-hook.sh runs a copy of each
+  # (a fresh Job per run, which is what Argo CD does with BeforeHookCreation).
+  - target: {kind: Job}
+    patch: |
+      - op: add
+        path: /spec/suspend
+        value: true
+
+  # Issuer on port 80 (ExternalPort in secrets/zitadel-db-config.yaml): clients reach the
+  # instance through its issuer URL.
+  - target: {kind: Service, name: zitadel}
+    patch: |
+      - op: add
+        path: /spec/ports/-
+        value: {name: http, port: 80, protocol: TCP, targetPort: 8080}
+
+  # HOSTNAME: the placeholder host of the component becomes the in-cluster issuer host.
+  - target: {kind: Ingress, name: zitadel}
+    patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: zitadel.uc-zitadel-e2e.svc.cluster.local
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: zitadel.uc-zitadel-e2e.svc.cluster.local
+  - target: {kind: Deployment, name: zitadel}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/httpGet/httpHeaders/0/value
+        value: zitadel.uc-zitadel-e2e.svc.cluster.local
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/httpGet/httpHeaders/0/value
+        value: zitadel.uc-zitadel-e2e.svc.cluster.local
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/httpGet/httpHeaders/0/value
+        value: zitadel.uc-zitadel-e2e.svc.cluster.local
+  - target: {kind: Deployment, name: zitadel-login}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
+        value: zitadel.uc-zitadel-e2e.svc.cluster.local
+  # The chart's login service builds its JWT audience as https://<domain>; the issuer here
+  # is plain http. Only the AUDIENCE line differs from the chart's file.
+  - target: {kind: ConfigMap, name: zitadel-login-config-dotenv}
+    patch: |
+      - op: replace
+        path: /data/.env
+        value: |-
+          ZITADEL_LOGINCLIENT_KEYFILE="/login-service-key/tls.key"
+          AUDIENCE="http://${ZITADEL_EXTERNALDOMAIN}"
+          ZITADEL_API_URL="http://zitadel:8080"
+          CUSTOM_REQUEST_HEADERS="Host:${ZITADEL_EXTERNALDOMAIN},X-Zitadel-Public-Host:${ZITADEL_EXTERNALDOMAIN}"

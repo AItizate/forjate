@@ -1,0 +1,71 @@
+# Verify phase: six behaviours of the zitadel component against the live instance.
+# `ephemeral.sh up` blocks on it. See scripts/verify.py.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zitadel-e2e-verify
+  labels:
+    app: zitadel-e2e-verify
+    forjate.io/usecase: zitadel-e2e
+    forjate.io/phase: verify
+spec:
+  suspend: true
+  # One attempt: a retry would run the bootstrap variants again on a changed instance.
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: zitadel-e2e-verify
+    spec:
+      serviceAccountName: zitadel-e2e
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: verify
+          image: alpine/k8s:1.31.4
+          command: ["python3", "/scripts/verify.py"]
+          env:
+            - { name: HOME, value: /tmp }
+            - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+            - { name: SCRIPTS, value: /scripts }
+            - name: NS
+              valueFrom: { fieldRef: { fieldPath: metadata.namespace } }
+            # Through the Service, as any client would: the issuer URL of the instance.
+            - { name: ISSUER, value: "http://zitadel.$(NS).svc.cluster.local" }
+            - { name: LOGIN_URL, value: "http://zitadel-login.$(NS).svc.cluster.local:3000" }
+            - { name: ADMIN_SA_KEY_FILE, value: /secrets/zitadel-admin-sa.json }
+            - { name: LOGIN_SERVICE_KEY_FILE, value: /login-service-key/tls.key }
+            - name: ANA_INITIAL_PASSWORD
+              valueFrom: { secretKeyRef: { name: zitadel-bootstrap-env, key: ANA_INITIAL_PASSWORD } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          volumeMounts:
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+            - { name: admin-sa-key, mountPath: /secrets, readOnly: true }
+            - { name: login-service-key, mountPath: /login-service-key, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: scripts
+          configMap: { name: zitadel-e2e-scripts }
+        # Written by the chart's setup Job: the IAM_OWNER key the bootstrap uses too.
+        - name: admin-sa-key
+          secret: { secretName: zitadel-admin-sa }
+        # The Login V2 keypair the seed generated: what the login service signs its JWTs with.
+        - name: login-service-key
+          secret:
+            secretName: zitadel-login-service-key
+            items:
+              - { key: tls.key, path: tls.key }
+        - name: tmp
+          emptyDir: {}

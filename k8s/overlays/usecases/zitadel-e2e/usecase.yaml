@@ -1,0 +1,55 @@
+# Contract for the zitadel-e2e ephemeral use-case environment.
+# Schema: scripts/ephemeral/usecase.schema.json
+# Design: docs/ephemeral-use-cases.md · what it proves: README.md (and docs/apps/zitadel.md, "How it is validated")
+apiVersion: forjate.io/v0
+kind: UseCase
+metadata:
+  name: zitadel-e2e
+  description: Zitadel v4 with Login V2, PostgreSQL and the bootstrap Job on k3d, the three hooks run as plain Jobs in the documented order, and a verify Job that proves six behaviours against the live instance.
+spec:
+  # Nothing here is cluster-scoped. Dedicated anyway: Zitadel, its login service and
+  # PostgreSQL are the heaviest stack of any use case, and the health signals
+  # (restarts after verify) must not be disturbed by a neighbour.
+  isolation: dedicated
+  ttl: 2h
+  # The nightly runs it although it ships no app/ (see .github/workflows/usecase-e2e-nightly.yml).
+  nightly: true
+
+  # bundles/zitadel-stack composes the postgres component and auth/zitadel/bootstrap.
+  components:
+    - apps/auth/zitadel
+    - apps/databases/postgres
+
+  jobs:
+    # Runs the three hooks in the order docs/apps/zitadel.md ("Delivery requirement")
+    # documents: postgres, init, setup, the Deployments, bootstrap.
+    seed:
+      name: zitadel-e2e-seed
+      timeout: 1200
+    # No `run`: the second bootstrap run, whose idempotency is assertion 2, needs the
+    # state before and after it, so the verify Job runs it itself.
+    verify:
+      name: zitadel-e2e-verify
+      timeout: 900
+
+  outputs:
+    endpoints:
+      - name: issuer
+        service: zitadel
+        port: 80
+        protocol: http
+      - name: login
+        service: zitadel-login
+        port: 3000
+        protocol: http
+    secrets:
+      - name: first-admin
+        secretRef: zitadel-admin-password
+        keys:
+          - password
+      - name: oidc-client
+        secretRef: zitadel-oidc-portal
+        keys:
+          - client-id
+          - client-secret
+          - issuer-url

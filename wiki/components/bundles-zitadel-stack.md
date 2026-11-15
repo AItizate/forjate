@@ -3,8 +3,10 @@ title: bundles-zitadel-stack
 kind: component
 sources:
 - k8s/components/bundles/zitadel-stack
-compiled_at: '2026-11-12'
+compiled_at: '2026-11-15'
 category: bundles
+consumed_by:
+- overlays/usecases-zitadel-e2e
 source_hash: 185e043a3e6326ee
 source_last_commit: '2026-11-12'
 summary: "zitadel-stack \u2014 Zitadel IdP + PostgreSQL + bootstrap in a single reference"
@@ -62,7 +64,7 @@ summary_source: derived
 
 ### Consumed by
 
-_No overlay in this repo references this component._
+- [overlays/usecases-zitadel-e2e](../overlays/usecases-zitadel-e2e.md) — resource, via namespaces/uc-zitadel-e2e
 
 <!-- END DECLARED -->
 

@@ -1,0 +1,84 @@
+# Seed phase: the three hooks in the documented order. See scripts/seed.sh.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zitadel-e2e-seed
+  labels:
+    app: zitadel-e2e-seed
+    forjate.io/usecase: zitadel-e2e
+    forjate.io/phase: seed
+spec:
+  # Applied suspended; the runner starts seed -> verify in order.
+  suspend: true
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: zitadel-e2e-seed
+    spec:
+      serviceAccountName: zitadel-e2e
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        # The Login V2 keypair (Secret zitadel-login-service-key, contract.yaml). Self-signed is
+        # fine: Zitadel only checks the JWT signature against tls.crt. openssl comes from the
+        # PostgreSQL image, which the stack pulls anyway.
+        - name: login-keypair
+          image: postgres:16
+          command:
+            - openssl
+            - req
+            - -x509
+            - -newkey
+            - rsa:2048
+            - -nodes
+            - -days
+            - "3650"
+            - -subj
+            - /CN=login-service
+            - -keyout
+            - /keys/tls.key
+            - -out
+            - /keys/tls.crt
+          env:
+            - { name: HOME, value: /tmp }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits: { cpu: 500m, memory: 128Mi }
+          volumeMounts:
+            - { name: keys, mountPath: /keys }
+            - { name: tmp, mountPath: /tmp }
+      containers:
+        - name: seed
+          image: alpine/k8s:1.31.4
+          command: ["sh", "/scripts/seed.sh"]
+          env:
+            - { name: HOME, value: /tmp }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          volumeMounts:
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+            - { name: keys, mountPath: /keys, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: scripts
+          configMap: { name: zitadel-e2e-scripts }
+        - name: keys
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

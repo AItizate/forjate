@@ -1,9 +1,11 @@
 name: Use-case E2E (nightly)
 
 # L3 of the use-case builder (docs/use-case-builder/plan.md §3): every use case that ships an app/
-# and a usecase.yaml is brought up on k3d with ephemeral.sh, which builds the scaffold's image,
-# seeds, runs and blocks on the verify Job; then the ci gates of crawl->walk run against the Walk
-# overlay. Nightly, not per PR: the images (Docling, Ollama, Postgres, MinIO) are large.
+# and a usecase.yaml, plus every one whose contract says `spec.nightly: true` (a component-only
+# use case such as zitadel-e2e), is brought up on k3d with ephemeral.sh, which builds the
+# scaffold's image, seeds, runs and blocks on the verify Job; then, when the use case carries
+# .builder/gates.yaml, the ci gates of crawl->walk run against the Walk overlay. Nightly, not per
+# PR: the images (Docling, Ollama, Postgres, MinIO) are large.
 
 on:
   schedule:
@@ -11,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       usecase:
-        description: "One use case to run (default: every use case with app/)"
+        description: "One use case to run (default: every use case with app/ or spec.nightly: true)"
         required: false
         type: string
 
@@ -27,7 +29,10 @@ jobs:
           if [ -n "${{ inputs.usecase }}" ]; then
             echo "matrix=[\"${{ inputs.usecase }}\"]" >> "$GITHUB_OUTPUT"
           else
-            echo "matrix=$(for d in k8s/overlays/usecases/*/app; do basename "$(dirname "$d")"; done | jq -R . | jq -cs .)" >> "$GITHUB_OUTPUT"
+            echo "matrix=$(for c in k8s/overlays/usecases/*/usecase.yaml; do
+              d="$(dirname "$c")"
+              if [ -d "$d/app" ] || [ "$(yq -r '.spec.nightly // false' "$c")" = "true" ]; then basename "$d"; fi
+            done | jq -R . | jq -cs .)" >> "$GITHUB_OUTPUT"
           fi
 
   e2e:
@@ -72,6 +77,8 @@ jobs:
           { echo "### ${{ matrix.usecase }}: health"; echo '```'; grep '^HEALTH ' up.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Gates crawl->walk
+        # Only use cases scaffolded by the builder carry .builder/gates.yaml.
+        if: hashFiles(format('k8s/overlays/usecases/{0}/.builder/gates.yaml', matrix.usecase)) != ''
         run: |
           set -euo pipefail
           find k8s -type f -name '*.env.example' | while IFS= read -r ex; do real="${ex%.example}"; [ -f "$real" ] || cp "$ex" "$real"; done

@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-11-12",
+  "compiled_at": "2026-11-15",
   "stages": [
     "crawl",
     "walk",
@@ -1026,7 +1026,7 @@
       "wiki": "wiki/components/auth-zitadel-bootstrap.md",
       "summary": "Zitadel Bootstrap — Zitadel's organizations, project, roles, OIDC apps, users and",
       "images": [
-        "python:3.13.5-alpine3.22"
+        "ghcr.io/aitizate/zitadel-bootstrap"
       ],
       "kinds": [
         "ConfigMap",

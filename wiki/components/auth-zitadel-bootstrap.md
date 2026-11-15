@@ -3,13 +3,13 @@ title: auth-zitadel-bootstrap
 kind: component
 sources:
 - k8s/components/apps/auth/zitadel/bootstrap
-compiled_at: '2026-11-14'
+compiled_at: '2026-11-15'
 category: auth
 parent: components/auth-zitadel
 consumed_by:
 - components/bundles-zitadel-stack
-source_hash: 3a76b55657f067be
-source_last_commit: '2026-11-14'
+source_hash: df9e6179be2b1417
+source_last_commit: '2026-11-15'
 summary: "Zitadel Bootstrap \u2014 Zitadel's organizations, project, roles, OIDC apps,\
   \ users and"
 summary_source: derived
@@ -59,7 +59,7 @@ summary_source: derived
 
 ### Container images
 
-- `python:3.13.5-alpine3.22`
+- `ghcr.io/aitizate/zitadel-bootstrap`
 
 ### Generated ConfigMaps
 

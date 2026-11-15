@@ -1,6 +1,6 @@
 # Workloads
 
-One Python package, one image, one module per architecture workload. The Job or Deployment chooses the command; the code never hard-codes a stage.
+One Python package, one image, one module per architecture workload of **every stage in scope**. The Job or Deployment chooses the command, and the code never hard-codes a stage. `scaffold.yaml` `stage` says where the assembly wires the workload: the first stage whose architecture record lists it, which is `crawl` for a workload Crawl already runs.
 
 ## Entrypoint per shape
 
@@ -13,6 +13,7 @@ One Python package, one image, one module per architecture workload. The Job or 
 | always | `<pkg>/seed.py` | Job (`phase: seed`), `<prefix>-seed` | writes the pipeline's `seed_size`, idempotently, with the labels the replay double reads |
 | always | `<pkg>/verify.py` | Job (`phase: verify`), named as the quality record's `verify_job` (the gates' `check.ref`, e.g. `inv-validate`) | the quality record's assertions, the KPI line, exit code |
 | `trigger: schedule` from Walk | the batch module | CronJob (the assembly writes it) | nothing changes in the code |
+| any workload first listed at Walk or Run (`review-api`, `posting-worker`, `escalation-worker`) | `<pkg>/<workload>.py`, `stage: walk` | Deployment or Job at that stage | it starts, answers `/healthz` and `/readyz` against what it will call, reads its config; its business is a `stub` seam (`# SEAM <id>`, `NotImplementedError("backlog ticket T-<id>")`) |
 
 ## Configuration contract (`config.py`)
 
@@ -48,13 +49,31 @@ A stub of an external system is a real HTTP service with the same routes, the sa
 
 ## Verify
 
-`verify.py` is the quality record's `verify_assertions`, one `check("<assertion text>", fn)` each, in order:
+`verify.py` proves the skeleton walks. First one `connected:` check per wired Crawl seam, then the quality record's `verify_assertions` in order: the ones the skeleton makes true as `check`, the ones that need a business rule as `pending`:
 
 ```python
-check("20 items processed, 15 matched, 3 mismatched in review, 1 duplicate skipped, 1 parse failure in review", lambda: counts == EXPECTED)
-check("a second run changes no counts ...", lambda: run_batch_again() and counts_unchanged())
-kpi("straight_through_rate", matched / processed)       # prints KPI straight_through_rate=0.75
+STRICT = os.environ.get("VERIFY_STRICT", "0") == "1"    # the Walk overlay sets 1: pending becomes failure
+check("connected: po-lookup", stub_calls("lookup_po") == processed)          # the seam reached its double
+check("connected: extraction", all(r.fields for r in results))               # the model double answered
+check("a second run changes no counts ...", run_once() == first)              # idempotency is contract, not business
+check("no posting without an approval token", stub_writes(without_token=True) == 0)
+pending("20 items processed, 15 matched, 3 mismatched in review, ...")       # [PENDING] ... -> backlog (or [FAIL] under STRICT)
+kpi("straight_through_rate", matched / processed)       # prints KPI straight_through_rate=0.75 from what the double decided
 evaluate("field_accuracy", accuracy_against_labels())    # prints EVAL field_accuracy=1.0
 ```
 
-`[PASS]`/`[FAIL]` per line, the failing assertion named, exit 1 when any failed. It reads endpoints from the environment the assembly sets from `usecase.yaml` and nothing outside the namespace. The idempotency assertion calls the run step a second time from inside the Job (the batch module exposes `run_once()` for that), so the proof does not depend on the operator.
+Each `pending` assertion is listed in `scaffold.yaml` `skeleton.verify.pending` with the seams that will make it true, so `backlog.py` writes its ticket. When the seed's labels can carry the outcome (the replay double returns "mismatch" for the three mismatched items), the count is a `check`, not a `pending`: the routing is proven and only the rule that would compute the label is backlog. `[PASS]`/`[FAIL]`/`[PENDING]` per line, the failing assertion named, exit 1 when any failed. It reads endpoints from the environment the assembly sets from `usecase.yaml` and nothing outside the namespace. The idempotency assertion calls the run step a second time from inside the Job (the batch module exposes `run_once()` for that), so the proof does not depend on the operator.
+
+## Connection diagram
+
+`app/docs/connections.md`: one Mermaid `graph LR` that names every workload of every stage, every store, queue, model route and external system, with each edge labelled by the seam id and the tool or call behind it. Later-stage edges are dashed. `scaffold-check.py` requires every workload name and every seam to appear in it. It is the first thing the agent team reads: which ticket touches which wire.
+
+```mermaid
+graph LR
+  intake-run -->|po-lookup: lookup_po| erp-stub
+  intake-run -->|extraction: MODEL_MODE=replay| model[(model double)]
+  intake-run --> postgres[(postgres)]
+  review-api -.->|review-surface, walk| intake-run
+  posting-worker -.->|erp-posting: post_invoice, walk| erp-stub
+```
+

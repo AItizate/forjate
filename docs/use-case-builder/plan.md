@@ -76,8 +76,8 @@ Rule of thumb: **knowledge in skills, isolation in agents, contracts on disk.**
 
 | Stage | Forjate tier | Scope | Defaults the experts lean on |
 |-------|--------------|-------|------------------------------|
-| **Crawl** (PoC) | Lab | Prove the automation works on real-shaped data, single user | `quickstart`-style, k3d via `ephemeral.sh`, Ollama or external LLM, Postgres, MinIO, no auth, placeholder secrets |
-| **Walk** (pilot / MVP) | MVP | Real users, internal, single cluster | `bare-metal-starter` shape: ArgoCD, Sealed Secrets, GoTrue + oauth2-proxy, Prometheus + Grafana, PSA `baseline`, NetworkPolicies |
+| **Crawl** (PoC) | Lab | Prove the walking skeleton works end to end on real-shaped data, single user: every part connected, the business decided by the doubles | `quickstart`-style, k3d via `ephemeral.sh`, Ollama or external LLM, Postgres, MinIO, no auth, placeholder secrets |
+| **Walk** (pilot / MVP) | MVP | Real users, internal, single cluster; closes with a **minimal implementation** of the business: every Walk backlog ticket done and the verify Job passing with `VERIFY_STRICT=1` | `bare-metal-starter` shape: ArgoCD, Sealed Secrets, GoTrue + oauth2-proxy, Prometheus + Grafana, PSA `baseline`, NetworkPolicies; an **agent development team** that picks up the scaffold's backlog tickets, implements them and coordinates through them |
 | **Run** (production) | Production | SLAs, audits, multi-tenant | External Secrets / Vault, Velero, PSA `restricted`, OTel pipeline, DB operators, `multi-tenant-pattern`, Cosign |
 
 Every expert must answer **per stage**, not once. The stage planner fixes which stages are in scope for this use case (a one-off internal script may stop at Walk).
@@ -407,7 +407,7 @@ Tests: L4 on every skill; MCP server contract tests; full L1–L3 re-run as regr
 | #33 | Release v1.2.0, first remote consumer, `builder-p5` (5) | all | Sonnet |
 | #38 | Walk-on-k3d rehearsal harness (GitOps source, Sealed Secrets, controller key); blocks the deploy criterion of #24 and #25 | — | Opus |
 | #41 | Deterministic gates and graders: tests per gate check, one pinned toolchain, static checks on the scaffold, two health signals in the nightly — **done 2026-10-31**, see below | #39, #27 | Sonnet |
-| #44 | Scaffold as a walking skeleton; business implementation as a backlog for an agent team (Walk closes with a minimal implementation) | — | Opus |
+| #44 | Scaffold as a walking skeleton; business implementation as a backlog for an agent team (Walk closes with a minimal implementation) — **built 2026-11-15**, see below | — | Opus |
 | #45 | Every agent's changes recorded: automatic commits by hook, `.builder/events.jsonl` | — | Opus |
 | #46 | Regenerate the support-copilot golden; the generator absorbs invoice-intake's shared Postgres — **part 2 done 2026-11-08**, see below; part 1 waits for #44 | #44 (part 1) | Opus |
 | #53 | Design: components built to be composed, shared database wiring the generator can derive | #46 | — |
@@ -431,6 +431,23 @@ Found on the way and moved out:
 - The scaffold writes a full Crawl app: 3,550 lines and 100 to 220 tests per run, at the turn cap. Yet it stops short of Walk's workloads. #44 reshapes it into a walking skeleton plus a backlog for an agent team, and #40 is blocked by it.
 - `image-policy-check` reads yq's `---` as an image, `secret-scan` flags prose and f-strings, and resolved questions stay open in the records. Commented on #41.
 - G1's Walk still has `minio-secret` unrendered, no route from the worker to the doubles or the model, and no model route for the eval. These are #46 and its README.
+
+**#44 built (2026-11-15).** Design in `walking-skeleton.md`. The app-scaffold builder now writes a walking skeleton:
+
+- an entry point for every workload of every stage in scope, with `stage` in `scaffold.yaml`;
+- one typed contract per tool line;
+- every store, queue, model route and system wired through a seam to its double, marked `# SEAM <id>` where the business rule goes;
+- a verify Job that prints `connected:` per seam, checks what the doubles make true and prints `[PENDING]` for what needs a rule;
+- a Mermaid connection diagram;
+- contract tests only.
+
+`scaffold.yaml` declares the skeleton in `spec.skeleton`: the seams with their record and gates, the pending assertions and the workarounds. `scaffold-check.py` checks it when the block exists. The two goldens predate it and keep the old checks until #46 regenerates them.
+
+`backlog.py` derives `.builder/backlog.yaml` and `backlog.md` deterministically, so the step costs no tokens. It writes one ticket per seam, later-stage workload, pending assertion, workaround and `OPEN:` note. Each ticket links its record and gates and carries the quality record's `unit:` layer, which the skeleton no longer writes. `validate.py` checks the links. The coordinator runs it right after the scaffold, and the report gains a Backlog section.
+
+`assemble.py` wires each workload at its stage. On a skeleton, it sets `VERIFY_STRICT=1` on Walk's verify Job, so what Crawl left pending fails at Walk. That is the minimal-implementation gate `G-Q-3` in the stage planner's defaults. The agent team that closes the tickets is a Walk capability. The backlog lives as files. A GitHub-issues export is a follow-up.
+
+The app-scaffold evals assert the skeleton and a size budget: at most 2,000 lines and 40 tests for invoice-intake, and 1,200 and 30 for support-copilot. The full app was 3,547 lines and 104 tests. The eval runs and the cold-start comparison against #28 are recorded below when run.
 
 **#46 (part 2) done (2026-11-08).** `assemble.py` now renders what is derivable without naming a component. First, one server: when a component composed into a namespace already brings a moved one (catalog `composes`, the temporal bundle recomposing `apps/databases/postgres`), the relocation layer deletes the moved copy instead of moving it. Before the change, G1's generated Walk did not build, because of a duplicate `SealedSecret postgres-secret`; now the generated Walk and Run build and pass kubeconform. Second, every Secret a scaffold workload mounts is sealed at each stage, so `minio-secret` exists at Walk after `apps/minio/dev` leaves. Third, a system URL goes only to the workloads the `egress_allowlist` comment names, so verify, seed and the doubles stay on the doubles; support-copilot's Walk env patches were regenerated for this (`ORDERS_URL` on `agent-api` only, the others default to the stub). A test covers all three on G1's records. Part 1 (support-copilot's cold start) waits for #44, by the owner's decision.
 

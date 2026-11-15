@@ -26,48 +26,15 @@ spec:
         fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
-      initContainers:
-        # Dependencies are pinned in requirements.txt and land in an emptyDir, so the
-        # root filesystem stays read-only and the main container needs no network
-        # towards PyPI. Egress to PyPI (or PIP_INDEX_URL) is needed by THIS container.
-        - name: install-deps
-          image: python:3.13.5-alpine3.22
-          command:
-            - pip
-            - install
-            - --quiet
-            - --no-cache-dir
-            - --disable-pip-version-check
-            - --require-hashes
-            - "--only-binary=:all:"
-            - --target=/deps
-            - --requirement=/scripts/requirements.txt
-          env:
-            - name: HOME
-              value: /tmp
-            - name: TMPDIR
-              value: /tmp
-          securityContext: &restricted
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop: [ALL]
-          resources: &resources
-            requests: {cpu: 50m, memory: 64Mi}
-            limits: {cpu: 500m, memory: 256Mi}
-          volumeMounts:
-            - {name: bootstrap-scripts, mountPath: /scripts, readOnly: true}
-            - {name: deps, mountPath: /deps}
-            - {name: tmp, mountPath: /tmp}
       containers:
+        # CPython with the pinned dependencies of requirements.txt baked in (image/,
+        # pinned by digest in kustomization.yaml `images:`): nothing is installed at
+        # start, so the Job only talks to Zitadel and the Kubernetes API. The script
+        # itself comes from the ConfigMap below.
         - name: bootstrap
-          image: python:3.13.5-alpine3.22
+          image: ghcr.io/aitizate/zitadel-bootstrap
           command: [python, /scripts/bootstrap.py]
           env:
-            - name: PYTHONPATH
-              value: /deps
-            - name: PYTHONDONTWRITEBYTECODE
-              value: "1"
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
@@ -84,12 +51,17 @@ spec:
             - secretRef:
                 name: zitadel-bootstrap-env
                 optional: true
-          securityContext: *restricted
-          resources: *resources
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
           volumeMounts:
             - {name: bootstrap-config, mountPath: /config, readOnly: true}
             - {name: bootstrap-scripts, mountPath: /scripts, readOnly: true}
-            - {name: deps, mountPath: /deps, readOnly: true}
             - {name: admin-sa-key, mountPath: /secrets, readOnly: true}
             - {name: tmp, mountPath: /tmp}
       volumes:
@@ -109,7 +81,5 @@ spec:
             items:
               - key: zitadel-admin-sa.json
                 path: sa-key.json
-        - name: deps
-          emptyDir: {}
         - name: tmp
           emptyDir: {}

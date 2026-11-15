@@ -34,7 +34,20 @@ configMapGenerator:
   - name: zitadel-bootstrap-scripts
     files:
       - bootstrap.py
-      - requirements.txt
+
+# The Job's runtime image: CPython plus requirements.txt baked in (image/Dockerfile),
+# pinned by the digest of its multi-arch index, never by tag. image/published.yaml
+# records what this digest was built from; the tests check both agree.
+# A tenant that mirrors the image (no access to ghcr.io, air-gapped registry) copies
+# it by digest and overrides only the name in its overlay:
+#   images:
+#     - name: ghcr.io/aitizate/zitadel-bootstrap
+#       newName: registry.example.com/mirror/zitadel-bootstrap
+# PLACEHOLDER: the all-zero digest below means "not published yet". The tests refuse
+# to ship it (tests/test_image.py); docs/apps/zitadel.md, "Bootstrap image".
+images:
+  - name: ghcr.io/aitizate/zitadel-bootstrap
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 
 labels:
   - pairs:

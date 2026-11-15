@@ -40,6 +40,8 @@ Checks, per use case:
      the stage overlay drops it either way.
  12. verify by reason: a quality record whose verify_assertions exercise the escalation or
      exception path separates expected handoffs from failures such as lookup-failed (warning).
+ 13. backlog: when backlog.yaml exists (backlog.py, #44) it validates, and every ticket names a seam
+     scaffold.yaml declares, gates gates.yaml has and tickets that exist (errors).
 
 Exit 1 on any error. Warnings never fail the run.
 """
@@ -612,9 +614,34 @@ def validate_usecase(uc: Path) -> tuple[list[str], list[str]]:
         for tr, body in gates["spec"]["transitions"].items():
             errors += ci_ref_errors(body.get("gates") or [], f"{b/'gates.yaml'}: {tr}")
         warnings += [f"{uc}: {w}" for w in gates_consolidation(decisions, gates, skipped)]
+    errors += backlog_findings(b, gates)
     if not catalog_rules().available:
         warnings.append(f"{uc}: wiki/catalog.json not reachable (set FORJATE_ROOT); secrets ranking and exclusive-component conflicts not checked")
     return errors, warnings
+
+
+def backlog_findings(b: Path, gates: dict | None) -> list[str]:
+    """backlog.yaml (written by backlog.py from a walking skeleton) validates, and its tickets point at seams the
+    scaffold declares and gates gates.yaml has: a ticket linked to nothing is a ticket nobody can close."""
+    p = b / "backlog.yaml"
+    if not p.is_file():
+        return []
+    doc = load_yaml(p)
+    errors = schema_errors("backlog", doc, str(p))
+    if errors:
+        return errors
+    sc = load_yaml(b / "scaffold.yaml") if (b / "scaffold.yaml").is_file() else {}
+    seams = {s["id"] for s in (((sc.get("spec") or {}).get("skeleton") or {}).get("seams") or [])}
+    gate_ids = {g["id"] for t in ((gates or {}).get("spec", {}).get("transitions") or {}).values() for g in t.get("gates") or []}
+    ids = [t["id"] for t in doc["spec"]["tickets"]]
+    for t in doc["spec"]["tickets"]:
+        if t.get("seam") and t["seam"] not in seams:
+            errors.append(f"{p}: {t['id']} names seam {t['seam']}, which scaffold.yaml skeleton.seams does not declare")
+        if gates is not None:
+            errors += [f"{p}: {t['id']} names gate {g}, which gates.yaml does not have" for g in t["gates"] if g not in gate_ids]
+        errors += [f"{p}: {t['id']} depends on unknown ticket {d}" for d in t.get("depends_on") or [] if d not in ids]
+    errors += [f"{p}: ticket id {i} is used twice" for i in sorted({i for i in ids if ids.count(i) > 1})]
+    return errors
 
 
 def main(argv: list[str]) -> int:

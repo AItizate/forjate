@@ -1,0 +1,13 @@
+apiVersion: forjate.io/v0
+kind: Gates
+metadata: { usecase: parcel-claims, version: 1 }
+spec:
+  transitions:
+    crawl->walk:
+      gates:
+        - { id: G-Q-1, text: verify Job exits 0 on the seeded reports, owner: quality, check: { type: verify-job, ref: claims-verify } }
+        - { id: G-AI-1, text: every lookup is read-only and logged with its data class, owner: ai-engineering, check: { type: verify-job, ref: claims-verify } }
+    walk->run:
+      gates:
+        - { id: G-AI-2, text: no claim reaches the carrier without the clerk's approval token, owner: ai-engineering, check: { type: verify-job, ref: claims-verify } }
+        - { id: G-ARCH-2, text: the review surface answers behind auth, owner: architecture, check: { type: verify-job, ref: claims-verify } }

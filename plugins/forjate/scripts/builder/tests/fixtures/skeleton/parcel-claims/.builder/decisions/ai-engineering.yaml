@@ -1,0 +1,18 @@
+apiVersion: forjate.io/v0
+kind: Decision
+metadata: { area: ai-engineering, usecase: parcel-claims, author: "forjate:ai-engineering", version: 1 }
+spec:
+  stages:
+    crawl:
+      choice: []
+      settings:
+        tools:
+          - "lookup_shipment: read one shipment by tracking number from the carrier [read-only]"
+      rationale: Read-only at Crawl.
+    walk:
+      choice: []
+      settings:
+        tools:
+          - "lookup_shipment: read one shipment by tracking number from the carrier [read-only]"
+          - "file_claim: create one claim at the carrier [idempotent, requires approval token]"
+      rationale: The write arrives with the clerk's approval.

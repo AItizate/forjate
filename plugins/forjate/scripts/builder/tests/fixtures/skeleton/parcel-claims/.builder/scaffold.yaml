@@ -1,0 +1,32 @@
+apiVersion: forjate.io/v0
+kind: Scaffold
+metadata: { usecase: parcel-claims, version: 1, author: "forjate:app-scaffold" }
+spec:
+  runtime: python
+  package: parcel_claims
+  image: parcel-claims
+  model_modes: [replay, live]
+  workloads:
+    - { name: claims-seed, kind: job, phase: seed, stage: crawl, command: [python, -m, parcel_claims.seed], env: ["CARRIER_URL=http://carrier-stub:8001"] }
+    - { name: claims-run, kind: job, phase: run, stage: crawl, command: [python, -m, parcel_claims.batch], env: ["CARRIER_URL=http://carrier-stub:8001", MODEL_MODE=replay] }
+    - { name: claims-verify, kind: job, phase: verify, stage: crawl, command: [python, -m, parcel_claims.verify], env: ["CARRIER_URL=http://carrier-stub:8001", MODEL_MODE=replay, VERIFY_STRICT=0] }
+    - { name: carrier-stub, kind: deployment, stage: crawl, command: [python, -m, parcel_claims.carrier_stub], port: 8001, health_path: /healthz }
+    - { name: review-api, kind: deployment, stage: walk, command: [python, -m, parcel_claims.review_api], port: 8000, health_path: /healthz }
+  tools:
+    - { name: lookup_shipment, module: parcel_claims/tools/lookup_shipment.py, flags: [read-only], stage: crawl }
+    - { name: file_claim, module: parcel_claims/tools/file_claim.py, flags: [idempotent, requires approval token], stage: walk }
+  skeleton:
+    diagram: app/docs/connections.md
+    seams:
+      - { id: shipment-lookup, kind: tool, name: lookup_shipment, stage: crawl, record: decisions/ai-engineering.yaml, contract: parcel_claims/tools/lookup_shipment.py, double: carrier-stub, status: wired, gates: [G-AI-1], summary: read the shipment the report names }
+      - { id: damage-classifier, kind: model, name: classify_damage, stage: crawl, record: decisions/ai-engineering.yaml, contract: parcel_claims/model.py, double: "MODEL_MODE=replay", status: wired, summary: classify the report as damaged or not }
+      - { id: claim-filing, kind: tool, name: file_claim, stage: walk, record: decisions/ai-engineering.yaml, contract: parcel_claims/tools/file_claim.py, double: carrier-stub, status: stub, gates: [G-AI-2], summary: create the claim at the carrier once the clerk approved it }
+      - { id: review-surface, kind: surface, name: review-api, stage: walk, record: decisions/architecture.yaml, contract: parcel_claims/review_api.py, status: stub, gates: [G-ARCH-2], summary: the clerk sees each draft and approves or rejects it }
+    verify:
+      job: claims-verify
+      pending:
+        - { assertion: "7 reports classified damaged, 3 not damaged", seams: [damage-classifier] }
+    workarounds:
+      - { seam: shipment-lookup, problem: the carrier API has no sandbox, workaround: the carrier stub serves the seeded shipments with the real field names }
+  notes:
+    - "OPEN: which carrier account the Walk claims are filed under"

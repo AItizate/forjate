@@ -135,7 +135,7 @@ class Zitadel:
                 return Resp(409, {"message": "ALREADY_EXISTS"})
             self.roles[(g[1], key)] = body
             return Resp(200)
-        if g := m(r"/management/v1/projects/(\w+)/roles/(\w+)", path):
+        if g := m(r"/management/v1/projects/(\w+)/roles/([\w-]+)", path):
             cur = self.roles[(g[1], g[2])]
             new = {**cur, **body}
             if new == cur:

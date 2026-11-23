@@ -6,12 +6,23 @@ organizations:
   - name: acme
     is_default: true
 
-project:
-  name: platform
-  roles:
-    - {key: admin, display_name: Administrator, group: platform}
-    - {key: operator, display_name: Operator, group: platform}
-    - {key: viewer, display_name: Viewer, group: platform}
+# A project groups apps that share roles and rules. The first one is the default for
+# applications and for user roles that name no project.
+projects:
+  - name: platform
+    roles:
+      - {key: admin, display_name: Administrator, group: platform}
+      - {key: operator, display_name: Operator, group: platform}
+      - {key: viewer, display_name: Viewer, group: platform}
+  # A second project, for a customer-facing app whose users self-register and have no
+  # grant: its own roles, and no role check. Point an app at it with `project: customer-app`
+  # and a user at its roles with `roles: [customer-app/app-admin]`.
+  # - name: customer-app
+  #   role_check: false        # default true
+  #   role_assertion: true     # default true
+  #   roles:
+  #     - {key: app-user, display_name: App user}
+  #     - {key: app-admin, display_name: App admin}
 
 applications:
   # oauth2-proxy reads the Secret zitadel-oidc-oauth2-proxy (client-id, client-secret,

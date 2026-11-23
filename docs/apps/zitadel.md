@@ -44,7 +44,7 @@ k8s/components/apps/auth/zitadel/
 ├── kustomization.yaml              # Zitadel v4.20.2 (Helm chart 10.5.0) + Ingress
 ├── contract.yaml                   # THE list of what a tenant must provide
 ├── ingress.yaml                    # zitadel.example.com (patchable); /ui/v2/login -> zitadel-login
-├── bootstrap/                      # IaC: orgs, project, roles, apps, users, IdPs
+├── bootstrap/                      # IaC: orgs, projects, roles, apps, users, IdPs
 │   ├── kustomization.yaml
 │   ├── job.yaml                    # PostSync Job (runs bootstrap.py)
 │   ├── bootstrap.py                # the reconciler (tested, see ../tests/)
@@ -143,6 +143,49 @@ service_users:
 
 `organizations:` is the key the script reads. The singular `organization:` (which the first version of this guide used) still works but is deprecated. Without any organization the project lands in the service account's own organization (`ZITADEL`).
 
+### Projects
+
+`projects:` is a list; the singular `project:` is the deprecated alias of a one-entry list (the script prints a notice, nothing else changes). Declare more than one when apps have different audiences or different rules, for example an internal `platform` project for staff tools and a separate one for a customer-facing app:
+
+```yaml
+projects:
+  - name: platform
+    organization: acme            # optional, default: the default organization
+    roles:
+      - {key: admin, display_name: Administrator}
+  - name: customer-app
+    organization: acme
+    role_check: false             # default true; see below
+    role_assertion: true          # default true
+    roles:
+      - {key: app-user, display_name: App user}
+      - {key: app-admin, display_name: App admin}
+
+applications:
+  - name: web-app                 # no `project:`: the first one (platform)
+    redirect_uris: ["https://auth.acme.dev/oauth2/callback"]
+  - name: customer-web
+    project: customer-app
+    redirect_uris: ["https://app.acme.dev/callback"]
+
+users:
+  - username: ana
+    email: ana@acme.dev
+    roles: [admin, customer-app/app-admin]   # `key` = first project, `project/key` = that project
+```
+
+| Key | Default | Effect |
+|-----|---------|--------|
+| `role_check` | `true` | Zitadel's *Check authorization on authentication*: a user with no grant on the project cannot log in to its apps. Set `false` for a project whose users self-register and get no grant (their roles then come from somewhere else, such as an Action). |
+| `role_assertion` | `true` | *Assert roles on authentication*: the user's grants of the project are put in the token and passed to the Actions. |
+
+- **The first project is the default** for an application without `project:`, for a role without a `project/` prefix (users and service users), and for `{{project_id}}` in an Action script.
+- **Grants are per project.** `roles: [admin, customer-app/app-admin]` makes one grant in each project, carrying exactly the listed roles of that project; an update touches only the project it names. Role keys and project names cannot contain `/`.
+- **A user and the projects it gets roles in belong to one organization** (set `organization:` on the project and on the user). Cross-organization grants need a project grant, which the bootstrap does not create; the Zitadel error comes back as a failed item (exit 1).
+- **The Secret name does not depend on the project**: `zitadel-oidc-<app>`, so application names are unique across projects.
+- **An invalid config exits 2** before any API call, with the reason: an app or a role naming a project that is not in `projects:`, a project in an organization that is not in `organizations:`, a repeated project or application name, a flag that is not `true`/`false`, or `project:` and `projects:` together.
+- **Nothing is removed.** A project deleted from the file stays in Zitadel. Both flags are written on every run, so a flag you stop setting goes back to its default (`true`), not to what it was.
+
 ### The overlay
 
 ```yaml
@@ -170,7 +213,7 @@ patches:
 2. Wave 1: `zitadel-init` Job (Argo Sync hook) prepares the database.
 3. Wave 2: `zitadel-setup` Job creates the first instance: the admin human (password from `zitadel-admin-password`) and the IAM_OWNER service account, whose key it writes to the Secret `zitadel-admin-sa`.
 4. Wave 3: the `zitadel` Deployment and the Ingress.
-5. PostSync: the bootstrap Job signs a JWT with the key from `zitadel-admin-sa`, waits for Zitadel, and reconciles organization → project → roles → apps → users → service users → IdPs.
+5. PostSync: the bootstrap Job signs a JWT with the key from `zitadel-admin-sa`, waits for Zitadel, and reconciles organization → projects → roles → apps → users → service users → IdPs.
 6. OIDC credentials land in `zitadel-oidc-<app>` in the same namespace.
 
 There is no default admin password and no manual step in the UI. Init and setup run again on every sync (they are idempotent: setup skips what already exists), which is the price of keeping them as recreatable hooks.
@@ -192,7 +235,7 @@ For a Zitadel instance that this component's setup hook did not create (it was i
    ```
 2. **Provide the bootstrap service account key** as the Secret `zitadel-admin-sa`, key `zitadel-admin-sa.json` (the JSON key of an `IAM_OWNER` service user); see "Recovering the bootstrap service account key" below. The bootstrap Job reads only that name and key.
 3. **Close a first admin that kept Zitadel's built-in password.** A Zitadel that was set up without `FirstInstance` creates `zitadel-admin` with the documented default password. If it was never changed and the instance is reachable, anyone can log in as `IAM_OWNER`: create your own admin in the Console, change or deactivate `zitadel-admin`, and audit the logins since the first deploy.
-4. **Adapt `bootstrap.yaml`.** `initial_password:` literals are rejected (use `initial_password_env`), the list is `organizations:` (the singular form is deprecated), and an Azure IdP needs `tenant_id`. The Job exits 2 and lists every `CONFIG ERROR`.
+4. **Adapt `bootstrap.yaml`.** `initial_password:` literals are rejected (use `initial_password_env`), the lists are `organizations:` and `projects:` (the singular forms are deprecated), and an Azure IdP needs `tenant_id`. The Job exits 2 and lists every `CONFIG ERROR`.
 5. **Set the overlay `namespace:`** (and keep the labels the bundle sets) so every object, the chart's included, lands in the namespace that holds the Secrets.
 
 ## Recovering the bootstrap service account key

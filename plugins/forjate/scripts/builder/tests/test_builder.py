@@ -883,6 +883,46 @@ def test_wiring_override_contradicting_the_tree_is_a_compile_error():
     assert extra["wiring"]["secret"] == {"name": "postgres-secret", "keys": ["POSTGRES_PASSWORD"]} and extra["wiring"]["secret_mounted"]
 
 
+def test_wiring_consumes_is_curated_shape_checked_and_kept():
+    """`wiring.consumes` (what a component reads from another one through a contract) cannot be derived from the
+    tree, so it is curated; the compiler keeps it in the catalog and refuses a malformed declaration."""
+    wc = _wiki_compile()
+    tree = {"services": [], "workloads": [], "secret_refs": [], "configmap_refs": [], "shipped_secrets": {}, "shipped_configmaps": [],
+            "ingresses": [], "example_keys": {}, "example_literals": {}, "ref_keys": {}}
+    extra = {"namespace": None}
+    assert wc.merge_wiring("apps/x", extra, tree, {}) == []
+    assert extra["wiring"]["consumes"] == []
+    ok = [{"protocol": "s3", "secret": "x-s3", "keys": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"], "format": "env"}]
+    extra = {"namespace": None}
+    assert wc.merge_wiring("apps/x", extra, tree, {"wiring": {"consumes": ok}}) == []
+    assert extra["wiring"]["consumes"] == ok
+    bad = [{"protocol": "s3", "keys": ["AWS_ACCESS_KEY_ID"], "format": "env"},
+           {"protocol": "s3", "secret": "x", "keys": [], "format": "yaml"},
+           "s3"]
+    errors = wc.merge_wiring("apps/x", {"namespace": None}, tree, {"wiring": {"consumes": bad}})
+    assert any("consumes[0]" in e and "secret" in e for e in errors)
+    assert any("consumes[1]" in e and "format" in e for e in errors)
+    assert any("consumes[1]" in e and "keys" in e for e in errors)
+    assert any("consumes[2]" in e for e in errors)
+
+
+def test_object_store_capability_carries_the_contract_and_minio_provides_it():
+    vocab = yaml.safe_load(CAPABILITIES.read_text())["capabilities"]
+    contract = vocab["object-store"]["contract"]
+    assert contract["protocol"] == "s3"
+    assert set(contract["secret_keys"]) == {"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}
+    assert {"AWS_ENDPOINT_URL_S3", "S3_HOST", "S3_PORT", "S3_USE_TLS", "AWS_REGION", "S3_BUCKET"} <= set(contract["config_keys"])
+    catalog = json.loads(CATALOG.read_text())
+    assert catalog["capabilities"]["object-store"]["contract"] == contract
+    providers = [c for c in catalog["components"] if "object-store" in (c.get("capabilities") or [])]
+    assert providers, "the coupling check exempts providers; there must be at least one"
+    for c in providers:
+        assert "artifact-store" in c["capabilities"], c["path"]
+        assert c["wiring"]["protocol"] == contract["protocol"], c["path"]
+    for c in catalog["components"]:
+        assert isinstance(c["wiring"]["consumes"], list), c["path"]
+
+
 def test_quality_verify_without_a_reason_split_is_a_warning(usecase: Path):
     _write_decision(usecase, "quality", {"crawl": {"choice": [], "settings": {"verify_assertions": ["4 conversations escalated to an agent", "KPI printed"]}, "rationale": "x"}})
     _, warnings = validate_usecase(usecase)

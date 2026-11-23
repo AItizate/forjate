@@ -227,6 +227,27 @@ scripts/ephemeral/ephemeral.sh up object-storage   # verify Job exits 0
 **Entry:** Stage 2 released (tag). **Files:** `docs/tenant-onboarding/migrating-from-minio.md`. **Owner of the
 execution:** the tenant's operator, with a dated record in the tenant repo.
 
+**Live-pod constraint (first tenant, accepted by the owner 2026-11-23).** The running MinIO image can no longer be
+pulled from any registry (quay `:latest` and digest, docker.io: 401 anonymous); the pod runs only from one node's
+containerd cache, with no node affinity. No image rescue is attempted. Until cutover the runbook therefore:
+
+- reads data **only through the S3 API of the running pod** (rclone against its Service), never from its PVCs;
+- **never restarts or reschedules it**: no change to the MinIO `Tenant` spec, operator or its PVCs; no
+  `kubectl delete pod`, rollout, drain, cordon or reboot of the node it runs on; no Longhorn operation on its
+  volumes (detach, replica rebuild by hand, expansion); no factory ref bump that touches the base operator;
+- keeps **memory and disk pressure off that node** so the kubelet does not evict the pod: new SeaweedFS pods and
+  copy Jobs are scheduled elsewhere when there is room, with requests sized so the node stays below its eviction
+  thresholds;
+- raises the off-cluster mirror (an rclone S3 read, no restart) from weekly to **daily** for the whole migration
+  window, so the incident path below loses at most a day.
+
+**Incident path — the MinIO pod or its node is lost before cutover.** MinIO cannot be brought back (no image).
+Declare an incident: freeze writers; restore objects from the latest off-cluster mirror (`rclone copy -M` mirror →
+the new store, or point clients at the external-S3 profile as in path B (b)); restore namespaces and PVC data from
+Velero where needed; list what was written after the last mirror run as lost or to be re-created by its
+application; continue at step 5 (verify). After cutover the old pod is unreferenced and its loss is not an
+incident, but rollback R1 and the dated final copy then come from the mirror instead.
+
 1. **Budget.** Read Longhorn `storage-minimal-available-percentage`, `storage-over-provisioning-percentage` and,
    per node, scheduled vs maximum and the `Schedulable` condition. Size SeaweedFS PVCs from measured data (object
    bytes × 2 for vacuum and growth). Confirm the PVCs × replicas schedule **while MinIO still holds its volumes**.
@@ -243,7 +264,8 @@ execution:** the tenant's operator, with a dated record in the tenant repo.
 3. **Deploy** SeaweedFS next to MinIO; declare buckets, identities and policies as CRDs in git; one identity per
    application, no shared root keys; label client namespaces `forjate.io/object-store-client: "true"`; exclude
    the store's PVCs from Velero file-system backup (opt-out annotation), object-level DR is the mirror.
-4. **Copy** per bucket with `rclone copy -M` (keeps Content-Type and Cache-Control; rclone streams, no local disk).
+4. **Copy** per bucket with `rclone copy -M` from the running MinIO's S3 endpoint (keeps Content-Type and
+   Cache-Control; rclone streams, no local disk; never mount or read MinIO's PVCs).
 5. **Verify** per bucket: object count, total bytes, `rclone check --download` (full content compare; ETags and
    checksums differ across stores for multipart and SSE); Content-Type on a static-site sample; an anonymous GET
    through the site's nginx. Record output in the tenant runbook.
@@ -326,7 +348,8 @@ store components, the deprecation notes and historical records returns nothing.
 | Stages 1, 2, 4–7 | revert the PR |
 | Stage 8.1 / 8.2 | re-add the pinned operator to base in a patch release |
 | R0 — before cutover (Stage 3 steps 3–5) | delete the SeaweedFS namespace; MinIO untouched |
-| R1 — watch period (step 8) | freeze writers → `rclone copy -M seaweed: minio:` for objects written since cutover → switch contract Secrets back → unfreeze; MinIO kept running and unreferenced for exactly this |
+| R1 — watch period (step 8) | freeze writers → `rclone copy -M seaweed: minio:` for objects written since cutover → switch contract Secrets back → unfreeze; MinIO kept running and unreferenced for exactly this. If the old pod cannot run any more (unpullable image, see Stage 3), R1 is a rollback to the external-S3 profile seeded from the mirror |
+| Incident — MinIO pod or node lost before cutover | Stage 3 incident path: restore from the off-cluster mirror (daily during the window) and Velero; writes after the last mirror run listed as lost |
 | R2 — point of no return (step 9) | none after the PVCs are deleted; the dated final copy on external S3 (kept 30 days) is the recovery source |
 
 ## Follow-ups (separate issues)
@@ -347,6 +370,7 @@ store components, the deprecation notes and historical records returns nothing.
 | Advisory wave (57 GHSA 2026-06 → 11) | bump policy: monthly plus 7-day out-of-band; reduced surface |
 | Filer metadata loss | own PVC on replicated storage, scheduled `SeaweedBackup`, drill in the use case |
 | First tenant's disks cannot host both stores | budget step; path B (external staging) |
+| First tenant's MinIO image is unpullable; the pod lives on one node's cache (owner-accepted) | read via S3 only, never restart or reschedule before cutover, daily mirror during the window, incident path (Stage 3) |
 | Enterprise-only features (admin audit log, EC repair) | not used |
 | Velero against SeaweedFS not in Velero's provider list | Velero targets external S3 (D6); nightly report only |
 | Breaking changes for tenants bumping their ref | upgrade notes on every tag from Stage 4 to Stage 8; Stage 8 snippet |

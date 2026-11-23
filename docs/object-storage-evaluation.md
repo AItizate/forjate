@@ -11,12 +11,12 @@ external S3 (R2, B2, AWS) as a first-class profile; Rook-Ceph RGW for tenants wi
 
 ## 1. Current state
 
-### MinIO in forjate (from `wiki/index.md`, compiled 2026-11-07)
+### MinIO in forjate (from `wiki/index.md`, compiled 2026-11-12)
 
 | Piece | What | Consumers |
 |---|---|---|
-| `base/apps/minio` | MinIO **operator**, `resources: github.com/minio/operator` — **no `?ref=`**, floating | every tenant that pulls `k8s/base` (all local overlays; remote tenants via `//k8s/base?ref=...`) |
-| `components/apps/minio/single-server` | `Tenant` CR, image `quay.io/minio/minio:latest` (floating) | 6 overlays: agentic-simple-workflow, ai-dev-stack, home-edge-lab, multi-cloud-portable, multi-tenant-pattern-org, usecases-invoice-intake-stages-walk |
+| `base/apps/minio` | MinIO **operator**, `resources: github.com/minio/operator` — **no `?ref=`**, floating | every overlay or remote tenant that composes `k8s/base` (remote tenants via `//k8s/base?ref=...`) |
+| `components/apps/minio/single-server` | `Tenant` CR, image `quay.io/minio/minio:latest` (floating; **stopped resolving in 2026, 401**, recorded in `minio/dev/pod.yaml`, so a fresh pod cannot start) | 6 overlays: agentic-simple-workflow, ai-dev-stack, home-edge-lab, multi-cloud-portable, multi-tenant-pattern-org, usecases-invoice-intake-stages-walk |
 | `components/apps/minio/dev` | bare Pod, `docker.io/bitnamilegacy/minio:2025.7.23` (frozen Bitnami legacy image) | usecases-invoice-intake |
 | catalog capability | `artifact-store` is satisfied only by the two MinIO components | use-case builder (`data-store` expert) |
 
@@ -25,8 +25,8 @@ Components that hard-wire MinIO (also a breach of the component-independence rul
 | Component | Coupling |
 |---|---|
 | `backup/velero` | default `values-minio-backend.yaml` targets the in-cluster MinIO component (`backup/velero/s3` is the external variant, already clean) |
-| `communication/stalwart` | `endpoint = "http://minio:9000"` in the configmap; README says "MinIO (from k8s/base)" |
-| `productivity/appflowy` | README "MinIO (from k8s/base)"; S3 keys in its Secret |
+| `communication/stalwart` | `endpoint = "http://minio:9000"` in the configmap; `kustomization.yaml` header says "MinIO (from k8s/base)" |
+| `productivity/appflowy` | `http://minio:9000` in three Deployments (`appflowy-cloud`, `worker`, `ai`; `APPFLOWY_S3_MINIO_URL`, `AI_MINIO_URL`); `kustomization.yaml` header "MinIO (from k8s/base)"; S3 keys in its Secret |
 | `databases/milvus` | `MINIO_ADDRESS=minio:9000`, `MINIO_ACCESS_KEY/SECRET_KEY=minioadmin` in the StatefulSet |
 | `iac/crossplane` README, docs, builder plugin evals/fixtures/references | prose and golden records mention MinIO |
 
@@ -114,12 +114,12 @@ only if Rook is rejected), **OpenMaxIO** (dormant).
 
 | Criterion | SeaweedFS | External R2 | Rook-Ceph RGW |
 |---|---|---|---|
-| First tenant footprint (≈3 GiB RAM free per node, disks 18–25 % free) | fits; drop the EC-on-Longhorn amplification: 3.3 GiB data ≈ 7 GiB on disk with Longhorn 2× and SeaweedFS replication `000` (frees ≈15 GiB) | frees ≈22 GiB and the operator | does **not** fit: ≈10 GiB RAM total, OSDs on Longhorn block PVCs = double replication |
+| First tenant footprint (≈3 GiB RAM free per node, disks 18–25 % free) | fits in RAM (≈830Mi of requests). Disk: ≈7 GiB written once migrated (3.3 GiB data, Longhorn 2×, SeaweedFS `000`), but ≈24 GiB **provisioned** (master 1 + filer 1 + volume 10 GiB, × 2 replicas) and it must coexist with MinIO's ≈22 GiB during migration; on 2026-11-23 two of three Longhorn disks were **not schedulable** (below the 25 % minimum), so the migration is staged through external S3 unless disk is freed (plan, Stage 3) | frees ≈22 GiB and the operator | does **not** fit: ≈10 GiB RAM total, OSDs on Longhorn block PVCs = double replication |
 | Homelab Pi | fits (arm64) | fits (needs internet) | does not fit |
 | Buckets / users / policies in git | yes, CRDs (operator young: 1.0.x, 81 releases in 12 m) | via OpenTofu or immature Crossplane; outside Argo CD | yes (OBC, users); policies via S3 API |
 | Agent creds | STS in cluster | broker over Temporary Credentials API | STS in cluster |
-| Velero | target stays off-cluster anyway; SeaweedFS as target untested by Velero | proven on the first tenant today | user-reported |
-| Migration from MinIO | rclone copy (already used by `minio-mirror-r2`); keep a `minio` Service alias during cutover; new per-app keys | rclone copy; endpoints to R2; the static site must move to a public bucket or custom domain; app latency to a non-South-America location | same as SeaweedFS plus disks |
+| Velero | target stays off-cluster anyway; SeaweedFS as target untested by Velero | proven on the first tenant today; note both forjate Velero values pin `velero-plugin-for-aws:v1.13.1`, below the R2 minimum above (plan, Stage 4) | user-reported |
+| Migration from MinIO | `rclone copy -M` (rclone is already used for the off-cluster mirror) and `rclone check --download`; every client re-pointed to its contract Secret (no Service alias by default); new per-app keys | rclone copy; endpoints to R2; the static site must move to a public bucket or custom domain; app latency to a non-South-America location | same as SeaweedFS plus disks |
 | Main risk | bus factor 71 %; advisory wave (57 in 6 months) → must pin and bump monthly | vendor lock, no versioning/Object Lock, no South America location, internet dependency | weight; operational complexity |
 
 ## Sources (read 2026-11-23)

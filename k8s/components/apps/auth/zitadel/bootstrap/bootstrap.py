@@ -3,7 +3,8 @@
 Zitadel bootstrap: create-or-update, and loud when it cannot converge.
 
 Reads /config/bootstrap.yaml and reconciles instance features (Login V2), the instance
-login policy (self-registration off unless asked for), organizations, project, roles,
+login policy (self-registration off unless asked for), organizations, projects (each with
+its own roles and flags), roles,
 Actions and flow triggers, OIDC applications (client credentials stored in K8s
 Secrets; public clients store only the client-id), human users, service users
 and external identity providers (Google, GitHub, Azure AD, generic OIDC)
@@ -204,9 +205,71 @@ def organizations(cfg):
     return []
 
 
+def projects(cfg):
+    """`projects:` list. The singular `project:` stays accepted as a one-element list; a
+    block without a name configures no project, as it always did."""
+    if cfg.get("projects"):
+        return cfg["projects"]
+    if (cfg.get("project") or {}).get("name"):
+        say("NOTICE: `project:` is deprecated, use `projects: [{name, roles, ...}]`")
+        return [cfg["project"]]
+    return []
+
+
+def split_role(entry, default_project):
+    """A role of a user is `key` (a role of the first project) or `project/key`."""
+    project, sep, key = str(entry).partition("/")
+    return (project, key) if sep else (default_project, str(entry))
+
+
+def validate_projects(cfg):
+    errors = []
+    if cfg.get("projects") and cfg.get("project"):
+        errors.append("`project:` and `projects:` are both set: keep `projects:` only (`project:` is deprecated)")
+        return errors
+    plist = projects(cfg)
+    org_names = {o.get("name") for o in organizations(cfg)}
+    names = []
+    for p in plist:
+        name = p.get("name")
+        if not name:
+            errors.append("every entry of `projects:` needs a `name`")
+            continue
+        if name in names:
+            errors.append(f"project {name}: declared twice")
+        names.append(name)
+        if "/" in name:
+            errors.append(f"project {name}: a `/` in the name makes `project/role` ambiguous")
+        if p.get("organization") and p["organization"] not in org_names:
+            errors.append(f"project {name}: organization {p['organization']!r} is not in `organizations:` "
+                          f"(known: {sorted(n for n in org_names if n)})")
+        for flag in ("role_check", "role_assertion"):
+            if flag in p and not isinstance(p[flag], bool):
+                errors.append(f"project {name}: {flag} must be true or false, got {p[flag]!r}")
+        for role in p.get("roles", []):
+            if "/" in str(role.get("key", "")):
+                errors.append(f"project {name}: role key {role['key']!r} contains `/`, which `project/role` reserves")
+    seen_apps = set()
+    for app in cfg.get("applications", []):
+        if app.get("name") in seen_apps:
+            errors.append(f"application {app['name']}: declared twice (its Secret zitadel-oidc-<app> would collide)")
+        seen_apps.add(app.get("name"))
+        if app.get("project") and app["project"] not in names:
+            errors.append(f"application {app.get('name')}: project {app['project']!r} is not in `projects:` "
+                          f"(known: {sorted(names)})")
+    for kind in ("users", "service_users"):
+        for u in cfg.get(kind, []):
+            for entry in u.get("roles", []):
+                project, _ = split_role(entry, None)
+                if "/" in str(entry) and project not in names:
+                    errors.append(f"{kind[:-1]} {u.get('username')}: role {entry!r} names project {project!r}, "
+                                  f"which is not in `projects:` (known: {sorted(names)})")
+    return errors
+
+
 def validate_config(cfg):
     """Everything that can be checked without Zitadel. Returns a list of errors."""
-    errors = []
+    errors = validate_projects(cfg)
     if not cfg.get("instance_url"):
         errors.append("instance_url is required (the public issuer URL, https://zitadel.<your-domain>)")
     for u in cfg.get("users", []):
@@ -352,8 +415,10 @@ def ensure_org(name):
     return oid
 
 
-def ensure_project(name, org_id):
-    flags = {"projectRoleAssertion": True, "projectRoleCheck": True}
+def ensure_project(proj, org_id):
+    name = proj["name"]
+    flags = {"projectRoleAssertion": proj.get("role_assertion", True),
+             "projectRoleCheck": proj.get("role_check", True)}
     r = search("/management/v1/projects/_search", {
         "queries": [{"nameQuery": {"name": name, "method": "TEXT_QUERY_METHOD_EQUALS"}}]
     }, org_id=org_id)
@@ -520,11 +585,11 @@ def ensure_action(act, org_id, project_id=None):
         failed(f"search action {act['name']}", r)
         return None
     if "{{project_id}}" in act["script"] and not project_id:
-        say(f"  NOTICE: action {act['name']} uses {{{{project_id}}}} but no `project:` is configured, "
+        say(f"  NOTICE: action {act['name']} uses {{{{project_id}}}} but no project is configured, "
             "so the placeholder becomes an empty string and the script matches no project")
     body = {
         "name": act["name"],
-        # {{project_id}} lets a script scope itself to the configured project.
+        # {{project_id}} lets a script scope itself to the (first) configured project.
         "script": act["script"].replace("{{project_id}}", project_id or ""),
         "timeout": act.get("timeout", "10s"),
         # An action that fails and is not allowed to fail blocks every login.
@@ -567,7 +632,19 @@ def set_flow_triggers(flow, action_ids, org_id):
 
 # ------------------------------------------------------------------ users
 
-def grant_roles(user_id, project_id, role_keys, org_id):
+def grant_roles(user_id, projs, entries, org_id):
+    """Grant the roles of `entries` (`key` or `project/key`), one grant per project."""
+    default = next(iter(projs), None)
+    by_project = {}
+    for entry in entries:
+        project, key = split_role(entry, default)
+        if project in projs:
+            by_project.setdefault(project, []).append(key)
+    for project, keys in by_project.items():
+        grant_project_roles(user_id, projs[project]["id"], keys, org_id)
+
+
+def grant_project_roles(user_id, project_id, role_keys, org_id):
     """Make the user's grant on the project carry exactly role_keys."""
     if not role_keys or not project_id:
         return
@@ -608,14 +685,14 @@ def find_user(username, org_id):
     return None, False
 
 
-def ensure_human(u, project_id, orgs_by_name, default_org_id):
+def ensure_human(u, projs, orgs_by_name, default_org_id):
     org_id = orgs_by_name.get(u.get("organization"), default_org_id)
     existing, err = find_user(u["username"], org_id)
     if err:
         return None
     if existing:
         say(f"User exists: {u['username']} ({existing})")
-        grant_roles(existing, project_id, u.get("roles", []), org_id)
+        grant_roles(existing, projs, u.get("roles", []), org_id)
         return existing
     password = None
     if u.get("initial_password_env"):
@@ -647,7 +724,7 @@ def ensure_human(u, project_id, orgs_by_name, default_org_id):
         return None
     uid = r.json().get("userId")
     say(f"User created: {u['username']} ({uid})")
-    grant_roles(uid, project_id, u.get("roles", []), org_id)
+    grant_roles(uid, projs, u.get("roles", []), org_id)
     return uid
 
 
@@ -676,13 +753,13 @@ def check_unique_emails():
             )
 
 
-def ensure_machine(svc, project_id, default_org_id):
+def ensure_machine(svc, projs, default_org_id):
     existing, err = find_user(svc["username"], default_org_id)
     if err:
         return None
     if existing:
         say(f"Service user exists: {svc['username']} ({existing})")
-        grant_roles(existing, project_id, svc.get("roles", []), default_org_id)
+        grant_roles(existing, projs, svc.get("roles", []), default_org_id)
         return existing
     r = post("/management/v1/users/machine", {
         "userName": svc["username"],
@@ -694,7 +771,7 @@ def ensure_machine(svc, project_id, default_org_id):
         return None
     uid = r.json()["userId"]
     say(f"Service user created: {svc['username']} ({uid})")
-    grant_roles(uid, project_id, svc.get("roles", []), default_org_id)
+    grant_roles(uid, projs, svc.get("roles", []), default_org_id)
     return uid
 
 
@@ -843,27 +920,34 @@ def main():
     if default_org_id is None:
         say("No organization configured: using the service account's own organization")
 
-    proj = cfg.get("project") or {}
-    project_id = ensure_project(proj["name"], default_org_id) if proj.get("name") else None
-    for role in proj.get("roles", []):
-        ensure_role(project_id, default_org_id, role)
+    # name -> {id, org_id}, in declaration order: the first one is the default project.
+    projs = {}
+    for proj in projects(cfg):
+        project_org_id = orgs_by_name[proj["organization"]] if proj.get("organization") else default_org_id
+        projs[proj["name"]] = {"id": ensure_project(proj, project_org_id), "org_id": project_org_id}
+        for role in proj.get("roles", []):
+            ensure_role(projs[proj["name"]]["id"], project_org_id, role)
+    default_project = next(iter(projs), None)
 
-    action_ids = {a["name"]: ensure_action(a, default_org_id, project_id) for a in cfg.get("actions", [])}
+    # {{project_id}} in an action script is the id of the first project.
+    first_id = projs[default_project]["id"] if default_project else None
+    action_ids = {a["name"]: ensure_action(a, default_org_id, first_id) for a in cfg.get("actions", [])}
     for flow in cfg.get("flows", []):
         set_flow_triggers(flow, action_ids, default_org_id)
 
     for app in cfg.get("applications", []):
-        if not project_id:
-            failed(f"app {app['name']}: no `project:` configured")
+        proj = projs.get(app.get("project") or default_project)
+        if not proj:
+            failed(f"app {app['name']}: no project configured (`projects:`)")
             continue
-        app_id, cid, csec = ensure_oidc_app(project_id, default_org_id, app)
+        app_id, cid, csec = ensure_oidc_app(proj["id"], proj["org_id"], app)
         if app_id:
-            reconcile_oidc_secret(app, project_id, default_org_id, app_id, cid, csec, issuer)
+            reconcile_oidc_secret(app, proj["id"], proj["org_id"], app_id, cid, csec, issuer)
 
     for u in cfg.get("users", []):
-        ensure_human(u, project_id, orgs_by_name, default_org_id)
+        ensure_human(u, projs, orgs_by_name, default_org_id)
     for svc in cfg.get("service_users", []):
-        ensure_machine(svc, project_id, default_org_id)
+        ensure_machine(svc, projs, default_org_id)
 
     idps = cfg.get("identity_providers", [])
     if any((i.get("options") or {}).get("auto_linking") == "email" for i in idps):

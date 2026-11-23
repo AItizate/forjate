@@ -565,7 +565,163 @@ def test_every_list_call_asks_for_one_page_of_at_most_1000_rows(w):
 def test_an_action_using_project_id_without_a_project_says_so(w, capsys):
     action = {"name": "g", "script": "function g(ctx, api) { return '{{project_id}}'; }"}
     assert w.run({"organizations": [{"name": "acme", "is_default": True}], "actions": [action]}) == 0
-    assert "no `project:` is configured" in capsys.readouterr().out
+    assert "no project is configured" in capsys.readouterr().out
+
+
+# ------------------------------------------------------------ multiple projects (#66)
+
+def multi(**over):
+    """Two projects in one organization: staff tools, and a customer-facing app whose
+    users self-register (no grant yet), so it has no role check."""
+    c = cfg(
+        projects=[
+            {"name": "platform", "organization": "acme", "roles": [{"key": "admin"}, {"key": "viewer"}]},
+            {"name": "customer-app", "organization": "acme", "role_check": False,
+             "roles": [{"key": "app-user", "display_name": "App user"}, {"key": "app-admin"}]},
+        ],
+        applications=[
+            {"name": "web-app", "redirect_uris": ["https://auth.example.com/oauth2/callback"]},
+            {"name": "customer-web", "project": "customer-app", "redirect_uris": ["https://app.example.com/cb"]},
+        ],
+        users=[{"username": "ana", "email": "ana@example.com", "initial_password_env": "ANA_PASSWORD",
+                "roles": ["admin", "customer-app/app-admin"]}],
+        service_users=[{"username": "agent", "roles": ["viewer", "customer-app/app-user"]}],
+    )
+    c.pop("project")
+    c.update(over)
+    return c
+
+
+def project_by_name(w, name):
+    return next((i, p) for i, p in w.z.projects.items() if p["name"] == name)
+
+
+def test_two_projects_each_get_their_own_roles_and_flags(w):
+    assert w.run(multi()) == 0
+    pid, platform = project_by_name(w, "platform")
+    cid, customer = project_by_name(w, "customer-app")
+    assert (platform["projectRoleCheck"], platform["projectRoleAssertion"]) == (True, True)
+    assert (customer["projectRoleCheck"], customer["projectRoleAssertion"]) == (False, True)
+    assert {r[1] for r in w.z.roles if r[0] == pid} == {"admin", "viewer"}
+    assert {r[1] for r in w.z.roles if r[0] == cid} == {"app-user", "app-admin"}
+    org_id = next(iter(w.z.orgs))
+    assert platform["org"] == customer["org"] == org_id
+
+
+def test_an_app_lands_in_its_project_and_defaults_to_the_first(w):
+    assert w.run(multi()) == 0
+    pid, _ = project_by_name(w, "platform")
+    cid, _ = project_by_name(w, "customer-app")
+    projects_of = {a["name"]: a["project"] for a in w.z.apps.values()}
+    assert projects_of == {"web-app": pid, "customer-web": cid}
+    # the Secret names do not depend on the project
+    assert set(w.k.secrets) == {"zitadel-oidc-web-app", "zitadel-oidc-customer-web"}
+
+
+def test_grants_are_created_per_project(w):
+    assert w.run(multi()) == 0
+    pid, _ = project_by_name(w, "platform")
+    cid, _ = project_by_name(w, "customer-app")
+    ana = next(i for i, u in w.z.users.items() if u["username"] == "ana")
+    agent = next(i for i, u in w.z.users.items() if u["username"] == "agent")
+    held = {(g["user"], g["project"]): g["roleKeys"] for g in w.z.grants.values()}
+    assert held == {(ana, pid): ["admin"], (ana, cid): ["app-admin"],
+                    (agent, pid): ["viewer"], (agent, cid): ["app-user"]}
+
+
+def test_role_check_false_is_applied_to_an_existing_project_too(w):
+    assert w.run(multi(projects=[{"name": "customer-app", "organization": "acme"}])) == 0
+    _, p = project_by_name(w, "customer-app")
+    assert p["projectRoleCheck"] is True
+    c = multi()
+    c["projects"] = [c["projects"][1]]
+    c["applications"], c["users"], c["service_users"] = [], [], []
+    assert w.run(c) == 0
+    assert project_by_name(w, "customer-app")[1]["projectRoleCheck"] is False
+
+
+def test_two_projects_rerun_is_a_no_op(w):
+    assert w.run(multi()) == 0
+    state = (dict(w.z.apps), dict(w.z.projects), dict(w.z.users), dict(w.z.grants),
+             {k: dict(v) for k, v in w.k.secrets.items()})
+    assert w.run(multi()) == 0
+    assert (dict(w.z.apps), dict(w.z.projects), dict(w.z.users), dict(w.z.grants), w.k.secrets) == state
+    creates = [c for c in w.writes() if c[0] == "POST" and not c[1].endswith("/roles")]
+    assert not creates, f"re-run created things: {creates}"
+    assert not [c for c in w.k.calls if c[0] != "GET"], "re-run wrote Secrets that were up to date"
+
+
+def test_a_grant_is_updated_only_in_the_project_it_names(w):
+    assert w.run(multi()) == 0
+    c = multi()
+    c["users"][0]["roles"] = ["admin", "viewer", "customer-app/app-user"]
+    assert w.run(c) == 0
+    ana = next(i for i, u in w.z.users.items() if u["username"] == "ana")
+    pid, _ = project_by_name(w, "platform")
+    cid, _ = project_by_name(w, "customer-app")
+    held = {g["project"]: sorted(g["roleKeys"]) for g in w.z.grants.values() if g["user"] == ana}
+    assert held == {pid: ["admin", "viewer"], cid: ["app-user"]}
+
+
+def test_a_project_can_live_in_its_own_organization(w):
+    c = multi(organizations=[{"name": "acme", "is_default": True}, {"name": "customers"}])
+    c["projects"][1]["organization"] = "customers"
+    c["users"], c["service_users"] = [], []
+    assert w.run(c) == 0
+    orgs = {n: i for i, n in w.z.orgs.items()}
+    assert project_by_name(w, "platform")[1]["org"] == orgs["acme"]
+    assert project_by_name(w, "customer-app")[1]["org"] == orgs["customers"]
+
+
+@pytest.mark.parametrize("change, message", [
+    (lambda c: c["applications"][1].update(project="nope"), "project 'nope' is not in `projects:`"),
+    (lambda c: c["users"][0].update(roles=["nope/admin"]), "names project 'nope'"),
+    (lambda c: c["service_users"][0].update(roles=["nope/viewer"]), "names project 'nope'"),
+    (lambda c: c["projects"][1].update(organization="elsewhere"), "organization 'elsewhere' is not in"),
+    (lambda c: c["projects"][1].update(name="platform"), "declared twice"),
+    (lambda c: c["projects"][1].update(role_check="false"), "role_check must be true or false"),
+    (lambda c: c["projects"][1].pop("name"), "needs a `name`"),
+    (lambda c: c["applications"][1].update(name="web-app"), "declared twice"),
+    (lambda c: c.update(project={"name": "old"}), "both set"),
+])
+def test_invalid_project_config_exits_2_before_any_api_call(w, capsys, change, message):
+    c = multi()
+    change(c)
+    assert w.run(c) == 2
+    assert not w.z.calls
+    assert message in capsys.readouterr().err
+
+
+def test_an_app_naming_a_project_with_none_configured_exits_2(w, capsys):
+    c = cfg(applications=[{"name": "web-app", "project": "platform"}])
+    c.pop("project")
+    assert w.run(c) == 2
+    assert "not in `projects:`" in capsys.readouterr().err
+
+
+def test_the_singular_project_key_reproduces_todays_flags(w, capsys):
+    """Backward compatibility: `project:` is one project with both flags on, its apps and
+    its unqualified roles in it, and a deprecation notice."""
+    assert w.run(cfg()) == 0
+    pid, p = project_by_name(w, "platform")
+    assert (p["projectRoleAssertion"], p["projectRoleCheck"]) == (True, True)
+    assert {a["project"] for a in w.z.apps.values()} == {pid}
+    assert {g["project"] for g in w.z.grants.values()} == {pid}
+    assert "`project:` is deprecated" in capsys.readouterr().out
+    assert "project" in CONFIG and "projects" not in CONFIG
+
+
+def test_a_project_block_without_a_name_still_configures_nothing(w):
+    c = cfg(project={"roles": [{"key": "admin"}]}, applications=[])
+    assert w.run(c) == 0
+    assert not w.z.projects and not w.z.grants
+
+
+def test_action_project_id_is_the_first_project(w):
+    script = 'g.projectId === "{{project_id}}"'
+    assert w.run(multi(actions=[{"name": "groupsClaim", "script": script}])) == 0
+    pid, _ = project_by_name(w, "platform")
+    assert next(iter(w.z.actions.values()))["script"] == script.replace("{{project_id}}", pid)
 
 
 def test_example_overlay_gives_the_first_admin_an_email_no_user_shares():

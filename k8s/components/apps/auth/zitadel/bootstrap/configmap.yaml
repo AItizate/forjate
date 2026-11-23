@@ -26,20 +26,23 @@ data:
       - name: default-org
         is_default: true
 
-    # Project = group of applications with shared roles
-    project:
-      name: platform
-      # Roles defined at project level, assigned to users
-      roles:
-        - key: admin
-          display_name: Administrator
-          group: platform
-        - key: operator
-          display_name: Operator
-          group: platform
-        - key: viewer
-          display_name: Viewer
-          group: platform
+    # Projects = groups of applications with shared roles. The first one is the default
+    # for applications and for user roles that name no project (`project/role` names one).
+    # Per project: `role_check` and `role_assertion` (both default true).
+    # (`project:` singular still works, deprecated.)
+    projects:
+      - name: platform
+        # Roles defined at project level, assigned to users
+        roles:
+          - key: admin
+            display_name: Administrator
+            group: platform
+          - key: operator
+            display_name: Operator
+            group: platform
+          - key: viewer
+            display_name: Viewer
+            group: platform
 
     # OIDC Applications (each gets a client_id + client_secret)
     applications:
@@ -81,7 +84,7 @@ data:
     #       function groupsClaim(ctx, api) {
     #         if (ctx.v1.user.grants === undefined || ctx.v1.user.grants.count == 0) { return; }
     #         let grants = [];
-    #         // {{project_id}} is replaced by the bootstrap with the `project:` above, so a
+    #         // {{project_id}} is replaced by the bootstrap with the id of the first project above, so a
     #         // role named `viewer` in ANOTHER project does not become a group here.
     #         ctx.v1.user.grants.grants
     #           .filter((g) => g.projectId === "{{project_id}}")

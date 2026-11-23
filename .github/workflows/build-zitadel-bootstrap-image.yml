@@ -1,0 +1,152 @@
+name: Build zitadel-bootstrap image
+
+# The runtime image of the zitadel-bootstrap Job (k8s/components/apps/auth/zitadel/
+# bootstrap/image/Dockerfile): CPython plus the hashed dependencies of requirements.txt.
+#
+# Pull requests (and every manual run): job `check` builds amd64, smoke-tests the
+# image offline and scans it. Read-only token, nothing is pushed.
+# Publishing: a maintainer runs this workflow by hand from main with `publish: true`.
+# Job `publish` (the only job with packages: write) pushes a multi-arch index (amd64,
+# arm64) with SBOM and provenance attestations to ghcr.io/aitizate/zitadel-bootstrap
+# and prints the index digest. Writing that digest into the manifests is a normal PR,
+# so nothing reaches them without review.
+#
+# Actions are pinned by commit SHA (tag in the comment). Not the shared build-push
+# template: it builds one platform, attaches no SBOM or provenance and does not output
+# the digest the manifests pin.
+
+on:
+  pull_request:
+    paths:
+      - 'k8s/components/apps/auth/zitadel/bootstrap/image/**'
+      - 'k8s/components/apps/auth/zitadel/bootstrap/requirements.txt'
+      - '.github/workflows/build-zitadel-bootstrap-image.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Push the image to ghcr.io/aitizate/zitadel-bootstrap (main only)'
+        type: boolean
+        default: false
+
+permissions: {}
+
+env:
+  IMAGE: ghcr.io/aitizate/zitadel-bootstrap
+  CONTEXT: k8s/components/apps/auth/zitadel/bootstrap
+  DOCKERFILE: k8s/components/apps/auth/zitadel/bootstrap/image/Dockerfile
+  # Pinned by digest: the scanner gates what gets published.
+  TRIVY_IMAGE: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+
+      - name: Build (amd64, loaded for the checks)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.DOCKERFILE }}
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: zitadel-bootstrap:ci
+
+      - name: Smoke test (offline, non-root, no installer, no shell)
+        run: |
+          set -euo pipefail
+          run() { docker run --rm --network none --read-only --cap-drop ALL \
+                    --security-opt no-new-privileges zitadel-bootstrap:ci "$@"; }
+          run -c "import os, requests, jwt, yaml, cryptography; assert os.getuid() == 65532"
+          if run -m pip --version; then echo "::error::pip is in the image"; exit 1; fi
+          if docker run --rm --entrypoint sh zitadel-bootstrap:ci -c true; then
+            echo "::error::a shell is in the image"; exit 1
+          fi
+
+      - name: Scan (HIGH and CRITICAL with a fix fail the build)
+        run: |
+          set -euo pipefail
+          docker save zitadel-bootstrap:ci -o "${RUNNER_TEMP}/image.tar"
+          docker run --rm -v "${RUNNER_TEMP}:/w" "${TRIVY_IMAGE}" image --quiet \
+            --input /w/image.tar --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+
+  publish:
+    needs: check
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write       # push to GHCR
+      id-token: write       # sign the provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Tags
+        id: tags
+        run: |
+          set -euo pipefail
+          req=$(sha256sum "${CONTEXT}/requirements.txt" | cut -c1-12)
+          py=$(sed -n 's/^ARG PYTHON_IMAGE=python:\([0-9.]*\)-.*/\1/p' "${DOCKERFILE}")
+          echo "tags=${IMAGE}:py${py}-req${req},${IMAGE}:sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (amd64 + arm64, SBOM, provenance)
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.DOCKERFILE }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          sbom: true
+          provenance: mode=max
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: What to write in the manifests
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          req=$(sha256sum "${CONTEXT}/requirements.txt" | cut -d' ' -f1)
+          base=$(sed -n 's/^ARG PYTHON_IMAGE=//p' "${DOCKERFILE}")
+          {
+            echo "### Published ${IMAGE}@${DIGEST}"
+            echo
+            echo "Set \`digest: ${DIGEST}\` in bootstrap/kustomization.yaml (\`images:\`) and write in bootstrap/image/published.yaml:"
+            echo '```yaml'
+            echo "digest: ${DIGEST}"
+            echo "requirements_sha256: ${req}"
+            echo "base: ${base}"
+            echo '```'
+            echo "Verify: \`gh attestation verify oci://${IMAGE}@${DIGEST} -R ${GITHUB_REPOSITORY}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

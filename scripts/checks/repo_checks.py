@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -54,8 +55,16 @@ def ratchet(offenders: set[str], baseline: set[str]) -> tuple[list[str], list[st
 
 
 def _files(root: Path):
+    """The sources under `root`: tracked files and untracked ones git does not ignore (a Helm chart cache that
+    `kustomize build --enable-helm` writes to charts/ is not a source); every file outside a git work tree."""
+    try:
+        out = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                             capture_output=True, check=True).stdout.decode()
+        listed = {root / p for p in out.split("\0") if p}
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        listed = None
     for f in sorted(root.rglob("*")):
-        if f.is_file() and not any(part.startswith(".") for part in f.relative_to(root).parts):
+        if f.is_file() and not any(part.startswith(".") for part in f.relative_to(root).parts) and (listed is None or f in listed):
             yield f
 
 

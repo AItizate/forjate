@@ -168,3 +168,16 @@ def test_pins_in_helm_values_image_maps(tmp_path: Path):
     repo = _repo(tmp_path, {"k8s/components/apps/x/values.yaml": "image:\n  repository: acme/app\n  tag: latest\n",
                             "k8s/components/apps/y/values.yaml": "image:\n  repository: acme/app\n  tag: 1.2.3\n"}, [])
     assert list(rc.pin_offenders(repo)) == ["k8s/components/apps/x/values.yaml"]
+
+
+def test_git_ignored_files_are_not_sources(tmp_path: Path):
+    """A Helm chart cache (`kustomize build --enable-helm` writes charts/, git-ignored) is not the repo's source."""
+    import subprocess
+    repo = _repo(tmp_path, {".gitignore": "**/charts/\n",
+                            "k8s/components/apps/x/kustomization.yaml": "resources: []\n",
+                            "k8s/components/apps/x/charts/op-1.0.0/op/values.yaml": "image:\n  repository: acme/op\n  tag: latest\n",
+                            "k8s/components/apps/x/charts/op-1.0.0/op/cm.yaml": "kind: ConfigMap\ndata: {URL: 'http://blobd:8333'}\n"},
+                 [STORE, _consumer("apps/x")])
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    assert rc.pin_offenders(repo) == {}
+    assert rc.coupling_offenders(repo) == {}

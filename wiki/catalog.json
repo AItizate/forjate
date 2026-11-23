@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-11-12",
+  "compiled_at": "2026-11-23",
   "stages": [
     "crawl",
     "walk",
@@ -39,6 +39,32 @@
         "data-store"
       ],
       "exclusive": true
+    },
+    "object-store": {
+      "summary": "an S3 endpoint consumers reach through the S3 contract (docs/tenant-onboarding/configuring-object-storage.md), never by the store's name",
+      "asked_by": [
+        "data-store",
+        "devops"
+      ],
+      "contract": {
+        "protocol": "s3",
+        "secret_keys": [
+          "AWS_ACCESS_KEY_ID",
+          "AWS_SECRET_ACCESS_KEY"
+        ],
+        "config_keys": [
+          "AWS_ENDPOINT_URL_S3",
+          "S3_HOST",
+          "S3_PORT",
+          "S3_USE_TLS",
+          "AWS_REGION",
+          "S3_BUCKET",
+          "AWS_CA_BUNDLE"
+        ],
+        "config_key_patterns": [
+          "S3_BUCKET_[A-Z0-9_]+"
+        ]
+      }
     },
     "cache": {
       "summary": "hot data in front of a slower store; disposable",
@@ -309,7 +335,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -385,7 +412,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -455,7 +483,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -531,7 +560,8 @@
             "memory": "4Gi"
           }
         },
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -601,7 +631,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -671,7 +702,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -748,7 +780,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -810,7 +843,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -885,7 +919,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -958,7 +993,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -1016,7 +1052,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1083,7 +1120,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1137,7 +1175,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "unknown",
@@ -1200,7 +1239,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1257,7 +1297,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1324,7 +1365,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1393,7 +1435,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -1471,7 +1514,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1545,7 +1589,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1614,7 +1659,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1688,7 +1734,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1759,7 +1806,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1833,7 +1881,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1902,7 +1951,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -1972,7 +2022,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -2037,7 +2088,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -2112,7 +2164,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -2173,7 +2226,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -2237,7 +2291,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -2300,7 +2355,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -2378,7 +2434,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -2445,7 +2502,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -2525,7 +2583,8 @@
             "memory": "512Mi"
           }
         },
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -2595,7 +2654,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -2685,7 +2745,8 @@
             "memory": "1Gi"
           }
         },
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -2763,7 +2824,8 @@
             "memory": "256Mi"
           }
         },
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -2829,7 +2891,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -2902,7 +2965,8 @@
             "memory": "3Gi"
           }
         },
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -2969,7 +3033,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3032,7 +3097,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3091,7 +3157,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3143,7 +3210,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3168,6 +3236,7 @@
         "crawl"
       ],
       "capabilities": [
+        "object-store",
         "artifact-store"
       ],
       "maturity": "lab",
@@ -3229,7 +3298,8 @@
         },
         "extra_ports": {
           "console": 9090
-        }
+        },
+        "consumes": []
       },
       "curated": true,
       "psa_level": "privileged",
@@ -3264,6 +3334,7 @@
         "walk"
       ],
       "capabilities": [
+        "object-store",
         "artifact-store"
       ],
       "maturity": "mvp",
@@ -3304,7 +3375,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "restricted",
@@ -3377,7 +3449,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3433,7 +3506,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3515,7 +3589,8 @@
         ],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3587,7 +3662,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3659,7 +3735,8 @@
         ],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3733,7 +3810,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3788,7 +3866,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3860,7 +3939,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -3932,7 +4012,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4007,7 +4088,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4062,7 +4144,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4132,7 +4215,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4193,7 +4277,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4262,7 +4347,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4324,7 +4410,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4395,7 +4482,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4480,7 +4568,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4556,7 +4645,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4637,7 +4727,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4706,7 +4797,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4767,7 +4859,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4840,7 +4933,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4905,7 +4999,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -4964,7 +5059,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5018,7 +5114,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5072,7 +5169,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5142,7 +5240,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5208,7 +5307,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5262,7 +5362,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5324,7 +5425,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5382,7 +5484,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5456,7 +5559,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -5521,7 +5625,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5596,7 +5701,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5665,7 +5771,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "baseline",
@@ -5734,7 +5841,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       },
       "curated": true,
       "psa_level": "unknown",
@@ -5803,7 +5911,8 @@
         "hostpath_volumes": [],
         "secret_mounted": true,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5853,7 +5962,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5903,7 +6013,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -5954,7 +6065,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     },
     {
@@ -6009,7 +6121,8 @@
         "hostpath_volumes": [],
         "secret_mounted": false,
         "sizing": null,
-        "extra_ports": {}
+        "extra_ports": {},
+        "consumes": []
       }
     }
   ],

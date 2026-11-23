@@ -2,7 +2,7 @@
 
 # Catalog snapshot for forjate:compliance
 
-compiled_at: 2026-11-12
+compiled_at: 2026-11-23
 
 **This is a snapshot, not a rule.** It shows what `wiki/catalog.json` resolved for each capability on the date above. Ask by capability and property, read the catalog at run time, and expect these tables to change as the catalog grows: a capability with one option today may have two tomorrow, and a component listed here may be denied by a context pack. Name a component in a record only after resolving it; name it in prose only when it is the single option for the capability.
 
@@ -42,8 +42,8 @@ This skill consumes the whole catalog. Components whose `stages` is empty are in
 | `apps/docker-registry` | image-registry | crawl, walk | lab | single | none | baseline | — | Apache-2.0 | The local registry for k3d; GHCR or the organisation's registry from Walk. |
 | `apps/document-processing/docling` | document-parsing | crawl, walk, run | lab | single | none | baseline | internal, pii, financial, health | MIT | PDF/Office to structured text with tables, layout and OCR. Stateless CPU image; slow but dependable for Crawl. |
 | `apps/iac/crossplane` | cloud-resources | run | lab | unknown | none | unknown | — | Apache-2.0 | Cloud credentials arrive as a Secret; the resources it creates have their own classification. |
-| `apps/minio/dev` | artifact-store | crawl | lab | single | none | privileged | internal, pii, financial, health | AGPL-3.0 | A bare Pod for k3d; dies with the environment. |
-| `apps/minio/single-server` | artifact-store | crawl, walk | mvp | operator | none | restricted | internal, pii, financial, health | AGPL-3.0 | A one-server Tenant through the operator in base; no redundancy. Run is the same Tenant with more servers, or an S3 service within residency. Buckets per kind (inbox, parsed, audit, seed). |
+| `apps/minio/dev` | object-store, artifact-store | crawl | lab | single | none | privileged | internal, pii, financial, health | AGPL-3.0 | A bare Pod for k3d; dies with the environment. |
+| `apps/minio/single-server` | object-store, artifact-store | crawl, walk | mvp | operator | none | restricted | internal, pii, financial, health | AGPL-3.0 | A one-server Tenant through the operator in base; no redundancy. Run is the same Tenant with more servers, or an S3 service within residency. Buckets per kind (inbox, parsed, audit, seed). |
 | `apps/monitoring/grafana` | dashboards | walk, run | mvp | single | none | baseline | internal | AGPL-3.0 | Alertmanager rules live beside it; the three alerts that page are a Walk gate. |
 | `apps/monitoring/kubernetes-dashboard` | cluster-ui | crawl, walk | lab | n/a | none | n/a | — | Apache-2.0 | Ingress, RBAC and token for the upstream dashboard; the dashboard itself is deployed by base or the tenant. |
 | `apps/monitoring/otel-collector` | telemetry | walk, run | lab | replicated | none | privileged | internal, pii | Apache-2.0 | Agent DaemonSet plus a cluster Deployment; the step from metrics-only to metrics+logs+traces, needed for LLM call tracing. Logs can carry pii — scrub at the collector. |

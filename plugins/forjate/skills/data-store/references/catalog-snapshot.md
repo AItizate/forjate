@@ -2,7 +2,7 @@
 
 # Catalog snapshot for forjate:data-store
 
-compiled_at: 2026-10-29
+compiled_at: 2026-11-23
 
 **This is a snapshot, not a rule.** It shows what `wiki/catalog.json` resolved for each capability on the date above. Ask by capability and property, read the catalog at run time, and expect these tables to change as the catalog grows: a capability with one option today may have two tomorrow, and a component listed here may be denied by a context pack. Name a component in a record only after resolving it; name it in prose only when it is the single option for the capability.
 
@@ -57,6 +57,17 @@ _asked by: data-store · exclusive: one per stage_
 documents, prompts, run logs and reports as objects, keyed by the idempotency key.
 
 _asked by: data-store · exclusive: one per stage_
+
+| Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
+|---|---|---|---|---|---|---|---|---|
+| `apps/minio/dev` | crawl | lab | single | none | privileged | internal, pii, financial, health | AGPL-3.0 | A bare Pod for k3d; dies with the environment. |
+| `apps/minio/single-server` | crawl, walk | mvp | operator | none | restricted | internal, pii, financial, health | AGPL-3.0 | A one-server Tenant through the operator in base; no redundancy. Run is the same Tenant with more servers, or an S3 service within residency. Buckets per kind (inbox, parsed, audit, seed). |
+
+## `object-store`
+
+an S3 endpoint consumers reach through the S3 contract (docs/tenant-onboarding/configuring-object-storage.md), never by the store's name.
+
+_asked by: data-store, devops · contract `s3`: consumers read only `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `S3_HOST`, `S3_PORT`, `S3_USE_TLS`, `AWS_REGION`, `S3_BUCKET`, `AWS_CA_BUNDLE`, `S3_BUCKET_[A-Z0-9_]+`_
 
 | Component | Stages | Maturity | HA | GPU | PSA level | Data classes | Licence | Notes |
 |---|---|---|---|---|---|---|---|---|

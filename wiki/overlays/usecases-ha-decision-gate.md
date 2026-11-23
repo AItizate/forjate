@@ -3,10 +3,10 @@ title: usecases-ha-decision-gate
 kind: overlay
 sources:
 - k8s/overlays/usecases/ha-decision-gate
-compiled_at: '2026-11-15'
+compiled_at: '2026-11-23'
 category: usecases
-source_hash: 85e0877b0bdc2d8a
-source_last_commit: '2026-11-15'
+source_hash: 50795d7fd975a2cf
+source_last_commit: '2026-11-23'
 summary: deploys `python:3.12-slim`
 summary_source: derived
 ---

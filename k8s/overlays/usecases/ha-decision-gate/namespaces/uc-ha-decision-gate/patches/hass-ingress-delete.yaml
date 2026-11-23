@@ -1,0 +1,9 @@
+# The component's Ingress points at hass.example.com and references a tls-secret
+# that no ephemeral environment creates. Nothing reaches this cluster from
+# outside, so the Ingress is dead weight that only produces Traefik errors about
+# the missing certificate. Reaching the UI is a port-forward away.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hass-ingress
+$patch: delete

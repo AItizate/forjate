@@ -3,11 +3,12 @@ title: home-automation-hass
 kind: component
 sources:
 - k8s/components/apps/home-automation/hass
-compiled_at: '2026-11-07'
+compiled_at: '2026-11-15'
 category: home-automation
 parent: components/home-automation
 consumed_by:
 - components/home-automation
+- overlays/usecases-ha-decision-gate
 source_hash: 88d133b9cbccbd7f
 source_last_commit: '2026-04-27'
 summary: deploys `homeassistant/raspberrypi4-homeassistant:latest`
@@ -40,6 +41,7 @@ summary_source: derived
 ### Consumed by
 
 - [components/home-automation](../components/home-automation.md)
+- [overlays/usecases-ha-decision-gate](../overlays/usecases-ha-decision-gate.md) — resource, via namespaces/uc-ha-decision-gate
 
 <!-- END DECLARED -->
 

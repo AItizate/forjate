@@ -1,0 +1,70 @@
+# Seed phase — pull the model, onboard Home Assistant, create the entities.
+#
+# suspend: true is deliberate. Applying the overlay creates the Job without
+# starting it; the runner decides the order (seed -> run -> verify) and
+# un-suspends one at a time.
+#
+# This is the slow phase on a cold cluster: Home Assistant's first boot installs
+# its requirements and the model has to be downloaded. Both are cached by the
+# PVCs afterwards, so a re-run of `up` is minutes faster.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hadg-seed
+  labels:
+    app: hadg-seed
+    forjate.io/usecase: ha-decision-gate
+    forjate.io/phase: seed
+spec:
+  suspend: true
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: hadg-seed
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed
+          image: python:3.12-slim
+          command: ["python", "-u", "/app/seed.py"]
+          env:
+            - name: HA_BASE_URL
+              value: http://hass:8123
+            - name: HA_USERNAME
+              valueFrom:
+                secretKeyRef: { name: hass-secret, key: HA_USERNAME }
+            - name: HA_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: hass-secret, key: HA_PASSWORD }
+            - name: ENGINE_BASE_URL
+              valueFrom:
+                configMapKeyRef: { name: hadg-engine-config, key: ENGINE_BASE_URL }
+            - name: ENGINE_MODEL
+              valueFrom:
+                configMapKeyRef: { name: hadg-engine-config, key: ENGINE_MODEL }
+            - name: PYTHONPATH
+              value: /app
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: HOME
+              value: /tmp
+          volumeMounts:
+            - { name: scripts, mountPath: /app }
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { memory: "64Mi", cpu: "50m" }
+            limits:   { memory: "256Mi", cpu: "500m" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile: { type: RuntimeDefault }
+      volumes:
+        - { name: scripts, configMap: { name: hadg-scripts } }
+        - { name: data, configMap: { name: hadg-data } }
+        - { name: tmp, emptyDir: {} }

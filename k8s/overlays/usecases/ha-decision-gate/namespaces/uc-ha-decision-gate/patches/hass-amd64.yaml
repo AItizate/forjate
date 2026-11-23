@@ -1,0 +1,28 @@
+# The catalog component ships homeassistant/raspberrypi4-homeassistant, which is
+# an arm64-only image — it cannot start on an amd64 k3d node. The generic image is
+# the same Home Assistant, built for every architecture.
+#
+# This is a workaround, not a preference: the component is arch-locked and so is
+# unusable for any tenant that is not a Raspberry Pi. Worth fixing upstream in the
+# catalog rather than re-patching in every overlay.
+#
+# The catalog's 512Mi ceiling also predates this use case. Home Assistant installs
+# its Python requirements on first boot and gets OOM-killed well below 1Gi, which
+# looks exactly like a hang.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hass
+spec:
+  template:
+    spec:
+      containers:
+        - name: hass
+          image: homeassistant/home-assistant:stable
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "1536Mi"

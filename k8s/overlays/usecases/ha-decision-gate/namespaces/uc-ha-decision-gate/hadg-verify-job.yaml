@@ -1,0 +1,85 @@
+# Verify phase — the gate `ephemeral.sh up` blocks on.
+#
+# Exit 0 means: Home Assistant and the engine are both live, every scenario got a
+# verdict, no answer fell outside the allowed options, each question cleared its
+# accuracy floor and beat a constant-answer baseline, ordinary evenings did not
+# trigger alarms, and p95 latency fit the budget.
+#
+# The thresholds are environment variables so a slower engine can be graded on
+# the same scenarios. Loosening them is a decision someone has to make on
+# purpose, which is the point of having them here rather than inside the script.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hadg-verify
+  labels:
+    app: hadg-verify
+    forjate.io/usecase: ha-decision-gate
+    forjate.io/phase: verify
+spec:
+  suspend: true
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: hadg-verify
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: verify
+          image: python:3.12-slim
+          command: ["python", "-u", "/app/verify.py"]
+          env:
+            - name: HA_BASE_URL
+              value: http://hass:8123
+            - name: HA_USERNAME
+              valueFrom:
+                secretKeyRef: { name: hass-secret, key: HA_USERNAME }
+            - name: HA_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: hass-secret, key: HA_PASSWORD }
+            - name: DECIDE_URL
+              value: http://decision-service:8080
+            # Graded against a 3B instruct model with constrained decoding on CPU.
+            # A purpose-built decision model should clear these comfortably; that
+            # gap is the experiment worth running next.
+            - name: MODE_ACCURACY_FLOOR
+              value: "0.70"
+            - name: ACTION_ACCURACY_FLOOR
+              value: "0.50"
+            - name: URGENCY_ACCURACY_FLOOR
+              value: "0.50"
+            - name: FALSE_ALARM_CEILING
+              value: "0.15"
+            # Measured, not guessed: a 3B model answering three questions in one
+            # CPU forward pass runs a median of ~33s and a p95 of ~45s on a k3d
+            # node. The first 30000 here was invented before anything had run and
+            # failed on physics rather than on quality. On a GPU this belongs two
+            # orders of magnitude lower.
+            - name: P95_BUDGET_MS
+              value: "60000"
+            - name: PYTHONPATH
+              value: /app
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: HOME
+              value: /tmp
+          volumeMounts:
+            - { name: scripts, mountPath: /app }
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { memory: "64Mi", cpu: "50m" }
+            limits:   { memory: "256Mi", cpu: "500m" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile: { type: RuntimeDefault }
+      volumes:
+        - { name: scripts, configMap: { name: hadg-scripts } }
+        - { name: data, configMap: { name: hadg-data } }
+        - { name: tmp, emptyDir: {} }

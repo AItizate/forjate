@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-11-12'
+compiled_at: '2026-11-15'
 ---
 
 # Forjate wiki — index
@@ -41,7 +41,7 @@ The foundation every tenant inherits.
 
 - [ai-models-litellm](components/ai-models-litellm.md) — deploys `ghcr.io/berriai/litellm:main-stable` · used by 5
   - [ai-models-litellm-postgres](components/ai-models-litellm-postgres.md) — composes `postgres` · used by 2
-- [ai-models-ollama](components/ai-models-ollama.md) — deploys `ollama/ollama:latest` · used by 4
+- [ai-models-ollama](components/ai-models-ollama.md) — deploys `ollama/ollama:latest` · used by 5
 - [ai-models-open-webui](components/ai-models-open-webui.md) — deploys `ghcr.io/open-webui/open-webui:main` · used by 1
 - [ai-models-vllm](components/ai-models-vllm.md) — deploys `vllm/vllm-openai:latest` · used by 2
 
@@ -111,7 +111,7 @@ The foundation every tenant inherits.
 ### home-automation
 
   - [home-automation-esphome](components/home-automation-esphome.md) — deploys `esphome/esphome:latest` · used by 1
-  - [home-automation-hass](components/home-automation-hass.md) — deploys `homeassistant/raspberrypi4-homeassistant:latest` · used by 1
+  - [home-automation-hass](components/home-automation-hass.md) — deploys `homeassistant/raspberrypi4-homeassistant:latest` · used by 2
 
 ### iac
 
@@ -215,6 +215,7 @@ Concrete environments assembled from base + components.
 - [multi-tenant-pattern-tenants-client-b](overlays/multi-tenant-pattern-tenants-client-b.md) — declares `Namespace` · 1 local reference
 - [quickstart](overlays/quickstart.md) — deploys `curlimages/curl:8.10.1` · 3 local references
 - [usecases-db-migration-a-to-b](overlays/usecases-db-migration-a-to-b.md) — deploys `busybox:1.36` · 3 local references
+- [usecases-ha-decision-gate](overlays/usecases-ha-decision-gate.md) — deploys `python:3.12-slim` · 3 local references
 - [usecases-invoice-intake](overlays/usecases-invoice-intake.md) — Crawl root of invoice-intake, assembled from .builder/ by forjate:kustomize. Stages extend it: stages/walk, stages/run · 5 local references
 - [usecases-invoice-intake-stages-run](overlays/usecases-invoice-intake-stages-run.md) — run stage of invoice-intake: extends ../walk and adds what the records require for run, nothing the plan put out of scope · 4 local references
 - [usecases-invoice-intake-stages-walk](overlays/usecases-invoice-intake-stages-walk.md) — walk stage of invoice-intake: recomposes the Crawl root (base, Crawl components, the namespace child) and adds what the records require for walk, nothing the plan put out of scope · 13 local references

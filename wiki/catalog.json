@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-11-12",
+  "compiled_at": "2026-11-15",
   "stages": [
     "crawl",
     "walk",
@@ -477,6 +477,7 @@
       "consumed_by": [
         "overlays/agentic-simple-workflow",
         "overlays/quickstart",
+        "overlays/usecases-ha-decision-gate",
         "overlays/usecases-invoice-intake",
         "overlays/usecases-support-copilot"
       ],
@@ -2990,7 +2991,8 @@
       "composes": [],
       "remote_refs": [],
       "consumed_by": [
-        "components/home-automation"
+        "components/home-automation",
+        "overlays/usecases-ha-decision-gate"
       ],
       "parent": "components/home-automation",
       "stages": [

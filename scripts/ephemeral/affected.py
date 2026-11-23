@@ -3,7 +3,10 @@
 
 Prints the CI plan for .github/workflows/validate-usecases.yml as JSON:
 
-    {"usecases": ["openbao-secrets"], "runner": false}
+    {"usecases": ["openbao-secrets"], "expected_red": [], "runner": false}
+
+`expected_red` lists, among the selected use cases, those whose contract declares
+`spec.expectedRed`: CI still runs them but a red verify does not fail the PR.
 
 A use case is affected when the diff touches its own directory, a path in its
 spec.files, or any directory its kustomization pulls in, followed through
@@ -52,6 +55,20 @@ def usecases() -> list[Path]:
     return sorted(p.parent for p in USECASES.glob("*/usecase.yaml"))
 
 
+def expected_red(names: list[str]) -> list[str]:
+    """The selected use cases whose contract says its verify is red until something changes."""
+    out = []
+    for name in names:
+        contract = yaml.safe_load((USECASES / name / "usecase.yaml").read_text(encoding="utf-8")) or {}
+        if (contract.get("spec") or {}).get("expectedRed"):
+            out.append(name)
+    return out
+
+
+def plan(selected: list[str], runner: bool) -> str:
+    return json.dumps({"usecases": selected, "expected_red": expected_red(selected), "runner": runner})
+
+
 def dependencies(uc: Path, pages: list) -> set[str]:
     """Repo paths whose change can change what this use case deploys or runs."""
     root = rel(uc)
@@ -92,14 +109,14 @@ def main() -> int:
     names = [uc.name for uc in usecases()]
 
     if args.all:
-        print(json.dumps({"usecases": names, "runner": True}))
+        print(plan(names, True))
         return 0
 
     changed = changed_files(args.base)
     runner = [f for f in changed if any(under(f, p) for p in RUNNER)]
     if runner:
         print(f"runner: {runner[0]} changed, every use case runs", file=sys.stderr)
-        print(json.dumps({"usecases": names, "runner": True}))
+        print(plan(names, True))
         return 0
 
     pages = compile_pages()
@@ -113,7 +130,7 @@ def main() -> int:
         else:
             print(f"{uc.name}: not affected", file=sys.stderr)
 
-    print(json.dumps({"usecases": selected, "runner": False}))
+    print(plan(selected, False))
     return 0
 
 

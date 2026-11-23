@@ -62,6 +62,7 @@ Field by field:
 | `spec.components` | Declarative inventory of which catalog components the use case pulls in. Not consumed by the runner — it's for reviewers and for the catalog. |
 | `spec.jobs` | The lifecycle. `seed` and `verify` are mandatory; `run` is the optional middle step where the use case's actual work happens. Names must match Jobs in the built manifest (CI asserts this too). |
 | `spec.files` | Optional. Repo files the Jobs run that live outside the overlay (a script under `scripts/`, a component's policy files). kustomize refuses to load a file above the overlay's root, so the runner ships each entry as a ConfigMap in the use-case namespace before the lifecycle starts. The Jobs run the repo's own copies, not duplicates. CI asserts the paths exist. |
+| `spec.expectedRed` | Optional, with a one-line `reason`. The verify Job is known to fail until something outside the use case changes (a better engine in a slot, for one). CI still runs the use case and reports the result, but a red `up` does not fail the pull request, and a green one is reported so the flag gets removed. The floors in the verify Job are never lowered to reach this state. |
 | `spec.outputs` | **The agent-facing part.** Endpoints and credential references, so nothing has to be discovered by trial and error. |
 
 **Endpoint DNS is derivable, never guessed.** Given a use case named `<name>` and an endpoint with `service: <svc>` and `port: <port>`, the in-cluster address is always:
@@ -152,7 +153,7 @@ The pattern validates itself in CI (`.github/workflows/validate-usecases.yml`):
 | **Contract lint** | Every `usecase.yaml` matches the schema, `metadata.name` equals its directory, and every Job named in `spec.jobs` actually exists in the built manifest. Catches contract drift before it reaches a runner. |
 | **Shellcheck** | The runner and scaffolder are statically sound, and so are the scripts use cases run: every `*.sh` under a use case and every one a contract ships through `spec.files`. Each file's shebang says whether it is bash or POSIX `sh`. |
 | **Runner lifecycle** | On what `create-usecase.sh` generates, not on a committed example: `up` → `ls` → `up` again (idempotent) → `gc` of an expired namespace → `down`. Runs when the runner, the schema, the scaffolding template or the workflow change. |
-| **Use cases end to end** | Every affected use case, each on its own runner: `up` until verify exits 0, `diagnose` on failure, `down`. The workflow names none of them. |
+| **Use cases end to end** | Every affected use case, each on its own runner: `up` until verify exits 0, `diagnose` on failure, `down`. The workflow names none of them. A use case whose contract declares `spec.expectedRed` still runs, and its failure shows as a warning annotation and a step summary instead of a red check. |
 
 Which use cases a change affects is computed, not listed:
 [`scripts/ephemeral/affected.py`](../scripts/ephemeral/affected.py) follows each

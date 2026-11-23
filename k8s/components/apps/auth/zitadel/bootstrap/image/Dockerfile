@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-#
 # Runtime image of the zitadel-bootstrap Job: CPython plus the pinned dependencies of
 # ../requirements.txt, baked in, so a Job that runs it installs nothing at start and
 # needs no egress besides the Zitadel API and the Kubernetes API. Built and published

@@ -1,0 +1,24 @@
+# Baseline of scripts/checks/pin-check.sh (a ratchet: it only shrinks).
+# Sources under k8s/base and k8s/components with a remote resource off a tag or commit, a helmChart without an
+# exact version, or an image that is untagged or `latest`. Pin one and remove its line in the same PR.
+# A new offender fails the check; so does a line here that no longer offends. Regenerate with
+# `scripts/checks/repo_checks.py pins --write-baseline` and review the diff: it must only lose lines.
+k8s/base/apps/minio/operator/kustomization.yaml
+k8s/components/apps/agents/cluster-introspector/deployment.yaml
+k8s/components/apps/ai-models/ollama/statefulset.yaml
+k8s/components/apps/ai-models/vllm/statefulset.yaml
+k8s/components/apps/brokers/mosquitto/deployment.yaml
+k8s/components/apps/cloudflare-tunnel/deployment.yaml
+k8s/components/apps/databases/mariadb/deployment.yaml
+k8s/components/apps/databases/mariadb/statefulset.yaml
+k8s/components/apps/databases/mongodb/replica-set/rs-keyfile-patch.yaml
+k8s/components/apps/document-processing/docling/deployment.yaml
+k8s/components/apps/home-automation/esphome/deployment.yaml
+k8s/components/apps/home-automation/hass/deployment.yaml
+k8s/components/apps/minio/single-server/tenant.yaml
+k8s/components/apps/n8n/n8n/deployment.yaml
+k8s/components/apps/node-red/deployment.yaml
+k8s/components/apps/surveys/formbricks/deployment.yaml
+k8s/components/apps/whoami/deployment.yaml
+k8s/components/apps/workflows/temporal/server-deployment.yaml
+k8s/components/apps/workflows/temporal/ui-deployment.yaml

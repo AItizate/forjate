@@ -2,6 +2,8 @@
 
 A critical aspect of tenant configuration is providing persistent storage for stateful applications. Our platform uses a flexible, `StorageClass`-based approach to handle this.
 
+This guide covers volumes (`StorageClass`, PVCs). For S3 object storage, which components reach through a contract of keys rather than by the store's name, see [Configuring Object Storage](configuring-object-storage.md).
+
 ## The Strategy: `StorageClass` and Patches
 
 Instead of creating `PersistentVolumes` (PVs) manually, we use **dynamic provisioning**. The process works as follows:

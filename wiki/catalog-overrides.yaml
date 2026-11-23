@@ -146,7 +146,7 @@ components:
     notes: Dependency of Milvus; rarely chosen on its own.
   apps/minio/single-server:
     stages: [crawl, walk]
-    capabilities: [artifact-store]
+    capabilities: [object-store, artifact-store]
     maturity: mvp
     gpu_required: none
     ha: operator
@@ -167,7 +167,7 @@ components:
         keys: [config.env]
   apps/minio/dev:
     stages: [crawl]
-    capabilities: [artifact-store]
+    capabilities: [object-store, artifact-store]
     gpu_required: none
     ha: single
     psa_restricted: false

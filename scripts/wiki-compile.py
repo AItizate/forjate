@@ -858,6 +858,10 @@ def load_capabilities() -> dict:
                 errors.append(f"capability '{name}': asked_by names no skill at plugins/forjate/skills/{skill}")
         if c.get("floor") and not c.get("exclusive"):
             errors.append(f"capability '{name}': floor only makes sense on an exclusive capability")
+        contract = c.get("contract")
+        if contract is not None and not (isinstance(contract, dict) and contract.get("protocol")
+                                         and contract.get("secret_keys") and contract.get("config_keys")):
+            errors.append(f"capability '{name}': a contract needs protocol, secret_keys and config_keys")
     for skill in doc.get("snapshot_all") or []:
         if not (SKILLS_ROOT / skill / "SKILL.md").is_file():
             errors.append(f"snapshot_all names no skill at plugins/forjate/skills/{skill}")
@@ -922,6 +926,7 @@ def derive_psa_and_namespace(pages: list[Page]) -> dict[str, dict]:
 
 
 # Port names that spell their protocol; anything else (client, api, ui, metrics) is not a protocol.
+CONSUMES_FORMATS = ("env", "velero-cloud", "config-file")
 PORT_NAME_PROTOCOLS = {"http", "https", "grpc", "amqp", "mongodb", "postgresql", "redis", "nats", "mqtt", "s3", "tcp", "udp"}
 
 
@@ -961,9 +966,24 @@ def merge_wiring(path: str, extra: dict, t: dict, cur: dict) -> list[str]:
     keys the component documents (a shipped placeholder, an unlisted secret.yaml, a *.env.example).
     placeholder_secrets: Secrets the component ships that a pod references (replaced from Walk).
     config: a ConfigMap a pod references and nobody ships, with the literals its *.env.example documents.
-    ingress: the first Ingress. gpu_limit and hostpath: what a Crawl overlay has to patch away on a laptop."""
+    ingress: the first Ingress. gpu_limit and hostpath: what a Crawl overlay has to patch away on a laptop.
+    consumes: curated only, what the component reads from another one through a capability's contract
+    (`protocol`, the `secret` the overlay supplies, the contract `keys` it reads, the `format` it reads them in);
+    the shape is checked here, the keys against the contract by scripts/checks/repo_checks.py."""
     errors: list[str] = []
     cw = dict(cur.get("wiring") or {})
+    consumes = cw.get("consumes") or []
+    for i, c in enumerate(consumes if isinstance(consumes, list) else [consumes]):
+        where = f"{path}: wiring.consumes[{i}]"
+        if not isinstance(c, dict):
+            errors.append(f"{where}: must be a mapping with protocol, secret, keys and format")
+            continue
+        if not c.get("protocol") or not c.get("secret"):
+            errors.append(f"{where}: needs a protocol and the secret the overlay supplies")
+        if not c.get("keys") or not all(isinstance(k, str) for k in c["keys"]):
+            errors.append(f"{where}: keys must list the contract keys it reads")
+        if c.get("format") not in CONSUMES_FORMATS:
+            errors.append(f"{where}: format '{c.get('format')}' is not one of {', '.join(CONSUMES_FORMATS)}")
     short = path.rsplit("/", 1)[-1]
     services = t.get("services") or []
     svc = None
@@ -1034,6 +1054,7 @@ def merge_wiring(path: str, extra: dict, t: dict, cur: dict) -> list[str]:
         "secret_mounted": bool(secret) and secret.get("name") in (t.get("secret_refs") or []),
         "sizing": cw.get("sizing"),
         "extra_ports": cw.get("extra_ports") or {},
+        "consumes": consumes if isinstance(consumes, list) else [consumes],
     }
     return errors
 
@@ -1227,6 +1248,10 @@ def render_snapshots(doc: dict) -> dict[Path, str]:
                 meta.append(f"setting `{c['setting']}`")
             if c.get("floor"):
                 meta.append(f"floor without a component: `{c['floor']}`")
+            if c.get("contract"):
+                meta.append(f"contract `{c['contract']['protocol']}`: consumers read only "
+                            + ", ".join(f"`{k}`" for k in c["contract"]["secret_keys"] + c["contract"]["config_keys"]
+                                       + c["contract"].get("config_key_patterns", [])))
             lines += [f"## `{name}`", "", c["summary"] + ".", "", "_" + " · ".join(meta) + "_", ""]
             rows = [r for r in by_cap[name] if r.get("stages")]
             if not rows:

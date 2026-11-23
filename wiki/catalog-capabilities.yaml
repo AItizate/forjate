@@ -18,6 +18,11 @@
 #              this capability (by component name, or by secrets.mechanism)
 #   floor      exclusive secrets only: the mechanism every stage can use without
 #              a component, ranked 0 by validate.py
+#   contract   the keys a consumer reads from a provider of this capability, so no
+#              consumer names the provider: protocol (matched by a consumer's
+#              wiring.consumes), secret_keys (the identity Secret), config_keys and
+#              config_key_patterns (the binding's non-secret config).
+#              scripts/checks/repo_checks.py holds consumers to it
 #
 # `snapshot_all` lists the skills that get a snapshot of the whole catalog
 # because they consume every component (kustomize writes the overlays,
@@ -44,6 +49,14 @@ capabilities:
     summary: documents, prompts, run logs and reports as objects, keyed by the idempotency key
     asked_by: [data-store]
     exclusive: true
+  object-store:
+    summary: an S3 endpoint consumers reach through the S3 contract (docs/tenant-onboarding/configuring-object-storage.md), never by the store's name
+    asked_by: [data-store, devops]
+    contract:
+      protocol: s3
+      secret_keys: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+      config_keys: [AWS_ENDPOINT_URL_S3, S3_HOST, S3_PORT, S3_USE_TLS, AWS_REGION, S3_BUCKET, AWS_CA_BUNDLE]
+      config_key_patterns: ['S3_BUCKET_[A-Z0-9_]+']
   cache:
     summary: hot data in front of a slower store; disposable
     asked_by: [data-store, architecture]

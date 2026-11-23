@@ -1,0 +1,14 @@
+# Baseline of scripts/checks/object-store-coupling-check.sh (a ratchet: it only shrinks).
+# Files outside the object-store providers that still name a provider or carry a literal S3 credential.
+# Each line leaves when its component is rewired to the S3 contract (docs/tenant-onboarding/configuring-object-storage.md).
+# A new offender fails the check; so does a line here that no longer offends. Regenerate with
+# `scripts/checks/repo_checks.py coupling --write-baseline` and review the diff: it must only lose lines.
+k8s/components/apps/backup/velero/README.md
+k8s/components/apps/backup/velero/examples/backuplocation-minio.yaml
+k8s/components/apps/backup/velero/values-minio-backend.yaml
+k8s/components/apps/communication/stalwart/configmap.yaml
+k8s/components/apps/databases/milvus/statefulset.yaml
+k8s/components/apps/iac/crossplane/README.md
+k8s/components/apps/productivity/appflowy/ai/deployment.yaml
+k8s/components/apps/productivity/appflowy/appflowy-cloud/deployment.yaml
+k8s/components/apps/productivity/appflowy/worker/deployment.yaml

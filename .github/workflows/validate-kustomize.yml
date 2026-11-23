@@ -5,11 +5,15 @@ on:
     paths:
       - 'k8s/**'
       - 'docs/examples/**'
+      - 'scripts/checks/**'
+      - 'wiki/catalog.json'
       - '.github/workflows/validate-kustomize.yml'
   push:
     branches: [main]
     paths:
       - 'k8s/**'
+      - 'scripts/checks/**'
+      - 'wiki/catalog.json'
 
 jobs:
   build-and-validate:
@@ -51,10 +55,11 @@ jobs:
           {
             # All overlays (recursively, but only dirs that contain a kustomization.yaml)
             find k8s/overlays -type f -name 'kustomization.yaml' -exec dirname {} \;
-            # Component roots that have a top-level kustomization.yaml of their own
-            find k8s/components -maxdepth 4 -type f -name 'kustomization.yaml' -exec dirname {} \;
-            # Deeper variants that tenants reference by path on their own
-            echo k8s/components/apps/backup/velero/s3
+            # Every component directory with a kustomization.yaml, at any depth: tenants reference
+            # sub-directories (variants, kustomize Components) by path on their own
+            find k8s/components -type f -name 'kustomization.yaml' -exec dirname {} \;
+            # The base every tenant inherits, as a remote tenant pulls it
+            echo k8s/base
             # Example tenant overlays that the docs tell people to copy: if the guide
             # drifts from the components, this build is what fails.
             find docs/examples -type f -name 'kustomization.yaml' -exec dirname {} \;
@@ -90,6 +95,29 @@ jobs:
             echo "::endgroup::"
           done < /tmp/targets.txt
           exit "$fail"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the repo-wide checks' dependencies
+        run: python3 -m pip install --quiet pyyaml pytest
+
+      - name: Repo-wide checks' own tests
+        run: python3 -m pytest -q scripts/checks/tests
+
+      - name: Object-store coupling (ratchet against scripts/checks/object-store-coupling.baseline)
+        # No component outside the object-store providers names one (Service, label, Secret, image) or carries
+        # a literal S3 credential; consumers read the S3 contract (docs/tenant-onboarding/configuring-object-storage.md).
+        run: scripts/checks/object-store-coupling-check.sh
+
+      - name: Object-store contract
+        # Every wiring.consumes declaration in the catalog reads only the keys of its capability's contract.
+        run: scripts/checks/object-store-contract-check.sh
+
+      - name: Pins over base and components (ratchet against scripts/checks/pin.baseline)
+        # Remote resources on a tag or commit, helmCharts at an exact version, no untagged or latest image.
+        run: scripts/checks/pin-check.sh
 
       - name: Plaintext-credential scan
         # The security expert's gate (secret-scan): configMapGenerator literals, configs/,

@@ -86,6 +86,15 @@ vocabulary's `asked_by` it also writes
 whole-file, labelled as a snapshot of what the catalog resolves on a date. Those
 files are outputs of this compiler like `catalog.json`; never edit them by hand.
 
+Each record's `wiring` is derived from the manifests, with the overrides'
+`wiring:` winning where the tree cannot say. One wiring key is curated only:
+`consumes`, a list of `{protocol, secret, keys, format}` naming what a
+component reads from another one through a capability's `contract` (a key of
+the vocabulary, e.g. the S3 keys of `object-store`), so a consumer never names
+its provider. The compiler checks the shape and always writes the key (`[]`
+when nothing is declared); `scripts/checks/repo_checks.py contract` holds the
+keys to the contract.
+
 `base/`, `components/` and `overlays/` mirror the tree and are **compiler-owned**.
 `concepts/` has no counterpart in `k8s/` and is **agent-authored**: the recursive
 multi-tenant pattern, remote SSH references, secret strategy, storage choices.

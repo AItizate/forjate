@@ -115,6 +115,20 @@
             }
           }
         },
+        "expectedRed": {
+          "type": "object",
+          "description": "The verify Job is known to fail until something else changes (a better engine in a slot, for one). CI still runs the use case end to end and reports the result, but a failed `up` does not fail the pull request; an unexpected pass is reported so the flag gets removed. The quality floors in the verify Job are never lowered to get here.",
+          "required": ["reason"],
+          "additionalProperties": false,
+          "properties": {
+            "reason": {
+              "type": "string",
+              "minLength": 20,
+              "pattern": "^[^\\n\\r]+$",
+              "description": "One line: why it is red and what turns it green."
+            }
+          }
+        },
         "outputs": {
           "type": "object",
           "description": "The agent-facing contract: what this environment exposes once it is up.",

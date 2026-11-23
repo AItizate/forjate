@@ -115,6 +115,15 @@ tick would turn the gate into a rubber stamp and destroy the only thing it is fo
 What the red tells you is that the slot needs a better occupant — which is the
 whole reason the engine is a slot.
 
+**In CI the red is expected, not blocking.** `usecase.yaml` declares
+`spec.expectedRed`, so `validate-usecases.yml` still brings the environment up and
+runs seed, run and verify, and reports the failure as a warning annotation with a
+step summary, but the `Use case ha-decision-gate` check does not fail the PR. The
+floors in `hadg-verify-job.yaml` are unchanged. When a better engine clears them,
+the same job reports "now green" and `spec.expectedRed` should be deleted from the
+contract; from then on a red verify blocks again. Locally, `ephemeral.sh up` still
+exits non-zero while the gate is red.
+
 Untested levers, roughly by expected value:
 
 1. **One question per call.** Removes cross-question anchoring, which is the most

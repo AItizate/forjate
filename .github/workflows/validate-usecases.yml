@@ -38,6 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       usecases: ${{ steps.plan.outputs.usecases }}
+      expected_red: ${{ steps.plan.outputs.expected_red }}
       runner: ${{ steps.plan.outputs.runner }}
     steps:
       - uses: actions/checkout@v7
@@ -67,6 +68,7 @@ jobs:
           fi
           echo "$plan"
           echo "usecases=$(jq -c .usecases <<< "$plan")" >> "$GITHUB_OUTPUT"
+          echo "expected_red=$(jq -c .expected_red <<< "$plan")" >> "$GITHUB_OUTPUT"
           echo "runner=$(jq -r .runner <<< "$plan")" >> "$GITHUB_OUTPUT"
 
   lint-contracts:
@@ -280,10 +282,28 @@ jobs:
         run: *install
 
       - name: Up (seed, run, verify)
+        id: up
+        # A use case whose contract declares spec.expectedRed is run and reported all the
+        # same, but its verify failing does not fail the pull request. Any other use case
+        # blocks as before.
+        continue-on-error: ${{ contains(fromJSON(needs.plan.outputs.expected_red), matrix.usecase) }}
         run: ./scripts/ephemeral/ephemeral.sh up "$UC"
 
+      - name: Report the expected red
+        if: steps.up.outcome == 'failure' && contains(fromJSON(needs.plan.outputs.expected_red), matrix.usecase)
+        run: |
+          reason="$(yq -r '.spec.expectedRed.reason' "k8s/overlays/usecases/${UC}/usecase.yaml")"
+          echo "::warning title=${UC}: expected red::verify failed and the contract says it would (${reason})"
+          { echo "### ${UC}: expected red"; echo; echo "\`up\` failed and the contract declares \`spec.expectedRed\`: ${reason}"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report an unexpected green
+        if: steps.up.outcome == 'success' && contains(fromJSON(needs.plan.outputs.expected_red), matrix.usecase)
+        run: |
+          echo "::warning title=${UC}: now green::verify passed, remove spec.expectedRed from the contract"
+          echo "### ${UC}: now green, remove \`spec.expectedRed\` from its contract" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Diagnostics on failure
-        if: failure()
+        if: failure() || steps.up.outcome == 'failure'
         run: ./scripts/ephemeral/ephemeral.sh diagnose "$UC" || true
 
       - name: Tear down

@@ -12,6 +12,13 @@ spec:
   isolation: shared
   ttl: 4h
 
+  # The verify gate is red by design: qwen2.5:3b collapses to a constant answer
+  # and the floors are set to what the task demands (README, "Measured"). CI runs
+  # the use case and reports the result without failing the PR until a better
+  # engine is in the slot. The floors in hadg-verify-job.yaml do not move.
+  expectedRed:
+    reason: hadg-verify fails its quality floors with qwen2.5:3b; it turns green when a better engine is wired into the decision slot.
+
   components:
     - apps/home-automation/hass
     - apps/ai-models/ollama

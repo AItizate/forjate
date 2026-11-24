@@ -1,0 +1,19 @@
+# What a consumer mounts: this ConfigMap plus the Secret `my-app-s3` that the
+# S3Credentials writes. Both use AWS SDK standard names, so SDKs need no glue:
+#
+#   envFrom:
+#     - configMapRef: {name: my-app-s3}
+#     - secretRef: {name: my-app-s3}
+#
+# The namespace must carry forjate.io/object-store-client: "true".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-app-s3
+  namespace: my-app
+data:
+  AWS_ENDPOINT_URL: http://seaweedfs-s3.seaweedfs.svc:8333
+  AWS_REGION: us-east-1
+  S3_BUCKET: my-app-data
+  # SeaweedFS serves path-style URLs; virtual-host style needs a domainName on the gateway.
+  AWS_S3_FORCE_PATH_STYLE: "true"

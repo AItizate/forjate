@@ -1,0 +1,26 @@
+# Applies to the SeaweedFS pods only (not the operator, whose webhook the API
+# server must reach). Two rules:
+#   - S3 (8333) from namespaces the tenant labels forjate.io/object-store-client: "true";
+#   - every port from pods in this namespace (the cluster itself and the operator,
+#     which drives IAM, buckets and usage through the master and filer).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: seaweedfs
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: seaweedfs
+      app.kubernetes.io/instance: seaweedfs
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              forjate.io/object-store-client: "true"
+      ports:
+        - protocol: TCP
+          port: 8333
+    - from:
+        - podSelector: {}

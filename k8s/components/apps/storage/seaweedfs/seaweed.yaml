@@ -1,0 +1,83 @@
+# One SeaweedFS cluster in the `single` shape. The S3 endpoint for clients is
+# http://seaweedfs-s3.seaweedfs.svc:8333 (plain HTTP, restricted by networkpolicy.yaml).
+apiVersion: seaweed.seaweedfs.com/v1
+kind: Seaweed
+metadata:
+  name: seaweedfs
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  image: chrislusf/seaweedfs:4.55
+  volumeServerDiskCount: 1
+
+  master:
+    replicas: 1
+    defaultReplication: "000"
+    # Small volumes keep the vacuum headroom low.
+    volumeSizeLimitMB: 1024
+    persistence:
+      enabled: true
+      resources:
+        requests:
+          storage: 1Gi
+    podSecurityContext: &podsc
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext: &ctrsc
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  volume:
+    replicas: 1
+    requests:
+      cpu: 50m
+      memory: 256Mi
+      storage: 10Gi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+    podSecurityContext: *podsc
+    containerSecurityContext: *ctrsc
+
+  filer:
+    replicas: 1
+    # Metadata in the default leveldb2 store on the filer's own PVC. Lose it and
+    # every object is unreachable even if the volume data survives.
+    persistence:
+      enabled: true
+      resources:
+        requests:
+          storage: 1Gi
+    podSecurityContext: *podsc
+    containerSecurityContext: *ctrsc
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  # Standalone S3 gateway; IAM is embedded on the same port.
+  s3:
+    replicas: 1
+    port: 8333
+    iam: true
+    podSecurityContext: *podsc
+    containerSecurityContext: *ctrsc
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

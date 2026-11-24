@@ -554,6 +554,26 @@ components:
     data_classes: []
     licence: Apache-2.0
     notes: Not for k3d; single replica on a Pi, three replicas from Walk. Privileged by design — runs in its own namespace at its own PSA level.
+  apps/storage/seaweedfs:
+    stages: [crawl, walk]
+    capabilities: [artifact-store]
+    maturity: lab
+    gpu_required: none
+    ha: operator
+    psa_restricted: true
+    secrets:
+      takes: none
+    data_classes: [internal, pii, financial, health]
+    licence: Apache-2.0
+    notes: S3 through the seaweedfs-operator (Helm, needs --enable-helm); one master, volume, filer and S3 gateway, replication 000, durability from the StorageClass. Buckets, identities and bucket-scoped policies are CRs; the operator writes each identity's keys to a Secret in the consumer's namespace. Plain HTTP, NetworkPolicy admits namespaces labelled forjate.io/object-store-client.
+    wiring:
+      service: seaweedfs-s3
+      port: 8333
+      protocol: s3
+      secret: null
+      sizing:
+        requests: {cpu: 250m, memory: 832Mi}
+        limits: {cpu: 3500m, memory: 3328Mi}
   apps/networking/metallb:
     stages: [walk, run]
     capabilities: [load-balancer]

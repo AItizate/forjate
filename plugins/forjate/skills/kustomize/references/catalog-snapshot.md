@@ -2,7 +2,7 @@
 
 # Catalog snapshot for forjate:kustomize
 
-compiled_at: 2026-11-12
+compiled_at: 2026-11-24
 
 **This is a snapshot, not a rule.** It shows what `wiki/catalog.json` resolved for each capability on the date above. Ask by capability and property, read the catalog at run time, and expect these tables to change as the catalog grows: a capability with one option today may have two tomorrow, and a component listed here may be denied by a context pack. Name a component in a record only after resolving it; name it in prose only when it is the single option for the capability.
 
@@ -56,6 +56,7 @@ This skill consumes the whole catalog. Components whose `stages` is empty are in
 | `apps/security/external-secrets` | secrets-mechanism | run | lab | unknown | none | unknown | secret | Apache-2.0 | Syncs from a store (openbao in the factory, or a corporate secret manager) into Kubernetes Secrets; rotation happens in the store. Not a store itself — pair it with a secrets-store. |
 | `apps/security/openbao` | secrets-store | walk, run | lab | single | none | restricted | secret | MPL-2.0 | The factory's secret store (Vault API, Linux Foundation); raft, audit, kubernetes/approle auth and an SSH CA after bootstrap.sh. `openbao/eso-store` is the ClusterSecretStore for external-secrets; `raft-snapshot` and `seal-static` are add-ons. Replaces the deprecated apps/security/vault. |
 | `apps/storage/longhorn` | block-storage | walk, run | mvp | operator | none | privileged | — | Apache-2.0 | Not for k3d; single replica on a Pi, three replicas from Walk. Privileged by design — runs in its own namespace at its own PSA level. |
+| `apps/storage/seaweedfs` | artifact-store | crawl, walk | lab | operator | none | restricted | internal, pii, financial, health | Apache-2.0 | S3 through the seaweedfs-operator (Helm, needs --enable-helm); one master, volume, filer and S3 gateway, replication 000, durability from the StorageClass. Buckets, identities and bucket-scoped policies are CRs; the operator writes each identity's keys to a Secret in the consumer's namespace. Plain HTTP, NetworkPolicy admits namespaces labelled forjate.io/object-store-client. |
 | `apps/surveys/formbricks` | feedback | walk, run | lab | single | none | baseline | internal, pii | AGPL-3.0 | In-product feedback capture for forjate:ux. Free-text answers are pii until proven otherwise. |
 | `apps/whoami` | smoke-test | crawl | lab | single | none | baseline | — | MIT | deploys `traefik/whoami` |
 | `apps/workflows/temporal` | durable-workflows | walk, run | mvp | single | none | baseline | internal, pii, financial, health | MIT | auto-setup image, server and UI; use bundles/temporal-stack for the Postgres wiring. Workflow payloads persist in its database. |

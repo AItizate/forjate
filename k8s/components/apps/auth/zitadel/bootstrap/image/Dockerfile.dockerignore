@@ -1,0 +1,3 @@
+# Build context is bootstrap/: only requirements.txt goes into the image.
+*
+!requirements.txt

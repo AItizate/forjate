@@ -1,0 +1,222 @@
+name: Build zitadel-bootstrap image
+
+# The runtime image of the zitadel-bootstrap Job (k8s/components/apps/auth/zitadel/
+# bootstrap/image/Dockerfile): CPython plus the hashed dependencies of requirements.txt.
+#
+# Pull requests (and every manual run): job `check` builds amd64, smoke-tests the
+# image offline and scans it. Read-only token, nothing is pushed.
+#
+# Publishing: a maintainer runs this workflow by hand from main with `publish: true`.
+# Job `publish` is the only job with packages: write and runs in the `ghcr-publish`
+# environment (repo settings restrict it to main and require a reviewer). It:
+#   1. builds amd64 + arm64 once, with SBOM and provenance, and pushes the index under
+#      a staging tag only (scan-<run id>);
+#   2. smoke-tests and scans each platform manifest of THAT digest and fails on a
+#      finding, so what gets tagged is exactly what was scanned;
+#   3. promotes the same digest to the release tags (imagetools create keeps the digest,
+#      checked) and attests its provenance;
+#   4. prints the digest to write in the manifests. Only the digest is authoritative:
+#      tags are labels. Writing it into the manifests is a normal, reviewed PR.
+#
+# Actions are pinned by commit SHA (tag in the comment); the images they run (binfmt,
+# buildkit, trivy) are pinned by digest. Not the shared build-push template: it builds
+# one platform, attaches no SBOM or provenance and does not output the digest.
+
+on:
+  pull_request:
+    paths:
+      - 'k8s/components/apps/auth/zitadel/bootstrap/image/**'
+      - 'k8s/components/apps/auth/zitadel/bootstrap/requirements.txt'
+      - '.github/workflows/build-zitadel-bootstrap-image.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Push the image to ghcr.io/aitizate/zitadel-bootstrap (main only)'
+        type: boolean
+        default: false
+
+permissions: {}
+
+env:
+  IMAGE: ghcr.io/aitizate/zitadel-bootstrap
+  CONTEXT: k8s/components/apps/auth/zitadel/bootstrap
+  DOCKERFILE: k8s/components/apps/auth/zitadel/bootstrap/image/Dockerfile
+  TRIVY_IMAGE: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+  # The builder also writes the SLSA provenance; the binfmt image runs privileged.
+  BUILDKIT_IMAGE: moby/buildkit:v0.35.1@sha256:baf6138eb8c37644800c7c913fba051e840ebb9ba13eaf92d92ef9a1712d0b4c
+  BINFMT_IMAGE: tonistiigi/binfmt:qemu-v10.2.3@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+        with:
+          driver-opts: image=${{ env.BUILDKIT_IMAGE }}
+
+      - name: Build (amd64, loaded for the checks)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.DOCKERFILE }}
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: zitadel-bootstrap:ci
+
+      - name: Smoke test (offline, non-root, no installer, no shell)
+        run: |
+          set -euo pipefail
+          flags=(--rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges)
+          docker run "${flags[@]}" zitadel-bootstrap:ci \
+            -c "import os, requests, jwt, yaml, cryptography; assert os.getuid() == 65532"
+          if docker run "${flags[@]}" zitadel-bootstrap:ci -m pip --version; then
+            echo "::error::pip is in the image"; exit 1
+          fi
+          if docker run "${flags[@]}" --entrypoint sh zitadel-bootstrap:ci -c true; then
+            echo "::error::a shell is in the image"; exit 1
+          fi
+
+      - name: Scan (HIGH and CRITICAL with a fix fail the build)
+        run: |
+          set -euo pipefail
+          docker save zitadel-bootstrap:ci -o "${RUNNER_TEMP}/image.tar"
+          docker run --rm -v "${RUNNER_TEMP}:/w" "${TRIVY_IMAGE}" image --quiet \
+            --input /w/image.tar --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+
+  publish:
+    needs: check
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Branch policy (main only) and required reviewers are enforced by the environment,
+    # not by the `if:` above, which a workflow copy on another branch could drop.
+    environment: ghcr-publish
+    concurrency:
+      group: zitadel-bootstrap-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write       # push to GHCR
+      id-token: write       # sign the provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
+        with:
+          image: ${{ env.BINFMT_IMAGE }}
+          platforms: arm64
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+        with:
+          driver-opts: image=${{ env.BUILDKIT_IMAGE }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push to a staging tag (amd64 + arm64, SBOM, provenance)
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.DOCKERFILE }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          sbom: true
+          provenance: mode=max
+          tags: ${{ env.IMAGE }}:scan-${{ github.run_id }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Smoke-test and scan every platform of the pushed digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Each platform by its own manifest digest: exactly the bytes in the index.
+          docker buildx imagetools inspect --raw "${IMAGE}@${DIGEST}" \
+            | jq -r '.manifests[] | select(.platform.architecture != "unknown")
+                     | "\(.platform.os)/\(.platform.architecture) \(.digest)"' > "${RUNNER_TEMP}/platforms"
+          cat "${RUNNER_TEMP}/platforms"
+          test "$(cut -d' ' -f1 "${RUNNER_TEMP}/platforms" | sort | tr '\n' ' ')" = "linux/amd64 linux/arm64 "
+          flags=(--rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges)
+          while read -r platform digest; do
+            ref="${IMAGE}@${digest}"
+            echo "::group::${platform} ${digest}"
+            docker pull --quiet --platform "${platform}" "${ref}"
+            docker run "${flags[@]}" --platform "${platform}" "${ref}" \
+              -c "import os, requests, jwt, yaml, cryptography; assert os.getuid() == 65532"
+            if docker run "${flags[@]}" --platform "${platform}" "${ref}" -m pip --version; then
+              echo "::error::pip is in the ${platform} image"; exit 1
+            fi
+            if docker run "${flags[@]}" --platform "${platform}" --entrypoint sh "${ref}" -c true; then
+              echo "::error::a shell is in the ${platform} image"; exit 1
+            fi
+            docker run --rm -e TRIVY_USERNAME -e TRIVY_PASSWORD "${TRIVY_IMAGE}" image --quiet \
+              --image-src remote --platform "${platform}" \
+              --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "${ref}" < /dev/null
+            echo "::endgroup::"
+          done < "${RUNNER_TEMP}/platforms"
+
+      - name: Promote the scanned digest to the release tags
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          req=$(sha256sum "${CONTEXT}/requirements.txt" | cut -c1-12)
+          py=$(sed -n 's/^ARG PYTHON_IMAGE=python:\([0-9.]*\)-.*/\1/p' "${DOCKERFILE}")
+          # The run id keeps tags unique: the build is not byte-reproducible (apk upgrade).
+          tags=("${IMAGE}:py${py}-req${req}-r${GITHUB_RUN_ID}" "${IMAGE}:sha-${GITHUB_SHA}")
+          docker buildx imagetools create "${tags[@]/#/--tag=}" "${IMAGE}@${DIGEST}"
+          for t in "${tags[@]}"; do
+            got=$(docker buildx imagetools inspect "$t" --format '{{json .Manifest}}' | jq -r .digest)
+            test "$got" = "$DIGEST" || { echo "::error::$t points to $got, not $DIGEST"; exit 1; }
+          done
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: What to write in the manifests
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          req=$(sha256sum "${CONTEXT}/requirements.txt" | cut -d' ' -f1)
+          base=$(sed -n 's/^ARG PYTHON_IMAGE=//p' "${DOCKERFILE}")
+          {
+            echo "### Published ${IMAGE}@${DIGEST}"
+            echo
+            echo "Set \`digest: ${DIGEST}\` in bootstrap/kustomization.yaml (\`images:\`) and write in bootstrap/image/published.yaml:"
+            echo '```yaml'
+            echo "digest: ${DIGEST}"
+            echo "requirements_sha256: ${req}"
+            echo "base: ${base}"
+            echo '```'
+            echo "Verify before pinning (rejects a digest built by a workflow from another branch):"
+            echo '```sh'
+            echo "gh attestation verify oci://${IMAGE}@${DIGEST} -R ${GITHUB_REPOSITORY} \\"
+            echo "  --signer-workflow ${GITHUB_REPOSITORY}/.github/workflows/build-zitadel-bootstrap-image.yml \\"
+            echo "  --source-ref refs/heads/main"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

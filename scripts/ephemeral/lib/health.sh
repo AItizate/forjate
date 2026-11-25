@@ -15,7 +15,8 @@
 #              Expected: equal.
 #
 # Both are printed as `HEALTH key=value` lines, which the nightly greps and
-# asserts. `up --stability` makes the runner assert them itself.
+# asserts. `up --stability` makes the runner assert them itself. A restart also prints `DIAG` blocks (describe and
+# previous logs of the restarted pod) so a red nightly names its cause.
 # =============================================================================
 
 HEALTH_RESTARTS=0
@@ -38,6 +39,22 @@ health_kpis() {
     | sort
 }
 
+# health_restart_diagnostics <namespace> <pod> — why a pod restarted: `describe pod` (Last State, reason, exit
+# code, probes, events) and the previous log of every container that restarted. The Environment block is dropped
+# from the describe: literal env values are credentials in some use cases and this output lands in CI logs.
+health_restart_diagnostics() {
+  local ns="$1" pod="$2" container
+  echo "DIAG describe pod ${pod}"
+  kubectl -n "$ns" describe pod "$pod" 2>&1 \
+    | awk '/^ +Environment:/ { match($0, /^ +/); skip = RLENGTH; next } skip && match($0, /^ */) && RLENGTH > skip { next } { skip = 0; print }' || true
+  while IFS= read -r container; do
+    [ -n "$container" ] || continue
+    echo "DIAG previous logs ${pod}/${container}"
+    kubectl -n "$ns" logs "$pod" -c "$container" --previous --tail=100 2>&1 || true
+  done < <(kubectl -n "$ns" get pod "$pod" -o \
+    jsonpath='{range .status.containerStatuses[?(@.restartCount>0)]}{.name}{"\n"}{end}{range .status.initContainerStatuses[?(@.restartCount>0)]}{.name}{"\n"}{end}' 2>/dev/null || true)
+}
+
 # record_health <use-case> <namespace> — print the HEALTH lines; sets HEALTH_RESTARTS and HEALTH_KPIS.
 record_health() {
   local name="$1" ns="$2" rows pod n
@@ -46,6 +63,9 @@ record_health() {
   echo "HEALTH pod_restarts_after_verify=${HEALTH_RESTARTS}"
   while IFS=$'\t' read -r pod n; do
     [ -n "$pod" ] && echo "HEALTH restarted_pod=${pod} restarts=${n}"
+  done <<< "$rows"
+  while IFS=$'\t' read -r pod n; do
+    [ -n "$pod" ] && health_restart_diagnostics "$ns" "$pod"
   done <<< "$rows"
   HEALTH_KPIS="$(health_kpis "$ns" "$(uc_job_name "$name" verify)" || true)"
   echo "HEALTH kpi_lines=$(printf '%s' "$HEALTH_KPIS" | grep -c . || true)"

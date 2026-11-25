@@ -51,17 +51,27 @@ jobs:
           nohup bash -c 'while :; do df -k --output=used / | tail -1 >> "$RUNNER_TEMP/disk-used.log"; sleep 15; done' >/dev/null 2>&1 &
 
       - name: Install tools
+        env:
+          # Any step that still calls the GitHub API is authenticated, not on the shared runner's anonymous quota.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          source .github/toolchain.env   # the one place CI and local runs pin yq, kustomize and k3d
+          # Pinned releases by direct URL, checked against the sha256 in toolchain.env: the install scripts ask the
+          # GitHub API for the latest release (the 2026-11-23 nightly died on its rate limit) and follow master/main.
+          curl -sSL -o k3d "https://github.com/k3d-io/k3d/releases/download/v${K3D_VERSION}/k3d-linux-amd64"
+          echo "${K3D_LINUX_AMD64_SHA256}  k3d" | sha256sum -c -
+          sudo install -m 0755 k3d /usr/local/bin/k3d
+          curl -sSL -o kustomize.tar.gz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          echo "${KUSTOMIZE_LINUX_AMD64_SHA256}  kustomize.tar.gz" | sha256sum -c -
+          tar xzf kustomize.tar.gz kustomize
           sudo mv kustomize /usr/local/bin/
-          source .github/toolchain.env
           sudo curl -sSL -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
           sudo chmod +x /usr/local/bin/yq
           curl -sSLO https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
           tar xzf kubeconform-linux-amd64.tar.gz && sudo mv kubeconform /usr/local/bin/
           pipx install poetry && poetry install --no-root
+          k3d version && kustomize version && yq --version
 
       - name: Crawl on k3d (ephemeral.sh up blocks on the verify Job, twice on the same seed)
         # --stability asserts the two health signals (#41): no container restarted after either verify,

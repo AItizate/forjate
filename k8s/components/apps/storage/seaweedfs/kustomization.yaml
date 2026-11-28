@@ -22,8 +22,7 @@ kind: Kustomization
 #   - client namespaces: label each namespace that talks S3 with
 #     forjate.io/object-store-client: "true" (NetworkPolicy admits port 8333 from them)
 #
-# Buckets, identities and policies are CRs the overlay declares; examples/ is not
-# part of resources, copy what you need (see README).
+# Buckets, identities and policies are CRs the overlay declares (see README).
 
 namespace: seaweedfs
 

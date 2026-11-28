@@ -36,20 +36,18 @@ Then, per consumer namespace:
 1. Label the namespace `forjate.io/object-store-client: "true"`. The NetworkPolicy admits port
    8333 only from labelled namespaces; master, volume and filer ports stay closed to everyone
    outside `seaweedfs`.
-2. Copy what you need from `examples/` (not part of `resources`):
-   - `reference-grant.yaml`: once per cluster; lets labelled namespaces reference the `Seaweed`.
-     Apply it with or before the CRs below, or they stay `Pending` until it exists.
-   - `bucket.yaml`: a `Bucket`.
-   - `identity.yaml`: an `S3Identity` and its `S3Credentials`. The operator generates the key
-     pair and writes it to a Secret in the consumer's namespace as `AWS_ACCESS_KEY_ID` /
-     `AWS_SECRET_ACCESS_KEY`. Nothing secret is committed.
-   - `policy.yaml`: an `S3Policy` scoped to one bucket and its `S3PolicyBinding`. Other buckets
-     are denied.
-   - `client-config.yaml`: the ConfigMap with `AWS_ENDPOINT_URL`, `AWS_REGION` and the bucket.
-     Mount it together with the Secret through `envFrom`.
+2. Declare the operator's CRs in the overlay
+   ([upstream samples](https://github.com/seaweedfs/seaweedfs-operator/tree/1.0.46/config/samples)):
+   - a `ResourceReferenceGrant` in `seaweedfs`, once per cluster, so CRs in other namespaces can
+     reference the `Seaweed`. Without it they stay `Pending`;
+   - a `Bucket`;
+   - an `S3Identity` and its `S3Credentials`. The operator generates the key pair and writes it
+     to a Secret in the consumer's namespace. Set `accessKeyField: AWS_ACCESS_KEY_ID` and
+     `secretKeyField: AWS_SECRET_ACCESS_KEY` so SDKs read it through `envFrom`;
+   - an `S3Policy` scoped to the bucket and its `S3PolicyBinding`. Other buckets are denied.
 
-The examples carry `argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true`, so the
-first sync does not fail before the CRDs exist.
+   Annotate them with `argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true`, so the
+   first sync does not fail before the CRDs exist. A use case with this wiring is #78.
 
 ## What to patch
 
@@ -62,7 +60,9 @@ On the `Seaweed` `seaweedfs`:
   (measured data × 2 for vacuum and growth);
 - `requests`/`limits` per pod. On k3d, after a 200 MiB upload and 300 small objects, the peak
   was: master 36Mi, filer 79Mi, operator 35Mi, S3 gateway 309Mi, volume 330Mi (about 100Mi of
-  it process memory, the rest page cache). The gateway grows with concurrent multipart uploads.
+  it process memory, the rest page cache). The gateway grows with concurrent multipart uploads;
+- Run: HA is a change to the CR (more `replicas` per server, `defaultReplication`), not a
+  different component. That shape is not exercised in this factory yet.
 
 ## Upgrade
 

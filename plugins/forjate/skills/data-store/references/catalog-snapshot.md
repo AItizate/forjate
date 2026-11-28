@@ -2,7 +2,7 @@
 
 # Catalog snapshot for forjate:data-store
 
-compiled_at: 2026-11-24
+compiled_at: 2026-11-28
 
 **This is a snapshot, not a rule.** It shows what `wiki/catalog.json` resolved for each capability on the date above. Ask by capability and property, read the catalog at run time, and expect these tables to change as the catalog grows: a capability with one option today may have two tomorrow, and a component listed here may be denied by a context pack. Name a component in a record only after resolving it; name it in prose only when it is the single option for the capability.
 
@@ -62,7 +62,7 @@ _asked by: data-store · exclusive: one per stage_
 |---|---|---|---|---|---|---|---|---|
 | `apps/minio/dev` | crawl | lab | single | none | privileged | internal, pii, financial, health | AGPL-3.0 | A bare Pod for k3d; dies with the environment. |
 | `apps/minio/single-server` | crawl, walk | mvp | operator | none | restricted | internal, pii, financial, health | AGPL-3.0 | A one-server Tenant through the operator in base; no redundancy. Run is the same Tenant with more servers, or an S3 service within residency. Buckets per kind (inbox, parsed, audit, seed). |
-| `apps/storage/seaweedfs` | crawl, walk | lab | operator | none | restricted | internal, pii, financial, health | Apache-2.0 | S3 through the seaweedfs-operator (Helm, needs --enable-helm); one master, volume, filer and S3 gateway, replication 000, durability from the StorageClass. Buckets, identities and bucket-scoped policies are CRs; the operator writes each identity's keys to a Secret in the consumer's namespace. Plain HTTP, NetworkPolicy admits namespaces labelled forjate.io/object-store-client. |
+| `apps/storage/seaweedfs` | crawl, walk, run | lab | operator | none | restricted | internal, pii, financial, health | Apache-2.0 | S3 through an operator (needs --enable-helm). One server of each kind, replication 000; Run raises replicas in the CR. Buckets and scoped keys are CRs. |
 
 ## `cache`
 

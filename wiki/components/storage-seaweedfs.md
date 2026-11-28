@@ -3,9 +3,10 @@ title: storage-seaweedfs
 kind: component
 sources:
 - k8s/components/apps/storage/seaweedfs
-compiled_at: '2026-11-24'
+compiled_at: '2026-11-28'
 category: storage
-source_hash: 01f93d354f5aa51f
+source_hash: fd9d3d1bcf4ac463
+source_last_commit: '2026-11-28'
 summary: "SeaweedFS \u2014 S3-compatible object storage, run by the seaweedfs-operator"
 summary_source: derived
 ---
@@ -37,8 +38,7 @@ summary_source: derived
 > - client namespaces: label each namespace that talks S3 with
 > forjate.io/object-store-client: "true" (NetworkPolicy admits port 8333 from them)
 >
-> Buckets, identities and policies are CRs the overlay declares; examples/ is not
-> part of resources, copy what you need (see README).
+> Buckets, identities and policies are CRs the overlay declares (see README).
 
 **Source:** [`k8s/components/apps/storage/seaweedfs/`](../../k8s/components/apps/storage/seaweedfs/)
 

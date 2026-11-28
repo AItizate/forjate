@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-11-24",
+  "compiled_at": "2026-11-28",
   "stages": [
     "crawl",
     "walk",
@@ -5405,7 +5405,8 @@
       "parent": null,
       "stages": [
         "crawl",
-        "walk"
+        "walk",
+        "run"
       ],
       "capabilities": [
         "artifact-store"
@@ -5424,7 +5425,7 @@
         "health"
       ],
       "licence": "Apache-2.0",
-      "notes": "S3 through the seaweedfs-operator (Helm, needs --enable-helm); one master, volume, filer and S3 gateway, replication 000, durability from the StorageClass. Buckets, identities and bucket-scoped policies are CRs; the operator writes each identity's keys to a Secret in the consumer's namespace. Plain HTTP, NetworkPolicy admits namespaces labelled forjate.io/object-store-client.",
+      "notes": "S3 through an operator (needs --enable-helm). One server of each kind, replication 000; Run raises replicas in the CR. Buckets and scoped keys are CRs.",
       "wiring": {
         "service": "seaweedfs-s3",
         "port": 8333,

@@ -5395,7 +5395,6 @@
         "chrislusf/seaweedfs:4.55"
       ],
       "kinds": [
-        "Namespace",
         "NetworkPolicy",
         "Seaweed"
       ],
@@ -5454,8 +5453,8 @@
       },
       "curated": true,
       "psa_level": "restricted",
-      "namespace": "seaweedfs",
-      "namespace_how": "declares"
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/surveys/formbricks",

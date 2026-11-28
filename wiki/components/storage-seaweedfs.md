@@ -5,7 +5,7 @@ sources:
 - k8s/components/apps/storage/seaweedfs
 compiled_at: '2026-11-28'
 category: storage
-source_hash: fd9d3d1bcf4ac463
+source_hash: c39857329f3ea05d
 source_last_commit: '2026-11-28'
 summary: "SeaweedFS \u2014 S3-compatible object storage, run by the seaweedfs-operator"
 summary_source: derived
@@ -28,6 +28,12 @@ summary_source: derived
 > kustomize build --enable-helm k8s/components/apps/storage/seaweedfs
 > In Argo CD this needs `kustomize.buildOptions: --enable-helm` in argocd-cm.
 >
+> Namespace is NOT set here: the consumer overlay sets it (`namespace:`) and creates
+> the Namespace. The operator's admission webhook is off because its chart bakes the
+> release namespace into the webhook certificate and Jobs; the webhook only validates
+> the Seaweed spec (its defaulter is empty). One operator per cluster: it watches all
+> namespaces and owns cluster-scoped CRDs and ClusterRoles.
+>
 > Pinned on 2026-11-24 (latest releases that day):
 > chart seaweedfs-operator-0.1.49, operator 1.0.46, SeaweedFS 4.55
 >
@@ -35,6 +41,7 @@ summary_source: derived
 > - StorageClass: spec.{master,filer}.persistence.storageClassName and
 > spec.volume.storageClassName on the Seaweed (unset = cluster default)
 > - PVC sizes: master 1Gi, filer 1Gi, volume 10Gi by default
+> - Pod Security: the overlay's Namespace; every pod meets `restricted`
 > - client namespaces: label each namespace that talks S3 with
 > forjate.io/object-store-client: "true" (NetworkPolicy admits port 8333 from them)
 >
@@ -42,17 +49,14 @@ summary_source: derived
 
 **Source:** [`k8s/components/apps/storage/seaweedfs/`](../../k8s/components/apps/storage/seaweedfs/)
 
-**Namespace:** `seaweedfs`
-
 ### Declared resources
 
-- `namespace.yaml`
 - `seaweed.yaml`
 - `networkpolicy.yaml`
 
 ### Kubernetes kinds
 
-`Namespace`, `NetworkPolicy`, `Seaweed`
+`NetworkPolicy`, `Seaweed`
 
 ### Container images
 

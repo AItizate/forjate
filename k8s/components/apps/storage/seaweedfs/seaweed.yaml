@@ -1,5 +1,5 @@
 # One SeaweedFS cluster in the `single` shape. The S3 endpoint for clients is
-# http://seaweedfs-s3.seaweedfs.svc:8333 (plain HTTP, restricted by networkpolicy.yaml).
+# http://seaweedfs-s3.<namespace>.svc:8333 (plain HTTP, restricted by networkpolicy.yaml).
 apiVersion: seaweed.seaweedfs.com/v1
 kind: Seaweed
 metadata:

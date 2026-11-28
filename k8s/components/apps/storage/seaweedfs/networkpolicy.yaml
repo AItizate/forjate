@@ -1,5 +1,4 @@
-# Applies to the SeaweedFS pods only (not the operator, whose webhook the API
-# server must reach). Two rules:
+# Applies to the SeaweedFS pods only, not the operator. Two rules:
 #   - S3 (8333) from namespaces the tenant labels forjate.io/object-store-client: "true";
 #   - every port from pods in this namespace (the cluster itself and the operator,
 #     which drives IAM, buckets and usage through the master and filer).

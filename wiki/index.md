@@ -1,7 +1,7 @@
 ---
 title: index
 kind: index
-compiled_at: '2026-11-12'
+compiled_at: '2026-11-24'
 ---
 
 # Forjate wiki — index
@@ -31,7 +31,7 @@ The foundation every tenant inherits.
 
 ## Components
 
-85 pages. Optional building blocks an overlay can activate.
+86 pages. Optional building blocks an overlay can activate.
 
 ### agents
 
@@ -190,6 +190,7 @@ The foundation every tenant inherits.
 ### storage
 
 - [storage-longhorn](components/storage-longhorn.md) — vendors `longhorn.yaml` · used by 4
+- [storage-seaweedfs](components/storage-seaweedfs.md) — SeaweedFS — S3-compatible object storage, run by the seaweedfs-operator · unused in this repo
 
 ### surveys
 

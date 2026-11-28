@@ -1,0 +1,61 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# SeaweedFS — S3-compatible object storage, run by the seaweedfs-operator.
+#
+# Ships the operator (Helm chart, with its CRDs) and one `Seaweed` cluster in the
+# `single` shape: one master, one volume server, one filer and a standalone S3
+# gateway on port 8333 with embedded IAM. Replication is "000"; durability comes
+# from the tenant's StorageClass (e.g. a replicated Longhorn class).
+#
+# Installation uses the Kustomize helmCharts generator:
+#   kustomize build --enable-helm k8s/components/apps/storage/seaweedfs
+# In Argo CD this needs `kustomize.buildOptions: --enable-helm` in argocd-cm.
+#
+# Namespace is NOT set here: the consumer overlay sets it (`namespace:`) and creates
+# the Namespace. The operator's admission webhook is off because its chart bakes the
+# release namespace into the webhook certificate and Jobs; the webhook only validates
+# the Seaweed spec (its defaulter is empty). One operator per cluster: it watches all
+# namespaces and owns cluster-scoped CRDs and ClusterRoles.
+#
+# Pinned on 2026-11-24 (latest releases that day):
+#   chart seaweedfs-operator-0.1.49, operator 1.0.46, SeaweedFS 4.55
+#
+# What the tenant patches:
+#   - StorageClass: spec.{master,filer}.persistence.storageClassName and
+#     spec.volume.storageClassName on the Seaweed (unset = cluster default)
+#   - PVC sizes: master 1Gi, filer 1Gi, volume 10Gi by default
+#   - Pod Security: the overlay's Namespace; every pod meets `restricted`
+#   - client namespaces: label each namespace that talks S3 with
+#     forjate.io/object-store-client: "true" (NetworkPolicy admits port 8333 from them)
+#
+# Buckets, identities and policies are CRs the overlay declares (see README).
+
+resources:
+  - seaweed.yaml
+  - networkpolicy.yaml
+
+helmCharts:
+  - name: seaweedfs-operator
+    repo: https://seaweedfs.github.io/seaweedfs-operator/
+    version: 0.1.49
+    releaseName: seaweedfs-operator
+    includeCRDs: true
+    valuesInline:
+      image:
+        tag: "1.0.46"
+      grafanaDashboard:
+        enabled: false
+      webhook:
+        enabled: false
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+
+labels:
+  - pairs:
+      app.kubernetes.io/ait-component: seaweedfs

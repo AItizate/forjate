@@ -1,7 +1,7 @@
 {
   "apiVersion": "forjate.io/v0",
   "kind": "Catalog",
-  "compiled_at": "2026-11-12",
+  "compiled_at": "2026-11-28",
   "stages": [
     "crawl",
     "walk",
@@ -5384,6 +5384,77 @@
         "sizing": null,
         "extra_ports": {}
       }
+    },
+    {
+      "path": "apps/storage/seaweedfs",
+      "name": "storage-seaweedfs",
+      "category": "storage",
+      "wiki": "wiki/components/storage-seaweedfs.md",
+      "summary": "SeaweedFS — S3-compatible object storage, run by the seaweedfs-operator",
+      "images": [
+        "chrislusf/seaweedfs:4.55"
+      ],
+      "kinds": [
+        "NetworkPolicy",
+        "Seaweed"
+      ],
+      "composes": [],
+      "remote_refs": [],
+      "consumed_by": [],
+      "parent": null,
+      "stages": [
+        "crawl",
+        "walk",
+        "run"
+      ],
+      "capabilities": [
+        "artifact-store"
+      ],
+      "maturity": "lab",
+      "gpu_required": "none",
+      "ha": "operator",
+      "psa_restricted": true,
+      "secrets": {
+        "takes": "none"
+      },
+      "data_classes": [
+        "internal",
+        "pii",
+        "financial",
+        "health"
+      ],
+      "licence": "Apache-2.0",
+      "notes": "S3 through an operator (needs --enable-helm). One server of each kind, replication 000; Run raises replicas in the CR. Buckets and scoped keys are CRs.",
+      "wiring": {
+        "service": "seaweedfs-s3",
+        "port": 8333,
+        "protocol": "s3",
+        "label": null,
+        "workload": null,
+        "secret": null,
+        "placeholder_secrets": [],
+        "config": null,
+        "ingress": null,
+        "gpu_limit": false,
+        "hostpath": false,
+        "hostpath_volumes": [],
+        "secret_mounted": false,
+        "sizing": {
+          "requests": {
+            "cpu": "250m",
+            "memory": "832Mi"
+          },
+          "limits": {
+            "cpu": "3500m",
+            "memory": "3328Mi"
+          }
+        },
+        "extra_ports": {}
+      },
+      "curated": true,
+      "psa_level": "restricted",
+      "namespace": null,
+      "namespace_how": null
     },
     {
       "path": "apps/surveys/formbricks",
